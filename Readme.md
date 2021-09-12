@@ -20,7 +20,7 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
 ### Installing dependencies
 
 ```shell
-opam install coq-itrees
+opam install coq-itree
 ```
 
 ### Obtaining the project
