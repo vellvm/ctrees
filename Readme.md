@@ -1,4 +1,4 @@
-# Concurrent Interaction Trees 
+# Concurrent Interaction Trees
 
 We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support for internal non-determinism.
 
@@ -8,11 +8,11 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
   - Paul He
   - Ludovic Henrio
   - Yannick Zakowski
-  - Steve Zdancewic 
+  - Steve Zdancewic
 - License: MIT License
 - Compatible Coq versions: 8.13 or later
 - Additional dependencies:
-  - [InteractionTrees](https://github.com/DeepSpec/InteractionTrees) master
+  - [InteractionTrees](https://github.com/DeepSpec/InteractionTrees)
 - Coq namespace: `CTree`
 
 ## Building instructions
@@ -30,7 +30,7 @@ git clone https://github.com/vellvm/ctrees
 cd ctrees
 ```
 
-### Building the project 
+### Building the project
 
 ```shell
 dune build
