@@ -1,4 +1,5 @@
 From Coq Require Import Fin.
+From Coq Require Export Program.Equality.
 
 Notation fin := t.
 
