@@ -13,7 +13,7 @@ From CTree Require Import
 	relation that takes internal non-determinism into account.
 *)
 
-Section eq.
+Section equ.
 
   Context {E : Type -> Type} {R1 R2 : Type} (RR : R1 -> R2 -> Prop).
 
@@ -50,18 +50,19 @@ Section eq.
 
   Definition equ := paco2 equ_ bot2.
 
-End eq.
+End equ.
 
 #[global] Hint Resolve equ__mono : paco.
 #[global] Hint Constructors equF : core.
-(* #[global] Hint Unfold equ_ : core. *)
 Arguments equ_ {E R1 R2} RR eq t1 t2/.
-Infix "≅[ R ]" := (equ R) (at level 20).
-Infix "≅"      := (equ eq) (at level 20).
-Infix "{ r }≅F[ R ]" := (equF R (upaco2 (equ_ R) r)) (at level 20, only printing). 
-Infix "{ r }≅F" := (equF eq (upaco2 (equ_ eq) r)) (at level 20, only printing). 
-Infix "{ r }≅gF[ R ]" := (equF R (gupaco2 (equ_ R) _ r)) (at level 20, only printing). 
-Infix "{ r }≅gF" := (equF eq (gupaco2 (equ_ eq) _ r)) (at level 20, only printing). 
+
+(* TODO : wrap notations in modules *)
+Infix "≅[ R ]" := (equ R) (at level 70).
+Infix "≅"      := (equ eq) (at level 70).
+Infix "{ r }≅F[ R ]" := (equF R (upaco2 (equ_ R) r)) (at level 70, only printing). 
+Infix "{ r }≅F" := (equF eq (upaco2 (equ_ eq) r)) (at level 70, only printing). 
+Infix "{ r }≅gF[ R ]" := (equF R (gupaco2 (equ_ R) _ r)) (at level 70, only printing). 
+Infix "{ r }≅gF" := (equF eq (gupaco2 (equ_ eq) _ r)) (at level 70, only printing). 
 Notation "⊥" := bot2.
 
 Section equ_trans_clo.
@@ -143,4 +144,26 @@ Section equ_trans_clo.
 End equ_trans_clo.
 
 #[global] Hint Resolve equ_trans_clo_wcompat : paco.
+
+Ltac inv_eq H := punfold H; inv H.
+
+Lemma equ_vis_invT {E X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E S) k2 :
+  Vis e1 k1 ≅ Vis e2 k2 -> 
+  X = Y.
+Proof.
+  intros EQ; punfold EQ. cbn in *; dependent induction EQ; auto. 
+Qed.
+
+Lemma equ_vis_invE {E X S} (e1 e2 : E X) (k1 k2 : X -> ctree E S) :
+  Vis e1 k1 ≅ Vis e2 k2 -> 
+  e1 = e2 /\ forall x, k1 x ≅ k2 x.
+Proof.
+  intros EQ; punfold EQ. 
+	inv EQ; pclearbot.
+	dependent destruction H1.
+	dependent destruction H2.
+	dependent destruction H.
+	dependent destruction H4.
+	auto.
+Qed.
 
