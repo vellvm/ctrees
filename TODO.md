@@ -17,3 +17,9 @@ We could alternatively mimick the usual simulation, breaking the symmetry in the
 computations to simulation one another -- let's call this to be in _cosimulation_.
 
 It is well known that traditionally cosimulation is strictly weaker than bisimulation. Is it also the case in this setup?
+
+## Weak bisimulation, barbed bisimulations and the whole zoo
+
+From the perspective of a calculus like ccs of the pi-calculus, we expect to define an equivalence as ctree's notion of bisimulation applied to the representation function as ctrees of the terms.
+
+However it is well known that there exists many bisimulations defined on top of the operational semantics of these calculi. Hence the question: which one do we get naturally, if any? And how would we get the others: by defining a different equivalence over ctrees, or by changing the representation function?
