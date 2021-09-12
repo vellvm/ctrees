@@ -12,6 +12,7 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
 - License: MIT License
 - Compatible Coq versions: 8.13 or later
 - Additional dependencies:
+  - dune
   - [InteractionTrees](https://github.com/DeepSpec/InteractionTrees)
 - Coq namespace: `CTree`
 
@@ -20,6 +21,7 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
 ### Installing dependencies
 
 ```shell
+opam install dune
 opam install coq-itree
 ```
 
