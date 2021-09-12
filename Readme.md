@@ -8,7 +8,7 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
   - Paul He
   - Ludovic Henrio
   - Yannick Zakowski
-	- Steve Zdancewic 
+  - Steve Zdancewic 
 - License: MIT License
 - Compatible Coq versions: 8.13 or later
 - Additional dependencies:
