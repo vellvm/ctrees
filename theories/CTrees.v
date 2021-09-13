@@ -200,6 +200,7 @@ Ltac fold_monad :=
   repeat (change (@CTree.map ?E) with (@Functor.fmap (ctree E) _)).
 
 End CTree.
+Arguments CTree.fork {E} n.
 
 (** ** Notations *)
 
@@ -227,16 +228,19 @@ End CTreeNotations.
 
 (** ** Instances *)
 
-Instance Functor_ctree {E} : Functor (ctree E) :=
+#[global] Instance Functor_ctree {E} : Functor (ctree E) :=
 { fmap := @CTree.map E }.
 
-Instance Monad_ctree {E} : Monad (ctree E) :=
+#[global] Instance Monad_ctree {E} : Monad (ctree E) :=
 {| ret := fun _ x => Ret x
 ;  bind := @CTree.bind E
 |}.
 
-Instance MonadIter_ctree {E} : MonadIter (ctree E) :=
+#[global] Instance MonadIter_ctree {E} : MonadIter (ctree E) :=
   fun _ _ => CTree.iter.
+
+#[global] Instance MonadFork_ctree {E} : MonadFork (ctree E) :=
+  fun n => CTree.fork n.
 
 Notation trigger e :=
 	(CTree.trigger (subevent _ e)).

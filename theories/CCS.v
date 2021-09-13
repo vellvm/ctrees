@@ -12,7 +12,10 @@ From ITree Require Import
 	Events.Exception.
  
 From CTree Require Import 
-		 CTrees Bisim.
+	Utils
+	CTrees
+ 	Interp
+	Bisim.
 
 Import CTreeNotations.
 Open Scope ctree_scope.
@@ -87,17 +90,20 @@ Section Combinators.
               if (c =? c')%string then dead else trigger e
             end.
 
-(* TODO: define basically the theory of handlers for ctrees, all the constructions are specialized to itrees *)
+	Definition case_ctree {E F G} (f : E ~> ctree G) (g : F ~> ctree G) 
+		: E +' F ~> ctree G :=
+		fun T ab => match ab with 
+		| inl1 a => f _ a
+		| inr1 b => g _ b
+		end.
 
-(*
- Definition h_restrict c : Handler ccsE ccsE :=
-    case_ h_trigger (case_ (h_restrict_ c) h_trigger).
- *)
+ (* TODO: define basically the theory of handlers for ctrees, all the constructions are specialized to itrees *)
 
-	(* TODO : interp for ctrees *)
-  (* Definition restrict {X} : chan -> ccsT X -> ccsT X :=
-    fun c P =>
-      interp (h_restrict c) P. *)
+  Definition h_restrict c : ccsE ~> ctree ccsE :=
+    case_ctree (h_restrict_ c) h_trigger.
+
+  Definition restrict {X} : chan -> ccsT X -> ccsT X :=
+    fun c P => interp (h_restrict c) P.
 
 	(* TO THINK : how should the head be wrapped? More concretely, leading to more dirty pattern matching in [get_hd], 
 	or generically, making get_hd both very generic and simpler, but leading to more work in the parallel composition operator?	
