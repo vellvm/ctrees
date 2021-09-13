@@ -1,4 +1,6 @@
 (* begin hide *)
+From ITree Require Import Core.Subevent.
+
 From CTree Require Import 
 	Utils.
 
@@ -235,6 +237,10 @@ Instance Monad_ctree {E} : Monad (ctree E) :=
 
 Instance MonadIter_ctree {E} : MonadIter (ctree E) :=
   fun _ _ => CTree.iter.
+
+Notation trigger e :=
+	(CTree.trigger (subevent _ e)).
+Notation vis e k := (Vis (subevent _ e) k).
 
 (** ** Tactics *)
 Tactic Notation "hinduction" hyp(IND) "before" hyp(H)
