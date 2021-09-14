@@ -65,7 +65,7 @@ Definition DeadE := exceptE unit.
 Definition dead {A : Type} {E} `{DeadE -< E} : ctree E A :=
 	x <- trigger (Throw tt);; match x: void with end.
 
-Notation ccsE := (ActionE +' SynchE +' DeadE).
+Definition ccsE : Type -> Type := (ActionE +' SynchE +' DeadE).
 
 Definition ccsT := ctree ccsE.
 
@@ -109,85 +109,58 @@ Section Combinators.
 	or generically, making get_hd both very generic and simpler, but leading to more work in the parallel composition operator?	
 	*)
 	Variant head :=
-	| HDone 
-	| Hsynch (P : ccs)
-	| Hact (a : action) (P : ccs).
+	| Hdone 
+	| Hact (a : option action) (P : ccs).
 
-	Variant head' :=
+	Variant head' {E R} :=
 	| HDone' 
-	| HVis (obs : {X : Type & ccsE X}).
+	| HVis (obs : {X : Type & ccsE X & X -> ctree E R}).
 
-(* Construction site, currently a mess
+  (* Notations for patterns *)
+  Notation "'actP' e" := (inl1 e) (at level 10).
+  Notation "'synchP' e" := (inr1 (inl1 e)) (at level 10).
+  Notation "'deadP' e" :=  (inr1 (inr1 e)) (at level 10).
 
-	Variable get_hd : ccs -> ccsT head'.
+	Notation "pf ↦ k" := (eq_rect_r (fun T => T -> ccs) k pf tt) (at level 40, k at next level).
 
-  Definition para : ccs -> ccs -> ccs. 
-		refine (cofix F (P : ccs) (Q : ccs) := _).
-			refine (rP <- get_hd P;;
+  Definition can_synch (a b : option action) : bool := 
+		match a, b with | Some a, Some b => are_opposite a b | _, _ => false end.
+
+  Definition get_hd : ccs -> ccsT head :=
+    cofix get_hd (P : ccs) :=
+      match observe P with
+      | RetF x => Ret Hdone
+      | @VisF _ _ _ T e k => 
+				match e  with 
+				| actP e   => match e in ActionE X return X = T -> ccsT head with 
+											| Act a => fun pf => (Ret (Hact (Some a) (pf ↦ k)))
+											end eq_refl
+				| synchP e => match e in SynchE X return X = T -> ccsT head with 
+											| Tau => fun pf => (Ret (Hact None (pf ↦ k)))
+											end eq_refl
+				| deadP e  => dead
+				end
+      | ForkF k => Fork (fun i => get_hd (k i))
+			end.
+	
+  Definition para : ccs -> ccs -> ccs :=
+		cofix F (P : ccs) (Q : ccs) := 
+			rP <- get_hd P;;
 			rQ <- get_hd Q;; 
-				match rP, rQ with 
-				| HDone', HDone' => done
-				| HDone', _ => _
-				| _, _ => _
-				end	
-				).
-
-			match rP, rQ with
-				| HDone, HDone => done
-				| HDone, HAct b Q' => vis (Act b) (fun _ => F P Q')
-				| HDone, HSynch Q' => vis Synch   (fun _ => F P Q')
-				| HAct a P', HDone => vis (Act a) (fun _ => F P' Q)
-				| HSynch P', HDone => vis Synch   (fun _ => F P' Q)
-				| HAct a P', HAct b Q' =>
-					if are_opposite a b
-					then
-						branch3 (vis (Act a) (fun _ => F P' Q))
-										(vis (Act b) (fun _ => F P Q'))
-										(vis Synch   (fun _ => F P' Q'))
-					else
-						branch2 (vis (Act a) (fun _ => F P' Q))
-										(vis (Act b) (fun _ => F P Q'))
-				| HAct a P', HSynch Q' =>
-					branch2 (vis (Act a) (fun _ => F P' Q))
-									(vis Synch   (fun _ => F P Q'))
-				| HSynch P', HAct a Q' =>
-					branch2 (vis Synch   (fun _ => F P' Q))
-									(vis (Act a) (fun _ => F P Q'))
-				| HSynch P', HSynch Q' =>
-					branch2 (vis Synch   (fun _ => F P' Q))
-									(vis Synch   (fun _ => F P Q'))
-				end.
-
-  Definition get_sched_hd : ccs -> ccsT head. 
-    refine (cofix get_hd (P : ccs) := _).
-		
-      refine (match observe P with
-      | RetF x => Ret HDone
-      | @VisF _ _ _ T e k => _
-      | ForkF k => Fork (fun x => get_hd (k x))
-			end).
-
-
-			admit.
-			refine .
-
-        match e with
-        | schedP e => vis e (fun x => get_hd (k x))
-        | actP e =>
-          match e in ActionE X return (T = X -> ccsT head) with
-          | Act a => fun (Pf : T = unit) =>
-                      Ret (HAct a (@eq_rect_r _ T (fun T => T -> itree ccsE unit) k unit (eq_sym Pf) tt))
-          end eq_refl
-        | synchP e =>
-          match e in SynchE X return (T = X -> ccsT head) with
-          | Synch => fun (Pf : T = unit) =>
-                      Ret (HSynch (@eq_rect_r _ T (fun T => T -> itree ccsE unit) k unit (eq_sym Pf) tt))
-          end eq_refl
-        | deadP e => Ret HDone
-        end
-      end
-  .
-
-*)
-
+			match rP, rQ with 
+			| Hdone, Hdone => done
+			| Hdone, _ => Q
+			| _, Hdone => P
+			| Hact a P', Hact b Q' => 
+				match a, b with 
+				| Some a, Some b =>
+					if are_opposite a b 
+					then Sanity.fork3 (vis Tau (fun _ => F P' Q')) (vis (Act a) (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
+					else Sanity.fork2 (vis (Act a) (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
+				| Some a, None => Sanity.fork2 (vis (Act a) (fun _ => F P' Q)) (vis Tau (fun _ => F P Q'))
+				| None, Some b => Sanity.fork2 (vis Tau (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
+				| None, None =>   Sanity.fork2 (vis Tau (fun _ => F P' Q)) (vis Tau (fun _ => F P Q'))
+				end
+			end	.
+				
 End Combinators.
