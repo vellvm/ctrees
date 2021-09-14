@@ -1,4 +1,6 @@
 (* begin hide *)
+From Coq Require Import RelationClasses.
+
 From Paco Require Import paco.
 
 From CTree Require Import
@@ -6,10 +8,10 @@ From CTree Require Import
 
 (* end hide *)
 
-(** * Structural equality of [ctree]s 
+(** * Structural equality of [ctree]s
 	Analogous to what is dubbed as _strong bisimulation_
-	for [ctree], but trying to avoid this terminology here 
-	to reserve the notion of bisimulation for the equivalence 
+	for [ctree], but trying to avoid this terminology here
+	to reserve the notion of bisimulation for the equivalence
 	relation that takes internal non-determinism into account.
 *)
 
@@ -34,13 +36,13 @@ Section equ.
       (REL : forall x, eq (k1 x) (k2 x)) :
       equF eq (VisF e k1) (VisF e k2)
   | Eq_Fork {n} (k1 : Fin.t n -> _) (k2 : Fin.t n -> _)
-      (REL : forall i, eq (k1 i) (k2 i)) :
+            (REL : forall i, eq (k1 i) (k2 i)) :
       equF eq (ForkF k1) (ForkF k2)
   .
   Hint Constructors equF: core.
 
-	Definition equ_ eq : ctree E R1 -> ctree E R2 -> Prop :=
-		fun t1 t2 => equF eq (observe t1) (observe t2).
+  Definition equ_ eq : ctree E R1 -> ctree E R2 -> Prop :=
+	fun t1 t2 => equF eq (observe t1) (observe t2).
 
   Lemma equ__mono : monotone2 equ_.
   Proof.
@@ -59,11 +61,32 @@ Arguments equ_ {E R1 R2} RR eq t1 t2/.
 (* TODO : wrap notations in modules *)
 Infix "≅[ R ]" := (equ R) (at level 70).
 Infix "≅"      := (equ eq) (at level 70).
-Infix "{ r }≅F[ R ]" := (equF R (upaco2 (equ_ R) r)) (at level 70, only printing). 
-Infix "{ r }≅F" := (equF eq (upaco2 (equ_ eq) r)) (at level 70, only printing). 
-Infix "{ r }≅gF[ R ]" := (equF R (gupaco2 (equ_ R) _ r)) (at level 70, only printing). 
-Infix "{ r }≅gF" := (equF eq (gupaco2 (equ_ eq) _ r)) (at level 70, only printing). 
+Infix "{ r }≅F[ R ]" := (equF R (upaco2 (equ_ R) r)) (at level 70, only printing).
+Infix "{ r }≅F" := (equF eq (upaco2 (equ_ eq) r)) (at level 70, only printing).
+Infix "{ r }≅gF[ R ]" := (equF R (gupaco2 (equ_ R) _ r)) (at level 70, only printing).
+Infix "{ r }≅gF" := (equF eq (gupaco2 (equ_ eq) _ r)) (at level 70, only printing).
 Notation "⊥" := bot2.
+
+Section equ_properties.
+  Context {E : Type -> Type} {R : Type} (RR : R -> R -> Prop).
+  Global Instance Reflexive_equF (equ : ctree E R -> ctree E R -> Prop) :
+    Reflexive RR -> Reflexive equ -> Reflexive (equF RR equ).
+  Proof.
+    red. destruct x; auto.
+  Qed.
+
+  Global Instance Reflexive_paco2_equ r :
+    Reflexive RR -> Reflexive (paco2 (@equ_ E R R RR) r).
+  Proof.
+    pcofix CIH. pstep. intros. eapply Reflexive_equF; auto.
+  Qed.
+
+  (* Global Instance Reflexive_equ : *)
+  (*   Reflexive RR -> Reflexive (@equ E R R RR). *)
+  (* Proof. *)
+  (*   pcofix CIH. pstep. intros. eapply Reflexive_equF; auto. *)
+  (* Qed. *)
+End equ_properties.
 
 Section equ_trans_clo.
 
@@ -71,7 +94,7 @@ Section equ_trans_clo.
 	Context {R1 R2 : Type}.
 	Context {RR : R1 -> R2 -> Prop}.
 
-	(* ** Up-to equilarity 
+	(* ** Up-to equilarity
 		We start with another reasoning principle: one can reasoning up-to equilarity during
 		a co-inductive proof to establish [equ] itself.
 		This principle is embodied by the following closure.
@@ -99,14 +122,14 @@ Section equ_trans_clo.
 	(* In order to justify the use of this enhanced reasoning principle,
 		we prove that it is (weakly) compatible with the functor [equ']. *)
 	Lemma equ_trans_clo_wcompat :
-		wcompatible2 (equ_ RR) equ_trans_clo. 
+		wcompatible2 (equ_ RR) equ_trans_clo.
 	Proof.
 		econstructor; eauto with paco.
 		intros. destruct PR.
 		punfold EQVl. punfold EQVr.
 		cbn in *.
 		induction REL.
-		- genobs t1 ot1; genobs t2 ot2. 
+		- genobs t1 ot1; genobs t2 ot2.
 			inv EQVl; auto.
 			inv EQVr; eauto.
 		- remember (VisF e k1).
@@ -116,19 +139,19 @@ Section equ_trans_clo.
 			inv EQVr; try discriminate.
 			dependent destruction H2.
 			dependent destruction H0.
-			pclearbot. 
-			constructor. 
+			pclearbot.
+			constructor.
 			gclo.
 			econstructor; eauto with paco.
 			apply REL0.
 			apply REL1.
-		- genobs t1 ot1; genobs t2 ot2. 
+		- genobs t1 ot1; genobs t2 ot2.
 			inv EQVl; auto.
 			inv EQVr; auto.
 			dependent destruction H2.
 			dependent destruction H4.
-			pclearbot.  
-			constructor. 
+			pclearbot.
+			constructor.
 			gclo.
 			econstructor; eauto with paco.
 			apply REL0.
@@ -148,17 +171,17 @@ End equ_trans_clo.
 Ltac inv_eq H := punfold H; inv H.
 
 Lemma equ_vis_invT {E X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E S) k2 :
-  Vis e1 k1 ≅ Vis e2 k2 -> 
+  Vis e1 k1 ≅ Vis e2 k2 ->
   X = Y.
 Proof.
-  intros EQ; punfold EQ. cbn in *; dependent induction EQ; auto. 
+  intros EQ; punfold EQ. cbn in *; dependent induction EQ; auto.
 Qed.
 
 Lemma equ_vis_invE {E X S} (e1 e2 : E X) (k1 k2 : X -> ctree E S) :
-  Vis e1 k1 ≅ Vis e2 k2 -> 
+  Vis e1 k1 ≅ Vis e2 k2 ->
   e1 = e2 /\ forall x, k1 x ≅ k2 x.
 Proof.
-  intros EQ; punfold EQ. 
+  intros EQ; punfold EQ.
 	inv EQ; pclearbot.
 	dependent destruction H1.
 	dependent destruction H2.
@@ -166,4 +189,3 @@ Proof.
 	dependent destruction H4.
 	auto.
 Qed.
-
