@@ -28,6 +28,7 @@ Lemma embed_eutt {E X}:
 	Proper (eutt eq ==> bisim eq) (@embed E X).
 Admitted.
 
+(* Maybe simpler to just write a coinductive relation *)
 Definition partial_inject {E X} : ctree E X -> itree E (option X) :=
 	cofix _inject t := 
 	 match CTrees.observe t with 
@@ -50,6 +51,7 @@ Definition option_rel {A B : Type} (R : A -> B -> Prop) : option A -> option B -
 	| _, _ => False
 	end.
 
+(* This is probably false: no reason for the embedding to succeed. *)
 Lemma partial_inject_eq {E X} :
 	Proper (equ eq ==> eq_itree (option_rel eq)) (@partial_inject E X).
 Admitted.

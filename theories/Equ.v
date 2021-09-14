@@ -6,7 +6,7 @@ From CTree Require Import
 
 (* end hide *)
 
-(** * Observational equality of [ctree]s
+(** * Structural equality of [ctree]s 
 	Analogous to what is dubbed as _strong bisimulation_
 	for [ctree], but trying to avoid this terminology here 
 	to reserve the notion of bisimulation for the equivalence 

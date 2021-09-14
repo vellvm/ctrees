@@ -153,7 +153,7 @@ Module Sanity.
 		(Fork (fun b : fin 2 =>
 						 match b with | Fin.F1 => t | _ => u end)). 
 
- Definition fork3 {E X} (t u v : ctree E X) := 
+  Definition fork3 {E X} (t u v : ctree E X) := 
 		(Fork (fun b : fin 3 =>
 						 match b with
 						  | Fin.F1 => t

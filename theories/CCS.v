@@ -22,6 +22,17 @@ Open Scope ctree_scope.
 
 (* end hide *)
 
+(*
+ Sequentially consistent interleaving of computations?
+ Definition SC {E} (u v : ctree E unit) : ctree E unit. 
+*)
+(* Synchronization vectors? *)
+
+(* Synchronizing zipper? *)
+(* Definition zip {E F} (u : ctree E unit) (v : ctree (dual E) unit) : ctree void1 (option unit) *)
+(* Definition zip {E F} (u : ctree E unit) (v : ctree F unit) : ctree (E *' F) unit *)
+
+(* Paul's yield approach over stateT st (ctree E) *)
 
 Section Channels. 
 

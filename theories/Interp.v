@@ -38,7 +38,6 @@ Definition interp {E M : Type -> Type}
 			iter (fun t =>
 				match observe t with
 				| RetF r => ret (inr r)
-				(* | TauF t => ret (inl t) *)
 				| VisF e k => fmap (fun x => inl (k x)) (h _ e)
 				| @ForkF _ _ _ n k => bind (fork n) (fun x => ret (inl (k x)))
 				end).
