@@ -43,44 +43,122 @@ Notation "'_embed' ot" :=
 
 *)
 
+Set Implicit Arguments.
+(** ** [observing]: Lift relations through [observe]. *)
+Record observing {E R1 R2}
+           (eq_ : ctree' E R1 -> ctree' E R2 -> Prop)
+           (t1 : ctree E R1) (t2 : ctree E R2) : Prop :=
+  observing_intros
+  { observing_observe : eq_ (CTrees.observe t1) (CTrees.observe t2) }.
+Global Hint Constructors observing: core.
+
+Global Instance observing_sub_eqit {E R} :
+  subrelation (observing eq) (@equ E R R eq).
+Proof.
+  repeat red; intros.
+  pstep. red. rewrite (observing_observe H). apply Reflexive_equF; eauto. 
+	left. apply reflexivity.
+Qed.
+
 Lemma embed_unfold {E X} : forall (t : itree E X), 
 	equ eq (embed t) (_embed (observe t)).
 Proof.
 	(* pcofix CIH. *)
-	intros. pfold. cbn.
-	destruct (observe t) eqn:EQ; cbn.
+	intros. pfold. cbn. 
+	unfold CTrees.observe. 
 	cbn.
-	(* destruct (CTrees.observe (embed t)) eqn:EQ'; cbn. *)
-Admitted.	
+	destruct (observe t) eqn:EQ; cbn.
+	constructor. reflexivity.
+	constructor. intros ?.
+	Restart.
 
-
-
-
-Global Instance Reflexive_equF {E R RR}:
-  Reflexive RR -> Reflexive (@equF E R R RR (upaco2 (equ_ RR) bot2)).
-Proof.
-	repeat red; intros. reflexivity.
-	destruct x; constructor; auto.
-	intros; left; auto.
-   pcofix CIH. pstep. intros. eapply Reflexive_equF; auto.
+	intros; apply observing_sub_eqit. 
+	constructor.
+	reflexivity.
 Qed.
-	
-Lemma observing : forall {E X} (t u : ctree E X),
-	CTrees.observe t = CTrees.observe u -> equ eq t u.
-Proof.
-	intros.
-	pfold; cbn; rewrite H.
-	Unset Printing Notations.
 
-	reflexivity.	
+#[global] Instance equ_sym {E R} (RR : R -> R -> Prop) (SYM: Symmetric RR)
+	: Symmetric (equ (E := E) RR).
+Proof.
+	red.
+	pcofix CIH.
+	intros.
+	pfold; punfold H0; cbn in *.
+	inv H0; pclearbot; auto. 
+	constructor; intros; right; auto; apply CIH, REL.
+	constructor; intros; right; auto; apply CIH, REL.
+Qed.
+
+#[global] Instance equ_trans {E R} (RR : R -> R -> Prop) 
+	(EQ: Equivalence RR) 
+	: Transitive (equ (E := E) RR).
+Proof.
+	red.
+	intros.
+	ginit.
+	gclo.
+	econstructor.
+	apply H.
+	apply equ_sym; eauto; typeclasses eauto.
+	intros; etransitivity; eauto.
+	intros; etransitivity; eauto; symmetry; eauto.
+	gfinal.
+	right. apply Reflexive_paco2_equ. typeclasses eauto.
+Qed.
+
+#[global] Instance equ_equiv {E R} (RR : R -> R -> Prop) 
+	(EQ: Equivalence RR) 
+	: Equivalence (equ (E := E) RR).
+Proof.
+	constructor; typeclasses eauto.
+Qed.
+
+ #[global] Instance gequ_equiv {E R} (RR : R -> R -> Prop) r
+	(EQ: Equivalence RR) 
+	: Equivalence (gpaco2 (equ_ (E := E) RR) (equ_trans_clo (RR := RR)) bot2 r).
+Proof.
+	constructor.
+	- gcofix CIH.
+		gstep; intros.
+		repeat red; destruct (CTrees.observe x); constructor;
+		eauto with paco.
+		reflexivity.
+	- admit.
+	- gclo.
+		intros.
+		econstructor.
+		{ ginit. eapply gpaco2_mon. eauto.
+		apply gpaco2_init in H0.
+	- gcofix CIH.
+		gstep; intros.
+		gunfold H0.
+		induction H0.	
+		+ destruct IN as [IN |[]].
+			cbn; inv IN; constructor; eauto with paco.
+			symmetry; auto.
+			intros. gbase. eapply CIH. apply REL.
+Qed.
 
 Lemma embed_eq {E X}: 
 	Proper (eq_itree eq ==> equ eq) (@embed E X).
 Proof.
 	repeat red.
-	pcofix CIH; intros t u EQ.
-	punfold EQ; pstep. cbn.
-	inv EQ; try discriminate.	 
+	(* setoid_rewrite embed_unfold. *)
+	ginit.
+	gcofix CIH. intros t u EQ.
+	gclo.
+	econstructor.
+	apply embed_unfold.
+	apply embed_unfold.
+	intros; subst; auto.
+	intros; subst; auto.
+	
+	rewrite embed_unfold.
+	punfold EQ; pstep. unfold CTrees.observe; cbn.
+	inv EQ; try discriminate.	
+	- constructor; reflexivity. 
+	- constructor; intros _.
+		right. apply 
 
 
 Lemma embed_eutt {E X}: 

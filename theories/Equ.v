@@ -81,11 +81,12 @@ Section equ_properties.
     pcofix CIH. pstep. intros. eapply Reflexive_equF; auto.
   Qed.
 
-  (* Global Instance Reflexive_equ : *)
-  (*   Reflexive RR -> Reflexive (@equ E R R RR). *)
-  (* Proof. *)
-  (*   pcofix CIH. pstep. intros. eapply Reflexive_equF; auto. *)
-  (* Qed. *)
+  Global Instance Reflexive_equ :
+    Reflexive RR -> Reflexive (@equ E R R RR).
+  Proof.
+    pcofix CIH. pstep. intros. eapply Reflexive_equF; auto.
+  Qed.
+		
 End equ_properties.
 
 Section equ_trans_clo.
