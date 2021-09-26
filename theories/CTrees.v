@@ -39,7 +39,7 @@ Section ctree.
   Variant ctreeF (ctree : Type) :=
   | RetF (r : R)
   | VisF {X : Type} (e : E X) (k : X -> ctree)
-  | ForkF {n : nat} (k : fin n -> ctree)  
+  | ForkF (n : nat) (k : fin n -> ctree)  
   .
 
   CoInductive ctree : Type := go
@@ -56,6 +56,7 @@ Local Open Scope ctree_scope.
 
 Arguments ctree _ _ : clear implicits.
 Arguments ctreeF _ _ : clear implicits.
+Arguments ForkF {_ _} [_] n. 
 (* end hide *)
 
 (** A [ctree'] is a "forced" [ctree]. It is the type of inputs
@@ -69,8 +70,8 @@ Definition observe {E R} (t : ctree E R) : ctree' E R := @_observe E R t.
 (** We encode [itree]'s [Tau] constructor as a unary internal choice. *)
 Notation Ret x := (go (RetF x)).
 Notation Vis e k := (go (VisF e k)).
-Notation Tau t := (go (ForkF (fun (_ : fin 1) => t))).
-Notation Fork k := (go (ForkF k)).
+Notation Tau t := (go (ForkF 1 (fun _ => t))).
+Notation Fork n k := (go (ForkF n k)).
 
 (** ** Main operations on [ctree] *)
 
@@ -133,7 +134,7 @@ Definition subst {E : Type -> Type} {T U : Type} (k : T -> ctree E U)
     match observe u with
     | RetF r => k r
     | VisF e h => Vis e (fun x => _subst (h x))
-    | ForkF h => Fork (fun x => _subst (h x))
+    | ForkF n h => Fork n (fun x => _subst (h x))
     end.
 
 Definition bind {E : Type -> Type} {T U : Type} (u : ctree E T) (k : T -> ctree E U)
@@ -176,7 +177,7 @@ Definition trigger {E : Type -> Type} : E ~> ctree E :=
 
 (** Atomic itrees forking over a finite arity. *)
 Definition fork {E : Type -> Type} : forall n, ctree E (fin n) :=
-  fun n => Fork (fun (x : Fin.t n) => Ret x).
+  fun n => Fork n (fun x => Ret x).
 
 (** Ignore the result of a tree. *)
 Definition ignore {E R} : ctree E R -> ctree E unit :=
@@ -185,7 +186,7 @@ Definition ignore {E R} : ctree E R -> ctree E unit :=
 (** Infinite taus. *)
 CoFixpoint spin {E R} : ctree E R := Tau spin.
 CoFixpoint spin_nary {E R} (n : nat) : ctree E R :=
-	Fork (fun _: fin n => spin_nary n).
+	Fork n (fun _ => spin_nary n).
 
 (** Repeat a computation infinitely. *)
 Definition forever {E R S} (t : ctree E R) : ctree E S :=
@@ -277,7 +278,7 @@ Fixpoint burn (n : nat) {E R} (t : ctree E R) :=
     | RetF r => Ret r
     | VisF e k => Vis e k
     | @ForkF _ _ _ 1 t' => burn n (t' Fin.F1)
-    | ForkF k => Fork k
+    | ForkF n k => Fork n k
     end
   end.
 

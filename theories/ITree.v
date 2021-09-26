@@ -1,14 +1,18 @@
 From CTree Require Import 
-	CTrees Equ Bisim.
+	CTrees Equ
+	 (* Bisim *)
+  .
 
 From ITree Require Import 
 	ITree Eq.
 
 From Coq Require Import 
-	Morphisms.
+	Morphisms Program.
 
-From Paco Require Import 
-	paco.
+From Paco Require Import paco. 
+
+From Coinduction Require Import 
+	coinduction rel tactics.
 
 Open Scope ctree.
 
@@ -20,17 +24,6 @@ Definition embed {E X} : itree E X -> ctree E X :=
 	| VisF e k => CTrees.Vis e (fun x => _embed (k x))
 	 end. 
  
-(* Definition embed_' {E X} (_embed : itree E X -> ctree E X):
-	 itree' E X -> ctree E X :=
-		fun t =>
-	 match t with 
-	| RetF x => CTrees.Ret x
-	| TauF t => CTrees.Tau (_embed t)
-	| VisF e k => CTrees.Vis e (fun x => _embed (k x))
-	 end. 
-
-Definition embed {E X} := cofix F := fun t => @embed_' E X F (observe t). *)
-
 Notation "'_embed' ot" :=
 	(match ot with 
 	| RetF x => CTrees.Ret x
@@ -38,44 +31,101 @@ Notation "'_embed' ot" :=
 	| VisF e k => CTrees.Vis e (fun x => embed (k x))
  end) (at level 50, only parsing). 
 
-(* 
-		go {observe : itree' itree}
-
-*)
-
-Set Implicit Arguments.
-(** ** [observing]: Lift relations through [observe]. *)
-Record observing {E R1 R2}
-           (eq_ : ctree' E R1 -> ctree' E R2 -> Prop)
-           (t1 : ctree E R1) (t2 : ctree E R2) : Prop :=
-  observing_intros
-  { observing_observe : eq_ (CTrees.observe t1) (CTrees.observe t2) }.
-Global Hint Constructors observing: core.
-
-Global Instance observing_sub_eqit {E R} :
-  subrelation (observing eq) (@equ E R R eq).
-Proof.
-  repeat red; intros.
-  pstep. red. rewrite (observing_observe H). apply Reflexive_equF; eauto. 
-	left. apply reflexivity.
-Qed.
-
-Lemma embed_unfold {E X} : forall (t : itree E X), 
+Lemma embed_unfold {E X} (t : itree E X) :
 	equ eq (embed t) (_embed (observe t)).
 Proof.
-	(* pcofix CIH. *)
-	intros. pfold. cbn. 
-	unfold CTrees.observe. 
-	cbn.
-	destruct (observe t) eqn:EQ; cbn.
-	constructor. reflexivity.
-	constructor. intros ?.
-	Restart.
-
-	intros; apply observing_sub_eqit. 
-	constructor.
-	reflexivity.
+	now step.
 Qed.
+
+#[local] Notation iobserve := observe.
+#[local] Notation _iobserve := _observe.
+#[local] Notation cobserve := CTrees.observe.
+#[local] Notation _cobserve := CTrees._observe.
+#[local] Notation iRet x   := (Ret x).
+#[local] Notation iVis e k := (Vis e k).
+#[local] Notation iTau t   := (Tau t).
+#[local] Notation cRet x   := (CTrees.Ret x).
+#[local] Notation cTau t   := (CTrees.Tau t).
+#[local] Notation cVis e k := (CTrees.Vis e k).
+
+Lemma equF_vis_invT {E X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E S) k2 :
+  equF eq (equ eq) (CTrees.VisF e1 k1) (CTrees.VisF e2 k2) ->
+  X = Y.
+Proof.
+  intros EQ. 
+	dependent induction EQ; auto.
+Qed.
+
+Lemma equF_vis_invE {E X S} (e1 e2 : E X) (k1 k2 : X -> ctree E S) :
+  equF eq (equ eq) (CTrees.VisF e1 k1) (CTrees.VisF e2 k2) ->
+  e1 = e2 /\ forall x, equ eq (k1 x) (k2 x).
+Proof.
+  intros EQ.
+	inv EQ.
+	dependent destruction H; dependent destruction H4; auto.
+Qed. 
+
+Lemma equF_fork_invT {E S n m} (k1 : _ -> ctree E S) k2 :
+  equF eq (equ eq) (CTrees.ForkF n k1) (CTrees.ForkF m k2) ->
+  n = m.
+Proof.
+  intros EQ. 
+	dependent induction EQ; auto.
+Qed.
+
+Lemma equF_fork_invE {E S n} (k1 : _ -> ctree E S) k2 :
+  equF eq (equ eq) (CTrees.ForkF n k1) (CTrees.ForkF n k2) ->
+  forall x, equ eq (k1 x) (k2 x).
+Proof.
+  intros EQ.
+	inv EQ.
+	dependent destruction H; auto.
+Qed. 
+
+Instance foo {E R r} :
+	 Proper (gfp (@fequ E R R eq) ==> gfp (@fequ E R R eq) ==> flip impl) (bt_equ eq r).
+Proof.
+	unfold Proper, respectful, flip, impl.
+	intros.
+	pose proof (gfp_bt (fequ eq) r).	
+	etransitivity; [|etransitivity]; [|apply H1 |].
+	apply H2; assumption.
+	apply H2; symmetry; assumption.
+Qed.	
+
+Lemma embed_eq {E X}: 
+	Proper (eq_itree eq ==> equ eq) (@embed E X).
+Proof.
+	unfold Proper, respectful.
+	coinduction r CIH.	
+	intros t u bisim.
+	rewrite 2 embed_unfold. 
+	punfold bisim.
+	inv bisim; pclearbot; try easy.
+	- constructor; intros _.
+		apply CIH, REL.
+	- constructor; intros.
+		apply CIH, REL.
+Qed.
+
+
+	(* setoid_rewrite embed_unfold. *)
+	ginit.
+	gcofix CIH. intros t u EQ.
+	gclo.
+	econstructor.
+	apply embed_unfold.
+	apply embed_unfold.
+	intros; subst; auto.
+	intros; subst; auto.
+	
+	rewrite embed_unfold.
+	punfold EQ; pstep. unfold CTrees.observe; cbn.
+	inv EQ; try discriminate.	
+	- constructor; reflexivity. 
+	- constructor; intros _.
+		right. apply 
+
 
 #[global] Instance equ_sym {E R} (RR : R -> R -> Prop) (SYM: Symmetric RR)
 	: Symmetric (equ (E := E) RR).
@@ -138,27 +188,6 @@ Proof.
 			symmetry; auto.
 			intros. gbase. eapply CIH. apply REL.
 Qed.
-
-Lemma embed_eq {E X}: 
-	Proper (eq_itree eq ==> equ eq) (@embed E X).
-Proof.
-	repeat red.
-	(* setoid_rewrite embed_unfold. *)
-	ginit.
-	gcofix CIH. intros t u EQ.
-	gclo.
-	econstructor.
-	apply embed_unfold.
-	apply embed_unfold.
-	intros; subst; auto.
-	intros; subst; auto.
-	
-	rewrite embed_unfold.
-	punfold EQ; pstep. unfold CTrees.observe; cbn.
-	inv EQ; try discriminate.	
-	- constructor; reflexivity. 
-	- constructor; intros _.
-		right. apply 
 
 
 Lemma embed_eutt {E X}: 

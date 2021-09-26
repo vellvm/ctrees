@@ -1,6 +1,4 @@
 (* begin hide *)
-From Paco Require Import paco.
-
 From Coq Require Import
      Program
      Setoid
@@ -9,6 +7,9 @@ From Coq Require Import
 
 From ITree Require Import
 	Basics.HeterogeneousRelations.
+
+From Coinduction Require Import 
+	coinduction rel tactics.
 
 From CTree Require Import
 	Utils CTrees Equ.
@@ -26,12 +27,6 @@ Section Schedule.
 
   Context {E : Type -> Type} {R : Type}.
 
- (* Note: we close the relation up-to [equ] *)
-	(* Inductive schedule : ctree E R -> ctree E R -> Prop := *)
-	(* 	| SchedFork {n} (x : Fin.t n) k t : schedule (k x) t -> schedule (Fork k) t *)
-	(* 	| SchedRet x : schedule (Ret x) (Ret x) *)
-	(* 	| SchedVis {X} (e : E X) k t : t ≅ Vis e k -> schedule (Vis e k) t. *)
-
 	(* It might be better to work with the usual pattern of tying
 	  the knot afterwards, but it's a bit awkward with the closure
 		up-to [equ]. To see in practice. *)
@@ -39,7 +34,7 @@ Section Schedule.
   Inductive schedule_ : ctree' E R -> ctree' E R -> Prop :=
   | SchedFork {n} (x : Fin.t n) k t :
     		schedule_ (observe (k x)) t ->
-    		schedule_ (ForkF k) t
+    		schedule_ (ForkF n k) t
   | SchedRet x :
     		schedule_ (RetF x) (RetF x)
   | SchedVis {X} (e : E X) k :
@@ -59,7 +54,7 @@ Section bisim.
 	bisimulation world to ensuring that they can take a small step
 	emmitting the same event. *)
 
-  Variant matching (bisim : ctree E R1 -> ctree E R2 -> Prop) :
+  Variant matching (bisim : ctree' E R1 -> ctree' E R2 -> Prop) :
     ctree E R1 -> ctree E R2 -> Prop :=
   | MatchRet x y (RET : RR x y) :
      matching bisim (Ret x) (Ret y)
@@ -74,18 +69,8 @@ Section bisim.
 		the second one can reach a matching one, and reciprocally.
 	*)
 
-	(* Probably should use the pattern tying the knot afterwards here as well *)
-  Variant bisimF (bisim : ctree E R1 -> ctree E R2 -> Prop) :
+  Variant bisimF (bisim : ctree' E R1 -> ctree' E R2 -> Prop) :
     ctree E R1 -> ctree E R2 -> Prop :=
-
-	(* We currently believe that this constructor, initially
-	meant to be used to relate silently diverging computations,
-	is useless. It should be triple checked in depth.
-
-  | BisimDiv {n m} (k : Fin.t n -> _) (k' : Fin.t m -> _)
-            (REL : forall i j, bisim (k i) (k' j)) :
-      bisimF bisim (Fork k) (Fork k')
-  *)
 
   | BisimSched u t
             (SIMF : forall u', schedule u u' ->
@@ -99,38 +84,99 @@ Section bisim.
 
   Lemma matching_mono u v sim sim'
               (IN : matching sim u v)
-              (LE : sim <2= sim') :
+              (LE : sim <= sim') :
         matching sim' u v.
   Proof.
-    inv IN; auto.
+    inv IN; auto. constructor; intros. apply LE; auto.
   Qed.
   Hint Resolve matching_mono: core.
 
-  Lemma bisimF_mono u v sim sim'
-        (IN: bisimF sim u v)
-        (LE: sim <2= sim'):
-    bisimF sim' u v.
-  Proof.
-    intros. induction IN; eauto.
-    apply BisimSched; intros; [edestruct SIMF as (? & ? & ?)| edestruct SIMB as (? & ? & ?)]; eauto.
-  Qed.
-  Hint Resolve bisimF_mono : paco.
-
-  Definition bisim := paco2 bisimF bot2.
+  Program Definition fbisim : mon (ctree E R1 -> ctree E R2 -> Prop) := 
+    {| body := bisimF |}.
+  Next Obligation.
+    unfold pointwise_relation, Basics.impl, equ_. 
+    intros ?? INC ?? EQ. 
+    constructor; inversion_clear EQ; intros; [edestruct SIMF as (? & ? & ?)| edestruct SIMB as (? & ? & ?)]; eauto. 
+  Qed.   
 
 End bisim.
 
+(** associated relation *)
+Notation bisim := (gfp (fbisim eq)).
+
+(** associated companions  *)
+Notation T_bis RR  := (t (B (fbisim RR))).
+Notation t_bis RR  := (t (fbisim RR)).
+Notation bt_bis RR := (bt (fbisim RR)).
+
+Infix "≈" := bisim (at level 70).
+Notation "x ≊ y" := (t_bis eq _ x y) (at level 79). 
+Notation "x [≊] y" := (bt_bis eq _ x y) (at level 79). 
+
+(* Arguments bisim_ _ _ _ _/. *)
 #[global] Hint Constructors bisimF: core.
 #[global] Hint Constructors matching: core.
 
-(* TODO : wrap notations in modules *)
-Infix "≈[ R ]" := (bisim R) (at level 70).
-Infix "≈"      := (bisim eq) (at level 70).
-(* Infix "{ r }≈F[ R ]" := (bisimF R (upaco2 (bisim_ R) r)) (at level 70, only printing).
-Infix "{ r }≈F" := (bisimF eq (upaco2 (bisim_ eq) r)) (at level 70, only printing).
-Infix "{ r }≈gF[ R ]" := (bisimF R (gupaco2 (bisim_ R) _ r)) (at level 70, only printing).
-Infix "{ r }≈gF" := (bisimF eq (gupaco2 (bisim_ eq) _ r)) (at level 70, only printing).
- *)
+Section bisim_equiv.
+
+	Variable (E : Type -> Type) (R : Type) (RR : R -> R -> Prop).
+  Notation T  := (coinduction.t (B (fbisim (E := E) RR))).
+  Notation t  := (coinduction.t (fbisim (E := E) RR)).
+	Notation bt := (coinduction.bt (fbisim (E := E) RR)).
+
+  (** [eq] is a post-fixpoint, thus [const eq] is below [t] *)
+	Lemma refl_t {RRR: Reflexive RR}: const eq <= t.
+	Proof.
+    apply leq_t. 
+		intros p ? ? <-. cbn. desobs a; auto. 
+	Qed.
+		
+	(** converse is compatible *)
+	Lemma converse_t {RRS: Symmetric RR}: converse <= t.
+	Proof.
+		apply leq_t. intros S x y H; cbn. destruct H; auto.
+	Qed.
+
+	Lemma Vis_eq1 T Y e k Z f h: @VisF E R T Y e k = @VisF E R T Z f h -> Y=Z.
+	Proof. intro H. now dependent destruction H. Qed.
+	
+	Lemma Vis_eq2 T Y e k f h: @VisF E R T Y e k = @VisF E R T Y f h -> e=f /\ k=h.
+	Proof. intro H. now dependent destruction H. Qed.
+	
+	Lemma Fork_eq1 T n m k h: @ForkF E R T n k = @ForkF E R T m h -> n=m.
+	Proof. intro H. now dependent destruction H. Qed.
+
+	Lemma Fork_eq2 T n k h: @ForkF E R T n k = @ForkF E R T n h -> k=h.
+	Proof. intro H. now dependent destruction H. Qed.
+
+	(** so is squaring *)
+	Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= t.
+	Proof.
+		apply leq_t.
+		intros S x z [y xy yz]; cbn. 
+		inversion xy; inversion yz; try (exfalso; congruence).
+		- constructor. replace y0 with x1 in * by congruence. eauto.
+		- rewrite <-H in H2.
+			destruct (Vis_eq1 _ _ _ _ _ _ _ H2).
+			destruct (Vis_eq2 _ _ _ _ _ _ H2) as [-> ->].
+			constructor. intro x0. now exists (k2 x0).
+		- rewrite <- H in H2.
+			destruct (Fork_eq1 _ _ _ _ _ H2).
+			destruct (Fork_eq2 _ _ _ _ H2).
+			constructor. intros i. now (exists (k0 i)).
+	Qed.
+	
+	(** thus bisimilarity, [t R], [b (t R)] and [T f R] are always bisimivalence relations *)
+	#[global] Instance Equivalence_t `{Equivalence _ RR} S: Equivalence (t S).
+	Proof. apply Equivalence_t. apply refl_t. apply square_t. apply converse_t. Qed.
+	#[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (T f S).
+	Proof. apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
+	#[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (bt S).
+	Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.
+
+End bisim_bisimiv.
+
+
 
 (** * Sanity checks and meta-theory to establish at some point.
 	We'll have to come after more basic meta-theory of course,
@@ -142,27 +188,30 @@ Module Sanity.
 
   Lemma schedule_spin {E R} t : schedule (@spin E R) t -> False.
   Proof.
-    intros. unfold schedule in H. remember (observe spin). remember (observe t).
+    intros. unfold schedule in H. 
+    remember (observe spin). 
+    genobs t ot.
     induction H; inversion Heqc.
     cbv in *. subst. apply inj_pair2 in H2. subst. auto.
   Qed.
 
   Goal forall {E R}, @spin E R ≈ spin.
   Proof.
-    intros. pcofix CIH. pstep.
+    intros. step.
     constructor; intros; exfalso; eapply schedule_spin; eauto.
   Qed.
 
   Lemma schedule_spin_nary {E R} n t : schedule (@spin_nary E R n) t -> False.
   Proof.
-    intros. unfold schedule in H. remember (observe (spin_nary n)). remember (observe t).
+    intros. unfold schedule in H. 
+    remember (observe (spin_nary n)). genobs t ot.
     induction H; inversion Heqc.
     cbv in *. subst. apply inj_pair2 in H2. subst. auto.
   Qed.
 
   Goal forall {E R} n m, @spin_nary E R n ≈ spin_nary m.
   Proof.
-    intros. pcofix CIH. pstep.
+    intros. step.
     constructor; intros; exfalso; eapply schedule_spin_nary; eauto.
   Qed.
 
@@ -170,11 +219,11 @@ Module Sanity.
 		way to represent and manipulate these finite branches.
 	*)
 	Definition fork2 {E X} (t u : ctree E X) :=
-		(Fork (fun b : fin 2 =>
+		(Fork 2 (fun b =>
 						 match b with | Fin.F1 => t | _ => u end)).
 
   Definition fork3 {E X} (t u v : ctree E X) :=
-		(Fork (fun b : fin 3 =>
+		(Fork 3 (fun b =>
 						 match b with
 						  | Fin.F1 => t
 						  | Fin.FS Fin.F1 => u
@@ -183,7 +232,10 @@ Module Sanity.
 	Lemma fork2_assoc : forall {E X} (t u v : ctree E X),
 		fork2 (fork2 t u) v ≈
 		fork2 t (fork2 u v).
-	Admitted.
+  Proof.
+    intros. step; constructor.
+    - intros.
+      inv H.
 
 	Lemma fork2_commut : forall {E X} (t u : ctree E X),
 		fork2 t u ≈ fork2 u t.

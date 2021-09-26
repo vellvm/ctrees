@@ -1,7 +1,8 @@
 (* begin hide *)
 From Coq Require Import RelationClasses.
 
-From Paco Require Import paco.
+From Coinduction Require Import 
+	coinduction rel tactics.
 
 From CTree Require Import
 	Utils CTrees.
@@ -37,156 +38,183 @@ Section equ.
       equF eq (VisF e k1) (VisF e k2)
   | Eq_Fork {n} (k1 : Fin.t n -> _) (k2 : Fin.t n -> _)
             (REL : forall i, eq (k1 i) (k2 i)) :
-      equF eq (ForkF k1) (ForkF k2)
+      equF eq (ForkF n k1) (ForkF n k2)
   .
   Hint Constructors equF: core.
 
   Definition equ_ eq : ctree E R1 -> ctree E R2 -> Prop :=
 	fun t1 t2 => equF eq (observe t1) (observe t2).
 
-  Lemma equ__mono : monotone2 equ_.
-  Proof.
-    repeat red; intros. destruct IN; eauto.
+  Program Definition fequ: mon (ctree E R1 -> ctree E R2 -> Prop) := {|body := equ_|}.
+  Next Obligation.
+    unfold pointwise_relation, Basics.impl, equ_. 
+    intros ?? INC ?? EQ. inversion_clear EQ; auto. 
   Qed.
-  Hint Resolve equ__mono : paco.
-
-  Definition equ := paco2 equ_ bot2.
 
 End equ.
 
-#[global] Hint Resolve equ__mono : paco.
-#[global] Hint Constructors equF : core.
-Arguments equ_ {E R1 R2} RR eq t1 t2/.
+(** associated relation *)
+Notation equ R := (gfp (fequ R)).
+Infix "≅" := (equ eq) (at level 70).
 
-(* TODO : wrap notations in modules *)
-Infix "≅[ R ]" := (equ R) (at level 70).
-Infix "≅"      := (equ eq) (at level 70).
-Infix "{ r }≅F[ R ]" := (equF R (upaco2 (equ_ R) r)) (at level 70, only printing).
-Infix "{ r }≅F" := (equF eq (upaco2 (equ_ eq) r)) (at level 70, only printing).
-Infix "{ r }≅gF[ R ]" := (equF R (gupaco2 (equ_ R) _ r)) (at level 70, only printing).
-Infix "{ r }≅gF" := (equF eq (gupaco2 (equ_ eq) _ r)) (at level 70, only printing).
-Notation "⊥" := bot2.
+(** associated companions  *)
+Notation T_equ RR  := (t (B (fequ RR))).
+Notation t_equ RR  := (t (fequ RR)).
+Notation bt_equ RR := (bt (fequ RR)).
+Arguments equ_ _ _ _ _/.
+Ltac desobs x := destruct (observe x) .
+#[global] Hint Constructors equF: core.
 
-Section equ_properties.
-  Context {E : Type -> Type} {R : Type} (RR : R -> R -> Prop).
-  Global Instance Reflexive_equF (equ : ctree E R -> ctree E R -> Prop) :
+Section equ_equiv.
+
+	Variable (E : Type -> Type) (R : Type) (RR : R -> R -> Prop).
+  Notation T  := (coinduction.t (B (fequ (E := E) RR))).
+  Notation t  := (coinduction.t (fequ (E := E) RR)).
+	Notation bt := (coinduction.bt (fequ (E := E) RR)).
+
+  (** [eq] is a post-fixpoint, thus [const eq] is below [t] *)
+	Lemma refl_t {RRR: Reflexive RR}: const eq <= t.
+	Proof.
+		apply leq_t. intro. 
+		change (@eq (ctree E R)  <= equ_ RR eq). 
+		intros p ? <-. cbn. desobs p; auto. 
+	Qed.
+		
+	(** converse is compatible *)
+	Lemma converse_t {RRS: Symmetric RR}: converse <= t.
+	Proof.
+		apply leq_t. intros S x y H; cbn. destruct H; auto.
+	Qed.
+
+	Lemma Vis_eq1 T Y e k Z f h: @VisF E R T Y e k = @VisF E R T Z f h -> Y=Z.
+	Proof. intro H. now dependent destruction H. Qed.
+	
+	Lemma Vis_eq2 T Y e k f h: @VisF E R T Y e k = @VisF E R T Y f h -> e=f /\ k=h.
+	Proof. intro H. now dependent destruction H. Qed.
+	
+	Lemma Fork_eq1 T n m k h: @ForkF E R T n k = @ForkF E R T m h -> n=m.
+	Proof. intro H. now dependent destruction H. Qed.
+
+	Lemma Fork_eq2 T n k h: @ForkF E R T n k = @ForkF E R T n h -> k=h.
+	Proof. intro H. now dependent destruction H. Qed.
+
+	(** so is squaring *)
+	Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= t.
+	Proof.
+		apply leq_t.
+		intros S x z [y xy yz]; cbn. 
+		inversion xy; inversion yz; try (exfalso; congruence).
+		- constructor. replace y0 with x1 in * by congruence. eauto.
+		- rewrite <-H in H2.
+			destruct (Vis_eq1 _ _ _ _ _ _ _ H2).
+			destruct (Vis_eq2 _ _ _ _ _ _ H2) as [-> ->].
+			constructor. intro x0. now exists (k2 x0).
+		- rewrite <- H in H2.
+			destruct (Fork_eq1 _ _ _ _ _ H2).
+			destruct (Fork_eq2 _ _ _ _ H2).
+			constructor. intros i. now (exists (k0 i)).
+	Qed.
+	
+	(** thus bisimilarity, [t R], [b (t R)] and [T f R] are always equivalence relations *)
+	#[global] Instance Equivalence_t `{Equivalence _ RR} S: Equivalence (t S).
+	Proof. apply Equivalence_t. apply refl_t. apply square_t. apply converse_t. Qed.
+	#[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (T f S).
+	Proof. apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
+	#[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (bt S).
+	Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.
+
+	(* This one is a bit annoyingly adhoc, but useful for unfolding laws *)
+  #[global]Instance Reflexive_equF (equ : ctree E R -> ctree E R -> Prop) :
     Reflexive RR -> Reflexive equ -> Reflexive (equF RR equ).
   Proof.
     red. destruct x; auto.
   Qed.
 
-  Global Instance Reflexive_paco2_equ r :
-    Reflexive RR -> Reflexive (paco2 (@equ_ E R R RR) r).
-  Proof.
-    pcofix CIH. pstep. intros. eapply Reflexive_equF; auto.
-  Qed.
+End equ_equiv.
 
-  Global Instance Reflexive_equ :
-    Reflexive RR -> Reflexive (@equ E R R RR).
-  Proof.
-    pcofix CIH. pstep. intros. eapply Reflexive_equF; auto.
-  Qed.
-		
-End equ_properties.
+#[global] Corollary Equivalence_equ {E R}: Equivalence (gfp (@fequ E R _ eq)).
+Proof. apply Equivalence_t. typeclasses eauto. Qed.
 
-Section equ_trans_clo.
+#[global] Hint Constructors equF : core.
+Arguments equ_ {E R1 R2} RR eq t1 t2/.
 
-	Context {E : Type -> Type}.
-	Context {R1 R2 : Type}.
-	Context {RR : R1 -> R2 -> Prop}.
+(* A smarter version of this should be part of the [coinduction] library *)
+Ltac step_in H :=
+match type of H with
+| gfp ?b ?x ?y => apply (gfp_fp b x y) in H
+end;
+simpl body in H.
+Tactic Notation "step" "in" ident(H) := step_in H.
 
-	(* ** Up-to equilarity
-		We start with another reasoning principle: one can reasoning up-to equilarity during
-		a co-inductive proof to establish [equ] itself.
-		This principle is embodied by the following closure.
-	*)
-	Inductive equ_trans_clo (r : ctree E R1 -> ctree E R2 -> Prop)
-		: ctree E R1 -> ctree E R2 -> Prop :=
-	| equ_trans_clo_intro t1 t2 t1' t2' RR1 RR2
-				(EQVl: t1 ≅[RR1] t1')
-				(EQVr: t2 ≅[RR2] t2')
-				(LERR1: forall x x' y, RR1 x x' -> RR x' y -> RR x y)
-				(LERR2: forall x y y', RR2 y y' -> RR x y' -> RR x y)
-				(REL: r t1' t2')
-		: equ_trans_clo r t1 t2
-	.
-	Hint Constructors equ_trans_clo: core.
-
-	(* This closure is monotonous *)
-	Lemma equ_trans_clo_mon :
-		monotone2 equ_trans_clo.
-	Proof.
-		red; intros. destruct IN. econstructor; eauto.
-	Qed.
-	Hint Resolve equ_trans_clo_mon : paco.
-
-	(* In order to justify the use of this enhanced reasoning principle,
-		we prove that it is (weakly) compatible with the functor [equ']. *)
-	Lemma equ_trans_clo_wcompat :
-		wcompatible2 (equ_ RR) equ_trans_clo.
-	Proof.
-		econstructor; eauto with paco.
-		intros. destruct PR.
-		punfold EQVl. punfold EQVr.
-		cbn in *.
-		induction REL.
-		- genobs t1 ot1; genobs t2 ot2.
-			inv EQVl; auto.
-			inv EQVr; eauto.
-		- remember (VisF e k1).
-			genobs t1 ot1.
-			inv EQVl; try discriminate.
-			genobs t2 ot2; remember (VisF e k2).
-			inv EQVr; try discriminate.
-			dependent destruction H2.
-			dependent destruction H0.
-			pclearbot.
-			constructor.
-			gclo.
-			econstructor; eauto with paco.
-			apply REL0.
-			apply REL1.
-		- genobs t1 ot1; genobs t2 ot2.
-			inv EQVl; auto.
-			inv EQVr; auto.
-			dependent destruction H2.
-			dependent destruction H4.
-			pclearbot.
-			constructor.
-			gclo.
-			econstructor; eauto with paco.
-			apply REL0.
-			apply REL1.
-	Qed.
-
-	Lemma equ_clo_trans :
-		equ_trans_clo <3= gupaco2 (equ_ RR) equ_trans_clo.
-	Proof.
-		intros. destruct PR. gclo. econstructor; eauto with paco.
-	Qed.
-
-End equ_trans_clo.
-
-#[global] Hint Resolve equ_trans_clo_wcompat : paco.
-
-Ltac inv_eq H := punfold H; inv H.
-
+(* We assume JMeq to invert easily bisimilarity of dependently
+	 typed constructors *)
 Lemma equ_vis_invT {E X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E S) k2 :
   Vis e1 k1 ≅ Vis e2 k2 ->
   X = Y.
 Proof.
-  intros EQ; punfold EQ. cbn in *; dependent induction EQ; auto.
+  intros EQ. 
+
+	step in EQ. cbn in *; dependent induction EQ; auto.
 Qed.
 
 Lemma equ_vis_invE {E X S} (e1 e2 : E X) (k1 k2 : X -> ctree E S) :
   Vis e1 k1 ≅ Vis e2 k2 ->
   e1 = e2 /\ forall x, k1 x ≅ k2 x.
 Proof.
-  intros EQ; punfold EQ.
-	inv EQ; pclearbot.
+  intros EQ; step in EQ.
+	inv EQ.
 	dependent destruction H1.
 	dependent destruction H2.
 	dependent destruction H.
 	dependent destruction H4.
 	auto.
+Qed. 
+
+Import CTree.
+Import CTreeNotations.
+Open Scope ctree.
+
+(* Elementary equational theory *)
+(* Example issue with universes *)
+Lemma ctree_eta {E R} (t : ctree E R) : t ≅ go (observe t).
+Proof.
+	revert t; coinduction r CIH.
+	intros.
+	cbn.
+	desobs t.	
+	constructor; auto.
+	constructor; auto.
+	constructor; auto.
+	(* Qed fails *)
+	Restart. now step.
+Qed. 
+
+Lemma unfold_spin {E R} : @spin E R ≅ Tau spin.
+Proof.
+  exact (ctree_eta spin).
 Qed.
+
+Notation bind_ t k :=
+  match observe t with
+  | RetF r => k%function r
+  | VisF e ke => Vis e (fun x => bind (ke x) k)
+  | ForkF n ke => Fork n (fun x => bind (ke x) k)
+  end.
+
+Lemma unfold_bind {E R S} (t : ctree E R) (k : R -> ctree E S)
+  : bind t k ≅ bind_ t k.
+Proof.
+	now step.
+Qed.
+
+Lemma unfold_iter {E R I} (step : I -> ctree E (I + R)) i: 
+	iter step i ≅
+    lr <- step i;;
+    match lr with 
+    | inl l => Tau (iter step l)
+    | inr r => Ret r 
+    end.
+Proof.
+	now step.
+Qed.
+                         
