@@ -14,15 +14,74 @@ Open Scope ctree.
 
 Definition embed {E X} : itree E X -> ctree E X :=
 	cofix _embed t := 
-	 match t with 
-	| Ret x => CTrees.Ret x
-	| Tau t => CTrees.Tau (_embed t)
-	| Vis e k => CTrees.Vis e (fun x => _embed (k x))
+	 match observe t with 
+	| RetF x => CTrees.Ret x
+	| TauF t => CTrees.Tau (_embed t)
+	| VisF e k => CTrees.Vis e (fun x => _embed (k x))
 	 end. 
+ 
+(* Definition embed_' {E X} (_embed : itree E X -> ctree E X):
+	 itree' E X -> ctree E X :=
+		fun t =>
+	 match t with 
+	| RetF x => CTrees.Ret x
+	| TauF t => CTrees.Tau (_embed t)
+	| VisF e k => CTrees.Vis e (fun x => _embed (k x))
+	 end. 
+
+Definition embed {E X} := cofix F := fun t => @embed_' E X F (observe t). *)
+
+Notation "'_embed' ot" :=
+	(match ot with 
+	| RetF x => CTrees.Ret x
+	| TauF t => CTrees.Tau (embed t)
+	| VisF e k => CTrees.Vis e (fun x => embed (k x))
+ end) (at level 50, only parsing). 
+
+(* 
+		go {observe : itree' itree}
+
+*)
+
+Lemma embed_unfold {E X} : forall (t : itree E X), 
+	equ eq (embed t) (_embed (observe t)).
+Proof.
+	(* pcofix CIH. *)
+	intros. pfold. cbn.
+	destruct (observe t) eqn:EQ; cbn.
+	cbn.
+	(* destruct (CTrees.observe (embed t)) eqn:EQ'; cbn. *)
+Admitted.	
+
+
+
+
+Global Instance Reflexive_equF {E R RR}:
+  Reflexive RR -> Reflexive (@equF E R R RR (upaco2 (equ_ RR) bot2)).
+Proof.
+	repeat red; intros. reflexivity.
+	destruct x; constructor; auto.
+	intros; left; auto.
+   pcofix CIH. pstep. intros. eapply Reflexive_equF; auto.
+Qed.
+	
+Lemma observing : forall {E X} (t u : ctree E X),
+	CTrees.observe t = CTrees.observe u -> equ eq t u.
+Proof.
+	intros.
+	pfold; cbn; rewrite H.
+	Unset Printing Notations.
+
+	reflexivity.	
 
 Lemma embed_eq {E X}: 
 	Proper (eq_itree eq ==> equ eq) (@embed E X).
-Admitted.
+Proof.
+	repeat red.
+	pcofix CIH; intros t u EQ.
+	punfold EQ; pstep. cbn.
+	inv EQ; try discriminate.	 
+
 
 Lemma embed_eutt {E X}: 
 	Proper (eutt eq ==> bisim eq) (@embed E X).
