@@ -16,6 +16,9 @@ From Coinduction Require Import
 
 Open Scope ctree.
 
+(* Temporary due to bug in the reification *)
+Unset Universe Checking.
+
 Definition embed {E X} : itree E X -> ctree E X :=
 	cofix _embed t := 
 	 match observe t with 
@@ -82,8 +85,9 @@ Proof.
 	dependent destruction H; auto.
 Qed. 
 
-Instance foo {E R r} :
-	 Proper (gfp (@fequ E R R eq) ==> gfp (@fequ E R R eq) ==> flip impl) (bt_equ eq r).
+Instance gfp_bt_equ {E R r} :
+	 Proper (gfp (@fequ E R R eq) ==> gfp (@fequ E R R eq) ==> flip impl)
+	  (bt_equ eq r).
 Proof.
 	unfold Proper, respectful, flip, impl.
 	intros.
@@ -107,88 +111,6 @@ Proof.
 	- constructor; intros.
 		apply CIH, REL.
 Qed.
-
-
-	(* setoid_rewrite embed_unfold. *)
-	ginit.
-	gcofix CIH. intros t u EQ.
-	gclo.
-	econstructor.
-	apply embed_unfold.
-	apply embed_unfold.
-	intros; subst; auto.
-	intros; subst; auto.
-	
-	rewrite embed_unfold.
-	punfold EQ; pstep. unfold CTrees.observe; cbn.
-	inv EQ; try discriminate.	
-	- constructor; reflexivity. 
-	- constructor; intros _.
-		right. apply 
-
-
-#[global] Instance equ_sym {E R} (RR : R -> R -> Prop) (SYM: Symmetric RR)
-	: Symmetric (equ (E := E) RR).
-Proof.
-	red.
-	pcofix CIH.
-	intros.
-	pfold; punfold H0; cbn in *.
-	inv H0; pclearbot; auto. 
-	constructor; intros; right; auto; apply CIH, REL.
-	constructor; intros; right; auto; apply CIH, REL.
-Qed.
-
-#[global] Instance equ_trans {E R} (RR : R -> R -> Prop) 
-	(EQ: Equivalence RR) 
-	: Transitive (equ (E := E) RR).
-Proof.
-	red.
-	intros.
-	ginit.
-	gclo.
-	econstructor.
-	apply H.
-	apply equ_sym; eauto; typeclasses eauto.
-	intros; etransitivity; eauto.
-	intros; etransitivity; eauto; symmetry; eauto.
-	gfinal.
-	right. apply Reflexive_paco2_equ. typeclasses eauto.
-Qed.
-
-#[global] Instance equ_equiv {E R} (RR : R -> R -> Prop) 
-	(EQ: Equivalence RR) 
-	: Equivalence (equ (E := E) RR).
-Proof.
-	constructor; typeclasses eauto.
-Qed.
-
- #[global] Instance gequ_equiv {E R} (RR : R -> R -> Prop) r
-	(EQ: Equivalence RR) 
-	: Equivalence (gpaco2 (equ_ (E := E) RR) (equ_trans_clo (RR := RR)) bot2 r).
-Proof.
-	constructor.
-	- gcofix CIH.
-		gstep; intros.
-		repeat red; destruct (CTrees.observe x); constructor;
-		eauto with paco.
-		reflexivity.
-	- admit.
-	- gclo.
-		intros.
-		econstructor.
-		{ ginit. eapply gpaco2_mon. eauto.
-		apply gpaco2_init in H0.
-	- gcofix CIH.
-		gstep; intros.
-		gunfold H0.
-		induction H0.	
-		+ destruct IN as [IN |[]].
-			cbn; inv IN; constructor; eauto with paco.
-			symmetry; auto.
-			intros. gbase. eapply CIH. apply REL.
-Qed.
-
 
 Lemma embed_eutt {E X}: 
 	Proper (eutt eq ==> bisim eq) (@embed E X).
