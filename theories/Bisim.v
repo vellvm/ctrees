@@ -54,12 +54,12 @@ Section bisim.
 	bisimulation world to ensuring that they can take a small step
 	emmitting the same event. *)
 
-  Variant matching (bisim : ctree' E R1 -> ctree' E R2 -> Prop) :
-    ctree E R1 -> ctree E R2 -> Prop :=
+  Variant matching (bisim : ctree E R1 -> ctree E R2 -> Prop) :
+    ctree' E R1 -> ctree' E R2 -> Prop :=
   | MatchRet x y (RET : RR x y) :
-     matching bisim (Ret x) (Ret y)
+     matching bisim (RetF x) (RetF y)
   | MatchVis {X} (e : E X) k1 k2 (RET : forall v, bisim (k1 v) (k2 v)):
-     matching bisim (Vis e k1) (Vis e k2)
+     matching bisim (VisF e k1) (VisF e k2)
   .
   Hint Constructors matching: core.
 
@@ -69,18 +69,21 @@ Section bisim.
 		the second one can reach a matching one, and reciprocally.
 	*)
 
-  Variant bisimF (bisim : ctree' E R1 -> ctree' E R2 -> Prop) :
-    ctree E R1 -> ctree E R2 -> Prop :=
+  Variant bisimF (bisim : ctree E R1 -> ctree E R2 -> Prop) :
+    ctree' E R1 -> ctree' E R2 -> Prop :=
 
   | BisimSched u t
-            (SIMF : forall u', schedule u u' ->
-              exists t', schedule t t' /\ matching bisim u' t')
-            (SIMB : forall t', schedule t t' ->
-              exists u', schedule u u' /\ matching bisim u' t')
+            (SIMF : forall u', schedule_ u u' ->
+              exists t', schedule_ t t' /\ matching bisim u' t')
+            (SIMB : forall t', schedule_ t t' ->
+              exists u', schedule_ u u' /\ matching bisim u' t')
                :
       bisimF bisim u t
   .
   Hint Constructors bisimF: core.
+
+  Definition bisim_ eq : ctree E R1 -> ctree E R2 -> Prop :=
+	fun t1 t2 => bisimF eq (observe t1) (observe t2).
 
   Lemma matching_mono u v sim sim'
               (IN : matching sim u v)
@@ -91,13 +94,12 @@ Section bisim.
   Qed.
   Hint Resolve matching_mono: core.
 
-  Program Definition fbisim : mon (ctree E R1 -> ctree E R2 -> Prop) := 
-    {| body := bisimF |}.
+  Program Definition fbisim : mon (ctree E R1 -> ctree E R2 -> Prop) := {| body := bisim_ |}.
   Next Obligation.
-    unfold pointwise_relation, Basics.impl, equ_. 
-    intros ?? INC ?? EQ. 
-    constructor; inversion_clear EQ; intros; [edestruct SIMF as (? & ? & ?)| edestruct SIMB as (? & ? & ?)]; eauto. 
-  Qed.   
+   unfold pointwise_relation, impl, bisim_.
+   intros ?? INC ?? EQ. 
+   constructor; inversion_clear EQ; intros; [edestruct SIMF as (? & ? & ?)| edestruct SIMB as (? & ? & ?)]; eauto. 
+  Qed.
 
 End bisim.
 
@@ -113,10 +115,55 @@ Infix "≈" := bisim (at level 70).
 Notation "x ≊ y" := (t_bis eq _ x y) (at level 79). 
 Notation "x [≊] y" := (bt_bis eq _ x y) (at level 79). 
 
-(* Arguments bisim_ _ _ _ _/. *)
+Arguments bisim_ _ _ _ _/.
 #[global] Hint Constructors bisimF: core.
 #[global] Hint Constructors matching: core.
 
+Variant passive_ {E R} : ctree' E R -> Prop := 
+  | fork_passive n k : passive_ (ForkF n k).
+Definition passive {E R} t := @passive_ E R (observe t).
+#[global] Hint Constructors passive_: core.
+
+Variant active_ {E R} : ctree' E R -> Prop := 
+  | ret_active x : active_ (RetF x)
+  | vis_active Y (e : E Y) k : active_ (VisF e k).
+Definition active {E R} t := @active_ E R (observe t).
+#[global] Hint Constructors active_: core.
+
+Lemma scheduled_active_ : forall {E R} (t u : ctree' E R),
+  schedule_ t u -> 
+  active_ u.
+Proof.
+  intros * SCHED.
+  now induction SCHED.
+Qed.
+
+Lemma scheduled_active : forall {E R} (t u : ctree E R),
+  schedule t u -> 
+  active u.
+Proof.
+  intros * SCHED; red.
+  now induction SCHED.
+Qed.
+
+Lemma matching_active_refl {E R} (RR : R -> R -> Prop)
+   (eq : ctree E R -> ctree E R -> Prop) (t : ctree' E R) 
+   `{Reflexive _ RR} `{Reflexive _ eq} :
+   active_ t ->
+   matching RR eq t t.
+Proof.
+  intros []; auto.
+Qed. 
+
+Lemma matching_active_sym {E R} (RR : R -> R -> Prop)
+   (eq : ctree E R -> ctree E R -> Prop) (t u : ctree' E R) 
+   `{Symmetric _ RR} :
+   matching RR eq t u ->
+   matching RR (converse eq) u t.
+Proof.
+  intros []; auto. 
+Qed. 
+  
 Section bisim_equiv.
 
 	Variable (E : Type -> Type) (R : Type) (RR : R -> R -> Prop).
@@ -124,37 +171,48 @@ Section bisim_equiv.
   Notation t  := (coinduction.t (fbisim (E := E) RR)).
 	Notation bt := (coinduction.bt (fbisim (E := E) RR)).
 
+
   (** [eq] is a post-fixpoint, thus [const eq] is below [t] *)
 	Lemma refl_t {RRR: Reflexive RR}: const eq <= t.
 	Proof.
     apply leq_t. 
-		intros p ? ? <-. cbn. desobs a; auto. 
+		intros p t ? <-. cbn. 
+    constructor. 
+    - intros t' SCHED.
+      exists t'; split; auto.
+      apply matching_active_refl; auto.
+      eapply scheduled_active_; eauto.
+    - intros t' SCHED.
+      exists t'; split; auto.
+      apply matching_active_refl; auto.
+      eapply scheduled_active_; eauto.
 	Qed.
 		
 	(** converse is compatible *)
 	Lemma converse_t {RRS: Symmetric RR}: converse <= t.
 	Proof.
-		apply leq_t. intros S x y H; cbn. destruct H; auto.
+		apply leq_t. intros S t u H; cbn in *. 
+    destruct H. constructor.
+    - intros t' SCHED.
+      edestruct SIMB as (u' & SCHED' & MATCH'); eauto.
+      exists u'; split; auto.
+      apply matching_active_sym; auto.
+    - intros u' SCHED.
+      edestruct SIMF as (t' & SCHED' & MATCH'); eauto.
+      exists t'; split; auto.
+      apply matching_active_sym; auto.
 	Qed.
 
-	Lemma Vis_eq1 T Y e k Z f h: @VisF E R T Y e k = @VisF E R T Z f h -> Y=Z.
-	Proof. intro H. now dependent destruction H. Qed.
-	
-	Lemma Vis_eq2 T Y e k f h: @VisF E R T Y e k = @VisF E R T Y f h -> e=f /\ k=h.
-	Proof. intro H. now dependent destruction H. Qed.
-	
-	Lemma Fork_eq1 T n m k h: @ForkF E R T n k = @ForkF E R T m h -> n=m.
-	Proof. intro H. now dependent destruction H. Qed.
-
-	Lemma Fork_eq2 T n k h: @ForkF E R T n k = @ForkF E R T n h -> k=h.
-	Proof. intro H. now dependent destruction H. Qed.
-
-	(** so is squaring *)
+  (** so is squaring *)
 	Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= t.
 	Proof.
-		apply leq_t.
-		intros S x z [y xy yz]; cbn. 
-		inversion xy; inversion yz; try (exfalso; congruence).
+		apply leq_t; cbn.
+		intros S t u [v [] []]; cbn in *. clear t u v. rename t0 into t, u0 into u.
+    constructor.
+    - intros u' SCHEDu. 
+      edestruct SIMF as (t' & SCHEDt & MATCHut); eauto.
+      exists t'; split; auto.
+
 		- constructor. replace y0 with x1 in * by congruence. eauto.
 		- rewrite <-H in H2.
 			destruct (Vis_eq1 _ _ _ _ _ _ _ H2).
