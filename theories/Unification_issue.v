@@ -33,7 +33,8 @@ Goal forall E X, (Reflexive (@equF E X X eq (gfp (fequ eq)))).
 	 the previous proof to finally be found, but only after an excruciating time.
 *)
 
-	Time typeclasses eauto.  (* ~30s on my machine *)
+	(* The following takes ~30s on my machine with the opam version of coinduction. The patched one solves the problem *)
+	(* Time typeclasses eauto.  ~30s on my machine *)
 
 Qed.
 
