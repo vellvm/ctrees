@@ -1,3 +1,19 @@
+# Concrete todos
+
+## Merge master into companion and then back and kill companion
+
+## Transitivity of bisim
+
+## Non-trivial law up-to bisim (interp or iter)
+
+## Continue sanity checks
+
+## Add: fork 0 ~ spin, and similar
+
+## Pushing forward CCS
+
+## Sketch the yield experiment
+
 # A few notes on trailing things to consider
 
 ## Interpretation and scheduling
