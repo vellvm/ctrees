@@ -1,7 +1,5 @@
 From CTree Require Import 
-	CTrees Equ
-	 (* Bisim *)
-  .
+	CTrees Equ Bisim.
 
 From ITree Require Import 
 	ITree Eq.
@@ -31,41 +29,16 @@ Notation "'_embed' ot" :=
 	| VisF e k => CTrees.Vis e (fun x => embed (k x))
  end) (at level 50, only parsing). 
 
-
-Goal forall E X, (Reflexive (@equF E X X eq (gfp (fequ eq)))).
-	intros.
-  apply Reflexive_equF.
-	eauto.
-
-	(* When both relations are in scope, instances such as `Bisim.Reflexive_t` 
-	 lead to huge unification problems that eventually turn out impossible.
-*)
-
-From CTree Require Import Bisim.
+(* Painfully ad-hoc patch to avoid 30s of unification... *)
+#[global] Instance Reflexive_equ {E R}: Reflexive (gfp (@fequ E R _ eq)).
+Proof. apply Equivalence_equ.  Qed.
 
 Lemma embed_unfold {E X} (t : itree E X) :
 	equ eq (embed t) (_embed (observe t)).
 Proof.
-  step.
-	
-  assert (Reflexive (@equF E X X eq (gfp (fequ eq)))).
-
-  Time typeclasses eauto.
-
-	Set Debug Tactic Unification.
-	Unset Printing Notations.
-  Typeclasses eauto := debug 5.
-  assert (Reflexive (@equF E X X eq (gfp (fequ eq)))).
-  apply Reflexive_equF.
-  typeclasses eauto.
-  {
-    Set Printing All.
-  Fail Timeout 1 typeclasses eauto.
-  apply Equivalence_Reflexive.
-
-	Fail Timeout 1 reflexivity.
-  .
-Qed.
+	(* Warning, if Bisim is in scope and we don't have the instance above, this takes 30 seconds *)
+  now step.
+Qed.	
 
 #[local] Notation iobserve := observe.
 #[local] Notation _iobserve := _observe.
@@ -93,8 +66,9 @@ Proof.
 		apply CIH, REL.
 Qed.
 
+
 Lemma embed_eutt {E X}: 
-	Proper (eutt eq ==> bisim eq) (@embed E X).
+	Proper (eutt eq ==> bisim) (@embed E X).
 Admitted.
 
 (* Maybe simpler to just write a coinductive relation *)
@@ -126,7 +100,7 @@ Lemma partial_inject_eq {E X} :
 Admitted.
 
 Lemma partial_inject_eutt {E X} :
-	Proper (bisim eq ==> eutt (option_rel eq)) (@partial_inject E X).
+	Proper (bisim ==> eutt (option_rel eq)) (@partial_inject E X).
 Admitted.
 
 Variant is_detF {E X} (is_det : ctree E X -> Prop) : ctree E X -> Prop :=
