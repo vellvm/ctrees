@@ -33,7 +33,7 @@ Open Scope ctree_scope.
 (* Definition zip {E F} (u : ctree E unit) (v : ctree F unit) : ctree (E *' F) unit *)
 
 (* Paul's yield approach over stateT st (ctree E) *)
-(*
+
 Section Channels. 
 
 	Definition chan : Set := string.
@@ -108,7 +108,7 @@ Section Combinators.
 		| inr1 b => g _ b
 		end.
 
- (* TODO: define basically the theory of handlers for ctrees, all the constructions are specialized to itrees *)
+ (* TODO: define basically the theory of handlers for ctrees, all the constructions are specialized to ctrees *)
 
   Definition h_restrict c : ccsE ~> ctree ccsE :=
     case_ctree (h_restrict_ c) h_trigger.
@@ -151,7 +151,7 @@ Section Combinators.
 											end eq_refl
 				| deadP e  => dead
 				end
-      | ForkF k => Fork (fun i => get_hd (k i))
+      | ForkF n k => Fork n (fun i => get_hd (k i))
 			end.
 	
   Definition para : ccs -> ccs -> ccs :=
@@ -175,5 +175,3 @@ Section Combinators.
 			end	.
 				
 End Combinators.
-
-*)
