@@ -16,9 +16,6 @@ From Coinduction Require Import
 
 Open Scope ctree.
 
-(* Temporary due to bug in the reification *)
-Unset Universe Checking.
-
 Definition embed {E X} : itree E X -> ctree E X :=
 	cofix _embed t := 
 	 match observe t with 
@@ -34,10 +31,40 @@ Notation "'_embed' ot" :=
 	| VisF e k => CTrees.Vis e (fun x => embed (k x))
  end) (at level 50, only parsing). 
 
+
+Goal forall E X, (Reflexive (@equF E X X eq (gfp (fequ eq)))).
+	intros.
+  apply Reflexive_equF.
+	eauto.
+
+	(* When both relations are in scope, instances such as `Bisim.Reflexive_t` 
+	 lead to huge unification problems that eventually turn out impossible.
+*)
+
+From CTree Require Import Bisim.
+
 Lemma embed_unfold {E X} (t : itree E X) :
 	equ eq (embed t) (_embed (observe t)).
 Proof.
-	now step.
+  step.
+	
+  assert (Reflexive (@equF E X X eq (gfp (fequ eq)))).
+
+  Time typeclasses eauto.
+
+	Set Debug Tactic Unification.
+	Unset Printing Notations.
+  Typeclasses eauto := debug 5.
+  assert (Reflexive (@equF E X X eq (gfp (fequ eq)))).
+  apply Reflexive_equF.
+  typeclasses eauto.
+  {
+    Set Printing All.
+  Fail Timeout 1 typeclasses eauto.
+  apply Equivalence_Reflexive.
+
+	Fail Timeout 1 reflexivity.
+  .
 Qed.
 
 #[local] Notation iobserve := observe.
@@ -50,52 +77,6 @@ Qed.
 #[local] Notation cRet x   := (CTrees.Ret x).
 #[local] Notation cTau t   := (CTrees.Tau t).
 #[local] Notation cVis e k := (CTrees.Vis e k).
-
-Lemma equF_vis_invT {E X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E S) k2 :
-  equF eq (equ eq) (CTrees.VisF e1 k1) (CTrees.VisF e2 k2) ->
-  X = Y.
-Proof.
-  intros EQ. 
-	dependent induction EQ; auto.
-Qed.
-
-Lemma equF_vis_invE {E X S} (e1 e2 : E X) (k1 k2 : X -> ctree E S) :
-  equF eq (equ eq) (CTrees.VisF e1 k1) (CTrees.VisF e2 k2) ->
-  e1 = e2 /\ forall x, equ eq (k1 x) (k2 x).
-Proof.
-  intros EQ.
-	inv EQ.
-	dependent destruction H; dependent destruction H4; auto.
-Qed. 
-
-Lemma equF_fork_invT {E S n m} (k1 : _ -> ctree E S) k2 :
-  equF eq (equ eq) (CTrees.ForkF n k1) (CTrees.ForkF m k2) ->
-  n = m.
-Proof.
-  intros EQ. 
-	dependent induction EQ; auto.
-Qed.
-
-Lemma equF_fork_invE {E S n} (k1 : _ -> ctree E S) k2 :
-  equF eq (equ eq) (CTrees.ForkF n k1) (CTrees.ForkF n k2) ->
-  forall x, equ eq (k1 x) (k2 x).
-Proof.
-  intros EQ.
-	inv EQ.
-	dependent destruction H; auto.
-Qed. 
-
-Instance gfp_bt_equ {E R r} :
-	 Proper (gfp (@fequ E R R eq) ==> gfp (@fequ E R R eq) ==> flip impl)
-	  (bt_equ eq r).
-Proof.
-	unfold Proper, respectful, flip, impl.
-	intros.
-	pose proof (gfp_bt (fequ eq) r).	
-	etransitivity; [|etransitivity]; [|apply H1 |].
-	apply H2; assumption.
-	apply H2; symmetry; assumption.
-Qed.	
 
 Lemma embed_eq {E X}: 
 	Proper (eq_itree eq ==> equ eq) (@embed E X).

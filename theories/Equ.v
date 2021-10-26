@@ -1,5 +1,5 @@
 (* begin hide *)
-From Coq Require Import RelationClasses.
+From Coq Require Import RelationClasses Program.
 
 From Coinduction Require Import 
 	coinduction rel tactics.
@@ -124,7 +124,7 @@ Section equ_equiv.
 	Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.
 
 	(* This one is a bit annoyingly adhoc, but useful for unfolding laws *)
-  #[global]Instance Reflexive_equF (equ : ctree E R -> ctree E R -> Prop) :
+  #[global] Instance Reflexive_equF (equ : ctree E R -> ctree E R -> Prop) :
     Reflexive RR -> Reflexive equ -> Reflexive (equF RR equ).
   Proof.
     red. destruct x; auto.
@@ -132,8 +132,38 @@ Section equ_equiv.
 
 End equ_equiv.
 
-#[global] Corollary Equivalence_equ {E R}: Equivalence (gfp (@fequ E R _ eq)).
+#[global] Instance Equivalence_equ {E R}: Equivalence (gfp (@fequ E R _ eq)).
 Proof. apply Equivalence_t. typeclasses eauto. Qed.
+(* 
+  From ITree Require Import ITree.
+ (* Unification diverges when trying to derive Reflexive from Equivalence for this relation *)
+ (* #[global] Instance Reflexive_equ {E R}: Reflexive (gfp (@fequ E R R eq)).
+Proof.
+  typeclasses eauto.
+Qed.
+ *)
+Definition embed {E X} : itree E X -> ctree E X :=
+	cofix _embed t := 
+	 match observe t with 
+	| RetF x => CTrees.Ret x
+	| TauF t => CTrees.Tau (_embed t)
+	| VisF e k => CTrees.Vis e (fun x => _embed (k x))
+	 end. 
+ 
+Notation "'_embed' ot" :=
+	(match ot with 
+	| RetF x => CTrees.Ret x
+	| TauF t => CTrees.Tau (embed t)
+	| VisF e k => CTrees.Vis e (fun x => embed (k x))
+ end) (at level 50, only parsing). 
+
+
+Lemma embed_unfold {E X} (t : itree E X) :
+	equ eq (embed t) (_embed (observe t)).
+Proof.
+	now step.
+Qed.
+ *)
 
 #[global] Hint Constructors equF : core.
 Arguments equ_ {E R1 R2} RR eq t1 t2/.
@@ -175,18 +205,9 @@ Import CTreeNotations.
 Open Scope ctree.
 
 (* Elementary equational theory *)
-(* Example issue with universes *)
 Lemma ctree_eta {E R} (t : ctree E R) : t ≅ go (observe t).
 Proof.
-	revert t; coinduction r CIH.
-	intros.
-	cbn.
-	desobs t.	
-	constructor; auto.
-	constructor; auto.
-	constructor; auto.
-	(* Qed fails *)
-	Restart. now step.
+  now step.
 Qed. 
 
 Lemma unfold_spin {E R} : @spin E R ≅ Tau spin.
@@ -217,4 +238,151 @@ Lemma unfold_iter {E R I} (step : I -> ctree E (I + R)) i:
 Proof.
 	now step.
 Qed.
-                         
+
+Lemma equF_vis_invT {E X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E S) k2 :
+  equF eq (equ eq) (CTrees.VisF e1 k1) (CTrees.VisF e2 k2) ->
+  X = Y.
+Proof.
+  intros EQ. 
+	dependent induction EQ; auto.
+Qed.
+
+Lemma equF_vis_invE {E X S} (e1 e2 : E X) (k1 k2 : X -> ctree E S) :
+  equF eq (equ eq) (CTrees.VisF e1 k1) (CTrees.VisF e2 k2) ->
+  e1 = e2 /\ forall x, equ eq (k1 x) (k2 x).
+Proof.
+  intros EQ.
+	inv EQ.
+	dependent destruction H; dependent destruction H4; auto.
+Qed. 
+
+Lemma equF_fork_invT {E S n m} (k1 : _ -> ctree E S) k2 :
+  equF eq (equ eq) (CTrees.ForkF n k1) (CTrees.ForkF m k2) ->
+  n = m.
+Proof.
+  intros EQ. 
+	dependent induction EQ; auto.
+Qed.
+
+Lemma equF_fork_invE {E S n} (k1 : _ -> ctree E S) k2 :
+  equF eq (equ eq) (CTrees.ForkF n k1) (CTrees.ForkF n k2) ->
+  forall x, equ eq (k1 x) (k2 x).
+Proof.
+  intros EQ.
+	inv EQ.
+	dependent destruction H; auto.
+Qed. 
+
+#[global] Instance gfp_bt_equ {E R r} :
+	 Proper (gfp (@fequ E R R eq) ==> gfp (@fequ E R R eq) ==> flip impl)
+	  (bt_equ eq r).
+Proof.
+	unfold Proper, respectful, flip, impl.
+	intros.
+	pose proof (gfp_bt (fequ eq) r).	
+	etransitivity; [|etransitivity]; [|apply H1 |].
+	apply H2; assumption.
+	apply H2; symmetry; assumption.
+Qed.	
+
+
+Section bind.
+
+  Definition pointwise {X X' Y Y'} (SS : rel X X') 
+    : rel Y Y' -> rel (X -> Y) (X' -> Y') :=  
+  fun R k k' => forall x x', SS x x' -> R (k x) (k' x').
+  (* Heterogeneous [pair], todo move to library *)
+  Definition pairH {A B : Type} (x : A) (y : B) : A -> B -> Prop :=
+    fun x' y' => x = x' /\ y = y'.
+
+  Lemma leq_pairH : forall {A B : Type} (x : A) (y : B) (R : rel A B), 
+     R x y <-> pairH x y <= R.
+  Proof.
+    firstorder congruence.
+  Qed.
+
+  Context {E: Type -> Type} {X X' Y Y': Type}.
+  
+  (* Most general contextualisation function associated to [bind]
+	   Can be read more digestly as, where R is a relation on itrees (the prefixes of the binds) and S on the continuations:
+		 bind_ctx R S = {(bind t k, bind t' k') | R t t' /\ S k k'}
+
+		 This definition could actually be generalized, 
+     the same way the Coinduction library provides generic binary contexts ([binary_ctx]).
+	 *)
+
+  (* The most general context:
+    bind_ctx R S ≜ {(bind x k, bind x' k') | R x x' /\ S k k'}
+  *)
+  Definition bind_ctx
+    (R: rel (ctree E X) (ctree E X')) 
+    (S: rel (X -> ctree E Y) (X' -> ctree E Y')): 
+    rel (ctree E Y) (ctree E Y') :=
+    sup_all (fun x => sup (R x) (fun x' =>
+    sup_all (fun k => sup (S k) (fun k' => pairH (bind x k) (bind x' k'))))).
+
+  (* Two lemmas to interact with [bind_ctx]: 
+     - [leq_bind_ctx] specifies relations above the context
+     - [in_bind_ctx] specifies how to populate it *)
+  Lemma leq_bind_ctx: 
+    forall R S S', bind_ctx R S <= S' <-> 
+    (forall x x', R x x' -> forall k k', S k k' -> S' (bind x k) (bind x' k')).
+  Proof.
+    intros.
+    unfold bind_ctx.
+    setoid_rewrite sup_all_spec.
+    setoid_rewrite sup_spec.
+    setoid_rewrite sup_all_spec.
+    setoid_rewrite sup_spec.
+    setoid_rewrite <-leq_pairH.
+    firstorder.
+  Qed.
+
+  Lemma in_bind_ctx (R S :rel _ _) x x' y y':
+    R x x' -> S y y' -> bind_ctx R S (bind x y) (bind x' y').
+  Proof. intros. now apply ->leq_bind_ctx. Qed.
+  Global Opaque bind_ctx.
+
+  (* specialisation to a function acting with [equ] on the bound value, and with the argument (pointwise) on the continuation *)
+  Program Definition bind_ctx' SS: mon (rel (ctree E Y) (ctree E Y')) :=
+    {|body := fun R => bind_ctx (equ SS) (pointwise SS R) |}.
+  Next Obligation.
+    intros ?? H. apply leq_bind_ctx. intros ?? H' ?? H''.
+    apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
+  Qed.
+
+  (* this gives a valid up-to technique *)
+  (* research question: is there a meaningful way do deal with bind_ctx in general? *)
+  Lemma bind_ctx'_t (SS : rel X X') (RR : rel Y Y'): bind_ctx' SS <= t_equ RR.
+  Proof.
+    apply Coinduction. intros R. apply (leq_bind_ctx _).
+    intros x x' xx' k k' kk'.
+    apply (gfp_pfp (fequ _)) in xx'. 
+    cbn; unfold observe; cbn.
+    destruct xx'.
+    - cbn in *.
+      generalize (kk' _ _ REL).
+      apply (fequ RR).
+      apply id_T.
+    - constructor; intros ?. apply (fTf_Tf (fequ _)). 
+      apply in_bind_ctx. apply REL.
+      red; intros. apply (b_T (fequ _)), kk'; auto.
+    - constructor. intro a. apply (fTf_Tf (fequ _)).
+      apply in_bind_ctx. apply REL.
+      red; intros. apply (b_T (fequ _)), kk'; auto.
+  Qed.
+
+  (* and as a consequence, one may rewrite under binds
+  Lemma foo : Prop.
+      refine (forall {T U : Type} (R : rel U U), _ : Prop).
+      refine (Proper (equ (@eq T) ==> _ ==> _) (@bind E T U)).
+      refine (pointwise_relation T _).
+      refine (t_equ R).
+  Global Instance bind_t {T U}: forall R,
+   Proper (equ (@eq T) ==> pointwise_relation T (t_equ R) ==> t_equ R)
+    (@bind E T U).
+  Proof. intros R x x' Hx y y' Hy. apply (ft_t bind_ctx'_t). now apply in_bind_ctx. Qed.
+  Global Instance bind_bt: forall R, Proper (bisim ==> pointwise_relation _ (bt R) ==> bt R) (@bind E T U).
+  Proof. intros R x x' Hx y y' Hy. apply (fbt_bt bind_ctx'_t). now apply in_bind_ctx. Qed. *)
+
+End bind.

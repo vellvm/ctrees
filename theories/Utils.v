@@ -11,3 +11,4 @@ Polymorphic Class MonadTrigger (M : Type -> Type) : Type :=
 Polymorphic Class MonadFork (M : Type -> Type) : Type :=
   fork : forall (n: nat), M (Fin.t n).
 
+Notation rel X Y := (X -> Y -> Prop).

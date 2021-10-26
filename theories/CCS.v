@@ -33,7 +33,7 @@ Open Scope ctree_scope.
 (* Definition zip {E F} (u : ctree E unit) (v : ctree F unit) : ctree (E *' F) unit *)
 
 (* Paul's yield approach over stateT st (ctree E) *)
-
+(*
 Section Channels. 
 
 	Definition chan : Set := string.
@@ -175,3 +175,5 @@ Section Combinators.
 			end	.
 				
 End Combinators.
+
+*)

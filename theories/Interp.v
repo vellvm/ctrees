@@ -18,7 +18,7 @@ Definition translateF {E F R} (h : E ~> F) (rec: ctree E R -> ctree F R) (t : ct
 	match t with
 		| RetF x => Ret x
 		| VisF e k => Vis (h _ e) (fun x => rec (k x))
-		| ForkF k => Fork (fun x => rec (k x))
+		| ForkF n k => Fork n (fun x => rec (k x))
 	end.
 		
 Definition translate {E F} (h : E ~> F) : ctree E ~> ctree F

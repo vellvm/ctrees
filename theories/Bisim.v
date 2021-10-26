@@ -29,7 +29,20 @@ Section Schedule.
 
 	(* It might be better to work with the usual pattern of tying
 	  the knot afterwards, but it's a bit awkward with the closure
-		up-to [equ]. To see in practice. *)
+		up-to [equ]. To see in practice. 
+      
+     t = Fork 2 (Fork 2 (Vis e k) (Ret x)) (Vis e' k')) 
+
+     schedule t (Vis e k)
+     schedule t (Ret x)
+     schedule t (Vis e' k')
+    
+     
+     P -l>* P'    P -tau> P0 -tau> P1 -l> P2 -tau> P' 
+
+     Q -l>* Q'
+
+      *)
 
   Inductive schedule_ : ctree' E R -> ctree' E R -> Prop :=
   | SchedFork {n} (x : Fin.t n) k t :
@@ -104,7 +117,8 @@ Section bisim.
 End bisim.
 
 (** associated relation *)
-Notation bisim := (gfp (fbisim eq)).
+Definition bisim {E R} := (gfp (@fbisim E R R eq)).
+(* Notation bisim := (gfp (fbisim eq)). *)
 
 (** associated companions  *)
 Notation T_bis RR  := (t (B (fbisim RR))).
@@ -203,8 +217,7 @@ Section bisim_equiv.
       apply matching_active_sym; auto.
 	Qed.
 
-  (** so is squaring *)
-	Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= t.
+	(* Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= t.
 	Proof.
 		apply leq_t; cbn.
 		intros S t u [v [] []]; cbn in *. clear t u v. rename t0 into t, u0 into u.
@@ -223,17 +236,25 @@ Section bisim_equiv.
 			destruct (Fork_eq2 _ _ _ _ H2).
 			constructor. intros i. now (exists (k0 i)).
 	Qed.
-	
-	(** thus bisimilarity, [t R], [b (t R)] and [T f R] are always bisimivalence relations *)
-	#[global] Instance Equivalence_t `{Equivalence _ RR} S: Equivalence (t S).
-	Proof. apply Equivalence_t. apply refl_t. apply square_t. apply converse_t. Qed.
-	#[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (T f S).
-	Proof. apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
-	#[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (bt S).
-	Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.
+	 *)
 
-End bisim_bisimiv.
+	(** thus bisimilarity, [t R], [b (t R)] and [T f R] are always reflexive relations *)
+	#[global] Instance Reflexive_t `{Reflexive _ RR} S: Reflexive (t S).
+	Proof.  intro. now apply (ft_t refl_t). Qed.
+	#[global] Instance Reflexive_T `{Reflexive _ RR} f S: Reflexive (T f S).
+	Proof.  intro. now apply (fT_T refl_t). Qed.
+	#[global] Instance Reflexive_bt `{Reflexive _ RR} S: Reflexive (bt S).
+	Proof.  intro. now apply (fbt_bt refl_t). Qed.
 
+	(** thus bisimilarity, [t R], [b (t R)] and [T f R] are always symmetric relations *)
+	#[global] Instance Symmetric_t `{Symmetric _ RR} S: Symmetric (t S).
+	Proof.  intros ???. now apply (ft_t converse_t). Qed.
+	#[global] Instance Symmetric_T `{Symmetric _ RR} f S: Symmetric (T f S).
+	Proof.  intros ???. now apply (fT_T converse_t). Qed.
+	#[global] Instance Symmetric_bt `{Symmetric _ RR} S: Symmetric (bt S).
+	Proof.  intros ???. now apply (fbt_bt converse_t). Qed.
+
+End bisim_equiv.
 
 
 (** * Sanity checks and meta-theory to establish at some point.
@@ -255,8 +276,7 @@ Module Sanity.
 
   Goal forall {E R}, @spin E R ≈ spin.
   Proof.
-    intros. step.
-    constructor; intros; exfalso; eapply schedule_spin; eauto.
+    intros. reflexivity.
   Qed.
 
   Lemma schedule_spin_nary {E R} n t : schedule (@spin_nary E R n) t -> False.
@@ -267,11 +287,13 @@ Module Sanity.
     cbv in *. subst. apply inj_pair2 in H2. subst. auto.
   Qed.
 
+    Hint Unfold bisim : core. 
   Goal forall {E R} n m, @spin_nary E R n ≈ spin_nary m.
   Proof.
-    intros. step.
+    intros. unfold bisim.
+    step.
     constructor; intros; exfalso; eapply schedule_spin_nary; eauto.
-  Qed.
+  Admitted.
 
 	(* TODO: we need to do some thinking about what the right
 		way to represent and manipulate these finite branches.
@@ -291,9 +313,7 @@ Module Sanity.
 		fork2 (fork2 t u) v ≈
 		fork2 t (fork2 u v).
   Proof.
-    intros. step; constructor.
-    - intros.
-      inv H.
+  Admitted.
 
 	Lemma fork2_commut : forall {E X} (t u : ctree E X),
 		fork2 t u ≈ fork2 u t.
@@ -321,7 +341,10 @@ Lemma schedule_vis_inv :
     schedule (Vis e k) t -> t ≅ Vis e k.
 Proof.
   intros * SCHED. inversion SCHED. apply inj_pair2 in H1, H2. subst.
-  pstep. simpl. rewrite <- H. constructor. intros. left. apply Reflexive_paco2_equ; auto. (* TODO *)
+  step. rewrite <- H. constructor. intros. 
+    apply Equivalence_equ. 
+    (* TODO: why does it reflexivity loop?
+    reflexivity. *)
 Qed.
 
 (* TODO: schedule is closed under [equ] properly *)
@@ -350,7 +373,7 @@ Admitted.
 
 (* TODO : [equ] is a subrelation of [bisim] *)
 Lemma equ_bisim : forall {E X Y} {RR: X -> Y -> Prop},
-  subrelationH (@equ E _ _ RR) (@bisim E _ _ RR).
+  subrelationH (gfp (@fequ E _ _ RR)) (gfp (@fbisim E _ _ RR)).
 Proof.
 	(*
 	 intros; red.
