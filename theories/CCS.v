@@ -84,7 +84,7 @@ Definition ccs := ccsT unit.
 
 Section Combinators.
 
-	Definition done : ccs := Ret tt.
+	Definition done : ccs := Ret tt. (* Or should it be Fork 0 ? *)
 
 	Definition prefix (a : action) : ccs := trigger (Act a).
 
@@ -153,7 +153,7 @@ Section Combinators.
 				end
       | ForkF n k => Fork n (fun i => get_hd (k i))
 			end.
-	
+
   Definition para : ccs -> ccs -> ccs :=
 		cofix F (P : ccs) (Q : ccs) := 
 			rP <- get_hd P;;
@@ -173,5 +173,22 @@ Section Combinators.
 				| None, None =>   Sanity.fork2 (vis Tau (fun _ => F P' Q)) (vis Tau (fun _ => F P Q'))
 				end
 			end	.
-				
+
+
+(* 
+				-------------------------------------------------
+				!(a.P || bara.Q) -τ> (P || Q) || !(a.P || bara.Q)
+
+					Question: is !P ≈ P || !P?
+  Definition bang : ccs -> ccs.			
+*)
+
 End Combinators.
+
+(* fun P Q => bisim (model P) (model Q): is this weak bisimulation of CCS? 
+
+   -> : term -> term -> Prop
+   -ccs> : ccs -> ccs -> Prop as 
+   -sem> : term -> term -> Prop := fun P Q => model P -ccs> model Q
+*)
+

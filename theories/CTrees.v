@@ -28,12 +28,16 @@ Section ctree.
 				value returned by the environment
 			- A (finite) internal non-deterministic choice	
 	*)
+  (* TODO: rename Fork into Choice or similar *)
 	(* TODO YZ:  
 		- Do we want to name the sources of the forks?
 			For instance if we want to support simultaneously different schedulers 
 			for different kind of non-determinism in a language. 
 		- Do we want non-finite internal branching? Indexed by arbitrary types?
     - Or crazier, do we want non-uniform branching, modelling non-uniform random choices for instance?
+    - Could ctrees be parameterized by:
+      + a bound on nested forks before reaching a Vis/Ret
+      + a general domain of forking events
 	 *)
 	
   Variant ctreeF (ctree : Type) :=
