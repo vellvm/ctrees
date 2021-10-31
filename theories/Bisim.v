@@ -8,7 +8,7 @@ From Coq Require Import
 From ITree Require Import
 	Basics.HeterogeneousRelations.
 
-From Coinduction Require Import 
+From Coinduction Require Import
 	coinduction rel tactics.
 
 From CTree Require Import
@@ -29,25 +29,25 @@ Section Schedule.
 
 	(* It might be better to work with the usual pattern of tying
 	  the knot afterwards, but it's a bit awkward with the closure
-		up-to [equ]. To see in practice. 
-      
-     t = Fork 2 (Fork 2 (Vis e k) (Ret x)) (Vis e' k')) 
+		up-to [equ]. To see in practice.
+
+     t = Choice 2 (Choice 2 (Vis e k) (Ret x)) (Vis e' k'))
 
      schedule t (Vis e k)
      schedule t (Ret x)
      schedule t (Vis e' k')
-    
-     
-     P -l>* P'    P -tau> P0 -tau> P1 -l> P2 -tau> P' 
+
+
+     P -l>* P'    P -tau> P0 -tau> P1 -l> P2 -tau> P'
 
      Q -l>* Q'
 
       *)
 
   Inductive schedule_ : ctree' E R -> ctree' E R -> Prop :=
-  | SchedFork {n} (x : Fin.t n) k t :
+  | SchedChoice {n} (x : Fin.t n) k t :
     		schedule_ (observe (k x)) t ->
-    		schedule_ (ForkF n k) t
+    		schedule_ (ChoiceF n k) t
   | SchedRet x :
     		schedule_ (RetF x) (RetF x)
   | SchedVis {X} (e : E X) k :
@@ -76,7 +76,7 @@ Section bisim.
   .
   Hint Constructors matching: core.
 
-	(* The functor is shrinked to a single constructor mirrorring
+	(* The functor is shrinked to a single constructor mirroring
 		exactly traditional definitions of bisimulations:
 		for any observable state that the first process can reach,
 		the second one can reach a matching one, and reciprocally.
@@ -110,8 +110,8 @@ Section bisim.
   Program Definition fbisim : mon (ctree E R1 -> ctree E R2 -> Prop) := {| body := bisim_ |}.
   Next Obligation.
    unfold pointwise_relation, impl, bisim_.
-   intros ?? INC ?? EQ. 
-   constructor; inversion_clear EQ; intros; [edestruct SIMF as (? & ? & ?)| edestruct SIMB as (? & ? & ?)]; eauto. 
+   intros ?? INC ?? EQ.
+   constructor; inversion_clear EQ; intros; [edestruct SIMF as (? & ? & ?)| edestruct SIMB as (? & ? & ?)]; eauto.
   Qed.
 
 End bisim.
@@ -126,26 +126,26 @@ Notation t_bis RR  := (t (fbisim RR)).
 Notation bt_bis RR := (bt (fbisim RR)).
 
 Infix "≈" := bisim (at level 70).
-Notation "x ≊ y" := (t_bis eq _ x y) (at level 79). 
-Notation "x [≊] y" := (bt_bis eq _ x y) (at level 79). 
+Notation "x ≊ y" := (t_bis eq _ x y) (at level 79).
+Notation "x [≊] y" := (bt_bis eq _ x y) (at level 79).
 
 Arguments bisim_ _ _ _ _/.
 #[global] Hint Constructors bisimF: core.
 #[global] Hint Constructors matching: core.
 
-Variant passive_ {E R} : ctree' E R -> Prop := 
-  | fork_passive n k : passive_ (ForkF n k).
+Variant passive_ {E R} : ctree' E R -> Prop :=
+  | choice_passive n k : passive_ (ChoiceF n k).
 Definition passive {E R} t := @passive_ E R (observe t).
 #[global] Hint Constructors passive_: core.
 
-Variant active_ {E R} : ctree' E R -> Prop := 
+Variant active_ {E R} : ctree' E R -> Prop :=
   | ret_active x : active_ (RetF x)
   | vis_active Y (e : E Y) k : active_ (VisF e k).
 Definition active {E R} t := @active_ E R (observe t).
 #[global] Hint Constructors active_: core.
 
 Lemma scheduled_active_ : forall {E R} (t u : ctree' E R),
-  schedule_ t u -> 
+  schedule_ t u ->
   active_ u.
 Proof.
   intros * SCHED.
@@ -153,7 +153,7 @@ Proof.
 Qed.
 
 Lemma scheduled_active : forall {E R} (t u : ctree E R),
-  schedule t u -> 
+  schedule t u ->
   active u.
 Proof.
   intros * SCHED; red.
@@ -161,23 +161,23 @@ Proof.
 Qed.
 
 Lemma matching_active_refl {E R} (RR : R -> R -> Prop)
-   (eq : ctree E R -> ctree E R -> Prop) (t : ctree' E R) 
+   (eq : ctree E R -> ctree E R -> Prop) (t : ctree' E R)
    `{Reflexive _ RR} `{Reflexive _ eq} :
    active_ t ->
    matching RR eq t t.
 Proof.
   intros []; auto.
-Qed. 
+Qed.
 
 Lemma matching_active_sym {E R} (RR : R -> R -> Prop)
-   (eq : ctree E R -> ctree E R -> Prop) (t u : ctree' E R) 
+   (eq : ctree E R -> ctree E R -> Prop) (t u : ctree' E R)
    `{Symmetric _ RR} :
    matching RR eq t u ->
    matching RR (converse eq) u t.
 Proof.
-  intros []; auto. 
-Qed. 
-  
+  intros []; auto.
+Qed.
+
 Section bisim_equiv.
 
 	Variable (E : Type -> Type) (R : Type) (RR : R -> R -> Prop).
@@ -189,9 +189,9 @@ Section bisim_equiv.
   (** [eq] is a post-fixpoint, thus [const eq] is below [t] *)
 	Lemma refl_t {RRR: Reflexive RR}: const eq <= t.
 	Proof.
-    apply leq_t. 
-		intros p t ? <-. cbn. 
-    constructor. 
+    apply leq_t.
+		intros p t ? <-. cbn.
+    constructor.
     - intros t' SCHED.
       exists t'; split; auto.
       apply matching_active_refl; auto.
@@ -201,11 +201,11 @@ Section bisim_equiv.
       apply matching_active_refl; auto.
       eapply scheduled_active_; eauto.
 	Qed.
-		
+
 	(** converse is compatible *)
 	Lemma converse_t {RRS: Symmetric RR}: converse <= t.
 	Proof.
-		apply leq_t. intros S t u H; cbn in *. 
+		apply leq_t. intros S t u H; cbn in *.
     destruct H. constructor.
     - intros t' SCHED.
       edestruct SIMB as (u' & SCHED' & MATCH'); eauto.
@@ -222,7 +222,7 @@ Section bisim_equiv.
 		apply leq_t; cbn.
 		intros S t u [v [] []]; cbn in *. clear t u v. rename t0 into t, u0 into u.
     constructor.
-    - intros u' SCHEDu. 
+    - intros u' SCHEDu.
       edestruct SIMF as (t' & SCHEDt & MATCHut); eauto.
       exists t'; split; auto.
 
@@ -232,8 +232,8 @@ Section bisim_equiv.
 			destruct (Vis_eq2 _ _ _ _ _ _ H2) as [-> ->].
 			constructor. intro x0. now exists (k2 x0).
 		- rewrite <- H in H2.
-			destruct (Fork_eq1 _ _ _ _ _ H2).
-			destruct (Fork_eq2 _ _ _ _ H2).
+			destruct (Choice_eq1 _ _ _ _ _ H2).
+			destruct (Choice_eq2 _ _ _ _ H2).
 			constructor. intros i. now (exists (k0 i)).
 	Qed.
 	 *)
@@ -265,11 +265,10 @@ End bisim_equiv.
 Module Sanity.
   Import CTree.
 
-  Lemma schedule_spin {E R} t : schedule (@spin E R) t -> False.
+  Lemma schedule_spin {E R} t : schedule_ (observe (@spin E R)) t -> False.
   Proof.
-    intros. unfold schedule in H. 
-    remember (observe spin). 
-    genobs t ot.
+    intros.
+    remember (observe spin).
     induction H; inversion Heqc.
     cbv in *. subst. apply inj_pair2 in H2. subst. auto.
   Qed.
@@ -279,60 +278,74 @@ Module Sanity.
     intros. reflexivity.
   Qed.
 
-  Lemma schedule_spin_nary {E R} n t : schedule (@spin_nary E R n) t -> False.
+  Lemma schedule_spin_nary {E R} n t : schedule_ (observe (@spin_nary E R n)) t -> False.
   Proof.
-    intros. unfold schedule in H. 
-    remember (observe (spin_nary n)). genobs t ot.
+    intros.
+    remember (observe (spin_nary n)).
     induction H; inversion Heqc.
     cbv in *. subst. apply inj_pair2 in H2. subst. auto.
   Qed.
 
-    Hint Unfold bisim : core. 
+  Hint Unfold bisim : core.
   Goal forall {E R} n m, @spin_nary E R n ≈ spin_nary m.
   Proof.
-    intros. unfold bisim.
-    step.
+    intros. unfold bisim. step.
     constructor; intros; exfalso; eapply schedule_spin_nary; eauto.
-  Admitted.
+  Qed.
+
+  Goal forall {E R} n, @spin_nary E R n ≈ spin.
+  Proof.
+    intros. unfold bisim. step.
+    constructor; intros; exfalso.
+    - eapply schedule_spin_nary; eauto.
+    - eapply schedule_spin; eauto.
+  Qed.
 
 	(* TODO: we need to do some thinking about what the right
 		way to represent and manipulate these finite branches.
 	*)
-	Definition fork2 {E X} (t u : ctree E X) :=
-		(Fork 2 (fun b =>
-						 match b with | Fin.F1 => t | _ => u end)).
+  Definition choice2 {E X} (t u : ctree E X) :=
+	(Choice 2 (fun b =>
+			   match b with | Fin.F1 => t | _ => u end)).
 
-  Definition fork3 {E X} (t u v : ctree E X) :=
-		(Fork 3 (fun b =>
-						 match b with
-						  | Fin.F1 => t
-						  | Fin.FS Fin.F1 => u
-							| _ => v end)).
+  Definition choice3 {E X} (t u v : ctree E X) :=
+	(Choice 3 (fun b =>
+			   match b with
+			   | Fin.F1 => t
+			   | Fin.FS Fin.F1 => u
+			   | _ => v end)).
 
-	Lemma fork2_assoc : forall {E X} (t u v : ctree E X),
-		fork2 (fork2 t u) v ≈
-		fork2 t (fork2 u v).
+  Lemma choice2_assoc : forall {E X} (t u v : ctree E X),
+	  choice2 (choice2 t u) v ≈
+      choice2 t (choice2 u v).
   Proof.
+    intros E X. unfold bisim. intros. step. (* coinduction r CIH. *)
+    intros. simpl. constructor.
+    - intros. exists u'. split. 2: { admit. }
+      inv H. apply inj_pair2 in H2. subst. destruct x.
+      + inv H3. apply inj_pair2 in H1. subst. simpl. destruct x.
+        * eapply SchedChoice.
+
+  Abort.
+
+  Lemma choice2_commut : forall {E X} (t u : ctree E X),
+	  choice2 t u ≈ choice2 u t.
   Admitted.
 
-	Lemma fork2_commut : forall {E X} (t u : ctree E X),
-		fork2 t u ≈ fork2 u t.
-	Admitted.
+  (* To generalize to any arity *)
+  Lemma choice_merge : forall {E X} (t u v : ctree E X),
+	  choice2 (choice2 t u) v ≈
+		      choice3 t u v.
+  Admitted.
 
-	(* To generalize to any arity *)
-	Lemma fork_merge : forall {E X} (t u v : ctree E X),
-		fork2 (fork2 t u) v ≈
-		fork3 t u v.
-	Admitted.
+  Lemma choice2_spin : forall {E X} (t : ctree E X),
+	  choice2 t spin ≈ t.
+  Admitted.
 
-	Lemma fork_spin : forall {E X} (t : ctree E X),
-		fork2 t spin ≈ t.
-	Admitted.
-
-	Lemma fork2_equ : forall {E X} (t u : ctree E X),
-		t ≅ u ->
-		fork2 t u ≈ t.
-	Admitted.
+  Lemma choice2_equ : forall {E X} (t u : ctree E X),
+	  t ≅ u ->
+	  choice2 t u ≈ t.
+  Admitted.
 
 End Sanity.
 
@@ -341,9 +354,9 @@ Lemma schedule_vis_inv :
     schedule (Vis e k) t -> t ≅ Vis e k.
 Proof.
   intros * SCHED. inversion SCHED. apply inj_pair2 in H1, H2. subst.
-  step. rewrite <- H. constructor. intros. 
-    apply Equivalence_equ. 
-    (* TODO: why does it reflexivity loop?
+  step. rewrite <- H. constructor. intros.
+  apply Equivalence_equ.
+(* TODO: why does reflexivity loop?
     reflexivity. *)
 Qed.
 
@@ -371,6 +384,7 @@ Proof.
 *)
 Admitted.
 
+
 (* TODO : [equ] is a subrelation of [bisim] *)
 Lemma equ_bisim : forall {E X Y} {RR: X -> Y -> Prop},
   subrelationH (gfp (@fequ E _ _ RR)) (gfp (@fbisim E _ _ RR)).
@@ -385,7 +399,7 @@ Proof.
 		 all: constructor; intros; right; apply CIH, REL.
 	 - constructor 2; intros ? SCHED.
 		 + pclearbot.
-			 remember (Fork k1) as ft. revert k1 REL Heqft; induction SCHED; try now intuition.
+			 remember (Choice k1) as ft. revert k1 REL Heqft; induction SCHED; try now intuition.
 			 intros; dependent destruction Heqft; pclearbot.
 			 edestruct IHSCHED as (t' & SCHED' & MATCH).
 
