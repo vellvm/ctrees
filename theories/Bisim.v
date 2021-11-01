@@ -217,27 +217,6 @@ Section bisim_equiv.
       apply matching_active_sym; auto.
 	Qed.
 
-	(* Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= t.
-	Proof.
-		apply leq_t; cbn.
-		intros S t u [v [] []]; cbn in *. clear t u v. rename t0 into t, u0 into u.
-    constructor.
-    - intros u' SCHEDu.
-      edestruct SIMF as (t' & SCHEDt & MATCHut); eauto.
-      exists t'; split; auto.
-
-		- constructor. replace y0 with x1 in * by congruence. eauto.
-		- rewrite <-H in H2.
-			destruct (Vis_eq1 _ _ _ _ _ _ _ H2).
-			destruct (Vis_eq2 _ _ _ _ _ _ H2) as [-> ->].
-			constructor. intro x0. now exists (k2 x0).
-		- rewrite <- H in H2.
-			destruct (Choice_eq1 _ _ _ _ _ H2).
-			destruct (Choice_eq2 _ _ _ _ H2).
-			constructor. intros i. now (exists (k0 i)).
-	Qed.
-	 *)
-
 	(** thus bisimilarity, [t R], [b (t R)] and [T f R] are always reflexive relations *)
 	#[global] Instance Reflexive_t `{Reflexive _ RR} S: Reflexive (t S).
 	Proof.  intro. now apply (ft_t refl_t). Qed.
@@ -256,7 +235,7 @@ Section bisim_equiv.
 
 End bisim_equiv.
 
-Lemma bisim_trans {E R}: Transitive (@bisim E R). 
+#[global] Instance bisim_trans {E R}: Transitive (@bisim E R). 
 Proof.
   red. unfold bisim. coinduction S IH.
   intros t u v eq1 eq2.
@@ -343,7 +322,7 @@ Module Sanity.
 	(Choice 3 (fun b =>
 			   match b with
 			   | Fin.F1 => t
-			   | Fin.FS Fin.F1 => u
+			   | @Fin.FS 3 Fin.F1 => u
 			   | _ => v end)).
 
   Lemma choice2_assoc : forall {E X} (t u v : ctree E X),
@@ -361,7 +340,22 @@ Module Sanity.
 
   Lemma choice2_commut : forall {E X} (t u : ctree E X),
 	  choice2 t u ≈ choice2 u t.
-  Admitted.
+  Proof.
+    intros. 
+    unfold bisim; step; constructor.
+    - intros * SCHED; inv SCHED. dependent induction H1. (* Ugly, to improve *)
+      dependent induction x. (* Mmmh this is a bit annoying, to improve *)
+      + eexists; split; [| apply matching_active_refl; eauto using scheduled_active_]. (* ugly, to improve *)
+        apply (SchedChoice (Fin.FS Fin.F1)); auto.
+      + eexists; split; [| apply matching_active_refl; eauto using scheduled_active_]. 
+        apply (SchedChoice (Fin.F1)); auto.
+    - intros * SCHED; inv SCHED. dependent induction H1.
+      dependent induction x. (* Mmmh this is a bit annoying *)
+      + eexists; split; [| apply matching_active_refl; eauto using scheduled_active_]. 
+        apply (SchedChoice (Fin.FS Fin.F1)); auto.
+      + eexists; split; [| apply matching_active_refl; eauto using scheduled_active_]. 
+        apply (SchedChoice (Fin.F1)); auto.
+  Qed.
 
   (* To generalize to any arity *)
   Lemma choice_merge : forall {E X} (t u v : ctree E X),
