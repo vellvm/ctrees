@@ -16,6 +16,11 @@
 
 # A few notes on trailing things to consider
 
+## Symmetry argument
+
+	The companion support arguments by symmetry to avoid the duplication of proof scripts for bisimulation.
+	Can we use it in our setup? 
+
 ## Interpretation and scheduling
 
 What do we want to do w.r.t. implementation of the internal choice?
