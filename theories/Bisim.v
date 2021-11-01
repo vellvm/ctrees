@@ -256,6 +256,37 @@ Section bisim_equiv.
 
 End bisim_equiv.
 
+Lemma bisim_trans {E R}: Transitive (@bisim E R). 
+Proof.
+  red. unfold bisim. coinduction S IH.
+  intros t u v eq1 eq2.
+  step in eq1; step in eq2. 
+  inversion eq1 as [? ? SIMF1 SIMB1]; subst.
+  inversion eq2 as [? ? SIMF2 SIMB2]; subst.
+  constructor.
+  - intros u' SCHED.
+    apply SIMF1 in SCHED as (ou' & SCHEDu & MATCHut).
+    apply SIMF2 in SCHEDu as (ov' & SCHEDv & MATCHvu).
+    exists ov'; split; auto.
+    inv MATCHvu. 
+    + inv MATCHut; auto.   
+    + inv MATCHut. 
+      dependent induction H3.
+      constructor.
+      intros ?.
+      eapply IH; eauto.
+  - intros t' SCHED.
+    apply SIMB2 in SCHED as (ou' & SCHEDu & MATCHut).
+    apply SIMB1 in SCHEDu as (ov' & SCHEDv & MATCHvu).
+    exists ov'; split; auto.
+    inv MATCHvu. 
+    + inv MATCHut; auto.   
+    + inv MATCHut. 
+      dependent induction H2. 
+      constructor.
+      intros ?.
+      eapply IH; eauto.
+Qed.
 
 (** * Sanity checks and meta-theory to establish at some point.
 	We'll have to come after more basic meta-theory of course,

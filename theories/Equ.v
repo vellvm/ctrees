@@ -68,9 +68,9 @@ Ltac desobs x := destruct (observe x) .
 Section equ_equiv.
 
 	Variable (E : Type -> Type) (R : Type) (RR : R -> R -> Prop).
-    Notation T  := (coinduction.t (B (fequ (E := E) RR))).
+    Notation T  := (coinduction.T (fequ (E := E) RR)).
     Notation t  := (coinduction.t (fequ (E := E) RR)).
-	Notation bt := (coinduction.bt (fequ (E := E) RR)).
+  	Notation bt := (coinduction.bt (fequ (E := E) RR)).
 
   (** [eq] is a post-fixpoint, thus [const eq] is below [t] *)
 	Lemma refl_t {RRR: Reflexive RR}: const eq <= t.
@@ -119,7 +119,8 @@ Section equ_equiv.
 	#[global] Instance Equivalence_t `{Equivalence _ RR} S: Equivalence (t S).
 	Proof. apply Equivalence_t. apply refl_t. apply square_t. apply converse_t. Qed.
 	#[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (T f S).
-	Proof. apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
+	Proof. 
+    apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
 	#[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (bt S).
 	Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.
 
@@ -167,14 +168,6 @@ Qed.
 
 #[global] Hint Constructors equF : core.
 Arguments equ_ {E R1 R2} RR eq t1 t2/.
-
-(* A smarter version of this should be part of the [coinduction] library *)
-Ltac step_in H :=
-match type of H with
-| gfp ?b ?x ?y => apply (gfp_fp b x y) in H
-end;
-simpl body in H.
-Tactic Notation "step" "in" ident(H) := step_in H.
 
 (* We assume JMeq to invert easily bisimilarity of dependently
 	 typed constructors *)
