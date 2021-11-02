@@ -235,11 +235,11 @@ Section bisim_equiv.
 
 End bisim_equiv.
 
-#[global] Instance bisim_trans {E R}: Transitive (@bisim E R). 
+#[global] Instance bisim_trans {E R}: Transitive (@bisim E R).
 Proof.
   red. unfold bisim. coinduction S IH.
   intros t u v eq1 eq2.
-  step in eq1; step in eq2. 
+  step in eq1; step in eq2.
   inversion eq1 as [? ? SIMF1 SIMB1]; subst.
   inversion eq2 as [? ? SIMF2 SIMB2]; subst.
   constructor.
@@ -247,9 +247,9 @@ Proof.
     apply SIMF1 in SCHED as (ou' & SCHEDu & MATCHut).
     apply SIMF2 in SCHEDu as (ov' & SCHEDv & MATCHvu).
     exists ov'; split; auto.
-    inv MATCHvu. 
-    + inv MATCHut; auto.   
-    + inv MATCHut. 
+    inv MATCHvu.
+    + inv MATCHut; auto.
+    + inv MATCHut.
       dependent induction H3.
       constructor.
       intros ?.
@@ -258,10 +258,10 @@ Proof.
     apply SIMB2 in SCHED as (ou' & SCHEDu & MATCHut).
     apply SIMB1 in SCHEDu as (ov' & SCHEDv & MATCHvu).
     exists ov'; split; auto.
-    inv MATCHvu. 
-    + inv MATCHut; auto.   
-    + inv MATCHut. 
-      dependent induction H2. 
+    inv MATCHvu.
+    + inv MATCHut; auto.
+    + inv MATCHut.
+      dependent induction H2.
       constructor.
       intros ?.
       eapply IH; eauto.
@@ -329,48 +329,89 @@ Module Sanity.
 	  choice2 (choice2 t u) v ≈
       choice2 t (choice2 u v).
   Proof.
-    intros E X. unfold bisim. intros. step. (* coinduction r CIH. *)
-    intros. simpl. constructor.
-    - intros. exists u'. split. 2: { admit. }
-      inv H. apply inj_pair2 in H2. subst. destruct x.
-      + inv H3. apply inj_pair2 in H1. subst. simpl. destruct x.
-        * eapply SchedChoice.
-
-  Abort.
+    intros. unfold bisim. step. constructor.
+    - intros. exists u'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
+      + inv H3. apply inj_pair2 in H1. subst. remember 2. destruct x; inv Heqn.
+        * apply SchedChoice with (x:=Fin.F1); auto.
+        * clear x. apply SchedChoice with (x:=Fin.FS Fin.F1).
+          apply SchedChoice with (x:=Fin.F1); auto.
+      + clear x. apply SchedChoice with (x:=Fin.FS Fin.F1).
+        apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+    - intros. exists t'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
+      + apply SchedChoice with (x:=Fin.F1).
+        apply SchedChoice with (x:=Fin.F1); auto.
+      + clear x. inv H3. apply inj_pair2 in H1. subst. remember 2. destruct x; inv Heqn.
+        * apply SchedChoice with (x:=Fin.F1).
+          apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+        * clear x. apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+  Qed.
 
   Lemma choice2_commut : forall {E X} (t u : ctree E X),
 	  choice2 t u ≈ choice2 u t.
   Proof.
-    intros. 
-    unfold bisim; step; constructor.
-    - intros * SCHED; inv SCHED. dependent induction H1. (* Ugly, to improve *)
-      dependent induction x. (* Mmmh this is a bit annoying, to improve *)
-      + eexists; split; [| apply matching_active_refl; eauto using scheduled_active_]. (* ugly, to improve *)
-        apply (SchedChoice (Fin.FS Fin.F1)); auto.
-      + eexists; split; [| apply matching_active_refl; eauto using scheduled_active_]. 
-        apply (SchedChoice (Fin.F1)); auto.
-    - intros * SCHED; inv SCHED. dependent induction H1.
-      dependent induction x. (* Mmmh this is a bit annoying *)
-      + eexists; split; [| apply matching_active_refl; eauto using scheduled_active_]. 
-        apply (SchedChoice (Fin.FS Fin.F1)); auto.
-      + eexists; split; [| apply matching_active_refl; eauto using scheduled_active_]. 
-        apply (SchedChoice (Fin.F1)); auto.
+    intros. unfold bisim. step. constructor.
+    - intros. exists u'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
+      + apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+      + apply SchedChoice with (x0:=Fin.F1); auto.
+    - intros. exists t'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
+      + apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+      + apply SchedChoice with (x0:=Fin.F1); auto.
   Qed.
 
   (* To generalize to any arity *)
   Lemma choice_merge : forall {E X} (t u v : ctree E X),
 	  choice2 (choice2 t u) v ≈
 		      choice3 t u v.
+  Proof.
+    (* TODO: choice3 definition changed *)
+    (* intros. unfold bisim. step. constructor. *)
+    (* - intros. exists u'. split. *)
+    (*   2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. } *)
+    (*   inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn. *)
+    (*   + inv H3. apply inj_pair2 in H1. subst. remember 2. destruct x; inv Heqn. *)
+    (*     * apply SchedChoice with (x:=Fin.F1); auto. *)
+    (*     * apply SchedChoice with (x0:=Fin.FS Fin.F1); auto. *)
+    (*   + apply SchedChoice with (x0:=Fin.FS (Fin.FS Fin.F1)); auto. *)
+    (* - intros. exists t'. split. *)
+    (*   2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. } *)
+    (*   inv H. apply inj_pair2 in H2. subst. remember 3. destruct x; inv Heqn. *)
+    (*   + apply SchedChoice with (x:=Fin.F1). *)
+    (*     apply SchedChoice with (x:=Fin.F1); auto. *)
+    (*   + remember 2. destruct x; inv Heqn. *)
+    (*     * apply SchedChoice with (x:=Fin.F1). *)
+    (*       apply SchedChoice with (x:=Fin.FS Fin.F1); auto. *)
+    (*     * apply SchedChoice with (x0:=Fin.FS Fin.F1); auto. *)
   Admitted.
 
   Lemma choice2_spin : forall {E X} (t : ctree E X),
 	  choice2 t spin ≈ t.
-  Admitted.
+  Proof.
+    intros. unfold bisim. step. constructor.
+    - intros. exists u'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn; auto.
+      exfalso. eapply schedule_spin; eauto.
+    - intros. exists t'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      apply SchedChoice with (x:=Fin.F1); auto.
+  Qed.
 
   Lemma choice2_equ : forall {E X} (t u : ctree E X),
 	  t ≅ u ->
 	  choice2 t u ≈ t.
-  Admitted.
+  Proof.
+    intros. unfold bisim. step. constructor.
+    - intros. exists u'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      Admitted.
 
 End Sanity.
 
