@@ -163,6 +163,7 @@ Fixpoint model (t : term) : ccs :=
 	match t with 
 	| 0     => done
 	| a ⋅ P => prefix a (model P)
+	| TauT P => trigger Tau;; model P
 	| P ∥ Q => para (model P) (model Q)
 	| P ⊕ Q => plus (model P) (model Q)
 	| P ∖ c => restrict c (model P)

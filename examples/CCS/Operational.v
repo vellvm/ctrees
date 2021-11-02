@@ -14,6 +14,9 @@ Inductive step : term -> option action -> term -> Prop :=
 | SAct: forall a P,
     step (a ⋅ P) (Some a) P
 
+| STau: forall P,
+    step (TauT P) None P
+
 | SSumL: forall P a P' Q,
     step P a P' ->
     step (P ⊕ Q) a P'
@@ -53,7 +56,7 @@ Section Example.
     apply SRes; auto.
     eapply SPar.
     eapply SSumL.
-    eapply SAct.
+    unshelve eapply SAct.
     eapply SAct.
   Qed.
 
