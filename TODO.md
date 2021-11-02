@@ -3,14 +3,17 @@
 ## Merge master into companion and then back and kill companion
 
 ## Transitivity of bisim
+	Done
 
 ## Non-trivial law up-to bisim (interp or iter)
 
 ## Continue sanity checks
 
 ## Add: fork 0 ~ spin, and similar
+	Done
 
 ## Pushing forward CCS
+	Some done, need to discuss what is relevant to prove
 
 ## Sketch the yield experiment
 
