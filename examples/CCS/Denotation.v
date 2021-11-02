@@ -1,4 +1,6 @@
-(* begin hide *)
+(*| 
+Denotation of [ccs] into [ctree]s
+|*)
 
 From Coq Require Export
   List
@@ -22,9 +24,10 @@ From Coinduction Require Import
 Import CTreeNotations.
 Open Scope ctree_scope.
 
-(* end hide *)
+(*| Event signature 
 
-(* Event signature *)
+Processes can perform actions, synchronizations, or be unresponsive
+|*)
 
 Variant ActionE : Type -> Type :=
 	| Act (a : action) : ActionE unit.
@@ -42,6 +45,7 @@ Definition ccsT := ctree ccsE.
 
 Definition ccs := ccsT unit.
 
+(*| Process algebra |*)
 Section Combinators.
 
 	Definition done : ccs := Ret tt. (* Or should it be Choice 0 ? *)
@@ -68,7 +72,7 @@ Section Combinators.
 		| inr1 b => g _ b
 		end.
 
- (* TODO: define basically the theory of handlers for ctrees, all the constructions are specialized to ctrees *)
+ (* TODO: define basically the theory of handlers for ctrees, all the constructions are specialized to ccs right now *)
 
   Definition h_restrict c : ccsE ~> ctree ccsE :=
     case_ctree (h_restrict_ c) h_trigger.
@@ -163,7 +167,20 @@ Fixpoint model (t : term) : ccs :=
 	| P ⊕ Q => plus (model P) (model Q)
 	| P ∖ c => restrict c (model P)
 	end.
-		
+
+Variant step_ccs : ccs -> option action -> ccs -> Prop :=
+| Sted_comm : forall (t : ccs) a u k,
+	schedule t u ->
+  u ≅ trigger (Act a);; k ->
+	step_ccs t (Some a) k
+| Step_tau : forall (t : ccs) u k,
+	schedule t u ->
+  u ≅ trigger Tau;; k ->
+	step_ccs t None k.
+
+Definition step_sem : term -> option action -> term -> Prop :=
+	fun P a Q => step_ccs (model P) a (model Q).
+
 Module DenNotations.
 
   (* Notations for patterns *)
@@ -171,10 +188,9 @@ Module DenNotations.
   Notation "'synchP' e" := (inr1 (inl1 e)) (at level 10).
   Notation "'deadP' e" :=  (inr1 (inr1 e)) (at level 10).
 
-	(* Notation step_ccs := step. *)
-
   Notation "⟦ t ⟧" := (model t).
-  (* Notation "P '⊢' a '→ccs' Q" := (step_ccs P a Q) (at level 50). *)
+  Notation "P '⊢' a '→ccs' Q" := (step_ccs P a Q) (at level 50).
+  Notation "P '⊢' a '→sem' Q" := (step_sem P a Q) (at level 50).
 
 End DenNotations.
 
@@ -228,4 +244,5 @@ Proof.
   intros.
 	now step.
 Qed.
+
 

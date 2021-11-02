@@ -39,6 +39,12 @@ Inductive step : term -> option action -> term -> Prop :=
     step (P ∖ c) a (P' ∖ c)
 .
 
+Module OpNotations.
+
+  Notation "P '⊢' a '→op'  Q" := (step P a Q)  (at level 50).
+
+End OpNotations.
+
 Section Example.
 
   Fact ex1: forall P Q,
