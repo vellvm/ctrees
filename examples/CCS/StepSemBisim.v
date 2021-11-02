@@ -7,34 +7,31 @@ From CTree Require Import
 
 From CTreeCCS Require Import 
 	Syntax
-	Denotation
-	Operational.
+	Denotation.
 
 Import CCSNotations.
 Import DenNotations.
-Import OpNotations.
 Open Scope ccs_scope.
+
+Definition bisim_bisim : term -> term -> Prop :=
+	fun P Q => ⟦P⟧ ≈ ⟦Q⟧.
 
 
 Definition forward (R : term -> term -> Prop) : Prop :=
 	forall P a P' Q, 
 		R P Q ->
-		P ⊢ a →op P' -> 
+		P ⊢ a →sem P' -> 
 	exists Q', Q ⊢ a →sem Q' /\ R P' Q'.
-
-Lemma complete : exists R, forward R.
-Admitted.
 
 Definition backward (R : term -> term -> Prop) : Prop :=
 	forall P a Q Q', 
 		R P Q ->
 		Q ⊢ a →sem Q' -> 
-	exists P', P ⊢ a →op P' /\ R P' Q'.
+	exists P', P ⊢ a →sem P' /\ R P' Q'.
 
-Lemma correct : exists R, backward R.
+Definition bisim_step : term -> term -> Prop :=
+	fun P Q => exists R, forward R /\ backward R /\ R P Q.
+
+Theorem bisim_equiv : forall P Q, bisim_bisim P Q <-> bisim_step P Q.
 Admitted.
-
-Lemma bisim : exists R, backward R /\ forward R.
-Admitted.
-
 
