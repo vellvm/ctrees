@@ -1,19 +1,15 @@
 # Concrete todos
 
-## Merge master into companion and then back and kill companion
+- [ ] Merge master into companion and then back and kill companion
 
-## Transitivity of bisim
-	Done
+- [x] Transitivity of bisim
 
-## Non-trivial law up-to bisim (interp or iter)
+- [ ] Non-trivial law up-to bisim (interp or iter)
 
-## Continue sanity checks
+- [x] Add: fork 0 ~ spin, and similar
 
-## Add: fork 0 ~ spin, and similar
-	Done
-
-## Pushing forward CCS
-	Some done, need to discuss what is relevant to prove
+- [ ] Pushing forward CCS
+	+ Some done, need to discuss what is relevant to prove
 
 ## Sketch the yield experiment
 
@@ -21,8 +17,8 @@
 
 ## Symmetry argument
 
-	The companion support arguments by symmetry to avoid the duplication of proof scripts for bisimulation.
-	Can we use it in our setup? 
+The companion support arguments by symmetry to avoid the duplication of proof scripts for bisimulation.
+Can we use it in our setup? 
 
 ## Interpretation and scheduling
 
