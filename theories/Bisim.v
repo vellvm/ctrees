@@ -268,6 +268,34 @@ Proof.
       eapply IH; eauto.
 Qed.
 
+#[global] Instance equ_schedule {E X}:
+	Proper (equ eq ==> equ eq ==> iff) (@schedule E X).
+Proof.
+  repeat red; intros * EQ1 * EQ2; split; intros SCHED.
+  - step in EQ1; step in EQ2.
+    unfold schedule in *.
+    hinduction SCHED before X.
+    + intros. inv EQ1. apply inj_pair2 in H1. subst.
+      eapply SchedChoice with x1.
+      apply IHSCHED. specialize (REL x1).
+      step in REL. apply REL. auto.
+    + intros. inv EQ1; inv EQ2; constructor.
+    + intros. inv EQ1. inv EQ2. apply inj_pair2 in H2, H3, H5, H6. subst.
+      constructor. intros.
+      rewrite <- REL0, <- REL. auto.
+  - step in EQ1; step in EQ2.
+    unfold schedule in *.
+    hinduction SCHED before X.
+    + intros. inv EQ1. apply inj_pair2 in H2. subst.
+      eapply SchedChoice with x.
+      apply IHSCHED. specialize (REL x).
+      step in REL. apply REL. auto.
+    + intros. inv EQ1; inv EQ2; constructor.
+    + intros. inv EQ1. inv EQ2. apply inj_pair2 in H3, H4, H6, H7. subst.
+      constructor. intros.
+      rewrite REL0, REL. auto.
+Qed.
+
 (** * Sanity checks and meta-theory to establish at some point.
 	We'll have to come after more basic meta-theory of course,
 	but it's good to think about those.
@@ -372,8 +400,7 @@ Module Sanity.
 	  choice2 (choice2 t u) v ≈
 		      choice3 t u v.
   Proof.
-    (* TODO: choice3 definition changed *)
-    intros. unfold bisim. step. constructor. 
+    intros. unfold bisim. step. constructor.
     - intros. exists u'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
       inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
@@ -412,11 +439,18 @@ Module Sanity.
     intros. unfold bisim. step. constructor.
     - intros. exists u'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      Admitted.
+      inv H0. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn; auto.
+      (* We should be able to use something like equ_schedule for
+         this, but we need a version with schedule_ *)
+      admit.
+    - intros. exists t'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      apply SchedChoice with (x:=Fin.F1); auto.
+  Abort.
 
   Lemma choice0_spin : forall {E X},
     Choice 0 (fun x:fin 0 => match x with end) ≈ @spin E X.
-  Proof. 
+  Proof.
     intros; unfold bisim; step; constructor; intros * SCHED.
     inv SCHED; inv x.
     exfalso; eapply schedule_spin; eauto.
@@ -433,58 +467,6 @@ Proof.
   symmetry; auto.
 Qed.
 
-Tactic Notation "hinduction" hyp(IND) "before" hyp(H)
-  := move IND before H; revert_until IND; induction IND.
-
-(* TODO: schedule is closed under [equ] properly *)
-#[global] Instance equ_schedule {E X}:
-	Proper (equ eq ==> equ eq ==> iff) (@schedule E X).
-(* Proof.
-  repeat red; intros * EQ1 * EQ2; split; intros SCHED.
-  - step in EQ1; step in EQ2.
-    unfold schedule in *.
-    hinduction SCHED before X.
-    + intros.  
-      inv EQ1.
-      dependent induction H1.
-      eapply SchedChoice with x1.
-      apply IHSCHED.
-      specialize (REL x1). 
-      step in REL.
-      apply REL.
-      auto.
-    + intros.
-      inv EQ1; inv EQ2; constructor.
-    + intros.
-      inv EQ1.
-      dependent induction H2.
-      inv EQ2.
-      dependent induction H3.
-      dependent induction EQ1.
-      dependent induction EQ2.
-      rewrite <- x2, <-x. 
-      econstructor.  
-        constructor. *)
-
-
-(*
-  - punfold EQ1; punfold EQ2.
-    inv EQ1; inv EQ2; cbn in *; try now (intuition || inv SCHED; inv_eq H3).
-    + pclearbot.
-      apply schedule_vis_inv in SCHED.
-      pose proof (equ_vis_invT _ _ _ _ SCHED); subst.
-      pose proof (equ_vis_invE _ _ _ _ SCHED) as []; subst.
-      constructor.
-      pfold; constructor.
-      intros; left.
-      rewrite <- REL0.
-      admit.
-    + induction SCHED; auto.
-    +
-    inv SCHED; inv H3.
-    induction SCHED.
-*)
-Admitted.
 
 
 (* TODO : [equ] is a subrelation of [bisim] *)
