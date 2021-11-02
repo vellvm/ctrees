@@ -297,7 +297,7 @@ Module Sanity.
     cbv in *. subst. apply inj_pair2 in H2. subst. auto.
   Qed.
 
-  Hint Unfold bisim : core.
+  #[global] Hint Unfold bisim : core.
   Goal forall {E R} n m, @spin_nary E R n ≈ spin_nary m.
   Proof.
     intros. unfold bisim. step.
@@ -429,10 +429,8 @@ Lemma schedule_vis_inv :
     schedule (Vis e k) t -> t ≅ Vis e k.
 Proof.
   intros * SCHED. inversion SCHED. apply inj_pair2 in H1, H2. subst.
-  step. rewrite <- H. constructor. intros.
-  apply Equivalence_equ.
-(* TODO: why does reflexivity loop?
-    reflexivity. *)
+  step. rewrite <- H3. constructor. intros.
+  symmetry; auto.
 Qed.
 
 Tactic Notation "hinduction" hyp(IND) "before" hyp(H)
@@ -441,7 +439,7 @@ Tactic Notation "hinduction" hyp(IND) "before" hyp(H)
 (* TODO: schedule is closed under [equ] properly *)
 #[global] Instance equ_schedule {E X}:
 	Proper (equ eq ==> equ eq ==> iff) (@schedule E X).
-Proof.
+(* Proof.
   repeat red; intros * EQ1 * EQ2; split; intros SCHED.
   - step in EQ1; step in EQ2.
     unfold schedule in *.
@@ -466,7 +464,7 @@ Proof.
       dependent induction EQ2.
       rewrite <- x2, <-x. 
       econstructor.  
-        constructor.
+        constructor. *)
 
 
 (*
