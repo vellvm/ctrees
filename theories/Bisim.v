@@ -50,8 +50,9 @@ Section Schedule.
     		schedule_ (ChoiceF n k) t
   | SchedRet x :
     		schedule_ (RetF x) (RetF x)
-  | SchedVis {X} (e : E X) k :
-    		schedule_ (VisF e k) (VisF e k).
+  | SchedVis {X} (e : E X) k k' :
+    		(forall x, k x ≅ k' x) -> (* Because [schedule_] stops right there, we need to close explicitly up to [equ] if we want to be stable under it *)
+    		schedule_ (VisF e k) (VisF e k').
 
   Definition schedule u v := schedule_ (observe u) (observe v).
 
@@ -319,10 +320,10 @@ Module Sanity.
 			   match b with | Fin.F1 => t | _ => u end)).
 
   Definition choice3 {E X} (t u v : ctree E X) :=
-	(Choice 3 (fun b =>
+	(Choice 3 (fun (b : fin 3) =>
 			   match b with
-			   | Fin.F1 => t
-			   | @Fin.FS 3 Fin.F1 => u
+			   | @Fin.F1 _ => t
+			   | @Fin.FS _ Fin.F1 => u
 			   | _ => v end)).
 
   Lemma choice2_assoc : forall {E X} (t u v : ctree E X),
@@ -372,24 +373,24 @@ Module Sanity.
 		      choice3 t u v.
   Proof.
     (* TODO: choice3 definition changed *)
-    (* intros. unfold bisim. step. constructor. *)
-    (* - intros. exists u'. split. *)
-    (*   2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. } *)
-    (*   inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn. *)
-    (*   + inv H3. apply inj_pair2 in H1. subst. remember 2. destruct x; inv Heqn. *)
-    (*     * apply SchedChoice with (x:=Fin.F1); auto. *)
-    (*     * apply SchedChoice with (x0:=Fin.FS Fin.F1); auto. *)
-    (*   + apply SchedChoice with (x0:=Fin.FS (Fin.FS Fin.F1)); auto. *)
-    (* - intros. exists t'. split. *)
-    (*   2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. } *)
-    (*   inv H. apply inj_pair2 in H2. subst. remember 3. destruct x; inv Heqn. *)
-    (*   + apply SchedChoice with (x:=Fin.F1). *)
-    (*     apply SchedChoice with (x:=Fin.F1); auto. *)
-    (*   + remember 2. destruct x; inv Heqn. *)
-    (*     * apply SchedChoice with (x:=Fin.F1). *)
-    (*       apply SchedChoice with (x:=Fin.FS Fin.F1); auto. *)
-    (*     * apply SchedChoice with (x0:=Fin.FS Fin.F1); auto. *)
-  Admitted.
+    intros. unfold bisim. step. constructor. 
+    - intros. exists u'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
+      + inv H3. apply inj_pair2 in H1. subst. remember 2. destruct x; inv Heqn.
+        * apply SchedChoice with (x:=Fin.F1); auto.
+        * apply SchedChoice with (x0:=Fin.FS Fin.F1); auto.
+      + apply SchedChoice with (x0:=Fin.FS (Fin.FS Fin.F1)); auto.
+    - intros. exists t'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H2. subst. remember 3. destruct x; inv Heqn.
+      + apply SchedChoice with (x:=Fin.F1).
+        apply SchedChoice with (x:=Fin.F1); auto.
+      + remember 2. destruct x; inv Heqn.
+        * apply SchedChoice with (x:=Fin.F1).
+          apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+        * apply SchedChoice with (x0:=Fin.FS Fin.F1); auto.
+  Qed.
 
   Lemma choice2_spin : forall {E X} (t : ctree E X),
 	  choice2 t spin ≈ t.
@@ -434,11 +435,40 @@ Proof.
     reflexivity. *)
 Qed.
 
+Tactic Notation "hinduction" hyp(IND) "before" hyp(H)
+  := move IND before H; revert_until IND; induction IND.
+
 (* TODO: schedule is closed under [equ] properly *)
 #[global] Instance equ_schedule {E X}:
 	Proper (equ eq ==> equ eq ==> iff) (@schedule E X).
 Proof.
   repeat red; intros * EQ1 * EQ2; split; intros SCHED.
+  - step in EQ1; step in EQ2.
+    unfold schedule in *.
+    hinduction SCHED before X.
+    + intros.  
+      inv EQ1.
+      dependent induction H1.
+      eapply SchedChoice with x1.
+      apply IHSCHED.
+      specialize (REL x1). 
+      step in REL.
+      apply REL.
+      auto.
+    + intros.
+      inv EQ1; inv EQ2; constructor.
+    + intros.
+      inv EQ1.
+      dependent induction H2.
+      inv EQ2.
+      dependent induction H3.
+      dependent induction EQ1.
+      dependent induction EQ2.
+      rewrite <- x2, <-x. 
+      econstructor.  
+        constructor.
+
+
 (*
   - punfold EQ1; punfold EQ2.
     inv EQ1; inv EQ2; cbn in *; try now (intuition || inv SCHED; inv_eq H3).
