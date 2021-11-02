@@ -413,6 +413,14 @@ Module Sanity.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
       Admitted.
 
+  Lemma choice0_spin : forall {E X},
+    Choice 0 (fun x:fin 0 => match x with end) ≈ @spin E X.
+  Proof. 
+    intros; unfold bisim; step; constructor; intros * SCHED.
+    inv SCHED; inv x.
+    exfalso; eapply schedule_spin; eauto.
+  Qed.
+
 End Sanity.
 
 Lemma schedule_vis_inv :
