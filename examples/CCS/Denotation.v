@@ -39,7 +39,7 @@ Variant DeadE : Type -> Type :=
 Definition dead {A : Type} {E} `{DeadE -< E} : ctree E A :=
 	x <- trigger throw;; match x: void with end.
 
-Definition ccsE : Type -> Type := (ActionE +' SynchE +' DeadE).
+Definition ccsE : Type -> Type := (SynchE +' ActionE +' DeadE).
 
 Definition ccsT := ctree ccsE.
 
@@ -75,7 +75,7 @@ Section Combinators.
  (* TODO: define basically the theory of handlers for ctrees, all the constructions are specialized to ccs right now *)
 
   Definition h_restrict c : ccsE ~> ctree ccsE :=
-    case_ctree (h_restrict_ c) h_trigger.
+    case_ctree h_trigger (case_ctree (h_restrict_ c) h_trigger).
 
   Definition restrict {X} : chan -> ccsT X -> ccsT X :=
     fun c P => interp (h_restrict c) P.
@@ -92,8 +92,8 @@ Section Combinators.
 	| HVis (obs : {X : Type & ccsE X & X -> ctree E R}).
 
   (* Notations for patterns *)
-  Notation "'actP' e" := (inl1 e) (at level 10).
-  Notation "'synchP' e" := (inr1 (inl1 e)) (at level 10).
+  Notation "'synchP' e" := (inl1 e) (at level 10).
+  Notation "'actP' e" := (inr1 (inl1 e)) (at level 10).
   Notation "'deadP' e" :=  (inr1 (inr1 e)) (at level 10).
 
 	Notation "pf ↦ k" := (eq_rect_r (fun T => T -> ccs) k pf tt) (at level 40, k at next level).
@@ -185,8 +185,8 @@ Definition step_sem : term -> option action -> term -> Prop :=
 Module DenNotations.
 
   (* Notations for patterns *)
-  Notation "'actP' e" := (inl1 e) (at level 10).
-  Notation "'synchP' e" := (inr1 (inl1 e)) (at level 10).
+  Notation "'synchP' e" := (inl1 e) (at level 10).
+  Notation "'actP' e" := (inr1 (inl1 e)) (at level 10).
   Notation "'deadP' e" :=  (inr1 (inr1 e)) (at level 10).
 
   Notation "⟦ t ⟧" := (model t).

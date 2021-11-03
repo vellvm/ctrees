@@ -16,6 +16,15 @@
 
 # A few notes on trailing things to consider
 
+## Shared code with itrees, level of abstraction
+
+	- Some generic code could be reused from the itree library. 
+	  + Do we want to depend on the itree library?
+	  + Do we want to pull the generic code from the itree library to an external one?
+		+ Do we want to recode it. If so:
+			* Do we want to keep it categorical?
+			* Do we want to specialize it?
+
 ## Symmetry argument
 
 The companion support arguments by symmetry to avoid the duplication of proof scripts for bisimulation.

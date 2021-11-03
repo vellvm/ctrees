@@ -1,3 +1,5 @@
+From ITree Require Import ITree.
+
 From CTree Require Import
 	Utils
 	CTrees
@@ -16,8 +18,34 @@ Import CCSNotations.
 Import DenNotations.
 Open Scope ccs_scope.
 
-Definition bisim_bisim : term -> term -> Prop :=
+Definition strongc : term -> term -> Prop :=
 	fun P Q => ⟦P⟧ ≈ ⟦Q⟧.
+
+Definition hide_tau : SynchE ~> ctree (ActionE +' DeadE) :=
+	fun _ 'Tau => CTrees.Tau (Ret tt).
+
+Definition h_tau : ccsE ~> ctree (ActionE +' DeadE) :=
+  case_ctree hide_tau h_trigger.
+
+Definition weakc : term -> term -> Prop :=
+	fun P Q => interp h_tau ⟦P⟧ ≈ interp h_tau ⟦Q⟧.
+
+(*
+Goal weakc (TauT (↑a ⋅ 0) ⊕ ↑b ⋅ 0) (↑a ⋅ 0 ⊕ ↑b ⋅ 0).
+unfold weakc, bisim.
+Arguments model : simpl never.
+step. constructor.
+- intros. cbn in *.
+	inv H; dependent induction H2; cbn in *.
+	inv H3; dependent induction H1; cbn in *.
+	destruct x.
+	+ inv H2; dependent induction H1; cbn in *.
+	  inv H3; dependent induction H1; cbn in *.
+	  inv H2; dependent induction H3; cbn in *.
+		specialize (H4 tt).
+		
+*)
+
 (* 
 Definition weak : term -> term -> Prop :=
 	fun P Q => interp h ⟦P⟧ ≈ interp h ⟦Q⟧. *)
@@ -49,7 +77,7 @@ Definition backward (R : term -> term -> Prop) : Prop :=
 Definition bisim_step : term -> term -> Prop :=
 	fun P Q => exists R, forward R /\ backward R /\ R P Q.
 
-Theorem bisim_equiv : forall P Q, bisim_bisim P Q <-> bisim_step P Q.
+Theorem bisim_equiv : forall P Q, strongc P Q <-> bisim_step P Q.
 Proof.
 	(* split.
 	- admit.
