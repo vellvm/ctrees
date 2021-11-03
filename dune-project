@@ -8,5 +8,5 @@
   (depends
     (coq (>= 8.13))
     (coq-ext-lib (>= 0.11.3))
-    (coq-paco (>= 4.1.1)))
+    (coq-coinduction (>= 1.3)))
 )

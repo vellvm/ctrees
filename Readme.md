@@ -23,6 +23,7 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
 ```shell
 opam install dune
 opam install coq-itree
+opam install coq-coinduction
 ```
 
 ### Obtaining the project

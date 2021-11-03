@@ -8,6 +8,19 @@ From ITree Require Export Basics.Basics.
 Polymorphic Class MonadTrigger (M : Type -> Type) : Type :=
   trigger : forall {E: Type -> Type}, E ~> M.
 
-Polymorphic Class MonadFork (M : Type -> Type) : Type :=
-  fork : forall (n: nat), M (Fin.t n).
+Polymorphic Class MonadChoice (M : Type -> Type) : Type :=
+  choice : forall (n: nat), M (Fin.t n).
+
+Notation rel X Y := (X -> Y -> Prop).
+
+From Coinduction Require Import
+	coinduction rel tactics.
+
+(* A smarter version of this should be part of the [coinduction] library *)
+Ltac step_in H :=
+match type of H with
+| gfp ?b ?x ?y => apply (gfp_fp b x y) in H
+end;
+simpl body in H.
+Tactic Notation "step" "in" ident(H) := step_in H.
 

@@ -1,10 +1,10 @@
 (* begin hide *)
 From ITree Require Import Core.Subevent.
 
-From CTree Require Import 
+From CTree Require Import
 	Utils.
 
-From ExtLib Require Import  
+From ExtLib Require Import
 	Structures.Functor
 	Structures.Monads.
 
@@ -12,7 +12,7 @@ Set Implicit Arguments.
 Set Contextual Implicit.
 Set Primitive Projections.
 (* end hide *)
-	
+
 (** * Core definition of the [ctrees] datatype and its combinators  *)
 
 Section ctree.
@@ -23,23 +23,26 @@ Section ctree.
       fixed point") of the functor [ctreeF].
 			A [ctree] can locally provide three kind of observations:
 			- A pure value, terminating the computation
-			- An interaction with the environment, emitting the corresponding 
-				indexed event and non-deterministically continuing indexed by the 
+			- An interaction with the environment, emitting the corresponding
+				indexed event and non-deterministically continuing indexed by the
 				value returned by the environment
-			- A (finite) internal non-deterministic choice	
+			- A (finite) internal non-deterministic choice
 	*)
-	(* TODO YZ:  
-		- Do we want to name the sources of the forks?
-			For instance if we want to support simultaneously different schedulers 
-			for different kind of non-determinism in a language. 
+	(* TODO YZ:
+		- Do we want to name the sources of the choices?
+			For instance if we want to support simultaneously different schedulers
+			for different kind of non-determinism in a language.
 		- Do we want non-finite internal branching? Indexed by arbitrary types?
     - Or crazier, do we want non-uniform branching, modelling non-uniform random choices for instance?
+    - Could ctrees be parameterized by:
+      + a bound on nested choices before reaching a Vis/Ret
+      + a general domain of choice events
 	 *)
-	
+
   Variant ctreeF (ctree : Type) :=
   | RetF (r : R)
   | VisF {X : Type} (e : E X) (k : X -> ctree)
-  | ForkF {n : nat} (k : fin n -> ctree)  
+  | ChoiceF (n : nat) (k : fin n -> ctree)
   .
 
   CoInductive ctree : Type := go
@@ -49,13 +52,14 @@ End ctree.
 
 (* begin hide *)
 
-Declare Scope ctree_scope. 
+Declare Scope ctree_scope.
 Bind Scope ctree_scope with ctree.
 Delimit Scope ctree_scope with ctree.
 Local Open Scope ctree_scope.
 
 Arguments ctree _ _ : clear implicits.
 Arguments ctreeF _ _ : clear implicits.
+Arguments ChoiceF {_ _} [_] n.
 (* end hide *)
 
 (** A [ctree'] is a "forced" [ctree]. It is the type of inputs
@@ -69,8 +73,8 @@ Definition observe {E R} (t : ctree E R) : ctree' E R := @_observe E R t.
 (** We encode [itree]'s [Tau] constructor as a unary internal choice. *)
 Notation Ret x := (go (RetF x)).
 Notation Vis e k := (go (VisF e k)).
-Notation Tau t := (go (ForkF (fun (_ : fin 1) => t))).
-Notation Fork k := (go (ForkF k)).
+Notation Tau t := (go (ChoiceF 1 (fun _ => t))).
+Notation Choice n k := (go (ChoiceF n k)).
 
 (** ** Main operations on [ctree] *)
 
@@ -133,7 +137,7 @@ Definition subst {E : Type -> Type} {T U : Type} (k : T -> ctree E U)
     match observe u with
     | RetF r => k r
     | VisF e h => Vis e (fun x => _subst (h x))
-    | ForkF h => Fork (fun x => _subst (h x))
+    | ChoiceF n h => Choice n (fun x => _subst (h x))
     end.
 
 Definition bind {E : Type -> Type} {T U : Type} (u : ctree E T) (k : T -> ctree E U)
@@ -174,9 +178,9 @@ Definition map {E R S} (f : R -> S)  (t : ctree E R) : ctree E S :=
 Definition trigger {E : Type -> Type} : E ~> ctree E :=
   fun R e => Vis e (fun x => Ret x).
 
-(** Atomic itrees forking over a finite arity. *)
-Definition fork {E : Type -> Type} : forall n, ctree E (fin n) :=
-  fun n => Fork (fun (x : Fin.t n) => Ret x).
+(** Atomic itrees with choice over a finite arity. *)
+Definition choice {E : Type -> Type} : forall n, ctree E (fin n) :=
+  fun n => Choice n (fun x => Ret x).
 
 (** Ignore the result of a tree. *)
 Definition ignore {E R} : ctree E R -> ctree E unit :=
@@ -185,7 +189,7 @@ Definition ignore {E R} : ctree E R -> ctree E unit :=
 (** Infinite taus. *)
 CoFixpoint spin {E R} : ctree E R := Tau spin.
 CoFixpoint spin_nary {E R} (n : nat) : ctree E R :=
-	Fork (fun _: fin n => spin_nary n).
+	Choice n (fun _ => spin_nary n).
 
 (** Repeat a computation infinitely. *)
 Definition forever {E R S} (t : ctree E R) : ctree E S :=
@@ -200,7 +204,7 @@ Ltac fold_monad :=
   repeat (change (@CTree.map ?E) with (@Functor.fmap (ctree E) _)).
 
 End CTree.
-Arguments CTree.fork {E} n.
+Arguments CTree.choice {E} n.
 
 (** ** Notations *)
 
@@ -239,8 +243,8 @@ End CTreeNotations.
 #[global] Instance MonadIter_ctree {E} : MonadIter (ctree E) :=
   fun _ _ => CTree.iter.
 
-#[global] Instance MonadFork_ctree {E} : MonadFork (ctree E) :=
-  fun n => CTree.fork n.
+#[global] Instance MonadChoice_ctree {E} : MonadChoice (ctree E) :=
+  fun n => CTree.choice n.
 
 Notation trigger e :=
 	(CTree.trigger (subevent _ e)).
@@ -276,8 +280,7 @@ Fixpoint burn (n : nat) {E R} (t : ctree E R) :=
     match observe t with
     | RetF r => Ret r
     | VisF e k => Vis e k
-    | @ForkF _ _ _ 1 t' => burn n (t' Fin.F1)
-    | ForkF k => Fork k
+    | @ChoiceF _ _ _ 1 t' => burn n (t' Fin.F1)
+    | ChoiceF n k => Choice n k
     end
   end.
-
