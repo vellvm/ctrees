@@ -1,6 +1,6 @@
 # Concrete todos
 
-- [ ] Merge master into companion and then back and kill companion
+- [x] Merge master into companion and then back and kill companion
 
 - [x] Transitivity of bisim
 
