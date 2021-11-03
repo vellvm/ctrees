@@ -350,8 +350,8 @@ Module Sanity.
   Definition choice3 {E X} (t u v : ctree E X) :=
 	(Choice 3 (fun (b : fin 3) =>
 			   match b with
-			   | @Fin.F1 _ => t
-			   | @Fin.FS _ Fin.F1 => u
+			   | Fin.F1 => t
+			   | Fin.FS Fin.F1 => u
 			   | _ => v end)).
 
   Lemma choice2_assoc : forall {E X} (t u v : ctree E X),
@@ -466,7 +466,6 @@ Proof.
   step. rewrite <- H3. constructor. intros.
   symmetry; auto.
 Qed.
-
 
 
 (* TODO : [equ] is a subrelation of [bisim] *)

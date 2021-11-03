@@ -119,7 +119,7 @@ Section equ_equiv.
 	#[global] Instance Equivalence_t `{Equivalence _ RR} S: Equivalence (t S).
 	Proof. apply Equivalence_t. apply refl_t. apply square_t. apply converse_t. Qed.
 	#[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (T f S).
-	Proof. 
+	Proof.
     apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
 	#[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (bt S).
 	Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.
@@ -264,6 +264,18 @@ Proof.
   intros EQ.
 	inv EQ.
 	dependent destruction H; auto.
+Qed.
+
+#[global] Instance equ_equF {E R r} :
+  Proper (gfp (@fequ E R R eq) ==> eq ==> flip impl)
+	     (fun x y => equF eq (t_equ eq r) (observe x) y).
+Proof.
+  unfold Proper, respectful, flip, impl. intros. subst.
+  step in H. inv H; rewrite <- H3 in H1; inv H1; auto.
+  - apply inj_pair2 in H4, H5.
+    subst. constructor. intros. rewrite REL. auto.
+  - apply inj_pair2 in H4.
+    subst. constructor. intros. rewrite REL. auto.
 Qed.
 
 #[global] Instance gfp_bt_equ {E R r} :
