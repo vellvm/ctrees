@@ -10,7 +10,7 @@
 
 - [ ] Pushing forward CCS
 	+ Some done, need to discuss what is relevant to prove
-  + To check: is weak bisimulation enhirited into ctrees too weak, a.k.a. in particular would be a congruence for +  
+  + To check: is weak bisimulation inherited into ctrees too weak, a.k.a. in particular would be a congruence for +  
 
 - [ ] Sketch the yield experiment
 
@@ -55,6 +55,9 @@ In contrast, if the language always allows choice to pick a side, i.e. [P+Q → 
 
 - model (P + Q) = choice true 2 (model P) (model Q)
 And in the case of ccs, we would therefore have ccs's tau steps interpreted into [choice true 1] in contrast with "itree-style taus" used as guards that would be [choice false 1].
+
+Another note: to get to weak bisimulation, we need somehow to also call [schedule] _after_ matching. Otherwise, the following example is problematic: ca + c (a + b) ~/~ c (a + τa + b)
+This is basically whether the bisim is built upon =>-> or =>->=>
 
 - [ ] TODO: write this cleanly, in particular what is [matching] for a [choice true] challenge?
 
