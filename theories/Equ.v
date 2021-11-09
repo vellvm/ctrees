@@ -266,6 +266,7 @@ Proof.
 	dependent destruction H; auto.
 Qed.
 
+(* TODO: I think we need something like [observing] from itrees to make this work *)
 #[global] Instance equ_equF {E R r} :
   Proper (gfp (@fequ E R R eq) ==> eq ==> flip impl)
 	     (fun x y => equF eq (t_equ eq r) (observe x) y).
