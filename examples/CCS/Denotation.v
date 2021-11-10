@@ -115,7 +115,7 @@ Section Combinators.
 											end eq_refl
 				| deadP e  => dead
 				end
-      | ChoiceF n k => Choice n (fun i => get_hd (k i))
+      | ChoiceF b n k => Choice b n (fun i => get_hd (k i))
 			end.
 
   Definition para : ccs -> ccs -> ccs :=
@@ -211,7 +211,7 @@ Notation get_hd_ P :=
 									end eq_refl
 		| deadP e  => dead
 		end
-  | ChoiceF n k => Choice n (fun i => get_hd (k i))
+  | ChoiceF b n k => Choice b n (fun i => get_hd (k i))
   end.
 
 Lemma get_hd_unfold : forall P,

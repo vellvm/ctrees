@@ -9,10 +9,13 @@
 - [x] Add: fork 0 ~ spin, and similar
 
 - [ ] Pushing forward CCS
+
 	+ Some done, need to discuss what is relevant to prove
   + To check: is weak bisimulation inherited into ctrees too weak, a.k.a. in particular would be a congruence for +  
 
 - [ ] Sketch the yield experiment
+
+- Should the target monad for interpretation somehow be aware of the visibility flag?
 
 # Observable states, non-observable states
 

@@ -27,27 +27,10 @@ Section Schedule.
 
   Context {E : Type -> Type} {R : Type}.
 
-	(* It might be better to work with the usual pattern of tying
-	  the knot afterwards, but it's a bit awkward with the closure
-		up-to [equ]. To see in practice.
-
-     t = Choice 2 (Choice 2 (Vis e k) (Ret x)) (Vis e' k'))
-
-     schedule t (Vis e k)
-     schedule t (Ret x)
-     schedule t (Vis e' k')
-
-
-     P -l>* P'    P -tau> P0 -tau> P1 -l> P2 -tau> P'
-
-     Q -l>* Q'
-
-      *)
-
   Inductive schedule_ : ctree' E R -> ctree' E R -> Prop :=
-  | SchedChoice {n} (x : Fin.t n) k t :
+  | SchedChoice {n} b (x : Fin.t n) k t :
     		schedule_ (observe (k x)) t ->
-    		schedule_ (ChoiceF n k) t
+    		schedule_ (ChoiceF b n k) t
   | SchedRet x :
     		schedule_ (RetF x) (RetF x)
   | SchedVis {X} (e : E X) k k' :
@@ -135,7 +118,7 @@ Arguments bisim_ _ _ _ _/.
 #[global] Hint Constructors matching: core.
 
 Variant passive_ {E R} : ctree' E R -> Prop :=
-  | choice_passive n k : passive_ (ChoiceF n k).
+  | choice_passive b n k : passive_ (ChoiceF b n k).
 Definition passive {E R} t := @passive_ E R (observe t).
 #[global] Hint Constructors passive_: core.
 
@@ -275,7 +258,7 @@ Proof.
   - step in EQ1; step in EQ2.
     unfold schedule in *.
     hinduction SCHED before X.
-    + intros. inv EQ1. apply inj_pair2 in H1. subst.
+    + intros. inv EQ1. apply inj_pair2 in H2. subst.
       eapply SchedChoice with x1.
       apply IHSCHED. specialize (REL x1).
       step in REL. apply REL. auto.
@@ -286,7 +269,7 @@ Proof.
   - step in EQ1; step in EQ2.
     unfold schedule in *.
     hinduction SCHED before X.
-    + intros. inv EQ1. apply inj_pair2 in H2. subst.
+    + intros. inv EQ1. apply inj_pair2 in H3. subst.
       eapply SchedChoice with x.
       apply IHSCHED. specialize (REL x).
       step in REL. apply REL. auto.
@@ -309,7 +292,7 @@ Module Sanity.
     intros.
     remember (observe spin).
     induction H; inversion Heqc.
-    cbv in *. subst. apply inj_pair2 in H2. subst. auto.
+    cbv in *. subst. apply inj_pair2 in H3. subst. auto.
   Qed.
 
   Goal forall {E R}, @spin E R ≈ spin.
@@ -322,7 +305,7 @@ Module Sanity.
     intros.
     remember (observe (spin_nary n)).
     induction H; inversion Heqc.
-    cbv in *. subst. apply inj_pair2 in H2. subst. auto.
+    cbv in *. subst. apply inj_pair2 in H3. subst. auto.
   Qed.
 
   #[global] Hint Unfold bisim : core.
@@ -344,11 +327,11 @@ Module Sanity.
 		way to represent and manipulate these finite branches.
 	*)
   Definition choice2 {E X} (t u : ctree E X) :=
-	(Choice 2 (fun b =>
+	(ChoiceV 2 (fun b =>
 			   match b with | Fin.F1 => t | _ => u end)).
 
   Definition choice3 {E X} (t u v : ctree E X) :=
-	(Choice 3 (fun (b : fin 3) =>
+	(ChoiceV 3 (fun (b : fin 3) =>
 			   match b with
 			   | Fin.F1 => t
 			   | Fin.FS Fin.F1 => u
@@ -361,8 +344,8 @@ Module Sanity.
     intros. unfold bisim. step. constructor.
     - intros. exists u'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
-      + inv H3. apply inj_pair2 in H1. subst. remember 2. destruct x; inv Heqn.
+      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
+      + inv H4. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
         * apply SchedChoice with (x:=Fin.F1); auto.
         * clear x. apply SchedChoice with (x:=Fin.FS Fin.F1).
           apply SchedChoice with (x:=Fin.F1); auto.
@@ -370,10 +353,10 @@ Module Sanity.
         apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
     - intros. exists t'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
+      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
       + apply SchedChoice with (x:=Fin.F1).
         apply SchedChoice with (x:=Fin.F1); auto.
-      + clear x. inv H3. apply inj_pair2 in H1. subst. remember 2. destruct x; inv Heqn.
+      + clear x. inv H4. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
         * apply SchedChoice with (x:=Fin.F1).
           apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
         * clear x. apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
@@ -385,12 +368,12 @@ Module Sanity.
     intros. unfold bisim. step. constructor.
     - intros. exists u'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
+      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
       + apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
       + apply SchedChoice with (x0:=Fin.F1); auto.
     - intros. exists t'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
+      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
       + apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
       + apply SchedChoice with (x0:=Fin.F1); auto.
   Qed.
@@ -403,14 +386,14 @@ Module Sanity.
     intros. unfold bisim. step. constructor.
     - intros. exists u'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
-      + inv H3. apply inj_pair2 in H1. subst. remember 2. destruct x; inv Heqn.
+      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
+      + inv H4. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
         * apply SchedChoice with (x:=Fin.F1); auto.
         * apply SchedChoice with (x0:=Fin.FS Fin.F1); auto.
       + apply SchedChoice with (x0:=Fin.FS (Fin.FS Fin.F1)); auto.
     - intros. exists t'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      inv H. apply inj_pair2 in H2. subst. remember 3. destruct x; inv Heqn.
+      inv H. apply inj_pair2 in H3. subst. remember 3. destruct x; inv Heqn.
       + apply SchedChoice with (x:=Fin.F1).
         apply SchedChoice with (x:=Fin.F1); auto.
       + remember 2. destruct x; inv Heqn.
@@ -425,7 +408,7 @@ Module Sanity.
     intros. unfold bisim. step. constructor.
     - intros. exists u'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      inv H. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn; auto.
+      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn; auto.
       exfalso. eapply schedule_spin; eauto.
     - intros. exists t'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
@@ -439,7 +422,7 @@ Module Sanity.
     intros. unfold bisim. step. constructor.
     - intros. exists u'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      inv H0. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn; auto.
+      inv H0. apply inj_pair2 in H4. subst. remember 2. destruct x; inv Heqn; auto.
       (* We should be able to use something like equ_schedule for
          this, but we need a version with schedule_ *)
       admit.
@@ -449,7 +432,7 @@ Module Sanity.
   Abort.
 
   Lemma choice0_spin : forall {E X},
-    Choice 0 (fun x:fin 0 => match x with end) ≈ @spin E X.
+    ChoiceV 0 (fun x:fin 0 => match x with end) ≈ @spin E X.
   Proof.
     intros; unfold bisim; step; constructor; intros * SCHED.
     inv SCHED; inv x.

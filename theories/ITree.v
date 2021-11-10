@@ -77,7 +77,7 @@ Definition partial_inject {E X} : ctree E X -> itree E (option X) :=
 	cofix _inject t :=
 	 match CTrees.observe t with
 	| CTrees.RetF x => Ret (Some x)
-	| @ChoiceF _ _ _ n t =>
+	| @ChoiceF _ _ _ _ n t =>
 		(match n as x return n = x -> itree E (option X) with
 					 | O => fun _ => Ret None
 					 | 1 => fun pf => eq_rect_r

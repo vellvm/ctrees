@@ -18,7 +18,7 @@ Definition translateF {E F R} (h : E ~> F) (rec: ctree E R -> ctree F R) (t : ct
 	match t with
 		| RetF x => Ret x
 		| VisF e k => Vis (h _ e) (fun x => rec (k x))
-		| ChoiceF n k => Choice n (fun x => rec (k x))
+		| ChoiceF b n k => Choice b n (fun x => rec (k x))
 	end.
 
 Definition translate {E F} (h : E ~> F) : ctree E ~> ctree F
@@ -39,7 +39,7 @@ Definition interp {E M : Type -> Type}
 				match observe t with
 				| RetF r => ret (inr r)
 				| VisF e k => fmap (fun x => inl (k x)) (h _ e)
-				| @ChoiceF _ _ _ n k => bind (choice n) (fun x => ret (inl (k x)))
+				| @ChoiceF _ _ _ _ n k => bind (choice n) (fun x => ret (inl (k x)))
 				end).
 
 Arguments interp {E M FM MM IM FoM} h [T].

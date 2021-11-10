@@ -55,7 +55,7 @@ Section parallel.
                        | [] => Ret (s', tt)
                        | h :: t => Tau (par h t s')
                        end
-      | ChoiceF n k => Choice n (fun c => (par (fun _ => k c) rest s))
+      | ChoiceF b n k => Choice b n (fun c => (par (fun _ => k c) rest s))
       | VisF (inl1 e) k =>
         match e in yieldE _ C return (C -> ctree (E config) (config * unit)) -> _ with
         | Yield _ s' =>
@@ -101,9 +101,9 @@ Section parallel.
   Proof.
     unfold Proper, respectful, flip, impl. intros x y ?. subst. intros.
     step in H. inv H; rewrite <- H3 in H0; inv H0; auto.
-    - apply inj_pair2 in H5, H6.
+    - invert.
       subst. constructor. intros. rewrite REL. auto.
-    - apply inj_pair2 in H5.
+    - invert.
       subst. constructor. intros. rewrite REL. auto.
   Qed.
 
@@ -186,7 +186,7 @@ Section parallel.
     intros. cbn.
     do 2 rewrite rewrite_par'. unfold par_match.
     rewrite rewrite_par'. unfold par_match.
-
+(*
     (* eapply equ_equF. apply rewrite_par. eauto. *)
     (* eapply equ_equF'. 2: { apply rewrite_par. } eauto. *)
     (* unfold par_match. *)
@@ -203,6 +203,7 @@ Section parallel.
         do 2 rewrite rewrite_par'. unfold par_match.
         destruct (observe (t3 c1)) eqn:?.
         * destruct r0. cbn. constructor; auto.
+        * admit.
         * destruct e.
           -- destruct y. unfold choose, choose'. cbn. constructor.
              intros. step. simpl.
@@ -210,6 +211,7 @@ Section parallel.
       cbn.
       (* eapply equ_equF. apply par_empty. eauto. *)
       eapply equ_equF'. 2: { apply par_empty. eauto.
+*)
+  Admitted. 
 
-  Qed.
 End parallel.

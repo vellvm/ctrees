@@ -36,9 +36,9 @@ Section equ.
   | Eq_Vis {X} (e : E X) k1 k2
       (REL : forall x, eq (k1 x) (k2 x)) :
       equF eq (VisF e k1) (VisF e k2)
-  | Eq_Choice {n} (k1 : Fin.t n -> _) (k2 : Fin.t n -> _)
+  | Eq_Choice b {n} (k1 : Fin.t n -> _) (k2 : Fin.t n -> _)
               (REL : forall i, eq (k1 i) (k2 i)) :
-      equF eq (ChoiceF n k1) (ChoiceF n k2)
+      equF eq (ChoiceF b n k1) (ChoiceF b n k2)
   .
   Hint Constructors equF: core.
 
@@ -92,10 +92,10 @@ Section equ_equiv.
 	Lemma Vis_eq2 T Y e k f h: @VisF E R T Y e k = @VisF E R T Y f h -> e=f /\ k=h.
 	Proof. intro H. now dependent destruction H. Qed.
 
-	Lemma Choice_eq1 T n m k h: @ChoiceF E R T n k = @ChoiceF E R T m h -> n=m.
+	Lemma Choice_eq1 T b b' n m k h: @ChoiceF E R T b n k = @ChoiceF E R T b' m h -> b = b' /\ n=m.
 	Proof. intro H. now dependent destruction H. Qed.
 
-	Lemma Choice_eq2 T n k h: @ChoiceF E R T n k = @ChoiceF E R T n h -> k=h.
+	Lemma Choice_eq2 T b n k h: @ChoiceF E R T b n k = @ChoiceF E R T b n h -> k=h.
 	Proof. intro H. now dependent destruction H. Qed.
 
 	(** so is squaring *)
@@ -110,8 +110,8 @@ Section equ_equiv.
 			destruct (Vis_eq2 _ _ _ _ _ _ H2) as [-> ->].
 			constructor. intro x0. now exists (k2 x0).
 		- rewrite <- H in H2.
-			destruct (Choice_eq1 _ _ _ _ _ H2).
-			destruct (Choice_eq2 _ _ _ _ H2).
+			destruct (Choice_eq1 _ _ _ _ _ _ _ H2); subst.
+			destruct (Choice_eq2 _ _ _ _ _ H2).
 			constructor. intros i. now (exists (k0 i)).
 	Qed.
 
@@ -212,7 +212,7 @@ Notation bind_ t k :=
   match observe t with
   | RetF r => k%function r
   | VisF e ke => Vis e (fun x => bind (ke x) k)
-  | ChoiceF n ke => Choice n (fun x => bind (ke x) k)
+  | ChoiceF b n ke => Choice b n (fun x => bind (ke x) k)
   end.
 
 Lemma unfold_bind {E R S} (t : ctree E R) (k : R -> ctree E S)
@@ -249,16 +249,16 @@ Proof.
 	dependent destruction H; dependent destruction H4; auto.
 Qed.
 
-Lemma equF_choice_invT {E S n m} (k1 : _ -> ctree E S) k2 :
-  equF eq (equ eq) (CTrees.ChoiceF n k1) (CTrees.ChoiceF m k2) ->
-  n = m.
+Lemma equF_choice_invT {E S b b' n m} (k1 : _ -> ctree E S) k2 :
+  equF eq (equ eq) (CTrees.ChoiceF b n k1) (CTrees.ChoiceF b' m k2) ->
+  n = m /\ b = b'.
 Proof.
   intros EQ.
 	dependent induction EQ; auto.
 Qed.
 
-Lemma equF_choice_invE {E S n} (k1 : _ -> ctree E S) k2 :
-  equF eq (equ eq) (CTrees.ChoiceF n k1) (CTrees.ChoiceF n k2) ->
+Lemma equF_choice_invE {E S b n} (k1 : _ -> ctree E S) k2 :
+  equF eq (equ eq) (CTrees.ChoiceF b n k1) (CTrees.ChoiceF b n k2) ->
   forall x, equ eq (k1 x) (k2 x).
 Proof.
   intros EQ.
@@ -273,9 +273,9 @@ Qed.
 Proof.
   unfold Proper, respectful, flip, impl. intros. subst.
   step in H. inv H; rewrite <- H3 in H1; inv H1; auto.
-  - apply inj_pair2 in H4, H5.
+  - invert.
     subst. constructor. intros. rewrite REL. auto.
-  - apply inj_pair2 in H4.
+  - invert.
     subst. constructor. intros. rewrite REL. auto.
 Qed.
 
