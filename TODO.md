@@ -8,6 +8,10 @@
 
 - [x] Add: fork 0 ~ spin, and similar
 
+- [ ] Define weak bisimulation
+
+- [ ] Define strong bisimulation
+
 - [ ] Pushing forward CCS
 
 	+ Some done, need to discuss what is relevant to prove
