@@ -118,7 +118,7 @@ Section equ_equiv.
 	Qed.
 
 	(** thus bisimilarity, [t R], [b (t R)] and [T f R] are always equivalence relations *)
-	#[global] Instance Equivalence_t `{Equivalence _ RR} S: Equivalence (t S).
+	#[global] Instance Equivalence_et `{Equivalence _ RR} S: Equivalence (t S).
 	Proof. apply Equivalence_t. apply refl_t. apply square_t. apply converse_t. Qed.
 	#[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (T f S).
 	Proof.
@@ -136,7 +136,7 @@ Section equ_equiv.
 End equ_equiv.
 
 #[global] Instance Equivalence_equ {E R}: Equivalence (gfp (@fequ E R _ eq)).
-Proof. apply Equivalence_t. typeclasses eauto. Qed.
+Proof. apply Equivalence_et. typeclasses eauto. Qed.
 (*
   From ITree Require Import ITree.
  (* Unification diverges when trying to derive Reflexive from Equivalence for this relation *)
