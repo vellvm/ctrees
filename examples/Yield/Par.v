@@ -8,7 +8,8 @@ From CTree Require Import
 	CTrees
  	Interp
 	Equ
-	Bisim.
+	Bisim
+    Shallow.
 
 From ITree Require Import
      Sum.
@@ -76,16 +77,15 @@ Section parallel.
     step. eauto.
   Qed.
 
+  (* no longer true with the new spawn events *)
   Lemma par_empty :
     forall t c, par t [] c ≅ t c.
   Proof.
     coinduction r CIH. intros. cbn.
     destruct (observe (t c)) eqn:?.
-    (* TODO: get proper instance to work *)
-    - eapply equ_equF. apply rewrite_par. eauto.
-      unfold par_match. rewrite Heqc0. destruct r0, u. constructor; auto.
-    - eapply equ_equF. apply rewrite_par. eauto.
-      unfold par_match. rewrite Heqc0. destruct e.
+    - rewrite rewrite_par. unfold par_match. rewrite Heqc0.
+      destruct r0, u. constructor; auto.
+    - rewrite rewrite_par. unfold par_match. rewrite Heqc0. destruct e.
       + destruct y. unfold choose, choose'. cbn. constructor; apply CIH.
       + destruct s.
   (*   - eapply equ_equF. apply rewrite_par. eauto. *)
@@ -93,19 +93,6 @@ Section parallel.
   (*     cbn. constructor; intros; eapply CIH. *)
         (* Qed. *)
   Abort.
-
-  (* TODO: I think we need something like [observing] from itrees to make this work properly *)
-  #[global] Instance equ_equF' {E R r} :
-    Proper (eq ==> gfp (@fequ E R R eq) ==> flip impl)
-	       (fun x y => equF eq (t_equ eq r) x (observe y)).
-  Proof.
-    unfold Proper, respectful, flip, impl. intros x y ?. subst. intros.
-    step in H. inv H; rewrite <- H3 in H0; inv H0; auto.
-    - invert.
-      subst. constructor. intros. rewrite REL. auto.
-    - invert.
-      subst. constructor. intros. rewrite REL. auto.
-  Qed.
 
   Fixpoint list_relation {T} (P : relation T) (l1 l2 : list T) : Prop :=
     match l1, l2 with
@@ -168,31 +155,77 @@ Section parallel.
       intro. apply REL.
   Qed.
 
-  Lemma rewrite_par' curr rest s : par curr rest s = par_match par curr rest s.
-  Admitted.
-
-  (* Lemma par_empty t s : *)
-  (*   par (fun s' : config => par t [] s') [] s ≅ par t [] s. *)
+  (* Lemma observe_par t s r : *)
+  (*   t s ≅ Ret r -> *)
+  (*   observe (par t [] s) = RetF r. *)
   (* Proof. *)
-  (*   do 2 rewrite rewrite_par. unfold par_match. *)
-  (*   destruct (observe (t s)) eqn:?. *)
-  (*   - destruct r, u. cbn. rewrite rewrite_par. *)
+  (*   intros. destruct r, u. step in H. inv H. *)
+  (*   intros. rewrite rewrite_par'. unfold par_match. rewrite H. destruct r, u; auto. *)
   (* Qed. *)
+
+  (* Lemma par_empty : *)
+  (*   forall t s, par (fun s' : config => par t [] s') [] s ≅ par t [] s. *)
+  (* Proof. *)
+  (*   coinduction r CIH. intros t s. *)
+  (*   pose proof rewrite_par. specialize (H t [] s). step in H. unfold par_match in H. *)
+  (*   do 2 rewrite rewrite_par. unfold par_match. *)
+  (*   destruct (observe (t s)) eqn:?. 2: destruct e. *)
+  (*   - destruct r0, u. inv H; auto. *)
+  (*   - destruct y. cbn in H. inv H. apply inj_pair2 in H3, H4. subst. *)
+  (*     unfold choose, choose'. cbn. constructor; auto. intros. admit. *)
+  (*   - destruct s0. inv H. apply inj_pair2 in H3. subst. *)
+  (* Qed. *)
+
+  Lemma schedule_par_assoc :
+    forall t1 t2 t3 c t, schedule (par t1 [par t2 [t3]] c) t ->
+                  schedule (par (par t1 [t2]) [t3] c) t.
+  Proof.
+    intros.
+    rewrite rewrite_par in H |- *.
+    unfold schedule in *. unfold par_match.
+    pose proof (rewrite_par t1 [t2] c). step in H0. inv H0.
+    - destruct y, u. unfold par_match in *. destruct (observe (t1 c)); inv H3.
+      + destruct r. inv H1.
+      + destruct e; [destruct y | destruct s]; inv H1.
+    - unfold par_match in *. destruct (observe (t1 c)) eqn:?; inv H3.
+      + destruct r. inv H1.
+      + destruct e; [destruct y | destruct s]; (destruct e0; [destruct y | destruct s]; inv H1).
+    - cbn in *. unfold par_match in *. destruct (observe (t1 c)) eqn:?; inv H3.
+      + destruct r.
+        cbn in H1. inv H2.
+      (* + destruct e; [destruct y | destruct s]; (destruct e0; [destruct y | destruct s]; inv H1). *)
+  Abort.
+
+  Lemma par_assoc :
+    forall t1 t2 t3 c, par t1 [par t2 [t3]] c ≈ par (par t1 [t2]) [t3] c.
+  Proof.
+    red. coinduction r CIH.
+    intros. cbn.
+(*
+    unfold bisim. coinduction r CIH. constructor.
+    - intros. rewrite rewrite_par' in H |- *. unfold par_match in *.
+      destruct (observe (t1 c)) eqn:?.
+      + destruct r0, u. inv H. apply inj_pair2 in H2. subst.
+        rewrite rewrite_par'. unfold par_match. rewrite Heqc0. cbn.
+        exists u'. split. 2: admit.
+        constructor; auto. eapply CIH.
+  Qed.
 
   Lemma par_assoc :
     forall t1 t2 t3 c, par t1 [par t2 [t3]] c ≅ par (par t1 [t2]) [t3] c.
   Proof.
-    coinduction r CIH.
-    intros. cbn.
-    do 2 rewrite rewrite_par'. unfold par_match.
-    rewrite rewrite_par'. unfold par_match.
-(*
+    coinduction r CIH. intros.
+    (* intros. cbn. *)
+    do 2 rewrite rewrite_par. unfold par_match.
     (* eapply equ_equF. apply rewrite_par. eauto. *)
     (* eapply equ_equF'. 2: { apply rewrite_par. } eauto. *)
     (* unfold par_match. *)
     destruct (observe (t1 c)) eqn:?.
-    - destruct r0 as [? []]. simpl.
-      constructor. intros.
+    - destruct r0 as [? []]. cbn.
+      pose proof rewrite_par as Hr. specialize (Hr t1 [t2] c).
+      step in Hr. unfold par_match in Hr. rewrite Heqc0 in Hr. inv Hr.
+      apply inj_pair2 in H2. subst.
+      constructor. intros. rewrite REL. apply CIH.
 
       step. do 2 rewrite rewrite_par'. unfold par_match.
       do 2 rewrite rewrite_par'. unfold par_match.
@@ -212,6 +245,6 @@ Section parallel.
       (* eapply equ_equF. apply par_empty. eauto. *)
       eapply equ_equF'. 2: { apply par_empty. eauto.
 *)
-  Admitted. 
+  Admitted.
 
 End parallel.

@@ -5,7 +5,9 @@ From Coinduction Require Import
 	coinduction rel tactics.
 
 From CTree Require Import
-	Utils CTrees.
+	 Utils
+     CTrees
+     Shallow.
 
 (* end hide *)
 
@@ -266,13 +268,49 @@ Proof.
 	dependent destruction H; auto.
 Qed.
 
-(* TODO: I think we need something like [observing] from itrees to make this work *)
-#[global] Instance equ_equF {E R r} :
-  Proper (gfp (@fequ E R R eq) ==> eq ==> flip impl)
-	     (fun x y => equF eq (t_equ eq r) (observe x) y).
+#[global] Instance equ_observe {E R} :
+  Proper (equ eq ==> going (equ eq)) (@observe E R).
+Proof.
+  constructor. step in H. now step.
+Qed.
+
+#[global] Instance equ_ChoiceF {E R} b n :
+  Proper (pointwise_relation _ (equ eq) ==> going (equ eq)) (@ChoiceF E R _ b n).
+Proof.
+  constructor. red in H. step. econstructor; eauto.
+Qed.
+
+#[global] Instance equ_VisF {E R X} (e : E X) :
+  Proper (pointwise_relation _ (equ eq) ==> going (equ eq)) (@VisF E R _ _ e).
+Proof.
+  constructor. red in H. step. econstructor; eauto.
+Qed.
+
+#[global] Instance observing_sub_equ E R :
+  subrelation (@observing E R R eq) (equ eq).
+Proof.
+  repeat intro.
+  step. rewrite (observing_observe H). apply Reflexive_equF; eauto.
+Qed.
+
+#[global] Instance equ_eq_equF {E R r} :
+  Proper (going (gfp (@fequ E R R eq)) ==> eq ==> flip impl)
+	     (equF eq (t_equ eq r)).
 Proof.
   unfold Proper, respectful, flip, impl. intros. subst.
-  step in H. inv H; rewrite <- H3 in H1; inv H1; auto.
+  inv H. step in H0. inv H0; inv H1; auto.
+  - invert.
+    subst. constructor. intros. rewrite REL. auto.
+  - invert.
+    subst. constructor. intros. rewrite REL. auto.
+Qed.
+
+#[global] Instance eq_equ_equF {E R r} :
+  Proper (eq ==> going (gfp (@fequ E R R eq)) ==> flip impl)
+	     (equF eq (t_equ eq r)).
+Proof.
+  unfold Proper, respectful, flip, impl. intros. subst.
+  inv H0. step in H. inv H; inv H1; auto.
   - invert.
     subst. constructor. intros. rewrite REL. auto.
   - invert.
