@@ -73,7 +73,8 @@ Definition observe {E R} (t : ctree E R) : ctree' E R := @_observe E R t.
 (** We encode [itree]'s [Tau] constructor as a unary internal choice. *)
 Notation Ret x := (go (RetF x)).
 Notation Vis e k := (go (VisF e k)).
-Notation Tau t := (go (ChoiceF false 1 (fun _ => t))).
+Notation Tau  t := (go (ChoiceF false 1 (fun _ => t))).
+Notation TauV t := (go (ChoiceF true 1 (fun _ => t))).
 Notation Choice b n k := (go (ChoiceF b n k)).
 Notation ChoiceV n k := (go (ChoiceF true n k)).
 Notation ChoiceI n k := (go (ChoiceF false n k)).
