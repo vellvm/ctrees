@@ -108,13 +108,28 @@ Section Trans.
 		intros ? ? eqt ? ? equ; unfold trans. 
 		rewrite eqt, equ; reflexivity.	
 	Qed.	
-		
+
 	(* Extending [trans] with its reflexive closure, labelled [tau] *)
   Definition etrans l : hrel S S := 
 		match l with 
-		| tau => cup (trans tau) 1
+		| tau => cup (trans tau) (equ eq)
 		| _ => trans l 
 		end.
+
+	#[global] Instance etrans_equ l : 
+		Proper (equ eq ==> equ eq ==> iff) (etrans l).
+	Proof.
+		destruct l; cbn.
+		2: apply trans_equ.
+		intros ? ? eqt ? ? equ.
+		split.
+		- intros [].
+   		left; rewrite <- eqt, <- equ; auto.
+			right; rewrite <- eqt, H, equ; reflexivity.
+		- intros [].
+   		left; rewrite eqt, equ; auto.
+			right; rewrite eqt, H, equ; reflexivity.
+	Qed.	
 
 	(* The transition over which the weak game is built: a sequence of 
 	 	internal steps, a labelled step, and a new sequence of internal ones
@@ -193,14 +208,15 @@ Section Trans.
 		apply TR.
 	Qed.	
 
-	Lemma trans_ChoiceV : forall l t t',
+	Lemma trans_TauV : forall l t t',
 		trans l (TauV t) t' ->
-		t' ≅ t.
+		t' ≅ t /\ l = tau.
 	Proof.
 		intros * TR.
 		red in TR; cbn in TR.
 		dependent induction TR.
 		rewrite H.
+		split; auto.
 		rewrite (ctree_eta t'), (ctree_eta t0), x; reflexivity.
 	Qed.
 			
@@ -334,7 +350,7 @@ Section Bisim.
   #[global] Instance Symmetric_wt R: Symmetric (wt R).
   Proof. intros ??. apply (ft_t converse_wt). Qed.
 	 
-	Lemma tau_wb : forall t,
+	Lemma Tau_wb : forall t,
 		Tau t ≈ t.
 	Proof.
 		intros t; step; split.	
@@ -348,6 +364,23 @@ Section Bisim.
 			apply Tau_trans; auto.	
 			cbn; reflexivity.
 	Qed.
+
+	Lemma TauV_wb : forall t,
+		TauV t ≈ t.
+	Proof.
+		intros t; step; split.	
+    - intros l t' H. 
+			apply trans_TauV in H as [EQ ->].	
+			exists t'.
+			rewrite EQ. apply wnil.
+			apply trans_wtrans; auto.	
+			reflexivity.
+    - intros l t' H. exists t'. 
+			apply trans_wtrans. 
+			apply Tau_trans; auto.	
+			cbn; reflexivity.
+	Qed.
+
 
 	(*
  (** but squaring is not compatible and [t R] is not always transitive, 
