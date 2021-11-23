@@ -12,7 +12,7 @@ From Coinduction Require Import
 	coinduction rel tactics.
 
 From CTree Require Import
-	Utils CTrees Equ.
+	Utils CTrees Equ Shallow.
 
 (* end hide *)
 
@@ -251,32 +251,39 @@ Proof.
       eapply IH; eauto.
 Qed.
 
-#[global] Instance equ_schedule {E X}:
-	Proper (equ eq ==> equ eq ==> iff) (@schedule E X).
+#[global] Instance equ_schedule_ {E X}:
+  Proper (going (equ eq) ==> going (equ eq) ==> iff) (@schedule_ E X).
 Proof.
   repeat red; intros * EQ1 * EQ2; split; intros SCHED.
-  - step in EQ1; step in EQ2.
+  - inv EQ1. inv EQ2. rename H into EQ1. rename H0 into EQ2. step in EQ1; step in EQ2.
     unfold schedule in *.
     hinduction SCHED before X.
-    + intros. inv EQ1. apply inj_pair2 in H2. subst.
-      eapply SchedChoice with x1.
-      apply IHSCHED. specialize (REL x1).
-      step in REL. apply REL. auto.
-    + intros. inv EQ1; inv EQ2; constructor.
-    + intros. inv EQ1. inv EQ2. apply inj_pair2 in H2, H3, H5, H6. subst.
-      constructor. intros.
-      rewrite <- REL0, <- REL. auto.
-  - step in EQ1; step in EQ2.
-    unfold schedule in *.
-    hinduction SCHED before X.
-    + intros. inv EQ1. apply inj_pair2 in H3. subst.
+    + intros. inv EQ1. invert.
       eapply SchedChoice with x.
       apply IHSCHED. specialize (REL x).
       step in REL. apply REL. auto.
     + intros. inv EQ1; inv EQ2; constructor.
-    + intros. inv EQ1. inv EQ2. apply inj_pair2 in H3, H4, H6, H7. subst.
+    + intros. inv EQ1. inv EQ2. invert.
+      constructor. intros.
+      rewrite <- REL0, <- REL. auto.
+  - inv EQ1. inv EQ2. rename H into EQ1. rename H0 into EQ2. step in EQ1; step in EQ2.
+    unfold schedule in *.
+    hinduction SCHED before X.
+    + intros. inv EQ1. invert.
+      eapply SchedChoice with x.
+      apply IHSCHED. specialize (REL x).
+      step in REL. apply REL. auto.
+    + intros. inv EQ1; inv EQ2; constructor.
+    + intros. inv EQ1. inv EQ2. invert.
       constructor. intros.
       rewrite REL0, REL. auto.
+Qed.
+
+#[global] Instance equ_schedule {E X}:
+	Proper (equ eq ==> equ eq ==> iff) (@schedule E X).
+Proof.
+  unfold schedule. repeat intro.
+  apply equ_schedule_; constructor; [rewrite H | rewrite H0]; auto.
 Qed.
 
 (** * Sanity checks and meta-theory to establish at some point.
