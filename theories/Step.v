@@ -1,12 +1,12 @@
 (* begin hide *)
 
 From CTree Require Import
-	Utils CTrees Equ Shallow. 
+	Utils CTrees Equ Shallow srel.  
 
 From RelationAlgebra Require Import
  monoid
  kat      (* kat == Kleene Algebra with Test, we don't use the tests part *)
- kat_tac  
+ (* kat_tac   Universe Inconsistency if imported with srel *)
  prop
  rel
  comparisons
@@ -19,8 +19,12 @@ From RelationAlgebra Require Import
 Section Trans.
 
   Context {E : Type -> Type} {R : Type}.
+
 	Notation S' := (ctree' E R).
 	Notation S  := (ctree  E R).
+
+	Definition TS : EqType := 
+		{| type_of := S ; Eq := equ eq |}. 
 
 	Variant label : Type := 
 	| tau
@@ -109,13 +113,17 @@ Section Trans.
 		rewrite eqt, equ; reflexivity.	
 	Qed.	
 
-	(* Extending [trans] with its reflexive closure, labelled [tau] *)
-  Definition etrans l : hrel S S := 
-		match l with 
-		| tau => cup (trans tau) (equ eq)
-		| _ => trans l 
-		end.
+	Definition transT l : srel TS TS := {| rel_of := trans l : hrel TS TS |}.
 
+	(* Extending [trans] with its reflexive closure, labelled [tau] *)
+  Definition etrans (l : label) : srel TS TS := 
+	match l with 
+		| tau => (lattice.cup (transT l) 1)
+	  | _ => transT l 
+	end.
+
+(* We get this for free using [srel] *)
+(*
 	#[global] Instance etrans_equ l : 
 		Proper (equ eq ==> equ eq ==> iff) (etrans l).
 	Proof.
@@ -130,14 +138,22 @@ Section Trans.
    		left; rewrite eqt, equ; auto.
 			right; rewrite eqt, H, equ; reflexivity.
 	Qed.	
+*)
+
+	(* The `rel_of` coercion does not work. Because of `srel`'s parameters? *)
+	Goal forall l (x y z : S), x ≅ y -> rel_of (etrans l) y z -> rel_of (etrans l) x z.
+		intros.
+		rewrite H.
+		assumption.
+	Qed.
 
 	(* The transition over which the weak game is built: a sequence of 
 	 	internal steps, a labelled step, and a new sequence of internal ones
 	*)
-	Definition wtrans l : hrel S S :=
-		 (trans tau)^* ⋅ etrans l ⋅ (trans tau)^*.
+	Definition wtrans l : srel TS TS :=
+		 (transT tau)^* ⋅ etrans l ⋅ (transT tau)^*.
 
-	Lemma trans_etrans l: trans l ≦ etrans l.
+	Lemma trans_etrans l: transT l ≦ etrans l.
 	Proof. unfold etrans; case l; ka. Qed.
 	Lemma etrans_wtrans l: etrans l ≦ wtrans l.
 	Proof. unfold wtrans; ka. Qed.
@@ -173,7 +189,41 @@ Section Trans.
 	Qed.
  
   Lemma wtrans_tau: wtrans tau ≡ (trans tau)^*.
-  Proof. unfold wtrans, etrans. ka. Qed.
+  Proof. 
+		unfold wtrans, etrans. 
+		intros a d; split.
+		- intros [c [b ? ?] ?]. 
+			apply (str_trans (trans tau)).	
+			exists c; auto.
+			apply (str_trans (trans tau)).	
+			exists b; auto.
+			destruct H0.
+			eapply (str_cons (trans tau)).	
+			eexists; eauto.
+			eapply (str_refl (trans tau)); reflexivity.	
+
+
+		apply catch_ka_weq. 
+		cbn.
+		intros ? ?.
+		
+
+		intro L.
+		intros tenv env penv ? ? lhs rhs.
+		 (let tenv := fresh "tenv" in
+		let env := fresh "env" in
+			let penv := fresh "penv" in
+			let lhs := fresh "lhs" in
+			let rhs := fresh "rhs" in
+			 apply (kat_weq_dec tenv env penv _ _ lhs rhs);
+			 [ reflexivity || fail 1 "Bug in KAT reification, please report"
+			 | close_by_reflection (Some true) ||
+					 fail 1
+						"Not a KAT theorem, but no counter-example can be displayed. Please report." ])
+		pre_dec false.	
+		cbn.
+		rewrite ?leq_iff_cup.
+		ka. Qed.
  
  	Global Instance PreOrder_wtrans_tau: PreOrder (wtrans tau).
  	Proof.
