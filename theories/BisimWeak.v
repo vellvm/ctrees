@@ -26,21 +26,21 @@ From CTree Require Import
 
   - Internal challenges correspond to a non-empty sequence of tau steps, and must be
     matched by a possibly empty sequence of tau steps.
-    Transposed to the [ctree] formalism, this corresponds to crawling through 
+    Transposed to the [ctree] formalism, this corresponds to crawling through
     as many [Choice] nodes as desired, but chosing specifically a _visible_ [Choice]
     node to stop, and transit to any of the successor of this node.
     The opponent then needs to find a way to answer similarly, but with the additional
     possibility to stand still.
 
-    Electing a final node and picking one of its branches ensures that at least 
+    Electing a final node and picking one of its branches ensures that at least
     one tau step is taken, and any number of such internal steps can be taken before.
-    The distinction Visible/Invisible ensures we do not compare too finely the 
+    The distinction Visible/Invisible ensures we do not compare too finely the
     computations (i.e. (P + Q) + R cannot step to (P + R)).
 
-  - External challenges correspond to a non-tau step surrounded by arbitrary amounts 
+  - External challenges correspond to a non-tau step surrounded by arbitrary amounts
     of tau steps.
     Transposed to the [ctree] formalism, this corresponds to:
-    + crawling through as many [Choice] nodes as desired until a Ret or Vis node is 
+    + crawling through as many [Choice] nodes as desired until a Ret or Vis node is
       reached, let us call [t'] this new state
     + having the opponent perform the same process up to a state [u']
     + if [t'] and [u'] are related pure computations, we are good
@@ -54,7 +54,7 @@ Section Stepping.
   Context {E : Type -> Type} {R : Type}.
 
   (* External stepping
-    We have the following invariant: 
+    We have the following invariant:
     external t u -> t = Ret x \/ t = Vis e k
   *)
   Inductive external_ : ctree' E R -> ctree' E R -> Prop :=
@@ -87,10 +87,10 @@ Section Stepping.
 
   (* Reflexive closure of the internal stepping *)
   Variant refl_clo {X} (R : X -> X -> Prop): X -> X -> Prop :=
-  | ReflCloRefl : forall u, refl_clo R u u 
+  | ReflCloRefl : forall u, refl_clo R u u
   | ReflCloRel  : forall u v, R u v -> refl_clo R u v.
 
-  Definition internal_refl := refl_clo internal. 
+  Definition internal_refl := refl_clo internal.
 
 End Stepping.
 #[global] Hint Constructors refl_clo: core.
@@ -110,12 +110,12 @@ Section wbisim.
     ctree' E R1 -> ctree' E R2 -> Prop :=
   | MatchLRet x y (RET : RR x y) :
      matchingL_ bisim (RetF x) (RetF y)
-  | MatchLVis {X} (e : E X) k1 k2 
-     (RET : forall v t', 
+  | MatchLVis {X} (e : E X) k1 k2
+     (RET : forall v t',
         internal_refl (k1 v) t' ->
         exists u', internal_refl (k2 v) u' /\ bisim t' u'):
      matchingL_ bisim (VisF e k1) (VisF e k2)
-  . 
+  .
   Hint Constructors matchingL_ : core.
   Definition matchingL bisim u v := matchingL_ bisim (observe u) (observe v).
 
@@ -123,15 +123,15 @@ Section wbisim.
     ctree' E R1 -> ctree' E R2 -> Prop :=
   | MatchRRet x y (RET : RR x y) :
      matchingR_ bisim (RetF x) (RetF y)
-  | MatchRVis {X} (e : E X) k1 k2 
-     (RET : forall v t', 
+  | MatchRVis {X} (e : E X) k1 k2
+     (RET : forall v t',
         internal_refl (k2 v) t' ->
-        exists u', internal_refl (k1 v) u' /\ bisim t' u'):
+        exists u', internal_refl (k1 v) u' /\ bisim u' t'):
      matchingR_ bisim (VisF e k1) (VisF e k2)
-  . 
+  .
   Hint Constructors matchingR_ : core.
 
-  (* step_vis : ctree E X -> {Y : Type & e : E Y & v : Y} -> ctree E X -> Prop 
+  (* step_vis : ctree E X -> {Y : Type & e : E Y & v : Y} -> ctree E X -> Prop
     Does this lead to exactly the same thing?
   *)
   Definition matchingR bisim u v := matchingR_ bisim (observe u) (observe v).
@@ -150,7 +150,7 @@ Section wbisim.
               exists u', external u u' /\ matchingR wbisim u' t')
                :
       wbisimF wbisim u t.
- 
+
   Hint Constructors wbisimF: core.
 
   Lemma matchingL_mono u v sim sim'
@@ -160,7 +160,7 @@ Section wbisim.
   Proof.
     unfold matchingL in *.
     inv IN; auto. constructor; intros. edestruct RET as (? & ? & ?); eauto.
-    eexists; split; eauto. 
+    eexists; split; eauto.
     apply LE; auto.
   Qed.
   Hint Resolve matchingL_mono: core.
@@ -172,7 +172,7 @@ Section wbisim.
   Proof.
     unfold matchingR in *.
     inv IN; auto. constructor; intros. edestruct RET as (? & ? & ?); eauto.
-    eexists; split; eauto. 
+    eexists; split; eauto.
     apply LE; auto.
   Qed.
   Hint Resolve matchingR_mono: core.
@@ -181,11 +181,11 @@ Section wbisim.
   Next Obligation.
    unfold pointwise_relation, impl, bisim_.
    intros ?? INC ?? EQ.
-   constructor; inversion_clear EQ; intros. 
-  - edestruct SIMFI as (? & ? & ?); eauto. 
-  - edestruct SIMBI as (? & ? & ?); eauto. 
-  - edestruct SIMFE as (? & ? & ?); eauto. 
-  - edestruct SIMBE as (? & ? & ?); eauto. 
+   constructor; inversion_clear EQ; intros.
+  - edestruct SIMFI as (? & ? & ?); eauto.
+  - edestruct SIMBI as (? & ? & ?); eauto.
+  - edestruct SIMFE as (? & ? & ?); eauto.
+  - edestruct SIMBE as (? & ? & ?); eauto.
   Qed.
 
 End wbisim.
@@ -212,7 +212,7 @@ Lemma external_active_ : forall {E R} (t u : ctree' E R),
   external_ t u ->
   active_ u.
 Proof.
-  intros * INTERN. 
+  intros * INTERN.
   now induction INTERN.
 Qed.
 
@@ -229,7 +229,7 @@ Lemma matchingL_active_refl {E R} (RR : R -> R -> Prop)
   `{Reflexive _ RR} `{Reflexive _ eq} :
   active t ->
   matchingL RR eq t t.
-Proof. 
+Proof.
   unfold matchingL; intros []; eauto.
 Qed.
 
@@ -238,7 +238,7 @@ Lemma matchingR_active_refl {E R} (RR : R -> R -> Prop)
   `{Reflexive _ RR} `{Reflexive _ eq} :
   active t ->
   matchingR RR eq t t.
-Proof. 
+Proof.
   unfold matchingR; intros []; eauto.
 Qed.
 
@@ -250,7 +250,7 @@ Lemma matchingL_active_sym {E R} (RR : R -> R -> Prop)
    matchingL RR (converse eq) u t.
 Proof.
   unfold matchingL, matchingR; intros []; eauto.
-  constructor; intros. 
+  constructor; intros.
   edestruct RET as (? & ? & ?); eauto.
 Qed.
 

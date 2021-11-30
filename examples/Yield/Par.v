@@ -54,7 +54,10 @@ Section parallel.
       match (observe (curr s)) with
       | RetF (s', _) => match rest with
                        | [] => Ret (s', tt)
+                                  (* Wrong here *)
                        | h :: t => Tau (par h t s')
+                       (* | h :: t => '(curr', rest') <- choose h t;; *)
+                       (*           Tau (par curr' rest' s') *)
                        end
       | ChoiceF b n k => Choice b n (fun c => (par (fun _ => k c) rest s))
       | VisF (inl1 e) k =>
@@ -100,6 +103,13 @@ Section parallel.
     | h1 :: t1, h2 :: t2 => P h1 h2 /\ list_relation P t1 t2
     | _, _ => False
     end.
+
+  #[global] Instance list_relation_refl {T} (P : relation T)
+        `{Reflexive _ P} :
+    Reflexive (list_relation P).
+  Proof.
+    repeat intro. induction x; auto. split; auto.
+  Qed.
 
   Lemma list_relation_app {T} (P : relation T) l1 l2 r1 r2 :
     list_relation P l1 l2 ->
@@ -176,9 +186,23 @@ Section parallel.
   (*   - destruct s0. inv H. apply inj_pair2 in H3. subst. *)
   (* Qed. *)
 
+  (* Lemma schedule_par_assoc : *)
+  (*   forall t1 t2 a b c, schedule (par t1 [a; b] c) t2 -> *)
+  (*                schedule (par t1 [b; a] c) t2. *)
+  (* Proof. *)
+  (*   intros. *)
+  (*   rewrite rewrite_par in H |- *. *)
+  (*   unfold schedule in *. unfold par_match in *. *)
+  (*   destruct (observe (t1 c)) eqn:?. *)
+  (*   - destruct r, u. induction H; auto. *)
+  (*     pose proof (rewrite_par t1 l c). step in H0. inv H0. *)
+
+  (* Qed. *)
+
+
   Lemma schedule_par_assoc :
-    forall t1 t2 t3 c t, schedule (par t1 [par t2 [t3]] c) t ->
-                  schedule (par (par t1 [t2]) [t3] c) t.
+    forall t1 t2 l c t, schedule (par t1 [par t2 l] c) t ->
+                   schedule (par (par t1 [t2]) l c) t.
   Proof.
     intros.
     rewrite rewrite_par in H |- *.
@@ -189,18 +213,78 @@ Section parallel.
       + destruct e; [destruct y | destruct s]; inv H1.
     - unfold par_match in *. destruct (observe (t1 c)) eqn:?; inv H3.
       + destruct r. inv H1.
-      + destruct e; [destruct y | destruct s]; (destruct e0; [destruct y | destruct s]; inv H1).
-    - cbn in *. unfold par_match in *. destruct (observe (t1 c)) eqn:?; inv H3.
-      + destruct r.
-        cbn in H1. inv H2.
-      (* + destruct e; [destruct y | destruct s]; (destruct e0; [destruct y | destruct s]; inv H1). *)
-  Abort.
+      + destruct e; [destruct y | destruct s];
+          (destruct e0; [destruct y | destruct s]; inv H1).
+    - cbn. unfold par_match in *.
+      destruct (observe (t1 c)) eqn:?; inv H3.
+      + destruct r, u.
+        cbn in H1. inv H1. invert.
+        (* setoid_rewrite REL. *)
+        (* induction H. *)
+        (* inv H. invert. econstructor; eauto. *)
+        (* admit. *)
+
+        (* clear REL H2 k1. *)
+        (* apply IHschedule_; auto. *)
+
+        cbn in H.
+        remember (ChoiceF _ _ _) in H.
+        remember (observe t).
+        clear H2.
+        setoid_rewrite REL.
+        revert Heqc2 Heqc1 Heqc0 REL. revert l t t1 k1.
+        induction H; intros; auto; try inv Heqc1. invert.
+        eapply IHschedule_; eauto.
+
+        (* econstructor. specialize (IHschedule_ t l c0 Heqc0). *)
+        (* eapply IHschedule_; eauto. *)
+        (* inv Heqc1. invert. *)
+
+        (* assert (k1 = fun _ => par t2 [] c0) by admit. subst. *)
+        (* cbn in H. dependent induction H; auto. apply IHschedule_; auto. *)
+        (* (* remember (observe t). remember (observe _) in H. *) *)
+        (* (* revert Heqc1 Heqc2. revert t. *) *)
+        (* clear Heqc0. *)
+        (* simpl in H. remember (par _ _ _) in H. remember (observe t). *)
+        (* revert Heqc1 Heqc2. revert t l. *)
+        (* inv H. admit. *)
+        (* induction H; auto; intros. *)
+        (* eapply IHschedule_; eauto. *)
+        (* * subst. *)
+
+        (* dependent induction H. eapply IHschedule_; eauto. *)
+        (* inv H. invert. *)
+        (* dependent induction H5. *)
+        (* eapply IHschedule_; eauto. auto. eauto. auto. *)
+        (* induction H; [ apply IHschedule_ | | ]. *)
+        (* * intros. *)
+
+      + destruct e.
+        * destruct y. unfold choose in *. unfold choose' in *.
+          unfold Sanity.choice2 in H1. rewrite bind_ret_ in H1. inv H1.
+          setoid_rewrite REL.
+          inv H. invert.
+        * destruct s. inv H. invert. admit.
+      + invert. induction H; eauto. eapply IHschedule_; eauto.
+
+
+
+
+
+        (* constructor. step. constructor. intros. apply equ_par. intro. apply REL. *)
+        (* all : eauto. constructor. *)
+
+        (* + destruct e; [destruct y | destruct s]; (destruct e0; [destruct y | destruct s]; inv H1). *)
+Admitted.
+
 
   Lemma par_assoc :
-    forall t1 t2 t3 c, par t1 [par t2 [t3]] c ≈ par (par t1 [t2]) [t3] c.
+    forall t1 t2 l c, par t1 [par t2 l] c ≈ par (par t1 [t2]) l c.
   Proof.
     red. coinduction r CIH.
     intros. cbn.
+    constructor. intros.
+    exists u'.
 (*
     unfold bisim. coinduction r CIH. constructor.
     - intros. rewrite rewrite_par' in H |- *. unfold par_match in *.
@@ -246,5 +330,6 @@ Section parallel.
       eapply equ_equF'. 2: { apply par_empty. eauto.
 *)
   Admitted.
+
 
 End parallel.
