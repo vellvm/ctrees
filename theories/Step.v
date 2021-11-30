@@ -279,7 +279,44 @@ Section Trans.
 		eapply wcons; eauto.
 		apply trans_TauV.
 	Qed.
-			
+
+	Lemma trans_ret : forall x l t, 
+		~ (trans l (Ret x) t).
+	Proof.
+		intros * abs.
+		inv abs.
+	Qed.
+
+	Lemma etrans_ret : forall x l t, 
+		etrans l (Ret x) t ->
+		l = tau /\ t ≅ Ret x.
+	Proof.
+		intros ? [] ? step; cbn in step; (now inv step || intuition).
+	Qed.
+
+	Lemma trans_tau_str_ret : forall x t, 
+		(trans tau)^* (Ret x) t ->
+		t ≅ Ret x.
+	Proof.
+		intros * [[|] step].
+		- cbn in *; symmetry; eauto.
+		- destruct step.
+			exfalso; eapply trans_ret; eauto.
+	Qed.
+
+	Lemma wtrans_ret : forall x l t, 
+		wtrans l (Ret x) t ->
+		l = tau /\ t ≅ Ret x.
+	Proof.
+		intros * step.
+		destruct step as [? [? step1 step2] step3]. 
+		apply trans_tau_str_ret in step1.
+		rewrite step1 in step2; clear step1.
+		apply etrans_ret in step2 as [-> EQ].
+		rewrite EQ in step3.
+		apply trans_tau_str_ret in step3; auto.
+	Qed.
+
 End Trans.
 
 Section Bisim.
@@ -306,7 +343,7 @@ Section Bisim.
 	*)
   Notation sb := (cap ss (comp converse (comp ss converse))).
 
-  Definition sbisim := (gfp sb : hrel _ _).
+  Notation sbisim := (gfp sb : hrel _ _).
   Notation "t ~ u" := (gfp sb t u) (at level 70).
   Notation st := (t sb).
   Notation sbt := (bt sb).
@@ -357,6 +394,15 @@ Section Bisim.
 
 	End Strong.
 
+  Notation sb := (cap ss (comp converse (comp ss converse))).
+	Notation sbisim := (gfp sb : hrel _ _).
+  Notation "t ~ u" := (gfp sb t u) (at level 70).
+  Notation st := (t sb).
+  Notation sbt := (bt sb).
+  (** notations  for easing readability in proofs by enhanced coinduction *)
+  Notation "t [~] u" := (st  _ t u) (at level 79). 
+  Notation "t {~} u" := (sbt _ t u) (at level 79).
+
 	Section Weak.
 
   (** the function defining weak simulations and similarity *)
@@ -374,7 +420,7 @@ Section Bisim.
   (** the symmetrised version, defining weak bisimulations and bisimilarity *)
   Notation wb := (cap ws (comp converse (comp ws converse))).
 
-  Definition wbisim := (gfp wb: hrel _ _).
+  Notation wbisim := (gfp wb: hrel _ _).
   Notation "p ≈ q" := (gfp wb p q) (at level 70).
   Notation wt := (coinduction.t wb).
   Notation wT := (coinduction.T wb).
@@ -391,16 +437,20 @@ Section Bisim.
   Lemma s_w: ss <= ws.
   Proof. rewrite s_e. apply e_w. Qed.
 
-  Corollary bisim_wbisim: sbisim <= wbisim.
+  Corollary sbisim_wbisim: sbisim <= wbisim.
   Proof.
 		apply gfp_leq.
 		apply cap_leq. apply s_w.
     intros R p q. apply (@s_w (R°) q p).
   Qed.
 
+	Instance foo : subrelation sbisim wbisim. 
+	apply sbisim_wbisim.
+  Qed.
+
   (** [wt R] is always reflexive: it contains ~ *)
  	#[global] Instance Reflexive_wt R: Reflexive (wt R).
-  Proof. intro. apply (gfp_t wb). now apply bisim_wbisim. Qed.
+  Proof. intro. apply (gfp_t wb). now apply sbisim_wbisim. Qed.
 
   (** converse is compatible *)
   Lemma converse_wt: converse <= wt.
@@ -440,49 +490,115 @@ Section Bisim.
 			cbn; reflexivity.
 	Qed.
 
+(* This proof should be shorter if actually using some braincells I think *)
+	#[global] Instance equ_sbisim_compat : Proper (equ eq ==> equ eq ==> iff) sbisim. 
+	Proof.
+		intros t t' tt' u u' uu'; split.
+		- revert t t' u u' tt' uu'. 
+			coinduction ? CIH.
+			intros * eqt equ eqtu.
+			step in eqtu.
+			destruct eqtu as [ftu btu].	
+			split.
+			+ cbn; intros.
+				rewrite <- eqt in H.
+				apply ftu in H as [?u' T eq].
+				eexists. rewrite <- equ. apply T.
+				eapply CIH; try reflexivity; auto.
+			+ cbn; intros.
+				rewrite <- equ in H.
+				apply btu in H as [?t' T eq].
+				eexists. rewrite <- eqt. apply T.
+				eapply CIH; try reflexivity; auto.
+		- revert t t' u u' tt' uu'. 
+			coinduction ? CIH.
+			intros * eqt equ eqtu.
+			step in eqtu.
+			destruct eqtu as [ftu btu].	
+			split.
+			+ cbn; intros.
+				rewrite eqt in H.
+				apply ftu in H as [?u' T eq].
+				eexists. rewrite equ. apply T.
+				eapply CIH; try reflexivity; auto.
+			+ cbn; intros.
+				rewrite equ in H.
+				apply btu in H as [?t' T eq].
+				eexists. rewrite eqt. apply T.
+				eapply CIH; try reflexivity; auto.
+	Qed.	
 
-	(*
+	#[global] Instance equ_wbisim_compat : Proper (equ eq ==> equ eq ==> iff) wbisim. 
+	Proof.
+		intros t t' eqt u u' equ; split.
+		- revert t t' u u' eqt equ. 
+			coinduction ? CIH.
+			intros * eqt equ eqtu.
+			step in eqtu.
+			destruct eqtu as [ftu btu].	
+			split.
+			+ intros ? ? ?.
+				rewrite <- eqt in H.
+				apply ftu in H as [?u' T eq]. 
+				eexists. rewrite <- equ. apply T.
+				eapply CIH; try reflexivity; auto.
+			+ intros ? ? ?.
+				rewrite <- equ in H.
+				apply btu in H as [?t' T eq].
+				eexists. rewrite <- eqt. apply T.
+				eapply CIH; try reflexivity; auto.
+		- revert t t' u u' eqt equ. 
+			coinduction ? CIH.
+			intros * eqt equ eqtu.
+			step in eqtu.
+			destruct eqtu as [ftu btu].	
+			split.
+			+ intros ? ? ?.
+				rewrite eqt in H.
+				apply ftu in H as [?u' T eq].
+				eexists. rewrite equ. apply T.
+				eapply CIH; try reflexivity; auto.
+			+ intros ? ? ?.
+				rewrite equ in H.
+				apply btu in H as [?t' T eq].
+				eexists. rewrite eqt. apply T.
+				eapply CIH; try reflexivity; auto.
+	Qed.	
+
+	#[global] Instance equ_wbisim_subrelation : subrelation (equ eq) wbisim. 
+	intros t u EQ. rewrite EQ. reflexivity.
+  Qed.
+
  (** but squaring is not compatible and [t R] is not always transitive, 
      as soon as there is at least one channel name *)
- Lemma not_Transitive_wt Z: X -> E Z -> ~ forall R, Transitive (wt R).
+ Lemma not_Transitive_wt Z: X -> Z -> E Z -> ~ forall R, Transitive (wt R).
  Proof.
-   intros x e H.
+   intros x z e H.
    cut (Vis e (fun _ => Ret x) ≈ Ret x).
-	 2:{
-
-	 }
-    intro E. apply (gfp_pfp wb) in E as [E _].
-    destruct (E (out a) nil) as [?[?[n [k N] N']_]_]. auto with ccs.
-    replace n with 0 in N'. inversion N'.
-    clear N'. destruct k. assumption.
-    destruct N as [? N' ?]. inversion N'.
-   rewrite weak_tau. coinduction R CIH. split.
-    intros l p' pp'. inverse_trans. exists 0; auto with ccs.
-    rewrite (subrelation_gfp_t _ (weak_tau _)). assumption. 
-    intros l q' qq'. inverse_trans. 
+	 - intros abs. step in abs; destruct abs as [abs _].
+     destruct (abs (obs e z) (Ret x)) as [? step EQ]. 
+		 (* as [?[?[n [k N] N']_]_].  *)
+		 constructor; reflexivity.	
+		 apply wtrans_ret in step as [absurd _]; inv absurd.
+	 - rewrite <- TauV_wb.
+		 coinduction ? CIH.
+		 split.
+		 + intros l t' tt'. 
+			 apply TauV_trans in tt' as [EQ ->].
+			 exists (Ret x); auto. 
+			 apply equ_wbisim_subrelation in EQ.
+       rewrite (subrelation_gfp_t _ EQ).
+       rewrite <- (subrelation_gfp_t _ (TauV_wb _)).
+		   assumption.  (* Here clearly some instances are missing, the rewrite do not work in the other order, and should not require such an explicit low level call *)
+	 	 + intros ? ? ?.
+			 inv H0.
  Qed.
- 
- Lemma not_square_wt: N -> ~ square <= wt.
+
+ Lemma not_square_wt Z: X -> Z -> E Z -> ~ square <= wt.
  Proof.
-   intros a H. elim (not_Transitive_wt a). intro R.
+   intros x z e H. elim (not_Transitive_wt _ x z e). intro R.
    intros ? y ???. apply (ft_t H). now exists y.
  Qed.
-
-
-  (** so is squaring *)
-  Lemma square_wt: square <= wt.
-  Proof.
-    apply leq_t.
-    intros R x z [y [F B] [F' B']]. 
-    split.  
-    - cbn; intros. 
-      edestruct F; eauto.
-      edestruct F'; eauto. 
-    - cbn; intros. 
-      edestruct B'; eauto.
-      edestruct B; eauto.
-  Qed. 
-*)
 
 (* Strong bisimulation played over the weak game, to fix 
 
