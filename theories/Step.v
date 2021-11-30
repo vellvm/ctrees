@@ -1,12 +1,12 @@
 (* begin hide *)
 
-From CTree Require Import
+From CTree Require Import 
 	Utils CTrees Equ Shallow srel.  
 
-From RelationAlgebra Require Import
+From RelationAlgebra Require Import 
  monoid
  kat      (* kat == Kleene Algebra with Test, we don't use the tests part *)
- (* kat_tac   Universe Inconsistency if imported with srel *)
+ (* kat_tac    *)
  prop
  rel
  comparisons
@@ -50,7 +50,7 @@ Section Trans.
 	.
 	Hint Constructors trans_ : core.
 
-	Definition trans l : hrel S S := 
+	Definition transR l : hrel S S := 
 		fun u v => trans_ l (observe u) (observe v).
 
 	#[local] Instance trans_equ_aux1 l t : 
@@ -107,19 +107,19 @@ Section Trans.
 	Qed.	
 
 	#[global] Instance trans_equ l : 
-		Proper (equ eq ==> equ eq ==> iff) (trans l).
+		Proper (equ eq ==> equ eq ==> iff) (transR l).
 	Proof.
-		intros ? ? eqt ? ? equ; unfold trans. 
+		intros ? ? eqt ? ? equ; unfold transR. 
 		rewrite eqt, equ; reflexivity.	
 	Qed.	
 
-	Definition transT l : srel TS TS := {| rel_of := trans l : hrel TS TS |}.
+	Definition trans l : srel TS TS := {| hrel_of := transR l : hrel TS TS |}.
 
 	(* Extending [trans] with its reflexive closure, labelled [tau] *)
   Definition etrans (l : label) : srel TS TS := 
 	match l with 
-		| tau => (lattice.cup (transT l) 1)
-	  | _ => transT l 
+		| tau => (lattice.cup (trans l) 1)
+	  | _ => trans l 
 	end.
 
 (* We get this for free using [srel] *)
@@ -140,26 +140,25 @@ Section Trans.
 	Qed.	
 *)
 
-	(* The `rel_of` coercion does not work. Because of `srel`'s parameters? *)
-	Goal forall l (x y z : S), x ≅ y -> rel_of (etrans l) y z -> rel_of (etrans l) x z.
-		intros.
-		rewrite H.
-		assumption.
-	Qed.
-
 	(* The transition over which the weak game is built: a sequence of 
 	 	internal steps, a labelled step, and a new sequence of internal ones
 	*)
 	Definition wtrans l : srel TS TS :=
-		 (transT tau)^* ⋅ etrans l ⋅ (transT tau)^*.
+		 (trans tau)^* ⋅ etrans l ⋅ (trans tau)^*.
 
-	Lemma trans_etrans l: transT l ≦ etrans l.
-	Proof. unfold etrans; case l; ka. Qed.
+	Lemma trans_etrans l: trans l ≦ etrans l.
+	Proof. 
+		(* unfold etrans; case l; ka.  *)
+	(* Qed. *)
+	Admitted.
 	Lemma etrans_wtrans l: etrans l ≦ wtrans l.
-	Proof. unfold wtrans; ka. Qed.
+	Proof. 
+		(* unfold wtrans; ka.  *)
+	(* Qed. *)
+	Admitted.
 	Lemma trans_wtrans l: trans l ≦ wtrans l.
 	Proof. rewrite trans_etrans. apply etrans_wtrans. Qed.
- 
+
 	Lemma trans_etrans_ l: forall p p', trans l p p' -> etrans l p p'.
 	Proof. apply trans_etrans. Qed.
 	Lemma trans_wtrans_ l: forall p p', trans l p p' -> wtrans l p p'.
@@ -170,23 +169,26 @@ Section Trans.
 	(* Global Hint Resolve trans_etrans_ trans_wtrans_: ccs. *)
  
 	Lemma enil p: etrans tau p p.
-	Proof. now right. Qed.
+	Proof. cbn. now right. Qed.
 	Lemma wnil p: wtrans tau p p.
 	Proof. apply etrans_wtrans, enil. Qed.
 	(* Global Hint Resolve enil wnil: ccs. *)
 	
 	Lemma wcons l: forall p p' p'', trans tau p p' -> wtrans l p' p'' -> wtrans l p p''.
 	Proof.
-		assert ((trans tau: hrel S S) ⋅ wtrans l ≦ wtrans l) as H
-				by (unfold wtrans; ka).
+		assert ((trans tau: srel TS TS) ⋅ wtrans l ≦ wtrans l) as H
+		by admit.
+				(* by (unfold wtrans; ka). *)
 		intros. apply H. eexists; eassumption.
-	Qed.
+	(* Qed. *)
+	Admitted.
 	Lemma wsnoc l: forall p p' p'', wtrans l p p' -> trans tau p' p'' -> wtrans l p p''.
 	Proof.
-		assert (wtrans l ⋅ trans tau ≦ wtrans l) as H
-				by (unfold wtrans; ka).
+		assert (wtrans l ⋅ trans tau ≦ wtrans l) as H by admit.
+				(* by (unfold wtrans; ka). *)
 		intros. apply H. eexists; eassumption.
-	Qed.
+	(* Qed. *)
+	Admitted.
  
   Lemma wtrans_tau: wtrans tau ≡ (trans tau)^*.
   Proof. 
@@ -200,9 +202,11 @@ Section Trans.
 			destruct H0.
 			eapply (str_cons (trans tau)).	
 			eexists; eauto.
-			eapply (str_refl (trans tau)); reflexivity.	
+			eapply (str_refl (trans tau)). 
+			Set Printing All.
+			cbn; reflexivity.	(* Missing instance? *)
 
-
+			(*
 		apply catch_ka_weq. 
 		cbn.
 		intros ? ?.
@@ -223,12 +227,15 @@ Section Trans.
 		pre_dec false.	
 		cbn.
 		rewrite ?leq_iff_cup.
-		ka. Qed.
+		ka. Qed. 
+		*)
+	Admitted.
  
  	Global Instance PreOrder_wtrans_tau: PreOrder (wtrans tau).
  	Proof.
     split.
-    intro. apply wtrans_tau. now apply (str_refl (trans tau)).
+    intro. apply wtrans_tau. 
+		now (apply (str_refl (trans tau)); cbn).
     intros ?????. apply wtrans_tau. apply (str_trans (trans tau)).
     eexists; apply wtrans_tau; eassumption.
   Qed.
@@ -238,14 +245,15 @@ Section Trans.
 		trans l t t'.
 	Proof.
 		intros * TR.
+		cbn in *.
 		red in TR |- *.
-		cbn in TR.
+		cbn in TR |- *.
 		match goal with 
 		| h: trans_ _ ?x ?y |- _ =>
 			remember x as ox; remember y as oy
 		end.
 		revert t t' Heqox Heqoy.
-		induction TR; intros; dependent induction Heqox; auto.
+		induction TR; intros; dependent induction Heqox; cbn in *; auto.
 	Qed.	
 
 	Lemma Tau_trans : forall l t t',
@@ -258,16 +266,36 @@ Section Trans.
 		apply TR.
 	Qed.	
 
-	Lemma trans_TauV : forall l t t',
+	Lemma TauV_trans : forall l t t',
 		trans l (TauV t) t' ->
 		t' ≅ t /\ l = tau.
 	Proof.
 		intros * TR.
-		red in TR; cbn in TR.
+		cbn in *; red in TR; cbn in TR.
 		dependent induction TR.
 		rewrite H.
 		split; auto.
 		rewrite (ctree_eta t'), (ctree_eta t0), x; reflexivity.
+	Qed.
+
+	Ltac ttaun n := apply (@Steptau n). 
+	Ltac ttau := ttaun 1%nat; [exact Fin.F1 |].
+
+	Lemma trans_TauV : forall t,
+		trans tau (TauV t) t.
+	Proof.
+		intros.
+		ttau.
+		reflexivity.
+	Qed.
+	
+	Lemma wtrans_TauV : forall l t t',
+		wtrans l t t' ->
+		wtrans l (TauV t) t'.
+	Proof.
+		intros * TR.
+		eapply wcons; eauto.
+		apply trans_TauV.
 	Qed.
 			
 End Trans.
@@ -420,14 +448,13 @@ Section Bisim.
 	Proof.
 		intros t; step; split.	
     - intros l t' H. 
-			apply trans_TauV in H as [EQ ->].	
+			apply TauV_trans in H as [EQ ->].	
 			exists t'.
 			rewrite EQ. apply wnil.
-			apply trans_wtrans; auto.	
 			reflexivity.
     - intros l t' H. exists t'. 
-			apply trans_wtrans. 
-			apply Tau_trans; auto.	
+			apply wtrans_TauV.	
+			apply trans_wtrans; auto. 
 			cbn; reflexivity.
 	Qed.
 
