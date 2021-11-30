@@ -122,24 +122,6 @@ Section Trans.
 	  | _ => trans l 
 	end.
 
-(* We get this for free using [srel] *)
-(*
-	#[global] Instance etrans_equ l : 
-		Proper (equ eq ==> equ eq ==> iff) (etrans l).
-	Proof.
-		destruct l; cbn.
-		2: apply trans_equ.
-		intros ? ? eqt ? ? equ.
-		split.
-		- intros [].
-   		left; rewrite <- eqt, <- equ; auto.
-			right; rewrite <- eqt, H, equ; reflexivity.
-		- intros [].
-   		left; rewrite eqt, equ; auto.
-			right; rewrite eqt, H, equ; reflexivity.
-	Qed.	
-*)
-
 	(* The transition over which the weak game is built: a sequence of 
 	 	internal steps, a labelled step, and a new sequence of internal ones
 	*)
@@ -240,8 +222,8 @@ Section Trans.
     eexists; apply wtrans_tau; eassumption.
   Qed.
 
-	Lemma trans_Tau : forall l t t',
-		trans l (Tau t) t' ->
+	Lemma trans_TauI : forall l t t',
+		trans l (TauI t) t' ->
 		trans l t t'.
 	Proof.
 		intros * TR.
@@ -256,9 +238,9 @@ Section Trans.
 		induction TR; intros; dependent induction Heqox; cbn in *; auto.
 	Qed.	
 
-	Lemma Tau_trans : forall l t t',
+	Lemma TauI_trans : forall l t t',
 		trans l t t' ->
-		trans l (Tau t) t'.
+		trans l (TauI t) t'.
 	Proof.
 		intros * TR.
 		constructor. 
@@ -428,18 +410,18 @@ Section Bisim.
   #[global] Instance Symmetric_wt R: Symmetric (wt R).
   Proof. intros ??. apply (ft_t converse_wt). Qed.
 	 
-	Lemma Tau_wb : forall t,
-		Tau t ≈ t.
+	Lemma TauI_wb : forall t,
+		TauI t ≈ t.
 	Proof.
 		intros t; step; split.	
     - intros l t' H.
-			apply trans_Tau in H.	
+			apply trans_TauI in H.	
 			exists t'.
 			apply trans_wtrans; auto.	
 			reflexivity.
     - intros l t' H. exists t'. 
 			apply trans_wtrans. 
-			apply Tau_trans; auto.	
+			apply TauI_trans; auto.	
 			cbn; reflexivity.
 	Qed.
 

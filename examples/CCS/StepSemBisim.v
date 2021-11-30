@@ -22,7 +22,7 @@ Definition strongc : term -> term -> Prop :=
 	fun P Q => ⟦P⟧ ≈ ⟦Q⟧.
 
 Definition hide_tau : SynchE ~> ctree (ActionE +' DeadE) :=
-	fun _ 'Tau => CTrees.Tau (Ret tt).
+	fun _ 'Tau => CTrees.TauI (Ret tt).
 
 Definition h_tau : ccsE ~> ctree (ActionE +' DeadE) :=
   case_ctree hide_tau h_trigger.

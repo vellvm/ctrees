@@ -55,9 +55,9 @@ Section parallel.
       | RetF (s', _) => match rest with
                        | [] => Ret (s', tt)
                                   (* Wrong here *)
-                       | h :: t => Tau (par h t s')
+                       | h :: t => TauI (par h t s')
                        (* | h :: t => '(curr', rest') <- choose h t;; *)
-                       (*           Tau (par curr' rest' s') *)
+                       (*           TauI (par curr' rest' s') *)
                        end
       | ChoiceF b n k => Choice b n (fun c => (par (fun _ => k c) rest s))
       | VisF (inl1 e) k =>
@@ -71,7 +71,7 @@ Section parallel.
         match e in spawnE _ _ R return (R -> ctree (E config) (config * unit)) -> _ with
         | Spawn _ _ t =>
           fun k =>
-            Tau (par (fun _ => k tt) (t :: rest) s) (* this s doesn't matter, since the running thread won't use it *)
+            TauI (par (fun _ => k tt) (t :: rest) s) (* this s doesn't matter, since the running thread won't use it *)
         end k
       end.
   CoFixpoint par := par_match par.

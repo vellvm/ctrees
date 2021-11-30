@@ -205,7 +205,7 @@ Proof.
   now step.
 Qed.
 
-Lemma unfold_spin {E R} : @spin E R ≅ Tau spin.
+Lemma unfold_spin {E R} : @spin E R ≅ TauI spin.
 Proof.
   exact (ctree_eta spin).
 Qed.
@@ -227,7 +227,7 @@ Lemma unfold_iter {E R I} (step : I -> ctree E (I + R)) i:
 	iter step i ≅
     lr <- step i;;
     match lr with
-    | inl l => Tau (iter step l)
+    | inl l => TauI (iter step l)
     | inr r => Ret r
     end.
 Proof.

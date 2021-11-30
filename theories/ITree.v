@@ -18,14 +18,14 @@ Definition embed {E X} : itree E X -> ctree E X :=
 	cofix _embed t :=
 	 match observe t with
 	| RetF x => CTrees.Ret x
-	| TauF t => CTrees.Tau (_embed t)
+	| TauF t => CTrees.TauI (_embed t)
 	| VisF e k => CTrees.Vis e (fun x => _embed (k x))
 	 end.
 
 Notation "'_embed' ot" :=
 	(match ot with
 	| RetF x => CTrees.Ret x
-	| TauF t => CTrees.Tau (embed t)
+	| TauF t => CTrees.TauI (embed t)
 	| VisF e k => CTrees.Vis e (fun x => embed (k x))
  end) (at level 50, only parsing).
 
@@ -48,7 +48,7 @@ Qed.
 #[local] Notation iVis e k := (Vis e k).
 #[local] Notation iTau t   := (Tau t).
 #[local] Notation cRet x   := (CTrees.Ret x).
-#[local] Notation cTau t   := (CTrees.Tau t).
+#[local] Notation cTau t   := (CTrees.TauI t).
 #[local] Notation cVis e k := (CTrees.Vis e k).
 
 Lemma embed_eq {E X}:
@@ -111,7 +111,7 @@ Variant is_detF {E X} (is_det : ctree E X -> Prop) : ctree E X -> Prop :=
 	is_detF is_det (CTrees.Vis e k)
 | Tau_det : forall t,
 	(is_det t) ->
-	is_detF is_det (CTrees.Tau t)
+	is_detF is_det (CTrees.TauI t)
 .
 
 Definition is_det {E X} := paco1 (@is_detF E X) bot1.

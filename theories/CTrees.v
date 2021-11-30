@@ -73,7 +73,7 @@ Definition observe {E R} (t : ctree E R) : ctree' E R := @_observe E R t.
 (** We encode [itree]'s [Tau] constructor as a unary internal choice. *)
 Notation Ret x := (go (RetF x)).
 Notation Vis e k := (go (VisF e k)).
-Notation Tau  t := (go (ChoiceF false 1 (fun _ => t))).
+Notation TauI  t := (go (ChoiceF false 1 (fun _ => t))).
 Notation TauV t := (go (ChoiceF true 1 (fun _ => t))).
 Notation Choice b n k := (go (ChoiceF b n k)).
 Notation ChoiceV n k := (go (ChoiceF true n k)).
@@ -171,7 +171,7 @@ Notation on_left lr l t :=
    infinite loop if [step i] is always of the form [Ret (inl _)] (cf. issue #182). *)
 Definition iter {E : Type -> Type} {R I: Type}
            (step : I -> ctree E (I + R)) : I -> ctree E R :=
-  cofix iter_ i := bind (step i) (fun lr => on_left lr l (Tau (iter_ l))).
+  cofix iter_ i := bind (step i) (fun lr => on_left lr l (TauI (iter_ l))).
 
 (** Functorial map ([fmap] in Haskell) *)
 Definition map {E R S} (f : R -> S)  (t : ctree E R) : ctree E S :=
@@ -190,13 +190,13 @@ Definition ignore {E R} : ctree E R -> ctree E unit :=
   map (fun _ => tt).
 
 (** Infinite taus. *)
-CoFixpoint spin {E R} : ctree E R := Tau spin.
+CoFixpoint spin {E R} : ctree E R := TauI spin.
 CoFixpoint spin_nary {E R} (n : nat) : ctree E R :=
 	ChoiceV n (fun _ => spin_nary n).
 
 (** Repeat a computation infinitely. *)
 Definition forever {E R S} (t : ctree E R) : ctree E S :=
-  cofix forever_t := bind t (fun _ => Tau (forever_t)).
+  cofix forever_t := bind t (fun _ => TauI (forever_t)).
 
 Ltac fold_subst :=
   repeat (change (CTree.subst ?k ?t) with (CTree.bind t k)).

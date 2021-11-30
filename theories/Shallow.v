@@ -113,7 +113,7 @@ Lemma bind_ret_ {E R S} (r : R) (k : R -> ctree E S) :
 Proof. constructor; reflexivity. Qed.
 
 Lemma bind_tau_ {E R} U t (k: U -> ctree E R) :
-  observing eq (CTree.bind (Tau t) k) (Tau (CTree.bind t k)).
+  observing eq (CTree.bind (TauI t) k) (TauI (CTree.bind t k)).
 Proof. constructor; reflexivity. Qed.
 
 Lemma bind_vis_ {E R U V} (e: E V) (ek: V -> ctree E U) (k: U -> ctree E R) :
@@ -127,12 +127,12 @@ Proof. constructor; reflexivity. Qed.
 Lemma unfold_aloop_ {E A B} (f : A -> ctree E (A + B)) (x : A) :
   observing eq
     (CTree.iter f x)
-    (CTree.bind (f x) (fun lr => CTree.on_left lr l (Tau (CTree.iter f l)))).
+    (CTree.bind (f x) (fun lr => CTree.on_left lr l (TauI (CTree.iter f l)))).
 Proof. constructor; reflexivity. Qed.
 
 (** Unfolding lemma for [forever]. *)
 Lemma unfold_forever_ {E R S} (t: ctree E R):
-  observing eq (@CTree.forever E R S t) (CTree.bind t (fun _ => Tau (CTree.forever t))).
+  observing eq (@CTree.forever E R S t) (CTree.bind t (fun _ => TauI (CTree.forever t))).
 Proof. econstructor. reflexivity. Qed.
 
 (** ** [going]: Lift relations through [go]. *)
