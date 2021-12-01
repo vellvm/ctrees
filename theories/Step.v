@@ -560,31 +560,44 @@ Section Bisim.
    intros ? y ???. apply (ft_t H). now exists y.
  Qed.
 
- (*
+	Definition wbisimT : srel TS TS := 
+		{| hrel_of := wbisim : hrel TS TS |}.
+
  (** weak bisimilarity is nevertheless transitive, which we prove below *)
  
  (** algebraic refomulation of the right-to-left part of the game *)
- Lemma wbisim_trans_back l: wbisim ⋅ trans l ≦ wtrans l ⋅ wbisim.
+ (* We get to express it in the setoid world or not, not yet sure what's best *)
+ Lemma wbisim_trans_back l: wbisimT ⋅ trans l ≦ wtrans l ⋅ wbisimT.
  Proof.
    intros p q' [q pq qq']. apply (gfp_pfp wb) in pq as [_ pq]. now apply pq.
  Qed.
- Lemma wbisim_etrans_back l: wbisim ⋅ etrans l ≦ wtrans l ⋅ wbisim.
+ Lemma wbisim_trans_back' l: wbisim ⋅ transR l ≦ (wtrans l : hrel _ _) ⋅ wbisim.
  Proof.
-   unfold etrans; destruct l. 2,3: apply @wbisim_trans_back.
+   intros p q' [q pq qq']. apply (gfp_pfp wb) in pq as [_ pq]. now apply pq.
+ Qed.
+ (* Lemma wbisim_etrans_back l: wbisim ⋅ etrans l ≦ (wtrans l : hrel _ _) ⋅ wbisim.
+ Proof.
+   unfold etrans; destruct l. 2: apply @wbisim_trans_back.
+   ra_normalise. rewrite wbisim_trans_back. 
+   unfold wtrans, etrans. ka. 
+ Qed. *)
+ Lemma wbisim_etrans_back' l: wbisimT ⋅ etrans l ≦ wtrans l ⋅ wbisimT.
+ Proof.
+   unfold etrans; destruct l. 2: apply @wbisim_trans_back'.
    ra_normalise. rewrite wbisim_trans_back. 
    unfold wtrans, etrans. ka. 
  Qed.
- Lemma wbisim_taus_back: wbisim ⋅ (trans tau)^* ≦ (trans tau)^* ⋅ wbisim.
+ Lemma wbisim_taus_back': wbisimT ⋅ (trans tau)^* ≦ (trans tau)^* ⋅ wbisimT.
  Proof.
    rewrite <-str_invol at 2. 
    apply str_move_l. rewrite wbisim_trans_back. unfold wtrans, etrans. ka. 
  Qed.   
- Lemma wbisim_wtrans_back l: wbisim ⋅ wtrans l ≦ wtrans l ⋅ wbisim.
+ Lemma wbisim_wtrans_back' l: wbisimT ⋅ wtrans l ≦ wtrans l ⋅ wbisimT.
  Proof.
    unfold wtrans. 
-   mrewrite wbisim_taus_back.
-   mrewrite wbisim_etrans_back. 
-   mrewrite wbisim_taus_back.
+   mrewrite wbisim_taus_back'.
+   mrewrite wbisim_etrans_back'. 
+   mrewrite wbisim_taus_back'.
    unfold wtrans, etrans. ka. 
  Qed.
 
@@ -592,14 +605,16 @@ Section Bisim.
  Proof. apply RelationAlgebra.lattice.antisym; intros ???; now apply Symmetric_wt. Qed.
  Lemma cnv_wbisim: wbisim° ≡ wbisim.
  Proof. apply cnv_wt. Qed.
+  Lemma cnv_wbisim': wbisimT° ≡ wbisimT.
+ Proof. apply cnv_wt. Qed.
  
  (** by symmetry, similar results for left-to-right game *)
- Lemma wbisim_trans_front l: (trans l)° ⋅ wbisim ≦ wbisim ⋅ (wtrans l)°.
- Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_trans_back. Qed.
- Lemma wbisim_etrans_front l: (etrans l)° ⋅ wbisim ≦ wbisim ⋅ (wtrans l)°.
- Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_etrans_back. Qed.
- Lemma wbisim_wtrans_front l: (wtrans l)° ⋅ wbisim ≦ wbisim ⋅ (wtrans l)°.
- Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_wtrans_back. Qed.
+ Lemma wbisim_trans_front l: (trans l)° ⋅ wbisimT ≦ wbisimT ⋅ (wtrans l)°.
+ Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim'. apply wbisim_trans_back'. Qed.
+ Lemma wbisim_etrans_front l: (etrans l)° ⋅ wbisimT ≦ wbisimT ⋅ (wtrans l)°.
+ Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim'. apply wbisim_etrans_back'. Qed.
+ Lemma wbisim_wtrans_front l: (wtrans l)° ⋅ wbisimT ≦ wbisimT ⋅ (wtrans l)°.
+ Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim'. apply wbisim_wtrans_back'. Qed.
 
  (** explicit, non-algebraic version *)
  Lemma wbisim_wtrans_front_ p q l p': wtrans l p p' -> p ≈ q -> exists2 q', p' ≈ q' & wtrans l q q'.
@@ -614,7 +629,7 @@ Section Bisim.
     intros x z [y xy yz] l x' xx'. 
     apply (gfp_pfp wb) in xy as [xy _].
     destruct (xy _ _ xx') as [y' yy' x'y'].
-    destruct (wbisim_wtrans_front_ yy' yz) as [z' y'z' zz'].
+    destruct (wbisim_wtrans_front_ _ _ _ _ yy' yz) as [z' y'z' zz'].
     exists z'. assumption. now exists y'.  
    intros x y z xy yz. apply H. now exists y.
  Qed.
@@ -722,7 +737,6 @@ Section Bisim.
       edestruct B'; eauto.
       edestruct B; eauto.
   Qed. 
-*)
 *)
 End Weak.
 End Bisim.
