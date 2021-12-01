@@ -224,13 +224,13 @@ Module CTreeNotations.
 Notation "t1 >>= k2" := (CTree.bind t1 k2)
   (at level 58, left associativity) : ctree_scope.
 Notation "x <- t1 ;; t2" := (CTree.bind t1 (fun x => t2))
-  (at level 61, t1 at next level, right associativity) : ctree_scope.
+  (at level 62, t1 at next level, right associativity) : ctree_scope.
 Notation "t1 ;; t2" := (CTree.bind t1 (fun _ => t2))
-  (at level 61, right associativity) : ctree_scope.
+  (at level 62, right associativity) : ctree_scope.
 Notation "' p <- t1 ;; t2" :=
   (CTree.bind t1 (fun x_ => match x_ with p => t2 end))
-  (at level 61, t1 at next level, p pattern, right associativity) : ctree_scope.
-Infix ">=>" := CTree.cat (at level 61, right associativity) : ctree_scope.
+  (at level 62, t1 at next level, p pattern, right associativity) : ctree_scope.
+Infix ">=>" := CTree.cat (at level 62, right associativity) : ctree_scope.
 End CTreeNotations.
 
 (** ** Instances *)

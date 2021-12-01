@@ -1,20 +1,20 @@
 (* begin hide *)
+ From Coinduction Require Import
+	coinduction rel tactics.
 
 From CTree Require Import 
-	Utils CTrees Equ Shallow srel.  
+	Utils CTrees Equ Shallow.  
 
 From RelationAlgebra Require Import 
  monoid
  kat      (* kat == Kleene Algebra with Test, we don't use the tests part *)
- (* kat_tac    *)
+ kat_tac   
  prop
  rel
+ srel
  comparisons
  rewriting
  normalisation. 
-
- From Coinduction Require Import
-	coinduction rel tactics.
 
 Section Trans.
 
@@ -130,14 +130,12 @@ Section Trans.
 
 	Lemma trans_etrans l: trans l ≦ etrans l.
 	Proof. 
-		(* unfold etrans; case l; ka.  *)
-	(* Qed. *)
-	Admitted.
+		unfold etrans; case l; ka. 
+	Qed.
 	Lemma etrans_wtrans l: etrans l ≦ wtrans l.
 	Proof. 
-		(* unfold wtrans; ka.  *)
-	(* Qed. *)
-	Admitted.
+		unfold wtrans; ka. 
+	Qed.
 	Lemma trans_wtrans l: trans l ≦ wtrans l.
 	Proof. rewrite trans_etrans. apply etrans_wtrans. Qed.
 
@@ -159,60 +157,21 @@ Section Trans.
 	Lemma wcons l: forall p p' p'', trans tau p p' -> wtrans l p' p'' -> wtrans l p p''.
 	Proof.
 		assert ((trans tau: srel TS TS) ⋅ wtrans l ≦ wtrans l) as H
-		by admit.
-				(* by (unfold wtrans; ka). *)
+				by (unfold wtrans; ka).
 		intros. apply H. eexists; eassumption.
-	(* Qed. *)
-	Admitted.
+	Qed.
 	Lemma wsnoc l: forall p p' p'', wtrans l p p' -> trans tau p' p'' -> wtrans l p p''.
 	Proof.
-		assert (wtrans l ⋅ trans tau ≦ wtrans l) as H by admit.
-				(* by (unfold wtrans; ka). *)
+		assert (wtrans l ⋅ trans tau ≦ wtrans l) as H 
+				by (unfold wtrans; ka).
 		intros. apply H. eexists; eassumption.
-	(* Qed. *)
-	Admitted.
+	Qed.
  
   Lemma wtrans_tau: wtrans tau ≡ (trans tau)^*.
   Proof. 
-		unfold wtrans, etrans. 
-		intros a d; split.
-		- intros [c [b ? ?] ?]. 
-			apply (str_trans (trans tau)).	
-			exists c; auto.
-			apply (str_trans (trans tau)).	
-			exists b; auto.
-			destruct H0.
-			eapply (str_cons (trans tau)).	
-			eexists; eauto.
-			eapply (str_refl (trans tau)). 
-			Set Printing All.
-			cbn; reflexivity.	(* Missing instance? *)
-
-			(*
-		apply catch_ka_weq. 
-		cbn.
-		intros ? ?.
+ 	 unfold wtrans, etrans. ka.
+	Qed.
 		
-
-		intro L.
-		intros tenv env penv ? ? lhs rhs.
-		 (let tenv := fresh "tenv" in
-		let env := fresh "env" in
-			let penv := fresh "penv" in
-			let lhs := fresh "lhs" in
-			let rhs := fresh "rhs" in
-			 apply (kat_weq_dec tenv env penv _ _ lhs rhs);
-			 [ reflexivity || fail 1 "Bug in KAT reification, please report"
-			 | close_by_reflection (Some true) ||
-					 fail 1
-						"Not a KAT theorem, but no counter-example can be displayed. Please report." ])
-		pre_dec false.	
-		cbn.
-		rewrite ?leq_iff_cup.
-		ka. Qed. 
-		*)
-	Admitted.
- 
  	Global Instance PreOrder_wtrans_tau: PreOrder (wtrans tau).
  	Proof.
     split.
@@ -341,7 +300,7 @@ Section Bisim.
 		i.e. fun R => converse (ss (converse R))
 		i.e. comp converse (comp ss converse)
 	*)
-  Notation sb := (cap ss (comp converse (comp ss converse))).
+  Notation sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
 
   Notation sbisim := (gfp sb : hrel _ _).
   Notation "t ~ u" := (gfp sb t u) (at level 70).
@@ -351,8 +310,11 @@ Section Bisim.
   Notation "t [~] u" := (st  _ t u) (at level 79). 
   Notation "t {~} u" := (sbt _ t u) (at level 79).
 
+  Definition seq: relation (ctree E X) := eq.
+	Arguments seq/.
+
   (** [eq] is a post-fixpoint, thus [const eq] is below [t] *)
-  Lemma refl_st: const eq <= st.
+  Lemma refl_st: const seq <= st.
   Proof.
  	 apply leq_t.
  	 split; intros; cbn in *; subst; eauto.
@@ -394,7 +356,7 @@ Section Bisim.
 
 	End Strong.
 
-  Notation sb := (cap ss (comp converse (comp ss converse))).
+  Notation sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
 	Notation sbisim := (gfp sb : hrel _ _).
   Notation "t ~ u" := (gfp sb t u) (at level 70).
   Notation st := (t sb).
@@ -411,14 +373,8 @@ Section Bisim.
         forall l p', trans l p p' -> exists2 q', wtrans l q q' & R p' q' |}.
   Next Obligation. destruct (H0 _ _ H1). eauto. Qed.
 
-  (** the function defining one-sided expansion (only used later) *)
-  Program Definition es: mon (rel S S) :=
-    {| body R p q :=
-         forall l p', trans l p p' -> exists2 q', etrans l q q' & R p' q' |}.
-  Next Obligation. destruct (H0 _ _ H1). eauto. Qed.
- 
   (** the symmetrised version, defining weak bisimulations and bisimilarity *)
-  Notation wb := (cap ws (comp converse (comp ws converse))).
+  Notation wb := (Coinduction.lattice.cap ws (comp converse (comp ws converse))).
 
   Notation wbisim := (gfp wb: hrel _ _).
   Notation "p ≈ q" := (gfp wb p q) (at level 70).
@@ -430,6 +386,12 @@ Section Bisim.
   Notation "x [≈] y" := (wt _ x y) (at level 80). 
   Notation "x {≈} y" := (wbt _ x y) (at level 80).
 
+  (** the function defining one-sided expansion (only used later) *)
+  Program Definition es: mon (rel S S) :=
+    {| body R p q :=
+         forall l p', trans l p p' -> exists2 q', etrans l q q' & R p' q' |}.
+  Next Obligation. destruct (H0 _ _ H1). eauto. Qed.
+
   Lemma s_e: ss <= es.
   Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using trans_etrans_. Qed.
   Lemma e_w: es <= ws.
@@ -440,13 +402,13 @@ Section Bisim.
   Corollary sbisim_wbisim: sbisim <= wbisim.
   Proof.
 		apply gfp_leq.
-		apply cap_leq. apply s_w.
+		apply Coinduction.lattice.cap_leq. apply s_w.
     intros R p q. apply (@s_w (R°) q p).
   Qed.
 
-	Instance foo : subrelation sbisim wbisim. 
+	(* Instance sbisim_wbisim_subrelation : subrelation sbisim wbisim. 
 	apply sbisim_wbisim.
-  Qed.
+  Qed. *)
 
   (** [wt R] is always reflexive: it contains ~ *)
  	#[global] Instance Reflexive_wt R: Reflexive (wt R).
@@ -569,15 +531,13 @@ Section Bisim.
 	intros t u EQ. rewrite EQ. reflexivity.
   Qed.
 
- (** but squaring is not compatible and [t R] is not always transitive, 
-     as soon as there is at least one channel name *)
+ (** but squaring is not compatible and [t R] is not always transitive *)
  Lemma not_Transitive_wt Z: X -> Z -> E Z -> ~ forall R, Transitive (wt R).
  Proof.
    intros x z e H.
    cut (Vis e (fun _ => Ret x) ≈ Ret x).
 	 - intros abs. step in abs; destruct abs as [abs _].
      destruct (abs (obs e z) (Ret x)) as [? step EQ]. 
-		 (* as [?[?[n [k N] N']_]_].  *)
 		 constructor; reflexivity.	
 		 apply wtrans_ret in step as [absurd _]; inv absurd.
 	 - rewrite <- TauV_wb.
@@ -599,6 +559,66 @@ Section Bisim.
    intros x z e H. elim (not_Transitive_wt _ x z e). intro R.
    intros ? y ???. apply (ft_t H). now exists y.
  Qed.
+
+ (*
+ (** weak bisimilarity is nevertheless transitive, which we prove below *)
+ 
+ (** algebraic refomulation of the right-to-left part of the game *)
+ Lemma wbisim_trans_back l: wbisim ⋅ trans l ≦ wtrans l ⋅ wbisim.
+ Proof.
+   intros p q' [q pq qq']. apply (gfp_pfp wb) in pq as [_ pq]. now apply pq.
+ Qed.
+ Lemma wbisim_etrans_back l: wbisim ⋅ etrans l ≦ wtrans l ⋅ wbisim.
+ Proof.
+   unfold etrans; destruct l. 2,3: apply @wbisim_trans_back.
+   ra_normalise. rewrite wbisim_trans_back. 
+   unfold wtrans, etrans. ka. 
+ Qed.
+ Lemma wbisim_taus_back: wbisim ⋅ (trans tau)^* ≦ (trans tau)^* ⋅ wbisim.
+ Proof.
+   rewrite <-str_invol at 2. 
+   apply str_move_l. rewrite wbisim_trans_back. unfold wtrans, etrans. ka. 
+ Qed.   
+ Lemma wbisim_wtrans_back l: wbisim ⋅ wtrans l ≦ wtrans l ⋅ wbisim.
+ Proof.
+   unfold wtrans. 
+   mrewrite wbisim_taus_back.
+   mrewrite wbisim_etrans_back. 
+   mrewrite wbisim_taus_back.
+   unfold wtrans, etrans. ka. 
+ Qed.
+
+ Lemma cnv_wt R: (wt R: hrel _ _)° ≡ wt R.
+ Proof. apply RelationAlgebra.lattice.antisym; intros ???; now apply Symmetric_wt. Qed.
+ Lemma cnv_wbisim: wbisim° ≡ wbisim.
+ Proof. apply cnv_wt. Qed.
+ 
+ (** by symmetry, similar results for left-to-right game *)
+ Lemma wbisim_trans_front l: (trans l)° ⋅ wbisim ≦ wbisim ⋅ (wtrans l)°.
+ Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_trans_back. Qed.
+ Lemma wbisim_etrans_front l: (etrans l)° ⋅ wbisim ≦ wbisim ⋅ (wtrans l)°.
+ Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_etrans_back. Qed.
+ Lemma wbisim_wtrans_front l: (wtrans l)° ⋅ wbisim ≦ wbisim ⋅ (wtrans l)°.
+ Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_wtrans_back. Qed.
+
+ (** explicit, non-algebraic version *)
+ Lemma wbisim_wtrans_front_ p q l p': wtrans l p p' -> p ≈ q -> exists2 q', p' ≈ q' & wtrans l q q'.
+ Proof. intros pp' pq. apply wbisim_wtrans_front. now exists p. Qed.
+
+ Global Instance Equivalence_wbisim: Equivalence wbisim.
+ Proof.
+   split. apply Reflexive_wt. apply Symmetric_wt.
+   assert (square wbisim <= wbisim) as H.
+    apply leq_gfp. apply symmetric_pfp.
+     now rewrite converse_square, cnv_wbisim. 
+    intros x z [y xy yz] l x' xx'. 
+    apply (gfp_pfp wb) in xy as [xy _].
+    destruct (xy _ _ xx') as [y' yy' x'y'].
+    destruct (wbisim_wtrans_front_ yy' yz) as [z' y'z' zz'].
+    exists z'. assumption. now exists y'.  
+   intros x y z xy yz. apply H. now exists y.
+ Qed.
+
 
 (* Strong bisimulation played over the weak game, to fix 
 
@@ -703,7 +723,7 @@ Section Bisim.
       edestruct B; eauto.
   Qed. 
 *)
-
+*)
 End Weak.
 End Bisim.
 

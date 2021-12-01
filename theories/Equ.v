@@ -9,6 +9,19 @@ From CTree Require Import
      CTrees
      Shallow.
 
+     (* 
+From RelationAlgebra Require Import 
+ monoid
+ kat      (* kat == Kleene Algebra with Test, we don't use the tests part *)
+ kat_tac   
+ prop
+ rel
+ srel
+ comparisons
+ rewriting
+ normalisation.  *)
+
+
 (* end hide *)
 
 (** * Structural equality of [ctree]s
@@ -70,12 +83,13 @@ Ltac desobs x := destruct (observe x) .
 Section equ_equiv.
 
 	Variable (E : Type -> Type) (R : Type) (RR : R -> R -> Prop).
-    Notation T  := (coinduction.T (fequ (E := E) RR)).
-    Notation t  := (coinduction.t (fequ (E := E) RR)).
-  	Notation bt := (coinduction.bt (fequ (E := E) RR)).
+  Notation T  := (coinduction.T (fequ (E := E) RR)).
+  Notation t  := (coinduction.t (fequ (E := E) RR)).
+  Notation bt := (coinduction.bt (fequ (E := E) RR)).
+  Definition seq: relation (ctree E R) := eq.
 
   (** [eq] is a post-fixpoint, thus [const eq] is below [t] *)
-	Lemma refl_t {RRR: Reflexive RR}: const eq <= t.
+	Lemma refl_t {RRR: Reflexive RR}: const seq <= t.
 	Proof.
 		apply leq_t. intro.
 		change (@eq (ctree E R)  <= equ_ RR eq).
