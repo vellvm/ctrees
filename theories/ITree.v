@@ -18,14 +18,14 @@ Definition embed {E X} : itree E X -> ctree E X :=
 	cofix _embed t :=
 	 match observe t with
 	| RetF x => CTrees.Ret x
-	| TauF t => CTrees.TauI (_embed t)
+	| TauF t => CTrees.TauV (_embed t)
 	| VisF e k => CTrees.Vis e (fun x => _embed (k x))
 	 end.
 
 Notation "'_embed' ot" :=
 	(match ot with
 	| RetF x => CTrees.Ret x
-	| TauF t => CTrees.TauI (embed t)
+	| TauF t => CTrees.TauV (embed t)
 	| VisF e k => CTrees.Vis e (fun x => embed (k x))
  end) (at level 50, only parsing).
 
@@ -68,7 +68,7 @@ Qed.
 
 
 Lemma embed_eutt {E X}:
-  Proper (eutt eq ==> bisim) (@embed E X).
+  Proper (eutt eq ==> wbisim) (@embed E X).
 Proof.
 Admitted.
 
@@ -101,7 +101,7 @@ Lemma partial_inject_eq {E X} :
 Admitted.
 
 Lemma partial_inject_eutt {E X} :
-	Proper (bisim ==> eutt (option_rel eq)) (@partial_inject E X).
+	Proper (wbisim ==> eutt (option_rel eq)) (@partial_inject E X).
 Admitted.
 
 Variant is_detF {E X} (is_det : ctree E X -> Prop) : ctree E X -> Prop :=
