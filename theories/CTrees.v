@@ -246,8 +246,11 @@ End CTreeNotations.
 #[global] Instance MonadIter_ctree {E} : MonadIter (ctree E) :=
   fun _ _ => CTree.iter.
 
+(* #[global] Instance MonadTrigger_ctree : MonadTrigger ctree := *)
+(*   fun T => CTree.trigger. *)
+
 #[global] Instance MonadChoice_ctree {E} : MonadChoice (ctree E) :=
-  fun n => CTree.choice n.
+  CTree.choice.
 
 Notation trigger e :=
 	(CTree.trigger (subevent _ e)).

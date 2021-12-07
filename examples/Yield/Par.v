@@ -23,8 +23,11 @@ Import CTreeNotations.
 Variant yieldE S : Type -> Type :=
 | Yield : S -> yieldE S S.
 
-Inductive spawnE C (E : Type -> Type) : Type -> Type :=
-| Spawn : forall (t: C -> ctree (E +' spawnE C E) (C * unit)), spawnE C E unit.
+Variant spawnE : Type -> Type :=
+| Spawn : spawnE bool.
+
+(* CoInductive spawnE C (E : Type -> Type) : Type -> Type := *)
+(* | Spawn : forall (t: Monads.stateT C (ctree (E +' spawnE C E)) unit), spawnE C E unit. *)
 
 (** return one of the elements in [x :: xs], as well as the complete list of unchosen elements *)
 Fixpoint choose' {E} {X} (x : X) (xs : list X) (rest : list X) :
@@ -42,11 +45,11 @@ Definition choose {E} {X} x xs : ctree E (X * list X) :=
 Section parallel.
   Context {config : Type}.
 
-  Definition E c := yieldE c +' spawnE c (yieldE c).
+  Definition parE c := yieldE c +' spawnE.
 
-  Definition thread := config -> ctree
-                                  (E config)
-                                  (config * unit).
+  Definition thread := Monads.stateT config
+                                     (ctree (parE config))
+                                     unit.
 
   Definition par_match par (curr : thread) (rest : list thread)
     : thread :=
@@ -61,17 +64,26 @@ Section parallel.
                        end
       | ChoiceF b n k => Choice b n (fun c => (par (fun _ => k c) rest s))
       | VisF (inl1 e) k =>
-        match e in yieldE _ C return (C -> ctree (E config) (config * unit)) -> _ with
+        match e in yieldE _ C return (C -> ctree (parE config) (config * unit)) -> _ with
         | Yield _ s' =>
           fun k =>
             '(curr', rest') <- choose k rest;;
             Vis (inl1 (Yield _ s')) (fun s' => (par curr' rest' s'))
+                (*
+                par (par t1 [t2]) l
+
+
+                par t1 [par t2 l]  (t1 yields)
+                Yield ... (par t1 [par t2 l])
+
+
+                *)
         end k
       | VisF (inr1 e) k =>
-        match e in spawnE _ _ R return (R -> ctree (E config) (config * unit)) -> _ with
-        | Spawn _ _ t =>
+        match e in spawnE R return (R -> ctree (parE config) (config * unit)) -> _ with
+        | Spawn =>
           fun k =>
-            TauI (par (fun _ => k tt) (t :: rest) s) (* this s doesn't matter, since the running thread won't use it *)
+            TauI (par (fun _ => k false) ((fun _ => k true) :: rest) s) (* this s doesn't matter, since the running thread won't use it *)
         end k
       end.
   CoFixpoint par := par_match par.
@@ -121,8 +133,8 @@ Section parallel.
   Qed.
 
   Lemma equ_par_helper k1 k2 l1 l2 s r
-        (CIH : forall (x y : config -> ctree (E config) (config * ()))
-                 (x0 y0 : list (config -> ctree (E config) (config * ())))
+        (CIH : forall (x y : config -> ctree (parE config) (config * ()))
+                 (x0 y0 : list (config -> ctree (parE config) (config * ())))
                  (y1 : config),
             pointwise_relation config (equ eq) x y ->
             list_relation (pointwise_relation config (equ eq)) x0 y0 ->
@@ -160,7 +172,7 @@ Section parallel.
       apply equ_par_helper; auto.
     - destruct s. constructor. intros. apply CIH.
       + intro. apply REL.
-      + constructor; auto.
+      + constructor; auto. intro. auto.
     - cbn. constructor. intros. apply CIH; auto.
       intro. apply REL.
   Qed.
@@ -185,151 +197,6 @@ Section parallel.
   (*     unfold choose, choose'. cbn. constructor; auto. intros. admit. *)
   (*   - destruct s0. inv H. apply inj_pair2 in H3. subst. *)
   (* Qed. *)
-
-  (* Lemma schedule_par_assoc : *)
-  (*   forall t1 t2 a b c, schedule (par t1 [a; b] c) t2 -> *)
-  (*                schedule (par t1 [b; a] c) t2. *)
-  (* Proof. *)
-  (*   intros. *)
-  (*   rewrite rewrite_par in H |- *. *)
-  (*   unfold schedule in *. unfold par_match in *. *)
-  (*   destruct (observe (t1 c)) eqn:?. *)
-  (*   - destruct r, u. induction H; auto. *)
-  (*     pose proof (rewrite_par t1 l c). step in H0. inv H0. *)
-
-  (* Qed. *)
-
-
-  Lemma schedule_par_assoc :
-    forall t1 t2 l c t, schedule (par t1 [par t2 l] c) t ->
-                   schedule (par (par t1 [t2]) l c) t.
-  Proof.
-    intros.
-    rewrite rewrite_par in H |- *.
-    unfold schedule in *. unfold par_match.
-    pose proof (rewrite_par t1 [t2] c). step in H0. inv H0.
-    - destruct y, u. unfold par_match in *. destruct (observe (t1 c)); inv H3.
-      + destruct r. inv H1.
-      + destruct e; [destruct y | destruct s]; inv H1.
-    - unfold par_match in *. destruct (observe (t1 c)) eqn:?; inv H3.
-      + destruct r. inv H1.
-      + destruct e; [destruct y | destruct s];
-          (destruct e0; [destruct y | destruct s]; inv H1).
-    - cbn. unfold par_match in *.
-      destruct (observe (t1 c)) eqn:?; inv H3.
-      + destruct r, u.
-        cbn in H1. inv H1. invert.
-        (* setoid_rewrite REL. *)
-        (* induction H. *)
-        (* inv H. invert. econstructor; eauto. *)
-        (* admit. *)
-
-        (* clear REL H2 k1. *)
-        (* apply IHschedule_; auto. *)
-
-        cbn in H.
-        remember (ChoiceF _ _ _) in H.
-        remember (observe t).
-        clear H2.
-        setoid_rewrite REL.
-        revert Heqc2 Heqc1 Heqc0 REL. revert l t t1 k1.
-        induction H; intros; auto; try inv Heqc1. invert.
-        eapply IHschedule_; eauto.
-
-        (* econstructor. specialize (IHschedule_ t l c0 Heqc0). *)
-        (* eapply IHschedule_; eauto. *)
-        (* inv Heqc1. invert. *)
-
-        (* assert (k1 = fun _ => par t2 [] c0) by admit. subst. *)
-        (* cbn in H. dependent induction H; auto. apply IHschedule_; auto. *)
-        (* (* remember (observe t). remember (observe _) in H. *) *)
-        (* (* revert Heqc1 Heqc2. revert t. *) *)
-        (* clear Heqc0. *)
-        (* simpl in H. remember (par _ _ _) in H. remember (observe t). *)
-        (* revert Heqc1 Heqc2. revert t l. *)
-        (* inv H. admit. *)
-        (* induction H; auto; intros. *)
-        (* eapply IHschedule_; eauto. *)
-        (* * subst. *)
-
-        (* dependent induction H. eapply IHschedule_; eauto. *)
-        (* inv H. invert. *)
-        (* dependent induction H5. *)
-        (* eapply IHschedule_; eauto. auto. eauto. auto. *)
-        (* induction H; [ apply IHschedule_ | | ]. *)
-        (* * intros. *)
-
-      + destruct e.
-        * destruct y. unfold choose in *. unfold choose' in *.
-          unfold Sanity.choice2 in H1. rewrite bind_ret_ in H1. inv H1.
-          setoid_rewrite REL.
-          inv H. invert.
-        * destruct s. inv H. invert. admit.
-      + invert. induction H; eauto. eapply IHschedule_; eauto.
-
-
-
-
-
-        (* constructor. step. constructor. intros. apply equ_par. intro. apply REL. *)
-        (* all : eauto. constructor. *)
-
-        (* + destruct e; [destruct y | destruct s]; (destruct e0; [destruct y | destruct s]; inv H1). *)
-Admitted.
-
-
-  Lemma par_assoc :
-    forall t1 t2 l c, par t1 [par t2 l] c ≈ par (par t1 [t2]) l c.
-  Proof.
-    red. coinduction r CIH.
-    intros. cbn.
-    constructor. intros.
-    exists u'.
-(*
-    unfold bisim. coinduction r CIH. constructor.
-    - intros. rewrite rewrite_par' in H |- *. unfold par_match in *.
-      destruct (observe (t1 c)) eqn:?.
-      + destruct r0, u. inv H. apply inj_pair2 in H2. subst.
-        rewrite rewrite_par'. unfold par_match. rewrite Heqc0. cbn.
-        exists u'. split. 2: admit.
-        constructor; auto. eapply CIH.
-  Qed.
-
-  Lemma par_assoc :
-    forall t1 t2 t3 c, par t1 [par t2 [t3]] c ≅ par (par t1 [t2]) [t3] c.
-  Proof.
-    coinduction r CIH. intros.
-    (* intros. cbn. *)
-    do 2 rewrite rewrite_par. unfold par_match.
-    (* eapply equ_equF. apply rewrite_par. eauto. *)
-    (* eapply equ_equF'. 2: { apply rewrite_par. } eauto. *)
-    (* unfold par_match. *)
-    destruct (observe (t1 c)) eqn:?.
-    - destruct r0 as [? []]. cbn.
-      pose proof rewrite_par as Hr. specialize (Hr t1 [t2] c).
-      step in Hr. unfold par_match in Hr. rewrite Heqc0 in Hr. inv Hr.
-      apply inj_pair2 in H2. subst.
-      constructor. intros. rewrite REL. apply CIH.
-
-      step. do 2 rewrite rewrite_par'. unfold par_match.
-      do 2 rewrite rewrite_par'. unfold par_match.
-
-      destruct (observe (t2 c0)) eqn:?; cbn.
-      + destruct r0. cbn.
-        constructor. intros. step. destruct u.
-        do 2 rewrite rewrite_par'. unfold par_match.
-        destruct (observe (t3 c1)) eqn:?.
-        * destruct r0. cbn. constructor; auto.
-        * admit.
-        * destruct e.
-          -- destruct y. unfold choose, choose'. cbn. constructor.
-             intros. step. simpl.
-        constructor.
-      cbn.
-      (* eapply equ_equF. apply par_empty. eauto. *)
-      eapply equ_equF'. 2: { apply par_empty. eauto.
-*)
-  Admitted.
 
 
 End parallel.
