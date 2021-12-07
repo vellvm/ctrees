@@ -330,20 +330,6 @@ Module Sanity.
     - eapply schedule_spin; eauto.
   Qed.
 
-	(* TODO: we need to do some thinking about what the right
-		way to represent and manipulate these finite branches.
-	*)
-  Definition choice2 {E X} (t u : ctree E X) :=
-	(ChoiceV 2 (fun b =>
-			   match b with | Fin.F1 => t | _ => u end)).
-
-  Definition choice3 {E X} (t u v : ctree E X) :=
-	(ChoiceV 3 (fun (b : fin 3) =>
-			   match b with
-			   | Fin.F1 => t
-			   | Fin.FS Fin.F1 => u
-			   | _ => v end)).
-
   Lemma choice2_assoc : forall {E X} (t u v : ctree E X),
 	  choice2 (choice2 t u) v ≈
       choice2 t (choice2 u v).

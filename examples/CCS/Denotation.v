@@ -52,7 +52,7 @@ Section Combinators.
 
 	Definition prefix (a : action) (P: ccs) : ccs := trigger (Act a);; P.
 
-	Definition plus (P Q : ccs) : ccs := Sanity.choice2 P Q.
+	Definition plus (P Q : ccs) : ccs := choice2 P Q.
 
   Definition h_trigger {E F} `{E -< F} : E ~> ctree F :=
     fun _ e => trigger e.
@@ -130,11 +130,11 @@ Section Combinators.
 				match a, b with
 				| Some a, Some b =>
 					if are_opposite a b
-					then Sanity.choice3 (vis Tau (fun _ => F P' Q')) (vis (Act a) (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
-					else Sanity.choice2 (vis (Act a) (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
-				| Some a, None => Sanity.choice2 (vis (Act a) (fun _ => F P' Q)) (vis Tau (fun _ => F P Q'))
-				| None, Some b => Sanity.choice2 (vis Tau (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
-				| None, None =>   Sanity.choice2 (vis Tau (fun _ => F P' Q)) (vis Tau (fun _ => F P Q'))
+					then choice3 (vis Tau (fun _ => F P' Q')) (vis (Act a) (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
+					else choice2 (vis (Act a) (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
+				| Some a, None => choice2 (vis (Act a) (fun _ => F P' Q)) (vis Tau (fun _ => F P Q'))
+				| None, Some b => choice2 (vis Tau (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
+				| None, None =>   choice2 (vis Tau (fun _ => F P' Q)) (vis Tau (fun _ => F P Q'))
 				end
 			end	.
 
@@ -169,6 +169,7 @@ Fixpoint model (t : term) : ccs :=
 	| P ∖ c => restrict c (model P)
 	end.
 
+(*
 Variant step_ccs : ccs -> option action -> ccs -> Prop :=
 | Sted_comm : forall (t : ccs) a u k,
 	schedule t u ->
@@ -181,6 +182,7 @@ Variant step_ccs : ccs -> option action -> ccs -> Prop :=
 
 Definition step_sem : term -> option action -> term -> Prop :=
 	fun P a Q => step_ccs (model P) a (model Q).
+*)
 
 Module DenNotations.
 
@@ -190,8 +192,8 @@ Module DenNotations.
   Notation "'deadP' e" :=  (inr1 (inr1 e)) (at level 10).
 
   Notation "⟦ t ⟧" := (model t).
-  Notation "P '⊢' a '→ccs' Q" := (step_ccs P a Q) (at level 50).
-  Notation "P '⊢' a '→sem' Q" := (step_sem P a Q) (at level 50).
+  (* Notation "P '⊢' a '→ccs' Q" := (step_ccs P a Q) (at level 50). *)
+  (* Notation "P '⊢' a '→sem' Q" := (step_sem P a Q) (at level 50). *)
 
 End DenNotations.
 
@@ -232,11 +234,11 @@ Notation para_ P Q :=
 				match a, b with
 				| Some a, Some b =>
 					if are_opposite a b
-					then Sanity.choice3 (vis Tau (fun _ => para P' Q')) (vis (Act a) (fun _ => para P' Q)) (vis (Act b) (fun _ => para P Q'))
-					else Sanity.choice2 (vis (Act a) (fun _ => para P' Q)) (vis (Act b) (fun _ => para P Q'))
-				| Some a, None => Sanity.choice2 (vis (Act a) (fun _ => para P' Q)) (vis Tau (fun _ => para P Q'))
-				| None, Some b => Sanity.choice2 (vis Tau (fun _ => para P' Q)) (vis (Act b) (fun _ => para P Q'))
-				| None, None =>   Sanity.choice2 (vis Tau (fun _ => para P' Q)) (vis Tau (fun _ => para P Q'))
+					then choice3 (vis Tau (fun _ => para P' Q')) (vis (Act a) (fun _ => para P' Q)) (vis (Act b) (fun _ => para P Q'))
+					else choice2 (vis (Act a) (fun _ => para P' Q)) (vis (Act b) (fun _ => para P Q'))
+				| Some a, None => choice2 (vis (Act a) (fun _ => para P' Q)) (vis Tau (fun _ => para P Q'))
+				| None, Some b => choice2 (vis Tau (fun _ => para P' Q)) (vis (Act b) (fun _ => para P Q'))
+				| None, None =>   choice2 (vis Tau (fun _ => para P' Q)) (vis Tau (fun _ => para P Q'))
 				end
 			end)%ctree.
 

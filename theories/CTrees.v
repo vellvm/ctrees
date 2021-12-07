@@ -249,6 +249,20 @@ End CTreeNotations.
 #[global] Instance MonadChoice_ctree {E} : MonadChoice (ctree E) :=
   fun n => CTree.choice n.
 
+(* TODO: we need to do some thinking about what the right
+		way to represent and manipulate these finite branches.
+*)
+Definition choice2 {E X} (t u : ctree E X) :=
+ (ChoiceV 2 (fun b =>
+			   match b with | Fin.F1 => t | _ => u end)).
+
+Definition choice3 {E X} (t u v : ctree E X) :=
+ (ChoiceV 3 (fun (b : fin 3) =>
+			   match b with
+			   | Fin.F1 => t
+			   | Fin.FS Fin.F1 => u
+			   | _ => v end)).
+
 Notation trigger e :=
 	(CTree.trigger (subevent _ e)).
 Notation vis e k := (Vis (subevent _ e) k).
