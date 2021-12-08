@@ -278,19 +278,32 @@ Section Bisim.
       - intros abs. step in abs; destruct abs as [abs _].
         destruct (abs (obs e z) (Ret x)) as [? step EQ].
         constructor; reflexivity.
-        apply wtrans_ret in step as [absurd _]; inv absurd.
+        apply wtrans_ret in step as [[abs' ?] | [abs' ?]]; inv abs'. 
       - rewrite <- TauV_wb.
+        rewrite <- (TauV_wb (Ret x)).
         coinduction ? CIH.
         split.
         + intros l t' tt'.
           apply TauV_trans in tt' as [EQ ->].
           exists (Ret x); auto.
+          apply trans_wtrans; constructor; [exact Fin.F1 | reflexivity].
           apply equ_wbisim_subrelation in EQ.
-          rewrite (subrelation_gfp_t _ EQ).
+          rewrite EQ.
           rewrite <- (subrelation_gfp_t _ (TauV_wb _)).
+          rewrite <- (subrelation_gfp_t _ (TauV_wb (Ret x))).
           assumption.  (* Here clearly some instances are missing, the rewrite do not work in the other order, and should not require such an explicit low level call *)
         + intros ? ? ?.
-          inv H0.
+          apply TauV_trans in H0 as [EQ ->].
+          eexists.
+          apply trans_wtrans; constructor; [exact Fin.F1 | reflexivity].
+          cbn.
+          apply equ_wbisim_subrelation in EQ.
+          rewrite <- (subrelation_gfp_t _ (TauV_wb _)).
+          symmetry.
+          rewrite EQ.
+          rewrite <- (subrelation_gfp_t _ (TauV_wb _)).
+          symmetry.
+          assumption.
     Qed.
 
     Lemma not_square_wt Z: X -> Z -> E Z -> ~ square <= wt.
@@ -322,9 +335,10 @@ Section Bisim.
  Qed. *)
     Lemma wbisim_etrans_back' l: wbisimT ⋅ etrans l ≦ wtrans l ⋅ wbisimT.
     Proof.
-      unfold etrans; destruct l. 2: apply @wbisim_trans_back'.
+      unfold etrans; destruct l.
+      2,3: apply @wbisim_trans_back'.
       ra_normalise. rewrite wbisim_trans_back.
-      unfold wtrans, etrans. ka.
+      unfold wtrans, etrans. ka. 
     Qed.
     Lemma wbisim_taus_back': wbisimT ⋅ (trans tau)^* ≦ (trans tau)^* ⋅ wbisimT.
     Proof.
