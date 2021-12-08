@@ -52,9 +52,12 @@ Section Trans.
 		k x ≅ t ->
     trans_ (obs e x) (VisF e k) (observe t)
 
-	| Stepval r :
-    trans_ (val r) (RetF r) (RetF r)
+	| Stepval r k :
+    trans_ (val r) (RetF r) (ChoiceF false 0 k)
 	.
+	(* | Stepval r : *)
+  (*   trans_ (val r) (RetF r) (RetF r) *)
+	(* . *)
 	Hint Constructors trans_ : core.
 
 	Definition transR l : hrel S S :=
@@ -128,16 +131,16 @@ Section Trans.
 
 	(* Extending [trans] with its reflexive closure, labelled [tau] *)
   Definition etrans (l : label) : srel SS SS :=
-	match l with
+	  match l with
 		| tau => (lattice.cup (trans l) 1)
 	  | _ => trans l
-	end.
+	  end.
 
 	(* The transition over which the weak game is built: a sequence of
 	 	internal steps, a labelled step, and a new sequence of internal ones
-	*)
+	 *)
 	Definition wtrans l : srel SS SS :=
-		 (trans tau)^* ⋅ etrans l ⋅ (trans tau)^*.
+		(trans tau)^* ⋅ etrans l ⋅ (trans tau)^*.
 
 	Lemma trans_etrans l: trans l ≦ etrans l.
 	Proof.
@@ -180,7 +183,7 @@ Section Trans.
 
   Lemma wtrans_tau: wtrans tau ≡ (trans tau)^*.
   Proof.
- 	 unfold wtrans, etrans. ka.
+ 	  unfold wtrans, etrans. ka.
 	Qed.
 
  	Global Instance PreOrder_wtrans_tau: PreOrder (wtrans tau).
@@ -193,8 +196,8 @@ Section Trans.
   Qed.
 
 	Lemma trans_TauI : forall l t t',
-		trans l (TauI t) t' ->
-		trans l t t'.
+		  trans l (TauI t) t' ->
+		  trans l t t'.
 	Proof.
 		intros * TR.
 		cbn in *.
@@ -202,15 +205,15 @@ Section Trans.
 		cbn in TR |- *.
 		match goal with
 		| h: trans_ _ ?x ?y |- _ =>
-			remember x as ox; remember y as oy
+			  remember x as ox; remember y as oy
 		end.
 		revert t t' Heqox Heqoy.
 		induction TR; intros; dependent induction Heqox; cbn in *; auto.
 	Qed.
 
 	Lemma TauI_trans : forall l t t',
-		trans l t t' ->
-		trans l (TauI t) t'.
+		  trans l t t' ->
+		  trans l (TauI t) t'.
 	Proof.
 		intros * TR.
 		constructor.
@@ -219,8 +222,8 @@ Section Trans.
 	Qed.
 
 	Lemma TauV_trans : forall l t t',
-		trans l (TauV t) t' ->
-		t' ≅ t /\ l = tau.
+		  trans l (TauV t) t' ->
+		  t' ≅ t /\ l = tau.
 	Proof.
 		intros * TR.
 		cbn in *; red in TR; cbn in TR.
@@ -234,7 +237,7 @@ Section Trans.
 	Ltac ttau := ttaun 1%nat; [exact Fin.F1 |].
 
 	Lemma trans_TauV : forall t,
-		trans tau (TauV t) t.
+		  trans tau (TauV t) t.
 	Proof.
 		intros.
 		ttau.
@@ -242,21 +245,83 @@ Section Trans.
 	Qed.
 
 	Lemma wtrans_TauV : forall l t t',
-		wtrans l t t' ->
-		wtrans l (TauV t) t'.
+		  wtrans l t t' ->
+		  wtrans l (TauV t) t'.
 	Proof.
 		intros * TR.
 		eapply wcons; eauto.
 		apply trans_TauV.
 	Qed.
 
+  Definition silent_fail : ctree E R :=
+    ChoiceI 0 (fun x : fin 0 => match x with end).
+
 	Lemma trans_ret : forall x l t,
-		trans l (Ret x) t ->
-		l = val x /\ t ≅ Ret x.
+		  trans l (Ret x) t ->
+		  l = val x /\ t ≅ silent_fail.
 	Proof.
 		intros * TR; inv TR; intuition.
     rewrite ctree_eta, <- H2; auto.
-	Qed.
+    step; constructor; intros abs; inv abs.
+  Qed.
+
+  Definition stuck : ctree E R -> Prop :=
+    fun t => forall l u, ~ (trans l t u).
+
+  #[global] Instance stuck_equ : Proper (equ eq ==> iff) stuck.
+  Proof.
+    intros ? ? EQ; split; intros ST; red; intros * ABS.
+    rewrite <- EQ in ABS; eapply ST; eauto.
+    rewrite EQ in ABS; eapply ST; eauto.
+  Qed.
+
+  Lemma stuck_silent_fail :
+    stuck silent_fail.
+  Proof.
+    red; intros * abs; inv abs; inv x.
+  Qed.
+
+  Lemma etrans_case : forall l t u,
+      etrans l t u ->
+      (trans l t u \/ (l = tau /\ t ≅ u)).
+  Proof.
+    intros [] * TR; cbn in *; intuition.
+  Qed.
+
+  Lemma etrans_stuck : forall l t u,
+      stuck t ->
+      etrans l t u ->
+      (l = tau /\ t ≅ u).
+  Proof.
+    intros * ST TR.
+    edestruct etrans_case; eauto.
+    apply ST in H; tauto.
+  Qed.
+
+  Lemma transs_stuck : forall t u,
+      stuck t ->
+      (trans tau)^* t u ->
+      t ≅ u.
+  Proof.
+    intros * ST TR.
+    destruct TR as [[] TR]; intuition.
+    destruct TR.
+    apply ST in H; tauto.
+  Qed.
+
+  Lemma wtrans_stuck : forall l t u,
+      stuck t ->
+      wtrans l t u ->
+      (l = tau /\ t ≅ u).
+  Proof.
+    intros * ST TR.
+    destruct TR as [? [? ?] ?].
+    apply transs_stuck in H; auto.
+    rewrite H in ST; apply etrans_stuck in H0 as [-> ?]; auto.
+    rewrite H0 in ST; apply transs_stuck in H1; auto.
+    intuition.
+    rewrite H, H0; auto.
+  Qed.
 
 	(* Lemma trans_ret : forall x l t, *)
 	(* 	~ (trans l (Ret x) t). *)
@@ -266,26 +331,27 @@ Section Trans.
 	(* Qed. *)
 
 	Lemma etrans_ret_gen : forall x l t,
-		etrans l (Ret x) t ->
-		(l = tau \/ l = val x) /\ t ≅ Ret x.
+		  etrans l (Ret x) t ->
+		  (l = tau /\ t ≅ Ret x) \/
+		  (l = val x /\ t ≅ silent_fail).
 	Proof.
 		intros ? [] ? step; cbn in step.
     - intuition; try (eapply trans_ret in step; now apply step).
       inv H.
-    - eapply trans_ret in step; intuition. 
-    - eapply trans_ret in step; intuition. 
+    - eapply trans_ret in step; intuition.
+    - eapply trans_ret in step; intuition.
 	Qed.
 
-	Lemma etrans_ret : forall x l t,
-		etrans l (Ret x) t ->
-		t ≅ Ret x.
-	Proof.
-    apply etrans_ret_gen.
-	Qed.
+	(* Lemma etrans_ret : forall x l t, *)
+	(* 	  etrans l (Ret x) t -> *)
+	(* 	  t ≅ Ret x. *)
+	(* Proof. *)
+  (*   apply etrans_ret_gen. *)
+	(* Qed. *)
 
 	Lemma trans_tau_str_ret : forall x t,
-		(trans tau)^* (Ret x) t ->
-		t ≅ Ret x.
+		  (trans tau)^* (Ret x) t ->
+		  t ≅ Ret x.
 	Proof.
 		intros * [[|] step].
 		- cbn in *; symmetry; eauto.
@@ -294,16 +360,19 @@ Section Trans.
 	Qed.
 
 	Lemma wtrans_ret : forall x l t,
-		wtrans l (Ret x) t ->
-		t ≅ Ret x.
+		  wtrans l (Ret x) t ->
+		  (l = tau /\ t ≅ Ret x) \/
+		    (l = val x /\ t ≅ silent_fail).
 	Proof.
 		intros * step.
 		destruct step as [? [? step1 step2] step3].
 		apply trans_tau_str_ret in step1.
 		rewrite step1 in step2; clear step1.
-		apply etrans_ret in step2 as EQ. 
+		apply etrans_ret_gen in step2 as [[-> EQ] |[-> EQ]].
+		rewrite EQ in step3; apply trans_tau_str_ret in step3; auto.
 		rewrite EQ in step3.
-		apply trans_tau_str_ret in step3; auto.
+    apply transs_stuck in step3; [| apply stuck_silent_fail].
+    intuition.
 	Qed.
 
 End Trans.
@@ -315,41 +384,91 @@ Open Scope ctree.
 Variant is_val {E} : (@label E) -> Prop :=
   | Is_val : forall X (x : X), is_val (val x).
 
+Lemma bind_ret_l {E X Y} : forall (x : X) (k : X -> ctree E Y),
+    Ret x >>= k ≅ k x.
+Proof.
+  intros.
+  now rewrite unfold_bind.
+Qed.
+
+Lemma trans_bind_aux {E X Y} l T U :
+  trans_ l T U ->
+  forall (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y),
+    go T ≅ bind t k ->
+    go U ≅ u ->
+    (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ CTree.bind t' k) \/
+      (exists (x : X), trans (val x) t silent_fail /\ trans l (k x) u).
+Proof.
+  intros TR; induction TR; intros.
+  - rewrite unfold_bind in H; setoid_rewrite (ctree_eta t0).
+    desobs t0.
+    + right.
+      exists r; split.
+      constructor.
+      rewrite <- H.
+      apply (Stepchoice x); auto.
+      rewrite <- H0; auto.
+    + step in H; inv H.
+    + step in H; dependent induction H.
+      specialize (IHTR (k1 x) k0 u).
+      destruct IHTR as [(? & ? & ? & ?) | (? & ? & ?)]; auto.
+      rewrite <- ctree_eta, REL; reflexivity.
+      left; split; eauto.
+      exists x0; split; auto.
+      apply (Stepchoice x); auto.
+      right.
+      exists x0; split; auto.
+      apply (Stepchoice x); auto.
+  - rewrite unfold_bind in H0; setoid_rewrite (ctree_eta t0).
+    desobs t0.
+    + right.
+      exists r; split.
+      constructor.
+      rewrite <- H0.
+      apply (Steptau x); auto.
+      rewrite H, <- H1, ctree_eta; auto.
+    + step in H0; inv H0.
+    + step in H0; dependent induction H0.
+      left; split; [intros abs; inv abs |].
+      exists (k1 x); split.
+      econstructor; reflexivity.
+      rewrite <- H1, <- ctree_eta, <- H.
+      apply REL.
+  - rewrite unfold_bind in H0; setoid_rewrite (ctree_eta t0).
+    desobs t0.
+    + right.
+      exists r; split.
+      constructor.
+      rewrite <- H0.
+      constructor.
+      rewrite H, <- H1, ctree_eta; auto.
+    + step in H0; dependent induction H0.
+      left; split; [intros abs; inv abs |].
+      exists (k1 x); split.
+      econstructor; reflexivity.
+      rewrite <- H1, <- ctree_eta, <- H.
+      apply REL.
+    + step in H0; inv H0.
+  - rewrite unfold_bind in H; setoid_rewrite (ctree_eta t).
+    desobs t.
+    + right.
+      exists r0; split.
+      constructor.
+      rewrite <- H, <- H0.
+      constructor.
+    + step in H; inv H.
+    + step in H; inv H.
+Qed.
+
 Lemma trans_bind {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) l :
   trans l (bind t k) u ->
   (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ CTree.bind t' k) \/
-  (exists (x : X), trans (val x) t (Ret x) /\ trans l (k x) u).
+    (exists (x : X), trans (val x) t silent_fail /\ trans l (k x) u).
 Proof.
   intros TR.
-  cbn in TR.
-  red in TR; cbn in *.
-  rewrite unfold_bind in TR.
-  genobs t ot; destruct ot.
-  - right; exists r; split; auto.
-    red; rewrite <- Heqot; constructor.
-  - cbn in *.
-    dependent induction TR.
-    left; split; [intros abs; inv abs |].
-    unfold transR.
-    rewrite <- Heqot.
-    exists (k0 x0).
-    split.
-    econstructor.
-    reflexivity.
-    rewrite (ctree_eta u), <- x, <- ctree_eta, <- H; reflexivity.
-  - cbn in *.
-    destruct vis.
-    + dependent induction TR.
-      left; split; [intros abs; inv abs |].
-      unfold transR.
-      rewrite <- Heqot.
-      exists (k0 x0).
-      split.
-      econstructor.
-      reflexivity.
-      rewrite (ctree_eta u), <- x, <- ctree_eta, <- H; reflexivity.
-    + dependent induction TR; eauto.
-      edestruct IHTR.
-      apply Heqot.
+  eapply trans_bind_aux.
+  apply TR.
+  rewrite <- ctree_eta; reflexivity.
+  rewrite <- ctree_eta; reflexivity.
+Qed.
 
-      n _ _ _ _ _ Heqot).
