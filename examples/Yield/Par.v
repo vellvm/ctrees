@@ -51,63 +51,56 @@ Section parallel.
                                      (ctree (parE config))
                                      unit.
 
-  Definition par_match par (curr : thread) (rest : list thread)
-    : thread :=
+  Definition completed := Monads.stateT config (ctree void1) unit.
+
+  Definition schedule_match schedule (curr : thread) (rest : list thread)
+    : completed :=
     fun (s : config) =>
       match (observe (curr s)) with
       | RetF (s', _) => match rest with
                        | [] => Ret (s', tt)
                                   (* Wrong here *)
-                       | h :: t => TauI (par h t s')
+                       | h :: t => TauI (schedule h t s')
                        (* | h :: t => '(curr', rest') <- choose h t;; *)
                        (*           TauI (par curr' rest' s') *)
                        end
-      | ChoiceF b n k => Choice b n (fun c => (par (fun _ => k c) rest s))
+      | ChoiceF b n k => Choice b n (fun c => (schedule (fun _ => k c) rest s))
       | VisF (inl1 e) k =>
         match e in yieldE _ C return (C -> ctree (parE config) (config * unit)) -> _ with
         | Yield _ s' =>
           fun k =>
             '(curr', rest') <- choose k rest;;
-            Vis (inl1 (Yield _ s')) (fun s' => (par curr' rest' s'))
-                (*
-                par (par t1 [t2]) l
-
-
-                par t1 [par t2 l]  (t1 yields)
-                Yield ... (par t1 [par t2 l])
-
-
-                *)
+            TauI (schedule curr' rest' s')
         end k
       | VisF (inr1 e) k =>
         match e in spawnE R return (R -> ctree (parE config) (config * unit)) -> _ with
         | Spawn =>
           fun k =>
-            TauI (par (fun _ => k false) ((fun _ => k true) :: rest) s) (* this s doesn't matter, since the running thread won't use it *)
+            TauI (schedule (fun _ => k false) ((fun _ => k true) :: rest) s) (* this s doesn't matter, since the running thread won't use it *)
         end k
       end.
-  CoFixpoint par := par_match par.
-  Lemma rewrite_par curr rest s : par curr rest s ≅ par_match par curr rest s.
+  CoFixpoint schedule := schedule_match schedule.
+  Lemma rewrite_schedule curr rest s : schedule curr rest s ≅ schedule_match schedule curr rest s.
   Proof.
     step. eauto.
   Qed.
 
   (* no longer true with the new spawn events *)
-  Lemma par_empty :
-    forall t c, par t [] c ≅ t c.
-  Proof.
-    coinduction r CIH. intros. cbn.
-    destruct (observe (t c)) eqn:?.
-    - rewrite rewrite_par. unfold par_match. rewrite Heqc0.
-      destruct r0, u. constructor; auto.
-    - rewrite rewrite_par. unfold par_match. rewrite Heqc0. destruct e.
-      + destruct y. unfold choose, choose'. cbn. constructor; apply CIH.
-      + destruct s.
-  (*   - eapply equ_equF. apply rewrite_par. eauto. *)
-  (*     unfold par_match. rewrite Heqc0. *)
-  (*     cbn. constructor; intros; eapply CIH. *)
-        (* Qed. *)
-  Abort.
+  (* Lemma par_empty : *)
+  (*   forall t c, par t [] c ≅ t c. *)
+  (* Proof. *)
+  (*   coinduction r CIH. intros. cbn. *)
+  (*   destruct (observe (t c)) eqn:?. *)
+  (*   - rewrite rewrite_par. unfold par_match. rewrite Heqc0. *)
+  (*     destruct r0, u. constructor; auto. *)
+  (*   - rewrite rewrite_par. unfold par_match. rewrite Heqc0. destruct e. *)
+  (*     + destruct y. unfold choose, choose'. cbn. constructor; apply CIH. *)
+  (*     + destruct s. *)
+  (* (*   - eapply equ_equF. apply rewrite_par. eauto. *) *)
+  (* (*     unfold par_match. rewrite Heqc0. *) *)
+  (* (*     cbn. constructor; intros; eapply CIH. *) *)
+  (*       (* Qed. *) *)
+  (* Abort. *)
 
   Fixpoint list_relation {T} (P : relation T) (l1 l2 : list T) : Prop :=
     match l1, l2 with
@@ -132,6 +125,7 @@ Section parallel.
     induction l1; destruct l2; intros Hl Hr; inv Hl; try split; auto.
   Qed.
 
+  (*
   Lemma equ_par_helper k1 k2 l1 l2 s r
         (CIH : forall (x y : config -> ctree (parE config) (config * ()))
                  (x0 y0 : list (config -> ctree (parE config) (config * ())))
@@ -198,5 +192,6 @@ Section parallel.
   (*   - destruct s0. inv H. apply inj_pair2 in H3. subst. *)
   (* Qed. *)
 
+   *)
 
 End parallel.
