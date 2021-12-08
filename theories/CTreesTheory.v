@@ -178,25 +178,41 @@ Section bind.
 End bind.
 
 
-Lemma equ_clo_bind (E: Type -> Type) (X1 X2 Y1 Y2 : Type) :
-	forall (t1 : ctree E X1) (t2 : ctree E X2) (k1 : X1 -> ctree E Y1) (k2 : X2 -> ctree E Y2)
-    (S : rel X1 X2) (R : rel Y1 Y2) RR,
-		equ S t1 t2 ->
-    (forall x1 x2, S x1 x2 -> (t_equ R RR) (k1 x1) (k2 x2)) ->
-    t_equ R RR (bind t1 k1) (bind t2 k2)
-.
-Proof.
-  intros.
-  apply (ft_t (bind_ctx'_t S R)).
-  now apply in_bind_ctx.
-Qed.
+    (* specialisation to a function acting with [sbisim] on the bound value, and with the argument (pointwise) on the continuation *)
+    Program Definition bind_ctx_sbisim : mon (rel (ctree E Y1) (ctree E Y1)) :=
+      {|body := fun R => @bind_ctx E X1 X1 Y1 Y1 sbisim (pointwise eq R) |}.
+    Next Obligation.
+      intros ?? H. apply leq_bind_ctx. intros ?? H' ?? H''.
+      apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
+    Qed.
 
-(* and as a consequence, one may rewrite under binds *)
-#[global] Instance bind_equ_cong :
- forall (E : Type -> Type) (X Y : Type) (R : rel Y Y) RR,
-   Proper (equ (@eq X) ==> pointwise_relation X (t_equ R RR) ==> t_equ R RR) (@bind E X Y).
-Proof.
-  repeat red; intros; eapply equ_clo_bind; eauto.
-  intros ? ? <-; auto.
-Qed.
+    (* Inverting transitions from binds *)
+    (* this gives a valid up-to technique *)
+    Lemma bind_ctx_sbisim_t : bind_ctx_sbisim <= st.
+    Proof.
+      apply Coinduction. intros R. apply (leq_bind_ctx _).
+      intros x x' xx' k k' kk'.
+      step in xx'; destruct xx' as (F & B); cbn in *.
+      split.
+      - cbn; intros l t' STEP. 
+      destruct xx'.
+      - cbn in *.
+        generalize (kk' _ _ REL).
+        apply (fequ RR).
+        apply id_T.
+      - constructor; intros ?. apply (fTf_Tf (fequ _)).
+        apply in_bind_ctx. apply REL.
+        red; intros. apply (b_T (fequ _)), kk'; auto.
+      - constructor. intro a. apply (fTf_Tf (fequ _)).
+        apply in_bind_ctx. apply REL.
+        red; intros. apply (b_T (fequ _)), kk'; auto.
+    Qed.
+
+    (* specialisation to a function acting with [sbisim] on the bound value, and with the argument (pointwise) on the continuation *)
+    Program Definition bind_ctx_wbisim {E X Y1 Y2}: mon (rel (ctree E Y1) (ctree E Y2)) :=
+      {|body := fun R => @bind_ctx E X X Y1 Y2 wbisim (pointwise eq R) |}.
+    Next Obligation.
+      intros ?????? H. apply leq_bind_ctx. intros ?? H' ?? H''.
+      apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
+    Qed.
 

@@ -384,12 +384,6 @@ Open Scope ctree.
 Variant is_val {E} : (@label E) -> Prop :=
   | Is_val : forall X (x : X), is_val (val x).
 
-Lemma bind_ret_l {E X Y} : forall (x : X) (k : X -> ctree E Y),
-    Ret x >>= k ≅ k x.
-Proof.
-  intros.
-  now rewrite unfold_bind.
-Qed.
 
 Lemma trans_bind_aux {E X Y} l T U :
   trans_ l T U ->
