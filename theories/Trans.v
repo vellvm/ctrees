@@ -384,8 +384,7 @@ Open Scope ctree.
 Variant is_val {E} : (@label E) -> Prop :=
   | Is_val : forall X (x : X), is_val (val x).
 
-
-Lemma trans_bind_aux {E X Y} l T U :
+Lemma trans_bind_inv_aux {E X Y} l T U :
   trans_ l T U ->
   forall (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y),
     go T ≅ bind t k ->
@@ -454,15 +453,59 @@ Proof.
     + step in H; inv H.
 Qed.
 
-Lemma trans_bind {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) l :
+Lemma trans_bind_inv {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) l :
   trans l (bind t k) u ->
   (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ CTree.bind t' k) \/
     (exists (x : X), trans (val x) t silent_fail /\ trans l (k x) u).
 Proof.
   intros TR.
-  eapply trans_bind_aux.
+  eapply trans_bind_inv_aux.
   apply TR.
   rewrite <- ctree_eta; reflexivity.
   rewrite <- ctree_eta; reflexivity.
+Qed.
+
+Lemma trans_bind_l {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E X) l :
+  ~ (@is_val E l) ->
+  trans l t u ->
+  trans l (bind t k) (bind u k).
+Proof.
+  cbn; unfold transR; intros NOV TR.
+  (* rewrite (ctree_eta t), (ctree_eta u). *)
+  dependent induction TR; cbn in *.
+  - rewrite unfold_bind, <- x.
+    cbn.
+    econstructor.
+    now apply IHTR.
+  - rewrite unfold_bind.
+    rewrite <- x1; cbn.
+    econstructor.
+    rewrite H.
+    rewrite (ctree_eta t0),x,<- ctree_eta.
+    reflexivity.
+  - rewrite unfold_bind.
+    rewrite <- x1; cbn.
+    econstructor.
+    rewrite H.
+    rewrite (ctree_eta t0),x,<- ctree_eta.
+    reflexivity.
+  - exfalso; eapply NOV; constructor.
+Qed.
+
+Lemma trans_bind_r {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) x l :
+  trans (val x) t silent_fail ->
+  trans l (k x) u ->
+  trans l (bind t k) u.
+Proof.
+  cbn; unfold transR; intros TR1.
+  genobs t ot.
+  remember (observe silent_fail) as oc.
+  remember (val x) as v.
+  revert t x Heqot Heqoc Heqv.
+  induction TR1; intros; try (inv Heqv; fail).
+  - rewrite (ctree_eta t0), <- Heqot; cbn; econstructor.
+    eapply IHTR1; eauto.
+  - dependent induction Heqv.
+    rewrite (ctree_eta t), <- Heqot, unfold_bind; cbn; auto.
 Qed.
 
