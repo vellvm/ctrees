@@ -509,3 +509,13 @@ Proof.
     rewrite (ctree_eta t), <- Heqot, unfold_bind; cbn; auto.
 Qed.
 
+Lemma trans_val_inv :
+  forall {E X} (t u : ctree E X) (v : X),
+  trans (val v) t u -> u ≅ silent_fail.
+Proof.
+  intros * TR.
+  remember (val v) as ov.
+  rewrite ctree_eta; induction TR; intros; auto; try now inv Heqov.
+  step; econstructor; intros abs; inv abs. 
+Qed.
+

@@ -18,29 +18,41 @@ Import CTree.
 Import CTreeNotations.
 Open Scope ctree.
 
+
+Variant equ_clos_body {E X1 X2} (R : rel (ctree E X1) (ctree E X2)) : (rel (ctree E X1) (ctree E X2)) :=
+  | Equ_clos : forall t t' u' u
+                 (Equt : t ≅ t')
+                 (HR : R t' u')
+                 (Equu : u' ≅ u),
+      equ_clos_body R t u.
+
 Program Definition equ_clos {E X1 X2} : mon (rel (ctree E X1) (ctree E X2)) :=
-  {| body := fun R t u => exists t' u', t' ≅ t /\ R t u /\ u ≅ u' |}.
+  {| body := @equ_clos_body E X1 X2 |}.
 Next Obligation.
-  intros * ?? LE t u (t' & u' & eqt & eqtu & equ).
-  do 2 eexists; repeat split; auto.
+  intros * ?? LE t u EQ; inv EQ.
+  econstructor; eauto.
   apply LE; auto.
 Qed.
 
 Lemma equ_clos_sym {E X} : compat converse (@equ_clos E X X).
 Proof.
-  intros R t u (t' & u' & eq1 & eq2 & eq3).
-  exists u', t'; intuition.
+  intros R t u EQ; inv EQ. 
+  apply Equ_clos with u' t'; intuition. 
 Qed.
 
 Lemma equ_clos_t {E X} : @equ_clos E X X <= st.
 Proof.
   apply Coinduction, by_Symmetry; [apply equ_clos_sym |].
-  intros R t u (t' & u' & eq1 & [F B] & eq3) l t1 TR; cbn in *.
-  apply F in TR as [u1 TR ?].
+  intros R t u EQ l t1 TR; inv EQ.
+  destruct HR as [F _]; cbn in *.
+  rewrite Equt in TR.
+  apply F in TR.
+  destruct TR as [? ? ?].
   eexists.
-  eauto.
+  rewrite <- Equu; eauto.
   apply (f_Tf sb).
-  do 2 eexists; intuition.
+  econstructor; intuition.
+  auto.
 Qed.
 
 Section bind.
@@ -56,7 +68,6 @@ Section bind.
       intros ?? H. apply leq_bind_ctx. intros ?? H' ?? H''.
       apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
     Qed.
-
 
     (* this gives a valid up-to technique *)
     Lemma bind_ctx_equ_t (SS : rel X1 X2) (RR : rel Y1 Y2): @bind_ctx_equ E _ _ _ _ SS <= t_equ RR.
@@ -94,38 +105,25 @@ Section bind.
       intros t1 t2 tt k1 k2 kk.
       step in tt; destruct tt as (F & B); cbn in *.
       cbn in *; intros l u STEP.
-      apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | ?]; cbn in *.
+      apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
       - apply F in STEP as [u' STEP EQ'].
         eexists.
         apply trans_bind_l; eauto.
-        apply (@fT_T _ _ sb equ_clos foo).
-
-
+        apply (fT_T equ_clos_t).
+        econstructor; [exact EQ | | reflexivity].
         apply (fTf_Tf sb).
-        eapply (fT_T sb).
-        apply (fTf_Tf sb).
-        apply in_bind_ctx. apply REL.
-        red in kk.
-        generalize (kk _ _ REL).
-        apply id_T.
-        apply in_bind_ctx. apply REL.
+        apply in_bind_ctx; auto.
+        intros ? ? ->.
         apply (b_T sb).
-        split.
-        rewrite EQ.
-
-          intros ?. ? ?. exists. cbn. cbv. red. kk'; auto.
-
-      destruct xx' .
-      - cbn in *.
-        generalize (kk' _ _ REL).
-        apply (fequ RR).
-        apply id_T.
-      - constructor; intros ?. apply (fTf_Tf (fequ _)).
-        apply in_bind_ctx. apply REL.
-        red; intros. apply (b_T (fequ _)), kk'; auto.
-      - constructor. intro a. apply (fTf_Tf (fequ _)).
-        apply in_bind_ctx. apply REL.
-        red; intros. apply (b_T (fequ _)), kk'; auto.
+        apply kk; auto.
+      - apply F in STEPres as [u' STEPres EQ'].
+        pose proof (trans_val_inv _ _ _ STEPres) as EQ.
+        rewrite EQ in STEPres.
+        specialize (kk v v eq_refl) as [Fk Bk].
+        apply Fk in STEP as [u'' STEP EQ'']; cbn in *.
+        eexists.
+        eapply trans_bind_r; cbn in *; eauto.
+        eapply (id_T sb); cbn; auto.
     Qed.
 
     (* specialisation to a function acting with [sbisim] on the bound value, and with the argument (pointwise) on the continuation *)
