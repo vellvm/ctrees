@@ -1,4 +1,28 @@
-(* begin hide *)
+(*|
+============================================================
+Core definition of the [ctrees] datatype and its combinators
+============================================================
+
+We develop a data-structure strongly inspired by Interaction Trees,
+but offering native support for internal non-determinism: the [ctree]s.
+Interaction trees took the position to not be the free monad per se,
+but to give a special status to divergence by implementing it coinductively.
+Here, we take a similar stance toward non-determinism by adding a new
+constructor to the structure encoding (finite) non-deterministic branching.
+These internal branching nodes are furthermore tagged by whether they can be
+observed or not.
+
+The resulting structure is still an iterative monad parametered by an
+interface of interactions, supporting monadic interpretations of these
+interfaces. But the equivalence relation over [ctree] is more complex, and
+account natively for this non-determinism. More specifically, we provide
+a structural, coinductive equality; a notion of strong bisimulation observing
+visible internal choices; a notion of weak bisimulation observing no internal
+choice.
+
+.. coq:: none
+|*)
+
 From ITree Require Import Core.Subevent.
 
 From CTree Require Import
@@ -11,46 +35,52 @@ From ExtLib Require Import
 Set Implicit Arguments.
 Set Contextual Implicit.
 Set Primitive Projections.
-(* end hide *)
 
-(** * Core definition of the [ctrees] datatype and its combinators  *)
+(*|
+.. coq::
+|*)
 
 Section ctree.
 
   Context {E : Type -> Type} {R : Type}.
 
-  (** The type [ctree] is defined as the final coalgebra ("greatest
-      fixed point") of the functor [ctreeF].
-			A [ctree] can locally provide three kind of observations:
-			- A pure value, terminating the computation
-			- An interaction with the environment, emitting the corresponding
-				indexed event and non-deterministically continuing indexed by the
-				value returned by the environment
-			- A (finite) internal non-deterministic choice
-	*)
-	(* TODO YZ:
-		- Do we want to name the sources of the choices?
-			For instance if we want to support simultaneously different schedulers
-			for different kind of non-determinism in a language.
-		- Do we want non-finite internal branching? Indexed by arbitrary types?
-    - Or crazier, do we want non-uniform branching, modelling non-uniform random choices for instance?
-    - Could ctrees be parameterized by:
-      + a bound on nested choices before reaching a Vis/Ret
-      + a general domain of choice events
-	 *)
+(*|
+The type [ctree] is defined as the final coalgebra ("greatest fixed point") of the functor [ctreeF].
+A [ctree] can locally provide three kind of observations:
+- A pure value, terminating the computation
+- An interaction with the environment, emitting the corresponding
+indexed event and non-deterministically continuing indexed by the
+value returned by the environment
+- A (finite) internal non-deterministic choice
+
+TODO YZ:
+
+- Do we want to name the sources of the choices?
+  For instance if we want to support simultaneously different schedulers for different kind of non-determinism in a language.
+- Do we want non-finite internal branching? Indexed by arbitrary types?
+- Or crazier, do we want non-uniform branching, modelling non-uniform random choices for instance?
+- Could ctrees be parameterized by:
+
+  + a bound on nested choices before reaching a Vis/Ret
+  + a general domain of choice events
+
+.. coq::
+|*)
 
   Variant ctreeF (ctree : Type) :=
-  | RetF (r : R)
-  | VisF {X : Type} (e : E X) (k : X -> ctree)
-  | ChoiceF (vis : bool) (n : nat) (k : fin n -> ctree)
+    | RetF (r : R)                                   (* a pure computation *)
+    | VisF {X : Type} (e : E X) (k : X -> ctree)      (* an external event *)
+    | ChoiceF (vis : bool) (n : nat) (k : fin n -> ctree)  (* an internal non-deterministic branching *)
   .
 
-  CoInductive ctree : Type := go
-  { _observe : ctreeF ctree }.
+  CoInductive ctree : Type :=
+    go { _observe : ctreeF ctree }.
 
 End ctree.
 
-(* begin hide *)
+(*|
+.. coq:: none
+|*)
 
 Declare Scope ctree_scope.
 Bind Scope ctree_scope with ctree.
@@ -60,17 +90,26 @@ Local Open Scope ctree_scope.
 Arguments ctree _ _ : clear implicits.
 Arguments ctreeF _ _ : clear implicits.
 Arguments ChoiceF {_ _} [_] vis n.
-(* end hide *)
 
-(** A [ctree'] is a "forced" [ctree]. It is the type of inputs
-    of [go], and outputs of [observe]. *)
+(*|
+A [ctree'] is a "forced" [ctree]. It is the type of inputs
+of [go], and outputs of [observe].
+
+.. coq::
+|*)
+
 Notation ctree' E R := (ctreeF E R (ctree E R)).
 
-(** We wrap the primitive projection [_observe] in a function
-    [observe]. *)
+(*|
+We wrap the primitive projection [_observe] in a function [observe].
+|*)
+
 Definition observe {E R} (t : ctree E R) : ctree' E R := @_observe E R t.
 
-(** We encode [itree]'s [Tau] constructor as a unary internal choice. *)
+(*|
+We encode [itree]'s [Tau] constructor as a unary internal choice.
+|*)
+
 Notation Ret x := (go (RetF x)).
 Notation Vis e k := (go (VisF e k)).
 Notation TauI  t := (go (ChoiceF false 1 (fun _ => t))).
@@ -79,61 +118,59 @@ Notation Choice b n k := (go (ChoiceF b n k)).
 Notation ChoiceV n k := (go (ChoiceF true n k)).
 Notation ChoiceI n k := (go (ChoiceF false n k)).
 
-(** ** Main operations on [ctree] *)
+(*|
+Main operations on [ctree]
+--------------------------
 
-(** The core definitions are wrapped in a module for namespacing.
-    They are meant to be used qualified (e.g., CTree.bind) or
-    via notations (e.g., [>>=]). *)
+The core definitions are wrapped in a module for namespacing. They are meant to be used qualified (e.g., CTree.bind) or via notations (e.g., [>>=]).
 
-(** *** How to write cofixpoints *)
+Note on how to write cofixpoints
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+We define cofixpoints in two steps:
 
-(** We define cofixpoints in two steps: first a plain definition
-    (prefixed with an [_], e.g., [_bind], [_iter]) defines the body
-    of the function:
+first a plain definition (prefixed with an [_], e.g., [_bind], [_iter]) defines the body of the function:
 
-    - it takes the recursive call ([bind]) as a parameter;
-    - if we are deconstructing an ctree, this body takes
-      the unwrapped [ctreeF];
+- it takes the recursive call ([bind]) as a parameter;
+- if we are deconstructing an ctree, this body takes the unwrapped [ctreeF];
 
-    second the actual [CoFixpoint] (or, equivalently, [cofix]) ties
-    the knot, applying [observe] to any [ctree] parameters. *)
+second the actual [CoFixpoint] (or, equivalently, [cofix]) ties the knot, applying [observe] to any [ctree] parameters.
 
-(** This style allows us to keep [cofix] from ever appearing in
-    proofs, which could otherwise get quite unwieldly.
-    For every [CoFixpoint] (such as [bind]), we prove an unfolding
-    lemma to rewrite it as a term whose head is [_bind], without
-    any [cofix] above it.
-[[
+This style allows us to keep [cofix] from ever appearing in proofs, which could otherwise get quite unwieldly.
+For every [CoFixpoint] (such as [bind]), we prove an unfolding lemma to rewrite it as a term whose head is [_bind], without any [cofix] above it.
+
+
     unfold_bind : observe (bind t k)
                 = observe (_bind (fun t' => bind t' k) t)
-]]
-    Note that this is an equality "up to" [observe]. It would not be
-    provable if it were a plain equality:
-[[
-    bind t k = _bind (...) t  (* unfold the definition of [bind]... *)
+
+Note that this is an equality "up to" [observe]. It would not be provable if it were a plain equality:
+
+    bind t k = _bind (...) t
     (cofix bind' t1 := _bind (...) t1) t = _bind (...) t1
-]]
-    The [cofix] is stuck, and can only be unstuck under the primitive
-    projection [_observe] (which is wrapped by [observe]).
- *)
 
-(** *** Definitions *)
+The [cofix] is stuck, and can only be unstuck under the primitive projection [_observe] (which is wrapped by [observe]).
 
-(** These are meant to be imported qualified, e.g., [CTree.bind],
-    [CTree.trigger], to avoid ambiguity with identifiers of the same
-    name (some of which are overloaded generalizations of these).
- *)
+Definitions
+
+These are meant to be imported qualified, e.g., [CTree.bind],
+[CTree.trigger], to avoid ambiguity with identifiers of the same
+name (some of which are overloaded generalizations of these).
+|*)
+
 Module CTree.
 
-(** [bind]: monadic composition, tree substitution, sequencing of
-    computations. [bind t k] is also denoted by [t >>= k] and using
-    "do-notation" [x <- t ;; k x]. *)
+(*|
+[bind]: monadic composition, tree substitution, sequencing of
+computations. [bind t k] is also denoted by [t >>= k] and using
+"do-notation" [x <- t ;; k x].
+|*)
 
-(* [subst]: [bind] with its arguments flipped.
-   We keep the continuation [k] outside the cofixpoint.
-   In particular, this allows us to nest [bind] in other cofixpoints,
-   as long as the recursive occurences are in the continuation
-   (i.e., this makes it easy to define tail-recursive functions). *)
+(*|
+[subst]: [bind] with its arguments flipped.
+We keep the continuation [k] outside the cofixpoint.
+In particular, this allows us to nest [bind] in other cofixpoints,
+as long as the recursive occurences are in the continuation
+(i.e., this makes it easy to define tail-recursive functions).
+|*)
 Definition subst {E : Type -> Type} {T U : Type} (k : T -> ctree E U)
   : ctree E T -> ctree E U :=
   cofix _subst (u : ctree E T) : ctree E U :=
@@ -147,54 +184,88 @@ Definition bind {E : Type -> Type} {T U : Type} (u : ctree E T) (k : T -> ctree 
   : ctree E U :=
   subst k u.
 
-(** Monadic composition of continuations (i.e., Kleisli composition).
- *)
+(*|
+Monadic composition of continuations (i.e., Kleisli composition).
+|*)
+
 Definition cat {E T U V}
            (k : T -> ctree E U) (h : U -> ctree E V) :
   T -> ctree E V :=
   fun t => bind (k t) h.
 
-(** [iter]: See [Basics.Basics.MonadIter]. *)
+(*|
+[iter]: See [Basics.Basics.MonadIter].
 
-(* [on_left lr l t]: run a computation [t] if the first argument is an [inl l].
-   [l] must be a variable (used as a pattern), free in the expression [t]:
+[on_left lr l t]: run a computation [t] if the first argument is an [inl l].
+[l] must be a variable (used as a pattern), free in the expression [t]:
+
    - [on_left (inl x) l t = t{l := x}]
    - [on_left (inr y) l t = Ret y]
- *)
+|*)
+
 Notation on_left lr l t :=
   (match lr with
   | inl l => t
   | inr r => Ret r
   end) (only parsing).
 
-(* Note: here we must be careful to call [iter_ l] under [Tau] to avoid an eager
-   infinite loop if [step i] is always of the form [Ret (inl _)] (cf. issue #182). *)
+(*|
+Note: here we must be careful to call [iter\_ l] under [Tau] to avoid an eager
+infinite loop if [step i] is always of the form [Ret (inl _)] (cf. issue #182).
+|*)
+
 Definition iter {E : Type -> Type} {R I: Type}
            (step : I -> ctree E (I + R)) : I -> ctree E R :=
   cofix iter_ i := bind (step i) (fun lr => on_left lr l (TauI (iter_ l))).
 
-(** Functorial map ([fmap] in Haskell) *)
+(*|
+Functorial map ([fmap] in Haskell)
+|*)
+
 Definition map {E R S} (f : R -> S)  (t : ctree E R) : ctree E S :=
   bind t (fun x => Ret (f x)).
 
-(** Atomic itrees triggering a single event. *)
+(*|
+Atomic itrees triggering a single event.
+|*)
+
 Definition trigger {E : Type -> Type} : E ~> ctree E :=
   fun R e => Vis e (fun x => Ret x).
 
-(** Atomic itrees with choice over a finite arity. *)
+(*|
+Atomic itrees with choice over a finite arity.
+|*)
+
 Definition choice {E : Type -> Type} : forall n, ctree E (fin n) :=
   fun n => ChoiceV n (fun x => Ret x).
 
-(** Ignore the result of a tree. *)
+(*|
+Silent failure: contrary to an event-based failure, this
+stuck state cannot be observed, it will be indistinguishable
+from [spin] w.r.t. the bisimulations introduced.
+|*)
+Definition stuck {E R} : ctree E R :=
+  ChoiceI 0 (fun x : fin 0 => match x with end).
+
+(*|
+Ignore the result of a tree.
+|*)
+
 Definition ignore {E R} : ctree E R -> ctree E unit :=
   map (fun _ => tt).
 
-(** Infinite taus. *)
+(*|
+Infinite taus.
+|*)
+
 CoFixpoint spin {E R} : ctree E R := TauI spin.
 CoFixpoint spin_nary {E R} (n : nat) : ctree E R :=
 	ChoiceV n (fun _ => spin_nary n).
 
-(** Repeat a computation infinitely. *)
+(*|
+Repeat a computation infinitely.
+|*)
+
 Definition forever {E R S} (t : ctree E R) : ctree E S :=
   cofix forever_t := bind t (fun _ => TauI (forever_t)).
 
@@ -209,16 +280,16 @@ Ltac fold_monad :=
 End CTree.
 Arguments CTree.choice {E} n.
 
-(** ** Notations *)
+(*|
+=========
+Notations
+=========
 
-(** Sometimes it's more convenient to work without the type classes
-    [Monad], etc. When functions using type classes are specialized,
-    they simplify easily, so lemmas without classes are easier
-    to apply than lemmas with.
+Sometimes it's more convenient to work without the type classes [Monad], etc. When functions using type classes are specialized,
+they simplify easily, so lemmas without classes are easier to apply than lemmas with.
 
-    We can also make ExtLib's [bind] opaque, in which case it still
-    doesn't hurt to have these notations around.
- *)
+We can also make ExtLib's [bind] opaque, in which case it still doesn't hurt to have these notations around.
+|*)
 
 Module CTreeNotations.
 Notation "t1 >>= k2" := (CTree.bind t1 k2)
@@ -233,7 +304,11 @@ Notation "' p <- t1 ;; t2" :=
 Infix ">=>" := CTree.cat (at level 62, right associativity) : ctree_scope.
 End CTreeNotations.
 
-(** ** Instances *)
+(*|
+=========
+Instances
+=========
+|*)
 
 #[global] Instance Functor_ctree {E} : Functor (ctree E) :=
 { fmap := @CTree.map E }.
@@ -249,9 +324,11 @@ End CTreeNotations.
 #[global] Instance MonadChoice_ctree {E} : MonadChoice (ctree E) :=
   fun n => CTree.choice n.
 
-(* TODO: we need to do some thinking about what the right
-		way to represent and manipulate these finite branches.
-*)
+(*|
+TODO: we need to do some thinking about what the right
+way to represent and manipulate these finite branches.
+|*)
+
 Definition choice2 {E X} (t u : ctree E X) :=
  (ChoiceV 2 (fun b =>
 			   match b with | Fin.F1 => t | _ => u end)).
@@ -267,7 +344,12 @@ Notation trigger e :=
 	(CTree.trigger (subevent _ e)).
 Notation vis e k := (Vis (subevent _ e) k).
 
-(** ** Tactics *)
+(*|
+=======
+Tactics
+=======
+|*)
+
 Tactic Notation "hinduction" hyp(IND) "before" hyp(H)
   := move IND before H; Tactics.revert_until IND; induction IND.
 
@@ -287,9 +369,14 @@ Ltac simpobs := repeat match goal with [H: _ = observe _ |- _] =>
                     rewrite_everywhere_except (@eq_sym _ _ _ H) H
                 end.
 
-(** ** Compute with fuel *)
+(*|
+==================
+Compute with fuel
+==================
 
-(** Remove [Tau]s from the front of an [itree]. *)
+Remove [Tau]s from the front of an [itree].
+|*)
+
 Fixpoint burn (n : nat) {E R} (t : ctree E R) :=
   match n with
   | O => t
