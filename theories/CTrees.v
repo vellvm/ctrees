@@ -321,8 +321,11 @@ Instances
 #[global] Instance MonadIter_ctree {E} : MonadIter (ctree E) :=
   fun _ _ => CTree.iter.
 
+(* #[global] Instance MonadTrigger_ctree : MonadTrigger ctree := *)
+(*   fun T => CTree.trigger. *)
+
 #[global] Instance MonadChoice_ctree {E} : MonadChoice (ctree E) :=
-  fun n => CTree.choice n.
+  CTree.choice.
 
 (*|
 TODO: we need to do some thinking about what the right

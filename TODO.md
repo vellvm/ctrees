@@ -15,9 +15,10 @@
 - [ ] Pushing forward CCS
 
 	+ Some done, need to discuss what is relevant to prove
-  + To check: is weak bisimulation inherited into ctrees too weak, a.k.a. in particular would be a congruence for +  
+  + To check: is weak bisimulation inherited into ctrees too weak, a.k.a. in particular would be a congruence for +
 
 - [ ] Sketch the yield experiment
+  + Modify schedule so it works over a thread pool and take the starting thread as an argument
 
 - Should the target monad for interpretation somehow be aware of the visibility flag?
 
@@ -32,12 +33,12 @@ From the perspective of [bisim], both trees are equivalent: they each can challe
 However, they are also a very natural representation of respectively the CCS processes (P = τa + b) and (Q = a + b), processes that are not equated by weak bisimulation.
 Indeed, from the perspective of this equivalence, P can use the τ to internally take the left branch, without consuming "a" yet: it reduces by doing so to the
 process "a". In contrast, Q cannot take any branch as it would require from
-it to draw either "a" or "b". It can match the step by refusing to move, but 
-the resulting processes are then not weakly bisimilar since the right one can 
+it to draw either "a" or "b". It can match the step by refusing to move, but
+the resulting processes are then not weakly bisimilar since the right one can
 now challenge the left one over a "b".
 
-Of course one possible conclusion of this observation is that "t1" and "t2" should 
-not be the encoding of P and Q. Operationally, stepping on either side of a "+" 
+Of course one possible conclusion of this observation is that "t1" and "t2" should
+not be the encoding of P and Q. Operationally, stepping on either side of a "+"
 requires to exhibit the proof that this side can step, so that this step is taken:
 maybe the encoding should work harder and simulate this behavior.
 
@@ -49,7 +50,7 @@ bisimulation, we equate more processes.
 Conjecture to check: it corresponds to the strong game over the [=> -a>] relation where [a] is a non-τ event.
 
 If we were to change [bisim] so that we can stop at any node on the way to the first
-[vis] or [ret] reachable, we would make all nodes visible. 
+[vis] or [ret] reachable, we would make all nodes visible.
 This would this time leads to _more_ challenges than with traditional weak bisimulation in the sense that the tree contains more states than the usual transition systems. In particular, (P = (a + b) + c) and (Q = a + (b + c)) mapped into trees (t1 = Choice 2 (Choice 2 a b) c) and (t2 = Choice 2 a (Choice 2 b c))
 would not be equivalent under this new equivalence since the state (Choice 2 a b)
 would be reachable from t1, and t2 would have no way to answer it.
@@ -72,7 +73,7 @@ This is basically whether the bisim is built upon =>-> or =>->=>
 
 ## Shared code with itrees, level of abstraction
 
-	- Some generic code could be reused from the itree library. 
+	- Some generic code could be reused from the itree library.
 	  + Do we want to depend on the itree library?
 	  + Do we want to pull the generic code from the itree library to an external one?
 		+ Do we want to recode it. If so:
@@ -82,7 +83,7 @@ This is basically whether the bisim is built upon =>-> or =>->=>
 ## Symmetry argument
 
 The companion support arguments by symmetry to avoid the duplication of proof scripts for bisimulation.
-Can we use it in our setup? 
+Can we use it in our setup?
 
 ## Interpretation and scheduling
 

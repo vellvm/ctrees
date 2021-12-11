@@ -1,2 +1,3 @@
 -Q _build/default/theories CTree
 -Q _build/default/examples/CCS CTreeCCS
+-Q _build/default/examples/Yield CTreeYield

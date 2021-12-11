@@ -5,8 +5,8 @@ Notation fin := t.
 
 From ITree Require Export Basics.Basics.
 
-Polymorphic Class MonadTrigger (M : Type -> Type) : Type :=
-  trigger : forall {E: Type -> Type}, E ~> M.
+(* Polymorphic Class MonadTrigger (M : (Type -> Type) -> Type -> Type) : Type := *)
+(*   trigger : forall {E: Type -> Type}, E ~> M E. *)
 
 Polymorphic Class MonadChoice (M : Type -> Type) : Type :=
   choice : forall (n: nat), M (Fin.t n).
@@ -24,8 +24,7 @@ end;
 simpl body in H.
 Tactic Notation "step" "in" ident(H) := step_in H.
 
-Ltac invert := 
-  match goal with 
+Ltac invert :=
+  match goal with
   | h : existT _ _ _ = existT _ _ _ |- _ => dependent induction h
   end.
-
