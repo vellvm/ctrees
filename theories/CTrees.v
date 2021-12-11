@@ -345,6 +345,29 @@ Notation trigger e :=
 Notation vis e k := (Vis (subevent _ e) k).
 
 (*|
+====================================
+Inversion lemma relying on [JMeq_eq]
+====================================
+Since the [Vis] and [Choice] constructors take dependent
+pairs as argument, their inversion is not straightforward.
+The ITree library goes to great length to avoid the use of
+axioms where possible. Here for now we fully embrace [JMeq_eq]
+-- it is introduced under the scene by [dependent destruction].
+|*)
+
+Lemma Vis_eq1 E R T Y e k Z f h: @VisF E R T Y e k = @VisF E R T Z f h -> Y=Z.
+Proof. intro H. now dependent destruction H. Qed.
+
+Lemma Vis_eq2 E R T Y e k f h: @VisF E R T Y e k = @VisF E R T Y f h -> e=f /\ k=h.
+Proof. intro H. now dependent destruction H. Qed.
+
+Lemma Choice_eq1 E R T b b' n m k h: @ChoiceF E R T b n k = @ChoiceF E R T b' m h -> b = b' /\ n=m.
+Proof. intro H. now dependent destruction H. Qed.
+
+Lemma Choice_eq2 E R T b n k h: @ChoiceF E R T b n k = @ChoiceF E R T b n h -> k=h.
+Proof. intro H. now dependent destruction H. Qed.
+
+(*|
 =======
 Tactics
 =======
@@ -368,6 +391,7 @@ Ltac genobs_clear x ox := genobs x ox; match goal with [H: ox = observe x |- _] 
 Ltac simpobs := repeat match goal with [H: _ = observe _ |- _] =>
                     rewrite_everywhere_except (@eq_sym _ _ _ H) H
                 end.
+Ltac desobs x := destruct (observe x) .
 
 (*|
 ==================
