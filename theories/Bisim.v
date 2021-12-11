@@ -1,4 +1,44 @@
-(* begin hide *)
+(*|
+=========================================
+Strong and Weak Bisimulations over ctrees
+=========================================
+The [equ] relation provides [ctree]s with a suitable notion of equality.
+It is however much too fine to properly capture any notion of behavioral
+equivalence that we could want to capture over computations modelled as
+[ctree]s.
+If we draw the parallel with [itree]s, [equ] maps directly to [eq_itree],
+while [eutt] were introduced to caracterize computations that exhibit the
+same external observations, but may disagree finitely on the amount of
+internal steps occuring between any two observations.
+While the only consideration over [itree]s was to be insensitive to the
+amount of fuel needed to run, things are richer over [ctree]s.
+We essentially want to capture three intuitive things:
+- to be insensitive to the particular branches chosen at non-deterministic
+nodes -- in particular, we want [choice t u ~~ choice u t];
+- to always be insensitive to how many _invisible_ choice nodes are crawled
+through -- they really are a generalization of [Tau] in [itree]s;
+- to have the flexibility to be sensible or not to the amount of _visible_
+choice nodes encountered -- they really are a generalization of CCS's tau
+steps. This last fact, whether we observe or not these nodes, will constraint
+the distinction between the weak and strong bisimulations we define.
+
+In contrast with [equ], as well as the relations in [itree]s, we do not
+define the functions generating the relations directly structurally on
+the trees. Instead, we follow a definition following closely the style
+developped for process calculi, essentially stating that diagrams of this
+shape can be closed.
+t  R  u
+|     |
+l     l
+v     v
+t' R  u'
+The transition relations that we use to this end are defined in the [Trans]
+module:
+- strong bisimulation is defined as a symmetric games over [trans];
+- weak bisimulation is defined as an asymmetric game in which [trans] get
+answered by [wtrans].
+
+|*)
 From Coinduction Require Import
      coinduction rel tactics.
 
@@ -7,7 +47,7 @@ From CTree Require Import
 
 From RelationAlgebra Require Import
      monoid
-     kat      (* kat == Kleene Algebra with Test, we don't use the tests part *)
+     kat
      kat_tac
      prop
      rel
@@ -21,9 +61,23 @@ Section Bisim.
   Context {E : Type -> Type} {X : Type}.
   Notation S := (ctree E X).
 
+(*|
+Strong Bisimulation
+-------------------
+Relation relaxing [equ] to become insensible to:
+- the amount of _invisible_ choices taken;
+- the particular branches taken during (any kind of) choices.
+|*)
   Section Strong.
 
-    (** The function defining strong simulations *)
+(*|
+The function defining strong simulations: [trans] plays must be answered
+using [trans].
+The [ss] definition stands for [strong simulation]. The bisimulation [sb]
+is obtained by expliciting the symmetric aspect of the definition following
+Pous'16 in order to be able to exploit symmetry arguments in proofs
+(see [square_st] for an illustration).
+|*)
     Program Definition ss : mon (S -> S -> Prop) :=
       {| body R t u :=
         forall l t', trans l t t' -> exists2 u', trans l u u' & R t' u'
@@ -32,39 +86,57 @@ Section Bisim.
       edestruct H0; eauto.
     Qed.
 
-    (* Symmetrized version: the other direction of the simulation is obtained as
-     fun R t u => ss (fun x y => R y x) u t
-    i.e. fun R t u => ss (converse R) u t
-    i.e. fun R => converse (ss (converse R))
-    i.e. comp converse (comp ss converse)
-     *)
+(*|
+Symmetrized version: the other direction of the simulation is obtained as
+fun R t u => ss (fun x y => R y x) u t
+i.e. fun R t u => ss (converse R) u t
+i.e. fun R => converse (ss (converse R))
+i.e. comp converse (comp ss converse)
+The bisimulation is then obtained by intersecting both relations.
+|*)
     Notation sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
 
     Notation sbisim := (gfp sb : hrel _ _).
     Notation "t ~ u" := (gfp sb t u) (at level 70).
     Notation st := (t sb).
     Notation sbt := (bt sb).
-    (** notations  for easing readability in proofs by enhanced coinduction *)
+(*|
+Notations for easing readability in proofs by enhanced coinduction
+|*)
     Notation "t [~] u" := (st  _ t u) (at level 79).
     Notation "t {~} u" := (sbt _ t u) (at level 79).
 
+(*|
+This is just a hack suggested by Damien Pous to avoid a
+universe inconsistency when using both the relational algebra
+and coinduction libraries (we fix the type at which we'll use [eq]).
+|*)
     Definition seq: relation (ctree E X) := eq.
     Arguments seq/.
 
-    (** [eq] is a post-fixpoint, thus [const eq] is below [t] *)
+(*|
+[eq] is a post-fixpoint, thus [const eq] is below [t]
+i.e. validity of up-to reflexivity
+|*)
     Lemma refl_st: const seq <= st.
     Proof.
       apply leq_t.
       split; intros; cbn in *; subst; eauto.
     Qed.
 
-    (** converse is compatible *)
+(*|
+[converse] is compatible
+i.e. validity of up-to symmetry
+|*)
     Lemma converse_st: converse <= st.
     Proof.
       apply invol_t.
     Qed.
 
-    (** so is squaring *)
+(*|
+[square] is compatible
+ i.e. validity of up-to transivitiy
+|*)
     Lemma square_st: square <= st.
     Proof.
       apply Coinduction, by_Symmetry.
@@ -86,113 +158,20 @@ Section Bisim.
         eexists; eauto.
     Qed.
 
-    (** thus bisimilarity and [t R] are always equivalence relations. *)
+(*|
+Thus bisimilarity and [t R] are always equivalence relations.
+|*)
     Global Instance Equivalence_st R: Equivalence (st R).
     Proof. apply Equivalence_t. apply refl_st. apply square_st. apply converse_st. Qed.
 
     Corollary Equivalence_bisim: Equivalence sbisim.
     Proof. apply Equivalence_st. Qed.
 
-  End Strong.
-
-  Notation sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
-  Notation sbisim := (gfp sb : hrel _ _).
-  Notation "t ~ u" := (gfp sb t u) (at level 70).
-  Notation st := (t sb).
-  Notation sbt := (bt sb).
-  (** notations  for easing readability in proofs by enhanced coinduction *)
-  Notation "t [~] u" := (st  _ t u) (at level 79).
-  Notation "t {~} u" := (sbt _ t u) (at level 79).
-
-  Section Weak.
-
-    (** the function defining weak simulations and similarity *)
-    Program Definition ws: mon (rel S S) :=
-      {| body R p q :=
-        forall l p', trans l p p' -> exists2 q', wtrans l q q' & R p' q' |}.
-    Next Obligation. destruct (H0 _ _ H1). eauto. Qed.
-
-    (** the symmetrised version, defining weak bisimulations and bisimilarity *)
-    Notation wb := (Coinduction.lattice.cap ws (comp converse (comp ws converse))).
-
-    Notation wbisim := (gfp wb: hrel _ _).
-    Notation "p ≈ q" := (gfp wb p q) (at level 70).
-    Notation wt := (coinduction.t wb).
-    Notation wT := (coinduction.T wb).
-    Notation wbt := (coinduction.bt wb).
-    Notation wbT := (coinduction.bT wb).
-    (** notations  for easing readability in proofs by enhanced coinduction *)
-    Notation "x [≈] y" := (wt _ x y) (at level 80).
-    Notation "x {≈} y" := (wbt _ x y) (at level 80).
-
-    (** the function defining one-sided expansion (only used later) *)
-    Program Definition es: mon (rel S S) :=
-      {| body R p q :=
-        forall l p', trans l p p' -> exists2 q', etrans l q q' & R p' q' |}.
-    Next Obligation. destruct (H0 _ _ H1). eauto. Qed.
-
-    Lemma s_e: ss <= es.
-    Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using trans_etrans_. Qed.
-    Lemma e_w: es <= ws.
-    Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using etrans_wtrans_. Qed.
-    Lemma s_w: ss <= ws.
-    Proof. rewrite s_e. apply e_w. Qed.
-
-    Corollary sbisim_wbisim: sbisim <= wbisim.
-    Proof.
-      apply gfp_leq.
-      apply Coinduction.lattice.cap_leq. apply s_w.
-      intros R p q. apply (@s_w (R°) q p).
-    Qed.
-
-    (* Instance sbisim_wbisim_subrelation : subrelation sbisim wbisim.
-  apply sbisim_wbisim.
-  Qed. *)
-
-    (** [wt R] is always reflexive: it contains ~ *)
-    #[global] Instance Reflexive_wt R: Reflexive (wt R).
-    Proof. intro. apply (gfp_t wb). now apply sbisim_wbisim. Qed.
-
-    (** converse is compatible *)
-    Lemma converse_wt: converse <= wt.
-    Proof. apply invol_t. Qed.
-
-    (** thus [wt R] is always symmetric *)
-    #[global] Instance Symmetric_wt R: Symmetric (wt R).
-    Proof. intros ??. apply (ft_t converse_wt). Qed.
-
-    Lemma TauI_wb : forall t,
-        TauI t ≈ t.
-    Proof.
-      intros t; step; split.
-      - intros l t' H.
-        apply trans_TauI in H.
-        exists t'.
-        apply trans_wtrans; auto.
-        reflexivity.
-      - intros l t' H. exists t'.
-        apply trans_wtrans.
-        apply TauI_trans; auto.
-        cbn; reflexivity.
-    Qed.
-
-    Lemma TauV_wb : forall t,
-        TauV t ≈ t.
-    Proof.
-      intros t; step; split.
-      - intros l t' H.
-        apply TauV_trans in H as [EQ ->].
-        exists t'.
-        rewrite EQ. apply wnil.
-        reflexivity.
-      - intros l t' H. exists t'.
-        apply wtrans_TauV.
-        apply trans_wtrans; auto.
-        cbn; reflexivity.
-    Qed.
-
-    (* This proof should be shorter if actually using some braincells I think *)
-    #[global] Instance equ_sbisim_compat : Proper (equ eq ==> equ eq ==> iff) sbisim.
+(*|
+[sbism] is closed under [equ]
+This proof should be shorter if actually using some braincells I think.
+|*)
+    #[global] Instance equ_sbisim_closed : Proper (equ eq ==> equ eq ==> iff) sbisim.
     Proof.
       intros t t' tt' u u' uu'; split.
       - revert t t' u u' tt' uu'.
@@ -229,6 +208,137 @@ Section Bisim.
           eapply CIH; try reflexivity; auto.
     Qed.
 
+(*|
+Hence [equ eq] is a included in [sbisim]
+|*)
+    #[global] Instance equ_sbisim_subrelation : subrelation (equ eq) sbisim.
+    Proof.
+      red; intros.
+      rewrite H; reflexivity.
+    Qed.
+
+  End Strong.
+
+  Notation sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
+  Notation sbisim := (gfp sb : hrel _ _).
+  Notation "t ~ u" := (gfp sb t u) (at level 70).
+  Notation st := (t sb).
+  Notation sbt := (bt sb).
+  (** notations  for easing readability in proofs by enhanced coinduction *)
+  Notation "t [~] u" := (st  _ t u) (at level 79).
+  Notation "t {~} u" := (sbt _ t u) (at level 79).
+
+(*|
+Weak Bisimulation
+-------------------
+Relation relaxing [equ] to become insensible to:
+- the amount of (any kind of) choices taken;
+- the particular branches taken during (any kind of) choices.
+|*)
+
+  Section Weak.
+
+(*|
+The function defining weak simulations: [trans] plays must be answered
+using [wtrans].
+The [ws] definition stands for [weak simulation]. The bisimulation [wb]
+is once again obtained by expliciting the symmetric aspect of the definition.
+|*)
+    Program Definition ws: mon (rel S S) :=
+      {| body R p q :=
+        forall l p', trans l p p' -> exists2 q', wtrans l q q' & R p' q' |}.
+    Next Obligation. destruct (H0 _ _ H1). eauto. Qed.
+
+
+(*|
+The bisimulation is obtained by intersecting [ws] with its symmetrized version. 
+|*)
+    Notation wb := (Coinduction.lattice.cap ws (comp converse (comp ws converse))).
+
+    Notation wbisim := (gfp wb: hrel _ _).
+    Notation "p ≈ q" := (gfp wb p q) (at level 70).
+    Notation wt := (coinduction.t wb).
+    Notation wT := (coinduction.T wb).
+    Notation wbt := (coinduction.bt wb).
+    Notation wbT := (coinduction.bT wb).
+(*|
+Notations  for easing readability in proofs by enhanced coinduction
+|*)
+    Notation "x [≈] y" := (wt _ x y) (at level 80).
+    Notation "x {≈} y" := (wbt _ x y) (at level 80).
+
+(*|
+The function defining one-sided expansion (standard notion in process algebra).
+This relation echoes [euttge] over [itrees]: the amount of fuel required on either
+side of the computation can only decrease from left to right, not the other way around.
+We are not interested in this relation by itself, but it is an important proof intermediate.
+|*)
+    Program Definition es: mon (rel S S) :=
+      {| body R p q :=
+        forall l p', trans l p p' -> exists2 q', etrans l q q' & R p' q' |}.
+    Next Obligation. destruct (H0 _ _ H1). eauto. Qed.
+
+(*|
+Elementary properties of [wbisim]
+----------------------------------------------
+We have in short:
+- [ss ≤ es ≤ ws] (direct consequence of transition relations' properties)
+- [sbisim] ⊆ [wbisim]
+- [equ] ⊆ [wbisim]
+- [wbisim] is closed under [equ]
+- [wbisim] is closed under [bisim]
+- up-to reflexivity
+- up-to symmetry
+- transitivity (but NOT up-to transitivity)
+
+We naturally also have [equ] ⊆ [sbisim], and hence [equ] ⊆  [wbisim], but we need
+to work a bit more to establish it.
+It is a consequence more generally of [sbisim] and [wbisim] being closed under [equ]
+on both arguments.
+We also get [wbisim] closed under [sbism] on both arguments, but need first to
+establish [wbisim]'s transitivity for that.
+|*)
+    Lemma s_e: ss <= es.
+    Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using trans_etrans_. Qed.
+    Lemma e_w: es <= ws.
+    Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using etrans_wtrans_. Qed.
+    Lemma s_w: ss <= ws.
+    Proof. rewrite s_e. apply e_w. Qed.
+
+    Corollary sbisim_wbisim: sbisim <= wbisim.
+    Proof.
+      apply gfp_leq.
+      apply Coinduction.lattice.cap_leq. apply s_w.
+      intros R p q. apply (@s_w (R°) q p).
+    Qed.
+
+    #[global] Instance sbisim_wbisim_subrelation : subrelation sbisim wbisim.
+    Proof.
+      apply sbisim_wbisim.
+    Qed.
+
+(*|
+Since [wt R] contains [wbisim] that contains [sbisim] which is known to be reflexive,
+it is reflexive as well
+|*)
+    #[global] Instance Reflexive_wt R: Reflexive (wt R).
+    Proof. intro. apply (gfp_t wb). now apply sbisim_wbisim. Qed.
+
+(*|
+[converse] is compatible
+|*)
+    Lemma converse_wt: converse <= wt.
+    Proof. apply invol_t. Qed.
+
+(*|
+Hence [wt R] is always symmetric
+|*)
+    #[global] Instance Symmetric_wt R: Symmetric (wt R).
+    Proof. intros ??. apply (ft_t converse_wt). Qed.
+
+(*|
+[wbism] is closed under [equ]
+|*)
     #[global] Instance equ_wbisim_compat : Proper (equ eq ==> equ eq ==> iff) wbisim.
     Proof.
       intros t t' eqt u u' equ; split.
@@ -266,11 +376,171 @@ Section Bisim.
           eapply CIH; try reflexivity; auto.
     Qed.
 
+(*|
+Hence [equ eq] is a included in [wbisim]
+|*)
     #[global] Instance equ_wbisim_subrelation : subrelation (equ eq) wbisim.
-    intros t u EQ. rewrite EQ. reflexivity.
+    Proof.
+      red; intros.
+      rewrite H; reflexivity.
     Qed.
 
-    (** but squaring is not compatible and [t R] is not always transitive *)
+
+(*|
+Transitivity
+~~~~~~~~~~~~
+As for weak bisimulation on process algebra, [square] is not a valid
+enhancing function (an explicit counter example is provided below,
+see [not_square_wt]).
+Weak bisimilariy is however transitive nonetheless. We can actually
+reproduce directly Pous' proof for CCS, the relation between [trans] and [wtrans]
+being exactly the same in both cases, even if the underlying objects
+and transitions are completely different.
+|*)
+
+(*|
+Moving to the [srel] world once again to establish algebaric laws based
+on operators from the relation algebra library.
+|*)
+    Definition wbisimT : srel SS SS :=
+      {| hrel_of := wbisim : hrel SS SS |}.
+
+(*|
+Algebraic refomulation of the right-to-left part of the game
+
+Note: We can express these laws in the setoid world or not.
+Unclear if there's a benefit to either at this point, we do everything
+on the setoid side.
+|*)
+    Lemma wbisim_trans_back l: wbisimT ⋅ trans l ≦ wtrans l ⋅ wbisimT.
+    Proof.
+      intros p q' [q pq qq']. apply (gfp_pfp wb) in pq as [_ pq]. now apply pq.
+    Qed.
+    Lemma wbisim_trans_back' l: wbisim ⋅ transR l ≦ (wtrans l : hrel _ _) ⋅ wbisim.
+    Proof.
+      intros p q' [q pq qq']. apply (gfp_pfp wb) in pq as [_ pq]. now apply pq.
+    Qed.
+    Lemma wbisim_etrans_back l: wbisimT ⋅ etrans l ≦ wtrans l ⋅ wbisimT.
+    Proof.
+      unfold etrans; destruct l.
+      2,3: apply @wbisim_trans_back.
+      ra_normalise. rewrite wbisim_trans_back.
+      unfold wtrans, etrans. ka.
+    Qed.
+    Lemma wbisim_taus_back: wbisimT ⋅ (trans tau)^* ≦ (trans tau)^* ⋅ wbisimT.
+    Proof.
+      rewrite <-str_invol at 2.
+      apply str_move_l. rewrite wbisim_trans_back. unfold wtrans, etrans. ka.
+    Qed.
+    Lemma wbisim_wtrans_back l: wbisimT ⋅ wtrans l ≦ wtrans l ⋅ wbisimT.
+    Proof.
+      unfold wtrans.
+      mrewrite wbisim_taus_back.
+      mrewrite wbisim_etrans_back.
+      mrewrite wbisim_taus_back.
+      unfold wtrans, etrans. ka.
+    Qed.
+
+    Lemma cnv_wt R: (wt R: hrel _ _)° ≡ wt R.
+    Proof. apply RelationAlgebra.lattice.antisym; intros ???; now apply Symmetric_wt. Qed.
+    Lemma cnv_wbisim: wbisimT° ≡ wbisimT.
+    Proof. apply cnv_wt. Qed.
+    Lemma cnv_wbisim': wbisim° ≡ wbisim.
+    Proof. apply cnv_wt. Qed.
+
+
+(*|
+By symmetry, similar results for left-to-right game
+|*)
+    Lemma wbisim_trans_front l: (trans l)° ⋅ wbisimT ≦ wbisimT ⋅ (wtrans l)°.
+    Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_trans_back. Qed.
+    Lemma wbisim_etrans_front l: (etrans l)° ⋅ wbisimT ≦ wbisimT ⋅ (wtrans l)°.
+    Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_etrans_back. Qed.
+    Lemma wbisim_wtrans_front l: (wtrans l)° ⋅ wbisimT ≦ wbisimT ⋅ (wtrans l)°.
+    Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_wtrans_back. Qed.
+
+(*|
+Explicit, non-algebraic version
+|*)
+    Lemma wbisim_wtrans_front_ p q l p': wtrans l p p' -> p ≈ q -> exists2 q', p' ≈ q' & wtrans l q q'.
+    Proof. intros pp' pq. apply wbisim_wtrans_front. now exists p. Qed.
+
+(*|
+Finally, the proof of transitivity
+|*)
+    #[global] Instance Transitive_wbisim: Transitive wbisim.
+    Proof.
+      assert (square wbisim <= wbisim) as H.
+      apply leq_gfp. apply symmetric_pfp.
+      now rewrite converse_square, cnv_wbisim'.
+      intros x z [y xy yz] l x' xx'.
+      apply (gfp_pfp wb) in xy as [xy _].
+      destruct (xy _ _ xx') as [y' yy' x'y'].
+      destruct (wbisim_wtrans_front_ _ _ _ _ yy' yz) as [z' y'z' zz'].
+      exists z'. assumption. now exists y'.
+      intros x y z xy yz. apply H. now exists y.
+    Qed.
+
+    #[global] Instance Equivalence_wbisim: Equivalence wbisim.
+    Proof.
+      split; typeclasses eauto.
+    Qed.
+
+(*|
+We can now easily derive that [wbisim] is closed under [sbisim]
+|*)
+    #[global] Instance sbisim_wbisim_closed : Proper (sbisim ==> sbisim ==> iff) wbisim.
+    Proof.
+      split; intros.
+      now rewrite <- H, <- H0.
+      now rewrite H, H0.
+    Qed.
+
+(*|
+Visible vs. Invisible Taus
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+The following two lemmas quickly illustrate how weak and strong
+bisimulations relate to visible and invisible choices
+|*)
+
+    Lemma TauI_sb : forall t,
+        TauI t ~ t.
+    Proof.
+      intros t; step; split.
+      - intros l t' H.
+        apply trans_TauI_inv in H.
+        eauto.
+      - intros l t' H. exists t'.
+        apply trans_TauI; auto.
+        cbn; reflexivity.
+    Qed.
+
+    Lemma TauI_wb : forall t,
+        TauI t ≈ t.
+    Proof.
+      intros. now rewrite TauI_sb.
+    Qed.
+
+    Lemma TauV_wb : forall t,
+        TauV t ≈ t.
+    Proof.
+      intros t; step; split.
+      - intros l t' H.
+        apply trans_TauV_inv in H as [EQ ->].
+        exists t'.
+        rewrite EQ. apply wnil.
+        reflexivity.
+      - intros l t' H. exists t'.
+        apply wtrans_TauV.
+        apply trans_wtrans; auto.
+        cbn; reflexivity.
+    Qed.
+
+(*|
+Disproving the transitivity of [wt R]
+-------------------------------------
+|*)
+
     Lemma not_Transitive_wt Z: X -> Z -> E Z -> ~ forall R, Transitive (wt R).
     Proof.
       intros x z e H.
@@ -278,13 +548,13 @@ Section Bisim.
       - intros abs. step in abs; destruct abs as [abs _].
         destruct (abs (obs e z) (Ret x)) as [? step EQ].
         constructor; reflexivity.
-        apply wtrans_ret in step as [[abs' ?] | [abs' ?]]; inv abs'. 
+        apply wtrans_ret_inv in step as [[abs' ?] | [abs' ?]]; inv abs'. 
       - rewrite <- TauV_wb.
         rewrite <- (TauV_wb (Ret x)).
         coinduction ? CIH.
         split.
         + intros l t' tt'.
-          apply TauV_trans in tt' as [EQ ->].
+          apply trans_TauV_inv in tt' as [EQ ->].
           exists (Ret x); auto.
           apply trans_wtrans; constructor; [exact Fin.F1 | reflexivity].
           apply equ_wbisim_subrelation in EQ.
@@ -293,7 +563,7 @@ Section Bisim.
           rewrite <- (subrelation_gfp_t _ (TauV_wb (Ret x))).
           assumption.  (* Here clearly some instances are missing, the rewrite do not work in the other order, and should not require such an explicit low level call *)
         + intros ? ? ?.
-          apply TauV_trans in H0 as [EQ ->].
+          apply trans_TauV_inv in H0 as [EQ ->].
           eexists.
           apply trans_wtrans; constructor; [exact Fin.F1 | reflexivity].
           cbn.
@@ -312,186 +582,18 @@ Section Bisim.
       intros ? y ???. apply (ft_t H). now exists y.
     Qed.
 
-    Definition wbisimT : srel SS SS :=
-      {| hrel_of := wbisim : hrel SS SS |}.
+(*|
+Remarks and TODOs:
+------------------
+- Strong and weak bisimulations are only defined as relations enforcing
+  equality of returned values. We should generalize this when needed.
+- Weak bisimulation can also be defined as the strong game over [wtrans].
+  Are we interested in doing so?
 
-    (** weak bisimilarity is nevertheless transitive, which we prove below *)
+|*)
 
-    (** algebraic refomulation of the right-to-left part of the game *)
-    (* We get to express it in the setoid world or not, not yet sure what's best *)
-    Lemma wbisim_trans_back l: wbisimT ⋅ trans l ≦ wtrans l ⋅ wbisimT.
-    Proof.
-      intros p q' [q pq qq']. apply (gfp_pfp wb) in pq as [_ pq]. now apply pq.
-    Qed.
-    Lemma wbisim_trans_back' l: wbisim ⋅ transR l ≦ (wtrans l : hrel _ _) ⋅ wbisim.
-    Proof.
-      intros p q' [q pq qq']. apply (gfp_pfp wb) in pq as [_ pq]. now apply pq.
-    Qed.
-    (* Lemma wbisim_etrans_back l: wbisim ⋅ etrans l ≦ (wtrans l : hrel _ _) ⋅ wbisim.
- Proof.
-   unfold etrans; destruct l. 2: apply @wbisim_trans_back.
-   ra_normalise. rewrite wbisim_trans_back.
-   unfold wtrans, etrans. ka.
- Qed. *)
-    Lemma wbisim_etrans_back' l: wbisimT ⋅ etrans l ≦ wtrans l ⋅ wbisimT.
-    Proof.
-      unfold etrans; destruct l.
-      2,3: apply @wbisim_trans_back'.
-      ra_normalise. rewrite wbisim_trans_back.
-      unfold wtrans, etrans. ka. 
-    Qed.
-    Lemma wbisim_taus_back': wbisimT ⋅ (trans tau)^* ≦ (trans tau)^* ⋅ wbisimT.
-    Proof.
-      rewrite <-str_invol at 2.
-      apply str_move_l. rewrite wbisim_trans_back. unfold wtrans, etrans. ka.
-    Qed.
-    Lemma wbisim_wtrans_back' l: wbisimT ⋅ wtrans l ≦ wtrans l ⋅ wbisimT.
-    Proof.
-      unfold wtrans.
-      mrewrite wbisim_taus_back'.
-      mrewrite wbisim_etrans_back'.
-      mrewrite wbisim_taus_back'.
-      unfold wtrans, etrans. ka.
-    Qed.
-
-    Lemma cnv_wt R: (wt R: hrel _ _)° ≡ wt R.
-    Proof. apply RelationAlgebra.lattice.antisym; intros ???; now apply Symmetric_wt. Qed.
-    Lemma cnv_wbisim: wbisim° ≡ wbisim.
-    Proof. apply cnv_wt. Qed.
-    Lemma cnv_wbisim': wbisimT° ≡ wbisimT.
-    Proof. apply cnv_wt. Qed.
-
-    (** by symmetry, similar results for left-to-right game *)
-    Lemma wbisim_trans_front l: (trans l)° ⋅ wbisimT ≦ wbisimT ⋅ (wtrans l)°.
-    Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim'. apply wbisim_trans_back'. Qed.
-    Lemma wbisim_etrans_front l: (etrans l)° ⋅ wbisimT ≦ wbisimT ⋅ (wtrans l)°.
-    Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim'. apply wbisim_etrans_back'. Qed.
-    Lemma wbisim_wtrans_front l: (wtrans l)° ⋅ wbisimT ≦ wbisimT ⋅ (wtrans l)°.
-    Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim'. apply wbisim_wtrans_back'. Qed.
-
-    (** explicit, non-algebraic version *)
-    Lemma wbisim_wtrans_front_ p q l p': wtrans l p p' -> p ≈ q -> exists2 q', p' ≈ q' & wtrans l q q'.
-    Proof. intros pp' pq. apply wbisim_wtrans_front. now exists p. Qed.
-
-    Global Instance Equivalence_wbisim: Equivalence wbisim.
-    Proof.
-      split. apply Reflexive_wt. apply Symmetric_wt.
-      assert (square wbisim <= wbisim) as H.
-      apply leq_gfp. apply symmetric_pfp.
-      now rewrite converse_square, cnv_wbisim.
-      intros x z [y xy yz] l x' xx'.
-      apply (gfp_pfp wb) in xy as [xy _].
-      destruct (xy _ _ xx') as [y' yy' x'y'].
-      destruct (wbisim_wtrans_front_ _ _ _ _ yy' yz) as [z' y'z' zz'].
-      exists z'. assumption. now exists y'.
-                                        intros x y z xy yz. apply H. now exists y.
-    Qed.
-
-
-  (* Strong bisimulation played over the weak game, to fix
-
-  (** The function defining weak bisimulations *)
-  Program Definition wb' : mon (rel S S) :=
-    {| body R t u :=
-        (forall l t', wtrans l t t' -> exists2 u', wtrans l u u' & R t' u') /\
-        (forall l u', wtrans l u u' -> exists2 t', wtrans l t t' & R t' u')
-    |}.
-  Next Obligation.
-    intros R1 R2 INCL t u [F B]; split; [intros l t' STEP | intros l u' STEP].
-    - edestruct F; eauto.
-      eexists; eauto; apply INCL; auto.
-    - edestruct B; eauto.
-      eexists; eauto; apply INCL; auto.
-  Qed.
-
-  Notation wbisim' := (gfp wb').
-  Notation "t ≈' u" := (gfp wb' t u) (at level 70).
-  Notation wt' := (t wb').
-  Notation wbt' := (bt wb').
-  (** notations  for easing readability in proofs by enhanced coinduction *)
-  Notation "t [≈'] u" := (wt'  _ t u) (at level 79).
-  Notation "t {≈'} u" := (wbt' _ t u) (at level 79).
-
-  Lemma trans_transs : forall l (t u : S),
-    trans  l t u ->
-    transs l t u.
-  Proof.
-  Admitted.
-  Hint Resolve trans_transs : core.
-
- (** [eq] is a post-fixpoint, thus [const eq] is below [t] *)
-  Lemma refl_wt': const eq <= wt'.
-  Proof.
-   apply leq_t.
-   split; intros; cbn in *; subst; eauto.
-  Qed.
-
-  (** converse is compatible *)
-  Lemma converse_wt': converse <= wt'.
-  Proof.
-    apply leq_t.
-    intros R p q [F B]; split; intros * STEP.
-    edestruct B; eauto.
-    edestruct F; eauto.
-  Qed.
-
-(*
- Lemma cnv_wt R: (wt R: hrel _ _)° ≡ wt R.
- Proof. apply RelationAlgebra.lattice.antisym; intros ???; now apply Symmetric_wt. Qed.
- Lemma cnv_wbisim: wbisim° ≡ wbisim.
- Proof. apply cnv_wt. Qed.
-
- (** by symmetry, similar results for left-to-right game *)
- Lemma wbisim_trans_front l: (trans l)° ⋅ wbisim ≦ wbisim ⋅ (wtrans l)°.
- Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_trans_back. Qed.
- Lemma wbisim_etrans_front l: (etrans l)° ⋅ wbisim ≦ wbisim ⋅ (wtrans l)°.
- Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_etrans_back. Qed.
- Lemma wbisim_wtrans_front l: (wtrans l)° ⋅ wbisim ≦ wbisim ⋅ (wtrans l)°.
- Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_wtrans_back. Qed.
-
- (** explicit, non-algebraic version *)
- Lemma wbisim_wtrans_front_ p q l p': wtrans l p p' -> p ≈ q -> exists2 q', p' ≈ q' & wtrans l q q'.
- Proof. intros pp' pq. apply wbisim_wtrans_front. now exists p. Qed. *)
-
-
-  Lemma wbisim_wtrans_front_ :
-  forall [t u : S] [l : label] [t' : S],
-  transs l t t' ->
-  t ≈' u ->
-  exists2 u' : S, t' ≈' u' & transs l u u'.
-  Proof.
-    intros * STEP eq.
-    trans in eq; destruct eq as [F B].
-    destruct STEP as (v2 & (v1 & s & s') & s'').
-
-
-
-  Lemma wbisim'_trans : forall (u v w : S),
-    u ≈' v ->
-    v ≈' w ->
-    u ≈' w.
-  Proof.
-    coinduction R CIH; intros * eq1 eq2.
-    split.
-    - intros l u' STEP.
-      trans in eq1; destruct eq1 as [F1 B1].
-      apply F1 in STEP as [v' STEP equv].
-      destruct (wbisim_wtrans_front_ STEP eq2); eauto.
-
-  Lemma square_wt': square <= wt'.
-  Proof.
-    apply leq_t.
-    intros R x z [y [F B] [F' B']].
-    split.
-    - cbn; intros.
-      edestruct F; eauto.
-      edestruct F'; eauto.
-    - cbn; intros.
-      edestruct B'; eauto.
-      edestruct B; eauto.
-  Qed.
-   *)
   End Weak.
+
 End Bisim.
 
 Notation sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
