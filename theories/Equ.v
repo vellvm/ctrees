@@ -364,7 +364,7 @@ Proof.
 Qed.
 
 Notation iter_ step i :=
-  (lr <- step i;;
+  (lr <- step%function i;;
    match lr with
    | inl l => TauI (iter step l)
    | inr r => Ret r
