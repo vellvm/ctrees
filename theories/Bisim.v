@@ -38,6 +38,7 @@ module:
 - weak bisimulation is defined as an asymmetric game in which [trans] get
 answered by [wtrans].
 
+.. coq::none
 |*)
 From Coinduction Require Import
      coinduction rel tactics.

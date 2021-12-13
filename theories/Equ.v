@@ -12,6 +12,7 @@ for [itree], but we are trying to avoid this terminology here since
 we reserve the notion of bisimulation for the equivalence relations
 that take internal non-determinism into account.
 
+.. coq:: none
 |*)
 From Coq Require Import RelationClasses Program.
 
@@ -479,7 +480,7 @@ looking for, and the proof of validity of the principle. As
 always with the companion, we prove that it is valid by proving
 that it si below the companion.
 |*)
-  Section Concrete_Bind_ctx.
+  Section Equ_Bind_ctx.
 
     Context {E: Type -> Type} {X1 X2 Y1 Y2: Type}.
 
@@ -516,7 +517,7 @@ The resulting enhancing function gives a valid up-to technique
         red; intros. apply (b_T (fequ _)), kk'; auto.
     Qed.
 
-  End Concrete_Bind_ctx.
+  End Equ_Bind_ctx.
 
 End bind.
 
