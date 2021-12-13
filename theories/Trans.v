@@ -261,6 +261,17 @@ Elimination rules for [trans]
 		intros. apply H. eexists; eassumption.
 	Qed.
 
+	Lemma wconss l: forall p p' p'', wtrans tau p p' -> wtrans l p' p'' -> wtrans l p p''.
+	Proof.
+		assert (wtrans tau ⋅ wtrans l ≦ wtrans l) as H by (unfold wtrans, etrans; ka).
+		intros. apply H. eexists; eassumption.
+	Qed.
+	Lemma wsnocs l: forall p p' p'', wtrans l p p' -> wtrans tau p' p'' -> wtrans l p p''.
+	Proof.
+		assert (wtrans l ⋅ wtrans tau ≦ wtrans l) as H by (unfold wtrans, etrans; ka).
+		intros. apply H. eexists; eassumption.
+	Qed.
+
   Lemma wtrans_tau: wtrans tau ≡ (trans tau)^*.
   Proof.
  	  unfold wtrans, etrans. ka.
@@ -407,8 +418,19 @@ useful.
     step; econstructor; intros abs; inv abs.
   Qed.
 
+  Lemma wtrans_val_inv : forall (x : R) (u : ctree E R),
+      wtrans (val x) u stuck ->
+      exists t, wtrans tau u t /\ trans (val x) t stuck.
+  Proof.
+    intros * TR.
+	  destruct TR as [t2 [t1 step1 step2] step3].
+    exists t1; split.
+    apply wtrans_tau; auto.
+    erewrite <- trans_val_inv; eauto.
+  Qed.
+
 (*|
-etrans theory
+[etrans] theory
 ---------------
 |*)
 
@@ -641,7 +663,6 @@ Lemma trans_bind_l {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E X) 
   trans l (t >>= k) (u >>= k).
 Proof.
   cbn; unfold transR; intros NOV TR.
-  (* rewrite (ctree_eta t), (ctree_eta u). *)
   dependent induction TR; cbn in *.
   - rewrite unfold_bind, <- x.
     cbn.
@@ -678,4 +699,150 @@ Proof.
   - dependent induction Heqv.
     rewrite (ctree_eta t), <- Heqot, unfold_bind; cbn; auto.
 Qed.
+
+(*|
+Forward and backward rules for [wtrans] w.r.t. [bind]
+-----------------------------------------------------
+|*)
+
+Lemma etrans_bind_inv {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) l :
+  etrans l (t >>= k) u ->
+  (~ (is_val l) /\ exists t', etrans l t t' /\ u ≅ t' >>= k) \/
+    (exists (x : X), trans (val x) t stuck /\ etrans l (k x) u).
+Proof.
+  intros TR.
+  apply @etrans_case in TR as [ | (-> & ?)].
+  - apply trans_bind_inv in H as [[? (? & ? & ?)]|( ? & ? & ?)]; eauto.
+    left; split; eauto.
+    eexists; split; eauto; apply trans_etrans; auto.
+    right; eexists; split; eauto; apply trans_etrans; auto.
+  - left; split.
+    intros abs; inv abs.
+    exists t; split; auto using enil; symmetry; auto.
+Qed.
+
+Lemma transs_bind_inv {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) :
+ 	(trans tau)^* (t >>= k) u ->
+  (exists t', (trans tau)^* t t' /\ u ≅ t' >>= k) \/
+    (exists (x : X), wtrans (val x) t stuck /\ (trans tau)^* (k x) u).
+Proof.
+  intros [n TR].
+  revert t k u TR.
+  induction n as [| n IH]; intros; subst.
+  - cbn in TR.
+    left; exists t; split.
+    exists 0%nat; reflexivity.
+    symmetry; auto.
+  - destruct TR as [t1 TR1 TR2].
+    apply trans_bind_inv in TR1 as [(_ & t2 & TR1 & EQ) | (x & TR1 & TR1')].
+    + rewrite EQ in TR2; clear t1 EQ.
+      apply IH in TR2 as [(t3 & TR2 & EQ')| (x & TR2 & TR3)].
+      * left; eexists; split; eauto.
+        apply wtrans_tau; eapply wcons; eauto.
+        apply wtrans_tau; auto.
+      * right; exists x; split; eauto.
+        eapply wcons; eauto.
+    + right.
+      exists x; split.
+      apply trans_wtrans; auto.
+      exists (S n), t1; auto.
+Qed.
+
+(*|
+Things are a bit ugly with [wtrans], we end up with three cases:
+- the reduction entirely takes place in the prefix
+- the computation spills over the continuation, with the label taking place
+in the continuation
+- the computation splills over the continuation, with the label taking place
+in the prefix. This is a bit more annoying to express: we cannot necessarily
+[wtrans l] all the way to a [Ret] as the end of the computation might contain
+just before the [Ret] some invisible choice nodes. We therefore have to introduce
+the last visible state reached by [wtrans] and add a [trans (val _)] afterward.
+|*)
+Lemma wtrans_bind_inv {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) l :
+  wtrans l (t >>= k) u ->
+  (~ (is_val l) /\ exists t', wtrans l t t' /\ u ≅ t' >>= k) \/
+    (exists (x : X), wtrans (val x) t stuck /\ wtrans l (k x) u) \/
+    (exists (x : X) s, wtrans l t s /\ trans (val x) s stuck /\ wtrans tau (k x) u).
+Proof.
+  intros TR.
+	destruct TR as [t2 [t1 step1 step2] step3].
+  apply transs_bind_inv in step1 as [(u1 & TR1 & EQ1)| (x & TR1 & TR1')].
+  - rewrite EQ1 in step2; clear t1 EQ1.
+    apply etrans_bind_inv in step2 as [(H & u2 & TR2 & EQ2)| (x & TR2 & TR2')].
+    + rewrite EQ2 in step3; clear t2 EQ2.
+      apply transs_bind_inv in step3 as [(u3 & TR3 & EQ3)| (x & TR3 & TR3')].
+      * left; split; auto.
+        eexists; split; eauto.
+        exists u2; auto; exists u1; auto.
+      * right; right.
+        apply wtrans_val_inv in TR3 as (u3 & TR2' & TR2'').
+        exists x, u3.
+        split; [|split]; auto.
+        2:apply wtrans_tau; auto.
+        exists u2; [exists u1; assumption | ].
+        apply wtrans_tau; apply wtrans_tau in TR1.
+        eapply wconss; eauto.
+    + right; left.
+      exists x; split.
+      eexists; [eexists |]; eauto; apply wtrans_tau, wnil.
+      eexists; [eexists |]; eauto; apply wtrans_tau, wnil.
+  - right; left.
+    exists x; split; eauto.
+    eexists; [eexists |]; eauto.
+Qed.
+
+Lemma etrans_bind_l {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E X) l :
+  ~ is_val l ->
+  etrans l t u ->
+  etrans l (t >>= k) (u >>= k).
+Proof.
+  destruct l; cbn; try apply trans_bind_l; auto.
+  intros NOV [|].
+  left; apply trans_bind_l; auto.
+  right; rewrite H; auto.
+Qed.
+
+Lemma transs_bind_l {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E X) :
+  (trans tau)^* t u ->
+  (trans tau)^* (t >>= k) (u >>= k).
+Proof.
+  intros [n TR].
+  revert t u TR.
+  induction n as [| n IH].
+  - cbn; intros; exists 0%nat; cbn; rewrite TR; reflexivity.
+  - intros t u [v TR1 TR2].
+    apply IH in TR2.
+    eapply wtrans_tau, wcons.
+    apply trans_bind_l; eauto; intros abs; inv abs.
+    apply wtrans_tau; eauto.
+Qed.
+
+Lemma wtrans_bind_l {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E X) l :
+  ~ (@is_val E l) ->
+  wtrans l t u ->
+  wtrans l (t >>= k) (u >>= k).
+Proof.
+  intros NOV [t2 [t1 TR1 TR2] TR3].
+  eexists; [eexists |].
+  apply transs_bind_l; eauto.
+  apply etrans_bind_l; eauto.
+  apply transs_bind_l; eauto.
+Qed.
+
+(*|
+TODO: not yet sure how this one should be phrased.
+Also probably need a second one when [l] is taken to the left
+|*)
+Lemma wtrans_bind_r {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) x l :
+  wtrans (val x) t stuck ->
+  wtrans l (k x) u ->
+  wtrans l (t >>= k) u.
+Proof.
+  intros NOV [t2 [t1 TR1 TR2] TR3].
+  eexists; [eexists |].
+Admitted.
+
+
+
 
