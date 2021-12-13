@@ -332,16 +332,28 @@ TODO: we need to do some thinking about what the right
 way to represent and manipulate these finite branches.
 |*)
 
-Definition choice2 {E X} (t u : ctree E X) :=
+Definition choiceV2 {E X} (t u : ctree E X) :=
  (ChoiceV 2 (fun b =>
 			   match b with | Fin.F1 => t | _ => u end)).
 
-Definition choice3 {E X} (t u v : ctree E X) :=
+Definition choiceV3 {E X} (t u v : ctree E X) :=
  (ChoiceV 3 (fun (b : fin 3) =>
 			   match b with
 			   | Fin.F1 => t
 			   | Fin.FS Fin.F1 => u
 			   | _ => v end)).
+
+Definition choiceI2 {E X} (t u : ctree E X) :=
+ (ChoiceI 2 (fun b =>
+			   match b with | Fin.F1 => t | _ => u end)).
+
+Definition choiceI3 {E X} (t u v : ctree E X) :=
+ (ChoiceI 3 (fun (b : fin 3) =>
+			   match b with
+			   | Fin.F1 => t
+			   | Fin.FS Fin.F1 => u
+			   | _ => v end)).
+
 
 Notation trigger e :=
 	(CTree.trigger (subevent _ e)).
