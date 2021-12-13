@@ -123,7 +123,6 @@ We now prove the same result, but for strong and weak bisimulation.
 
 Section bind.
 
-
 (*|
 Specialization of [bind_ctx] to the [sbisim]-based closure we are
 looking for, and the proof of validity of the principle. 
@@ -178,7 +177,7 @@ The resulting enhancing function gives a valid up-to technique
         apply (b_T sb).
         apply kk; auto.
       - apply F in STEPres as [u' STEPres EQ'].
-        pose proof (trans_val_inv _ _ _ STEPres) as EQ.
+        pose proof (trans_val_inv STEPres) as EQ.
         rewrite EQ in STEPres.
         specialize (kk v v eq_refl) as [Fk Bk].
         apply Fk in STEP as [u'' STEP EQ'']; cbn in *.
@@ -215,7 +214,6 @@ Sufficient condition to exploit symmetry
       apply H0; auto.
     Qed.
 
-
 (*|
 The resulting enhancing function gives a valid up-to technique
 |*)
@@ -230,7 +228,7 @@ The resulting enhancing function gives a valid up-to technique
       apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
       - apply F in STEP as [u' STEP EQ'].
         eexists.
-        (* TODO: wtrans bind lemmas *)
+
 (*
         apply trans_bind_l; eauto.
         apply (fT_T equ_clos_t).
@@ -252,90 +250,54 @@ The resulting enhancing function gives a valid up-to technique
  *)
         Admitted.
 
-
-    (* this gives a valid up-to technique *)
-    (* research question: is there a meaningful way do deal with bind_ctx in general? *)
-    Lemma bind_ctx_equ_t (SS : rel X X') (RR : rel Y Y'): bind_ctx' SS <= t_equ RR.
-    Proof.
-      apply Coinduction. intros R. apply (leq_bind_ctx _).
-      intros x x' xx' k k' kk'.
-      apply (gfp_pfp (fequ _)) in xx'.
-      cbn; unfold observe; cbn.
-      destruct xx'.
-      - cbn in *.
-        generalize (kk' _ _ REL).
-        apply (fequ RR).
-        apply id_T.
-      - constructor; intros ?. apply (fTf_Tf (fequ _)).
-        apply in_bind_ctx. apply REL.
-        red; intros. apply (b_T (fequ _)), kk'; auto.
-      - constructor. intro a. apply (fTf_Tf (fequ _)).
-        apply in_bind_ctx. apply REL.
-        red; intros. apply (b_T (fequ _)), kk'; auto.
-    Qed.
-
   End Wbisim_Bind_ctx.
-
 
 End bind.
 
+(*|
+Expliciting the reasoning rule provided by the up-to principles.
+|*)
+Lemma sbisim_clo_bind (E: Type -> Type) (X Y : Type) :
+	forall (t1 t2 : ctree E X) (k1 k2 : X -> ctree E Y) RR,
+		t1 ~ t2 ->
+    (forall x, (st RR) (k1 x) (k2 x)) ->
+    st RR (t1 >>= k1) (t2 >>= k2)
+.
+Proof.
+  intros.
+  apply (ft_t (@bind_ctx_sbisim_t E X Y)).
+  apply in_bind_ctx; auto.
+  intros ? ? <-; auto.
+Qed.
 
-    (* specialisation to a function acting with [sbisim] on the bound value, and with the argument (pointwise) on the continuation *)
-    Program Definition bind_ctx_sbisim : mon (rel (ctree E Y1) (ctree E Y1)) :=
-      {|body := fun R => @bind_ctx E X1 X1 Y1 Y1 sbisim (pointwise eq R) |}.
-    Next Obligation.
-      intros ?? H. apply leq_bind_ctx. intros ?? H' ?? H''.
-      apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
-    Qed.
+Lemma wbisim_clo_bind (E: Type -> Type) (X Y : Type) :
+	forall (t1 t2 : ctree E X) (k1 k2 : X -> ctree E Y) RR,
+		t1 ≈ t2 ->
+    (forall x, (wt RR) (k1 x) (k2 x)) ->
+    wt RR (t1 >>= k1) (t2 >>= k2)
+.
+Proof.
+  intros.
+  apply (ft_t (@bind_ctx_wbisim_t E X Y)).
+  apply in_bind_ctx; auto.
+  intros ? ? <-; auto.
+Qed.
 
-    (* Inverting transitions from binds *)
-    (* this gives a valid up-to technique *)
-    Lemma bind_ctx_sbisim_t : bind_ctx_sbisim <= st.
-    Proof.
-      apply Coinduction. intros R. apply (leq_bind_ctx _).
-      intros x x' xx' k k' kk'.
-      step in xx'; destruct xx' as (F & B); cbn in *.
-      split.
-      - cbn; intros l t' STEP. 
-      destruct xx'.
-      - cbn in *.
-        generalize (kk' _ _ REL).
-        apply (fequ RR).
-        apply id_T.
-      - constructor; intros ?. apply (fTf_Tf (fequ _)).
-        apply in_bind_ctx. apply REL.
-        red; intros. apply (b_T (fequ _)), kk'; auto.
-      - constructor. intro a. apply (fTf_Tf (fequ _)).
-        apply in_bind_ctx. apply REL.
-        red; intros. apply (b_T (fequ _)), kk'; auto.
-    Qed.
+(*|
+And in particular, we get the proper instance justifying rewriting [~]
+and [≈] to the left of a [bind].
+|*)
+#[global] Instance bind_sbisim_cong :
+ forall (E : Type -> Type) (X Y : Type) (R : rel Y Y) RR,
+   Proper (sbisim ==> pointwise_relation X (st RR) ==> st RR) (@bind E X Y).
+Proof.
+  repeat red; intros; eapply sbisim_clo_bind; eauto.
+Qed.
 
-    (* specialisation to a function acting with [sbisim] on the bound value, and with the argument (pointwise) on the continuation *)
-    Program Definition bind_ctx_wbisim {E X Y1 Y2}: mon (rel (ctree E Y1) (ctree E Y2)) :=
-      {|body := fun R => @bind_ctx E X X Y1 Y2 wbisim (pointwise eq R) |}.
-    Next Obligation.
-      intros ?????? H. apply leq_bind_ctx. intros ?? H' ?? H''.
-      apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
-    Qed.
-
-    (* this gives a valid up-to technique *)
-    (* research question: is there a meaningful way do deal with bind_ctx in general? *)
-    Lemma bind_ctx_equ_t (SS : rel X X') (RR : rel Y Y'): bind_ctx' SS <= t_equ RR.
-    Proof.
-      apply Coinduction. intros R. apply (leq_bind_ctx _).
-      intros x x' xx' k k' kk'.
-      apply (gfp_pfp (fequ _)) in xx'.
-      cbn; unfold observe; cbn.
-      destruct xx'.
-      - cbn in *.
-        generalize (kk' _ _ REL).
-        apply (fequ RR).
-        apply id_T.
-      - constructor; intros ?. apply (fTf_Tf (fequ _)).
-        apply in_bind_ctx. apply REL.
-        red; intros. apply (b_T (fequ _)), kk'; auto.
-      - constructor. intro a. apply (fTf_Tf (fequ _)).
-        apply in_bind_ctx. apply REL.
-        red; intros. apply (b_T (fequ _)), kk'; auto.
-    Qed.
+#[global] Instance bind_wbisim_cong :
+ forall (E : Type -> Type) (X Y : Type) (R : rel Y Y) RR,
+   Proper (wbisim ==> pointwise_relation X (wt RR) ==> wt RR) (@bind E X Y).
+Proof.
+  repeat red; intros; eapply wbisim_clo_bind; eauto.
+Qed.
 
