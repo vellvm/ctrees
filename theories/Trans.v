@@ -53,6 +53,10 @@ Import CTree.
 Import CTreeNotations.
 Open Scope ctree.
 
+Set Implicit Arguments.
+Set Contextual Implicit.
+Set Primitive Projections.
+
 (*|
 .. coq::
 |*)
@@ -190,6 +194,12 @@ internal steps, a labelled step, and a new sequence of internal ones
 	Definition wtrans l : srel SS SS :=
 		(trans tau)^* ⋅ etrans l ⋅ (trans tau)^*.
 
+	Definition pwtrans l : srel SS SS :=
+		(trans tau)^* ⋅ trans l ⋅ (trans tau)^*.
+
+  Definition tautrans : srel SS SS :=
+	  (trans tau)^+.
+
 (*|
 ----------------------------------------------
 Elementary theory for the transition relations
@@ -232,6 +242,14 @@ Elimination rules for [trans]
 	Qed.
 	Lemma trans_wtrans l: trans l ≦ wtrans l.
 	Proof. rewrite trans_etrans. apply etrans_wtrans. Qed.
+	Lemma tautrans_wtrans : tautrans ≦ wtrans tau.
+	Proof.
+		unfold tautrans, wtrans, etrans; ka.
+	Qed.
+	Lemma pwtrans_wtrans l : pwtrans l ≦ wtrans l.
+	Proof.
+		unfold pwtrans, wtrans, etrans; case l; ka.
+	Qed.
 
 	Lemma trans_etrans_ l: forall p p', trans l p p' -> etrans l p p'.
 	Proof. apply trans_etrans. Qed.
@@ -239,6 +257,10 @@ Elimination rules for [trans]
 	Proof. apply trans_wtrans. Qed.
 	Lemma etrans_wtrans_ l: forall p p', etrans l p p' -> wtrans l p p'.
 	Proof. apply etrans_wtrans. Qed.
+	Lemma tautrans_wtrans_ : forall p p', tautrans p p' -> wtrans tau p p'.
+	Proof. apply tautrans_wtrans. Qed.
+	Lemma pwtrans_wtrans_ l : forall p p', pwtrans l p p' -> wtrans l p p'.
+	Proof. apply pwtrans_wtrans. Qed.
 
 	(* Global Hint Resolve trans_etrans_ trans_wtrans_: ccs. *)
 
@@ -277,7 +299,12 @@ Elimination rules for [trans]
  	  unfold wtrans, etrans. ka.
 	Qed.
 
- 	Global Instance PreOrder_wtrans_tau: PreOrder (wtrans tau).
+  Lemma pwtrans_tau: pwtrans tau ≡ (trans tau)^+.
+  Proof.
+ 	  unfold pwtrans, etrans. ka.
+	Qed.
+
+ 	#[global] Instance PreOrder_wtrans_tau: PreOrder (wtrans tau).
  	Proof.
     split.
     intro. apply wtrans_tau.
@@ -330,7 +357,7 @@ Backward reasoning for [trans]
 	Lemma trans_TauV : forall t,
 		  trans tau (TauV t) t.
 	Proof.
-    intros; apply (trans_ChoiceV 1 (fun _ => t) Fin.F1).
+    intros; apply (@trans_ChoiceV 1%nat (fun _ => t) Fin.F1).
 	Qed.
 
 (*|
@@ -830,19 +857,129 @@ Proof.
   apply transs_bind_l; eauto.
 Qed.
 
+Lemma wtrans_case {E X} (t u : ctree E X) l:
+  wtrans l t u ->
+  t ≅ u \/ (exists v, trans l t v /\ wtrans tau v u) \/ (exists v, trans tau t v /\ wtrans l v u).
+Proof.
+  intros [t2 [t1 [n TR1] TR2] TR3].
+  destruct n as [| n].
+  - apply wtrans_tau in TR3.
+    cbn in TR1; rewrite <- TR1 in TR2.
+    destruct l; eauto.
+    destruct TR2; eauto.
+    cbn in H; rewrite <- H in TR3.
+    apply wtrans_tau in TR3.
+    destruct TR3 as [[| n] ?]; eauto.
+    destruct H0 as [? ? ?]; right; left; eexists; split; eauto.
+    apply wtrans_tau; exists n; auto.
+  - destruct TR1 as [? ? ?].
+    right; right.
+    eexists; split; eauto.
+    exists t2; [exists t1|]; eauto.
+    exists n; eauto.
+Qed.
+
+Lemma pwtrans_case {E X} (t u : ctree E X) l:
+  pwtrans l t u ->
+  (exists v, trans l t v /\ wtrans tau v u) \/ (exists v, trans tau t v /\ wtrans l v u).
+Proof.
+  intros [t2 [t1 [n TR1] TR2] TR3].
+  destruct n as [| n].
+  - apply wtrans_tau in TR3.
+    cbn in TR1; rewrite <- TR1 in TR2. eauto.
+  - destruct TR1 as [? ? ?].
+    right.
+    eexists; split; eauto.
+    exists t2; [exists t1|]; eauto.
+    exists n; eauto.
+    apply trans_etrans; auto.
+Qed.
+
 (*|
-TODO: not yet sure how this one should be phrased.
-Also probably need a second one when [l] is taken to the left
+It's a bit annoying that we need two cases in this lemma, but if
+[t = TauI (Ret x)] and [u = k x], we can process the [TauI] node
+by taking the [Ret] in the prefix, but we cannot process it to
+reach [u] in the bound computation.
 |*)
 Lemma wtrans_bind_r {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) x l :
   wtrans (val x) t stuck ->
   wtrans l (k x) u ->
-  wtrans l (t >>= k) u.
+  (u ≅ k x \/ wtrans l (t >>= k) u).
 Proof.
-  intros NOV [t2 [t1 TR1 TR2] TR3].
-  eexists; [eexists |].
-Admitted.
+  intros TR1 TR2.
+  apply wtrans_val_inv in TR1 as (t' & TR1 & TR1').
+  eapply wtrans_bind_l in TR1; [| intros abs; inv abs].
+  apply wtrans_case in TR2 as [? | [|]].
+  - left; symmetry; assumption.
+  - right;eapply wconss; [apply TR1 | clear t TR1].
+    destruct H as (? & ? & ?).
+    eapply trans_bind_r in TR1'; eauto.
+    eapply wsnocs; eauto.
+    apply trans_wtrans; auto.
+  - right;eapply wconss; [apply TR1 | clear t TR1].
+    destruct H as (? & ? & ?).
+    eapply trans_bind_r in TR1'; eauto.
+    eapply wconss; [|eauto].
+    apply trans_wtrans; auto.
+Qed.
 
+Lemma wtrans_bind_r' {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) x l :
+  wtrans (val x) t stuck ->
+  pwtrans l (k x) u ->
+  (wtrans l (t >>= k) u).
+Proof.
+  intros TR1 TR2.
+  apply wtrans_val_inv in TR1 as (t' & TR1 & TR1').
+  eapply wtrans_bind_l in TR1; [| intros abs; inv abs].
+  apply pwtrans_case in TR2 as [? | ].
+  - eapply wconss; [apply TR1 | clear t TR1].
+    destruct H as (? & ? & ?).
+    eapply trans_bind_r in TR1'; eauto.
+    eapply wsnocs; eauto.
+    apply trans_wtrans; auto.
+  - eapply wconss; [apply TR1 | clear t TR1].
+    destruct H as (? & ? & ?).
+    eapply trans_bind_r in TR1'; eauto.
+    eapply wconss; [|eauto].
+    apply trans_wtrans; auto.
+Qed.
 
+Lemma trans_val_invT {E R R'}:
+  forall (t u : ctree E R) (v : R'),
+    trans (val v) t u ->
+    R = R'.
+Proof.
+  intros * TR.
+  remember (val v) as ov.
+  induction TR; intros; auto; try now inv Heqov.
+Qed.
 
+Lemma wtrans_bind_lr {E X Y} (t u : ctree E X) (k : X -> ctree E Y) (v : ctree E Y) x l :
+  pwtrans l t u ->
+  wtrans (val x) u stuck ->
+  pwtrans tau (k x) v ->
+  (wtrans l (t >>= k) v).
+Proof.
+  intros [t2 [t1 TR1 TR1'] TR1''] TR2 TR3.
+  exists (x <- t2;; k x).
+  - assert (~ is_val l).
+    {
+      destruct l; try now intros abs; inv abs.
+      exfalso.
+      pose proof (trans_val_invT TR1'); subst.
+      apply trans_val_inv in TR1'.
+      rewrite TR1' in TR1''.
+      apply transs_is_stuck_inv in TR1''; [| apply stuck_is_stuck].
+      rewrite <- TR1'' in TR2.
+      apply wtrans_is_stuck_inv in TR2; [| apply stuck_is_stuck].
+      destruct TR2 as [abs _]; inv abs.
+    }
+    eexists.
+    2:apply trans_etrans, trans_bind_l; eauto.
+    apply wtrans_tau; eapply wtrans_bind_l; [intros abs; inv abs| apply wtrans_tau; auto].
+  - apply wtrans_tau.
+    eapply wconss.
+    eapply wtrans_bind_l; [intros abs; inv abs| apply wtrans_tau; eauto].
+    eapply wtrans_bind_r'; eauto.
+Qed.
 
