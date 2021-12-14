@@ -26,8 +26,11 @@ Variant yieldE S : Type -> Type :=
 Variant spawnE : Type -> Type :=
 | Spawn : spawnE bool.
 
-(* CoInductive spawnE C (E : Type -> Type) : Type -> Type := *)
-(* | Spawn : forall (t: Monads.stateT C (ctree (E +' spawnE C E)) unit), spawnE C E unit. *)
+(* Fixpoint remove_at {A} {n : nat} {H : n > 0} (l : fin n -> A) (i : fin n) : fin (n - 1) -> A := *)
+(*   fun (i' : fin (n - 1)) => *)
+(*     _ *)
+(* . *)
+
 
 (** return one of the elements in [x :: xs], as well as the complete list of unchosen elements *)
 Fixpoint choose' {E} {X} (x : X) (xs : list X) (rest : list X) :
@@ -39,7 +42,7 @@ Fixpoint choose' {E} {X} (x : X) (xs : list X) (rest : list X) :
          (Ret (x, (x' :: xs) ++ rest)) (* [x] *)
          (choose' x' xs (x :: rest)) (* not [x] *)
      end.
-Definition choose {E} {X} x xs : ctree E (X * list X) :=
+Definition choose {E} {X} (x : X) (xs : list X) : ctree E (X * list X) :=
   choose' x xs [].
 
 Section parallel.
@@ -59,10 +62,8 @@ Section parallel.
       match (observe (curr s)) with
       | RetF (s', _) => match rest with
                        | [] => Ret (s', tt)
-                                  (* Wrong here *)
-                       | h :: t => TauI (schedule h t s')
-                       (* | h :: t => '(curr', rest') <- choose h t;; *)
-                       (*           TauI (par curr' rest' s') *)
+                       | h :: t => '(curr', rest') <- choose h t;;
+                                 TauI (schedule curr' rest' s')
                        end
       | ChoiceF b n k => Choice b n (fun c => (schedule (fun _ => k c) rest s))
       | VisF (inl1 e) k =>
@@ -84,23 +85,6 @@ Section parallel.
   Proof.
     step. eauto.
   Qed.
-
-  (* no longer true with the new spawn events *)
-  (* Lemma par_empty : *)
-  (*   forall t c, par t [] c ≅ t c. *)
-  (* Proof. *)
-  (*   coinduction r CIH. intros. cbn. *)
-  (*   destruct (observe (t c)) eqn:?. *)
-  (*   - rewrite rewrite_par. unfold par_match. rewrite Heqc0. *)
-  (*     destruct r0, u. constructor; auto. *)
-  (*   - rewrite rewrite_par. unfold par_match. rewrite Heqc0. destruct e. *)
-  (*     + destruct y. unfold choose, choose'. cbn. constructor; apply CIH. *)
-  (*     + destruct s. *)
-  (* (*   - eapply equ_equF. apply rewrite_par. eauto. *) *)
-  (* (*     unfold par_match. rewrite Heqc0. *) *)
-  (* (*     cbn. constructor; intros; eapply CIH. *) *)
-  (*       (* Qed. *) *)
-  (* Abort. *)
 
   Fixpoint list_relation {T} (P : relation T) (l1 l2 : list T) : Prop :=
     match l1, l2 with
@@ -125,23 +109,22 @@ Section parallel.
     induction l1; destruct l2; intros Hl Hr; inv Hl; try split; auto.
   Qed.
 
-  (*
-  Lemma equ_par_helper k1 k2 l1 l2 s r
+  Lemma equ_schedule_helper k1 k2 l1 l2 s r
         (CIH : forall (x y : config -> ctree (parE config) (config * ()))
                  (x0 y0 : list (config -> ctree (parE config) (config * ())))
                  (y1 : config),
             pointwise_relation config (equ eq) x y ->
             list_relation (pointwise_relation config (equ eq)) x0 y0 ->
-            t_equ eq r (par x x0 y1) (par y y0 y1)) :
+            t_equ eq r (schedule x x0 y1) (schedule y y0 y1)) :
     forall r1 r2,
     pointwise_relation config (equ eq) k1 k2 ->
     list_relation (pointwise_relation _ (equ eq)) l1 l2 ->
     list_relation (pointwise_relation _ (equ eq)) r1 r2 ->
     equF eq (t_equ eq r)
          (observe ('(curr', rest') <- choose' k1 l1 r1;;
-                   Vis (inl1 (Yield _ s)) (fun s' => (par curr' rest' s'))))
+                   TauI (schedule curr' rest' s)))
          (observe ('(curr', rest') <- choose' k2 l2 r2;;
-                   Vis (inl1 (Yield _ s)) (fun s' => (par curr' rest' s')))).
+                   TauI (schedule curr' rest' s))).
   Proof.
     revert l2 k1 k2.
     induction l1; destruct l2; intros k1 k2 r1 r2 Hk Hl Hr; inv Hl.
@@ -152,18 +135,18 @@ Section parallel.
       + step. eapply IHl1; eauto. constructor; auto.
   Qed.
 
-  #[global] Instance equ_par :
+  #[global] Instance equ_schedule :
     Proper ((pointwise_relation _ (equ eq)) ==> (list_relation (pointwise_relation _ (equ eq))) ==> eq ==> equ eq)
-           par.
+           schedule.
   Proof.
     repeat intro. subst. revert H H0. revert x y x0 y0 y1. coinduction r CIH. intros t1 t2 l1 l2 c Ht Hl.
-    do 2 rewrite rewrite_par. unfold par_match. simpl.
+    do 2 rewrite rewrite_schedule. unfold schedule_match. simpl.
     specialize (Ht c). step in Ht. inv Ht; eauto. 2: destruct e.
     - destruct y. destruct l1, l2; inv Hl; auto.
-      constructor; eauto.
+      apply equ_schedule_helper; auto.
     - clear H H0. destruct y.
       unfold choose.
-      apply equ_par_helper; auto.
+      apply equ_schedule_helper; auto.
     - destruct s. constructor. intros. apply CIH.
       + intro. apply REL.
       + constructor; auto. intro. auto.
@@ -171,27 +154,88 @@ Section parallel.
       intro. apply REL.
   Qed.
 
-  (* Lemma observe_par t s r : *)
-  (*   t s ≅ Ret r -> *)
-  (*   observe (par t [] s) = RetF r. *)
-  (* Proof. *)
-  (*   intros. destruct r, u. step in H. inv H. *)
-  (*   intros. rewrite rewrite_par'. unfold par_match. rewrite H. destruct r, u; auto. *)
-  (* Qed. *)
+  Require Import Coq.micromega.Lia.
 
-  (* Lemma par_empty : *)
-  (*   forall t s, par (fun s' : config => par t [] s') [] s ≅ par t [] s. *)
-  (* Proof. *)
-  (*   coinduction r CIH. intros t s. *)
-  (*   pose proof rewrite_par. specialize (H t [] s). step in H. unfold par_match in H. *)
-  (*   do 2 rewrite rewrite_par. unfold par_match. *)
-  (*   destruct (observe (t s)) eqn:?. 2: destruct e. *)
-  (*   - destruct r0, u. inv H; auto. *)
-  (*   - destruct y. cbn in H. inv H. apply inj_pair2 in H3, H4. subst. *)
-  (*     unfold choose, choose'. cbn. constructor; auto. intros. admit. *)
-  (*   - destruct s0. inv H. apply inj_pair2 in H3. subst. *)
-  (* Qed. *)
+  Definition vec n := fin n -> thread.
 
-   *)
+  Fixpoint remove_front_vec {n : nat} (v : vec (S n)) : vec n :=
+    fun i => v (Fin.FS i).
+
+  Program Fixpoint remove_vec {n : nat} (v : vec (S n)) (i : fin (S n)) : vec n :=
+    match i with
+    (* this is the one we're removing, so bump [i'] by one *)
+    | Fin.F1 => remove_front_vec v
+    (* not yet at the index we want to ignore *)
+    | Fin.FS j => fun i' =>
+                   match i' with
+                   | Fin.F1 => v Fin.F1
+                   | Fin.FS j' => remove_vec (remove_front_vec v) j j'
+                   end
+    end.
+
+  Definition replace_vec {n : nat} (v : vec n) (i : fin n) (t : thread) : vec n :=
+    fun i' => if Fin.eqb i i' then t else v i'.
+
+  Program Definition append_vec {n : nat} (v : vec n) (t : thread) : vec (S n) :=
+    fun i => let i' := Fin.to_nat i in
+          match PeanoNat.Nat.eqb (`i') n with
+          | true => t
+          | false => v (@Fin.of_nat_lt (`i') _ _)
+          end.
+  Next Obligation.
+    (* why is the space after ` necessary...... *)
+    assert ((` (Fin.to_nat i)) <> n).
+    {
+      pose proof (Bool.reflect_iff _ _ (PeanoNat.Nat.eqb_spec (` (Fin.to_nat i)) n)).
+      intro. rewrite H in H0. rewrite H0 in Heq_anonymous. inv Heq_anonymous.
+    }
+    pose proof (proj2_sig (Fin.to_nat i)).
+    simpl in H0. lia.
+  Defined.
+
+  Definition schedule'_match
+          (schedule' : forall (n : nat), vec n -> vec n)
+          (n : nat)
+          (v: vec n)
+    : vec n.
+    refine
+      (fun (i : fin n) s =>
+         match (observe (v i s)) with
+         | RetF (s', _) =>
+           match n as m return n = m -> _ with
+           | 0 => _
+           | S n' => match n' as m return n' = m -> _ with
+                   | 0 => fun H1 H2 => Ret (s', tt)
+                   | S n'' => fun H1 H2 => ChoiceI
+                                       n'
+                                       (fun i' => schedule' n' (remove_vec _ _) i' s')
+                   end (eq_refl n')
+           end (eq_refl n)
+         | ChoiceF b n' k => Choice b n' (fun c => schedule' n (replace_vec v i (fun _ => k c)) i s)
+         | VisF (inl1 e) k =>
+           match e in yieldE _ R return (R -> ctree (parE config) (config * unit)) -> _ with
+           | Yield _ s' =>
+             fun k => ChoiceI
+                     n
+                     (fun i' => schedule' n (replace_vec v i k) i' s')
+           end k
+         | VisF (inr1 e) k =>
+           match e in spawnE R return (R -> ctree (parE config) (config * unit)) -> _ with
+           | Spawn =>
+             fun k =>
+               TauI (schedule'
+                       (S n)
+                       (append_vec (replace_vec v i (fun _ => k false)) (fun _ => k true))
+                       (* The [i] here means that we don't yield at a spawn *)
+                       (Fin.L_R 1 i) (* view [i] as a [fin (n + 1)] *)
+                       s) (* this [s] doesn't matter, since the running thread won't use it *)
+           end k
+         end).
+    - intro. subst. inv i.
+    - subst. apply v.
+    - subst. apply i.
+  Defined.
+
+  CoFixpoint schedule' := schedule'_match schedule'.
 
 End parallel.
