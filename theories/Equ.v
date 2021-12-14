@@ -346,9 +346,9 @@ Proof.
   now step.
 Qed.
 
-Lemma unfold_spin {E R} : @spin E R ≅ TauI spin.
+Lemma unfold_spinI {E R} : @spinI E R ≅ TauI spinI.
 Proof.
-  exact (ctree_eta spin).
+  exact (ctree_eta spinI).
 Qed.
 
 Notation bind_ t k :=

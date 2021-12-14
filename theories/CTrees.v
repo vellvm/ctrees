@@ -258,9 +258,12 @@ Definition ignore {E R} : ctree E R -> ctree E unit :=
 Infinite taus.
 |*)
 
-CoFixpoint spin {E R} : ctree E R := TauI spin.
-CoFixpoint spin_nary {E R} (n : nat) : ctree E R :=
-	ChoiceV n (fun _ => spin_nary n).
+CoFixpoint spinI {E R} : ctree E R := TauI spinI.
+CoFixpoint spinV {E R} : ctree E R := TauV spinV.
+CoFixpoint spinI_nary {E R} (n : nat) : ctree E R :=
+	ChoiceI n (fun _ => spinI_nary n).
+CoFixpoint spinV_nary {E R} (n : nat) : ctree E R :=
+	ChoiceV n (fun _ => spinV_nary n).
 
 (*|
 Repeat a computation infinitely.

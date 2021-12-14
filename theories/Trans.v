@@ -483,7 +483,8 @@ useful.
 Stuck processes
 ---------------
 A process is said to be stuck if it cannot step. The [stuck] process used
-to reduce pure computations if course stuck, but so is [spin].
+to reduce pure computations if course stuck, but so is [spinI], while [spinV]
+is not.
 |*)
 
   Definition is_stuck : ctree E R -> Prop :=
@@ -537,20 +538,42 @@ to reduce pure computations if course stuck, but so is [spin].
     red; intros * abs; inv abs; inv x.
   Qed.
 
-  Lemma spin_is_stuck :
-    is_stuck spin.
+  Lemma spinI_nary_is_stuck n :
+    is_stuck (spinI_nary n).
   Proof.
     red; intros * abs.
-    remember spin as t.
-    assert (EQ: t ≅ spin) by (subst; reflexivity); clear Heqt; revert EQ; rewrite ctree_eta.
-    induction abs; auto; try now (rewrite unfold_spin; intros abs; step in abs; inv abs).
+    remember (spinI_nary n) as t.
+    assert (EQ: t ≅ spinI_nary n) by (subst; reflexivity); clear Heqt; revert EQ; rewrite ctree_eta.
+    induction abs; auto; try now (rewrite ctree_eta; intros abs; step in abs; inv abs).
     intros EQ; apply IHabs.
     rewrite <- ctree_eta.
-    rewrite unfold_spin in EQ.
+    rewrite ctree_eta in EQ.
+    step in EQ; cbn in *.
+    dependent induction EQ; auto.
+  Qed.
+
+  Lemma spinI_is_stuck :
+    is_stuck spinI.
+  Proof.
+    red; intros * abs.
+    remember spinI as t.
+    assert (EQ: t ≅ spinI) by (subst; reflexivity); clear Heqt; revert EQ; rewrite ctree_eta.
+    induction abs; auto; try now (rewrite unfold_spinI; intros abs; step in abs; inv abs).
+    intros EQ; apply IHabs.
+    rewrite <- ctree_eta.
+    rewrite unfold_spinI in EQ.
     step in EQ.
     dependent induction EQ; auto.
   Qed.
 
+  Lemma spinV_is_not_stuck :
+    ~ (is_stuck spinV).
+  Proof.
+    red; intros * abs.
+    apply (abs tau spinV).
+    rewrite ctree_eta at 1; cbn.
+    constructor; [exact Fin.F1 | reflexivity].
+  Qed.
 
 (*|
 wtrans theory

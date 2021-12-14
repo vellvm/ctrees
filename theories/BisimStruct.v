@@ -294,45 +294,45 @@ Qed.
 Module Sanity.
   Import CTree.
 
-  Lemma schedule_spin {E R} t : schedule_ (observe (@spin E R)) t -> False.
+  Lemma schedule_spinI {E R} t : schedule_ (observe (@spinI E R)) t -> False.
   Proof.
     intros.
-    remember (observe spin).
+    remember (observe spinI).
     induction H; inversion Heqc.
     cbv in *. subst. apply inj_pair2 in H3. subst. auto.
   Qed.
 
-  Goal forall {E R}, @spin E R ≈ spin.
+  Goal forall {E R}, @spinI E R ≈ spinI.
   Proof.
     intros. reflexivity.
   Qed.
 
-  Lemma schedule_spin_nary {E R} n t : schedule_ (observe (@spin_nary E R n)) t -> False.
+  Lemma schedule_spinI_nary {E R} n t : schedule_ (observe (@spinI_nary E R n)) t -> False.
   Proof.
     intros.
-    remember (observe (spin_nary n)).
+    remember (observe (spinI_nary n)).
     induction H; inversion Heqc.
     cbv in *. subst. apply inj_pair2 in H3. subst. auto.
   Qed.
 
   #[global] Hint Unfold bisim : core.
-  Goal forall {E R} n m, @spin_nary E R n ≈ spin_nary m.
+  Goal forall {E R} n m, @spinI_nary E R n ≈ spinI_nary m.
   Proof.
     intros. unfold bisim. step.
-    constructor; intros; exfalso; eapply schedule_spin_nary; eauto.
+    constructor; intros; exfalso; eapply schedule_spinI_nary; eauto.
   Qed.
 
-  Goal forall {E R} n, @spin_nary E R n ≈ spin.
+  Goal forall {E R} n, @spinI_nary E R n ≈ spinI.
   Proof.
     intros. unfold bisim. step.
     constructor; intros; exfalso.
-    - eapply schedule_spin_nary; eauto.
-    - eapply schedule_spin; eauto.
+    - eapply schedule_spinI_nary; eauto.
+    - eapply schedule_spinI; eauto.
   Qed.
 
   Lemma choice2_assoc : forall {E X} (t u v : ctree E X),
-	  choice2 (choice2 t u) v ≈
-      choice2 t (choice2 u v).
+	  choiceV2 (choiceV2 t u) v ≈
+      choiceV2 t (choiceV2 u v).
   Proof.
     intros. unfold bisim. step. constructor.
     - intros. exists u'. split.
@@ -356,7 +356,7 @@ Module Sanity.
   Qed.
 
   Lemma choice2_commut : forall {E X} (t u : ctree E X),
-	  choice2 t u ≈ choice2 u t.
+	  choiceV2 t u ≈ choiceV2 u t.
   Proof.
     intros. unfold bisim. step. constructor.
     - intros. exists u'. split.
@@ -373,8 +373,8 @@ Module Sanity.
 
   (* To generalize to any arity *)
   Lemma choice_merge : forall {E X} (t u v : ctree E X),
-	  choice2 (choice2 t u) v ≈
-		      choice3 t u v.
+	  choiceV2 (choiceV2 t u) v ≈
+		      choiceV3 t u v.
   Proof.
     intros. unfold bisim. step. constructor.
     - intros. exists u'. split.
@@ -395,14 +395,14 @@ Module Sanity.
         * apply SchedChoice with (x0:=Fin.FS Fin.F1); auto.
   Qed.
 
-  Lemma choice2_spin : forall {E X} (t : ctree E X),
-	  choice2 t spin ≈ t.
+  Lemma choice2_spinI : forall {E X} (t : ctree E X),
+	  choiceV2 t spinI ≈ t.
   Proof.
     intros. unfold bisim. step. constructor.
     - intros. exists u'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
       inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn; auto.
-      exfalso. eapply schedule_spin; eauto.
+      exfalso. eapply schedule_spinI; eauto.
     - intros. exists t'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
       apply SchedChoice with (x:=Fin.F1); auto.
@@ -410,7 +410,7 @@ Module Sanity.
 
   Lemma choice2_equ : forall {E X} (t u : ctree E X),
 	  t ≅ u ->
-	  choice2 t u ≈ t.
+	  choiceV2 t u ≈ t.
   Proof.
     intros. unfold bisim. step. constructor.
     - intros. exists u'. split.
@@ -424,12 +424,12 @@ Module Sanity.
       apply SchedChoice with (x:=Fin.F1); auto.
   Abort.
 
-  Lemma choice0_spin : forall {E X},
-    ChoiceV 0 (fun x:fin 0 => match x with end) ≈ @spin E X.
+  Lemma choice0_spinI : forall {E X},
+    ChoiceV 0 (fun x:fin 0 => match x with end) ≈ @spinI E X.
   Proof.
     intros; unfold bisim; step; constructor; intros * SCHED.
     inv SCHED; inv x.
-    exfalso; eapply schedule_spin; eauto.
+    exfalso; eapply schedule_spinI; eauto.
   Qed.
 
 End Sanity.

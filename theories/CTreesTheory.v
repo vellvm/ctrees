@@ -9,7 +9,8 @@ From Coq Require Import
      Program
      Setoid
      Morphisms
-     RelationClasses.
+     RelationClasses
+     Psatz.
 
 From Coinduction Require Import
 	   coinduction rel tactics.
@@ -111,6 +112,29 @@ Proof.
   apply (f_Tf wb).
   econstructor; intuition.
   auto.
+Qed.
+
+(*|
+We can therefore rewrite [equ] in the middle of bisimulation proofs
+|*)
+#[global] Instance equ_clos_st_proper {E R} RR : Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (st RR).
+Proof.
+  unfold Proper, respectful; intros.
+  split; intros.
+  - apply (ft_t equ_clos_st).
+    econstructor; [symmetry; eauto | | eauto]; auto.
+  - apply (ft_t equ_clos_st).
+    econstructor; [eauto | | symmetry; eauto]; auto.
+Qed.
+
+#[global] Instance equ_clos_wt_proper {E R} RR : Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (wt RR).
+Proof.
+  unfold Proper, respectful; intros.
+  split; intros.
+  - apply (ft_t equ_clos_wt).
+    econstructor; [symmetry; eauto | | eauto]; auto.
+  - apply (ft_t equ_clos_wt).
+    econstructor; [eauto | | symmetry; eauto]; auto.
 Qed.
 
 (*|
@@ -300,4 +324,179 @@ Qed.
 Proof.
   repeat red; intros; eapply wbisim_clo_bind; eauto.
 Qed.
+
+(*|
+Sanity checks
+=============
+|*)
+
+Module Sanity.
+
+(*|
+Note that with visible schedules, nary-spins are equivalent only
+if neither are empty, or if both are empty: they match each other's
+tau challenge infinitely often.
+With invisible schedules, they are always equivalent: neither of them
+produce any challenge for the other.
+|*)
+  Lemma spinV_nary_n_m : forall {E R} n m, n>0 -> m>0 -> @spinV_nary E R n ≈ spinV_nary m.
+  Proof.
+    intros E R.
+    coinduction S CIH; symmetric.
+    intros * ? ? l p' TR.
+    destruct m as [|m]; [lia |].
+    rewrite ctree_eta in TR; cbn in TR.
+    apply trans_ChoiceV_inv in TR as (_ & EQ & ->).
+    eexists.
+    apply trans_wtrans; rewrite ctree_eta; cbn.
+    econstructor. exact Fin.F1.
+    reflexivity.
+    rewrite EQ; eauto.
+  Qed.
+
+  Lemma spinV_nary_0 : forall {E R}, @spinV_nary E R 0 ≈ spinV_nary 0.
+  Proof.
+    intros E R.
+    coinduction S _; symmetric.
+    cbn; intros * TR.
+    rewrite ctree_eta in TR; cbn in TR.
+    apply trans_ChoiceV_inv in TR as (abs & _ & _); inv abs.
+  Qed.
+
+  Lemma spinI_nary_n_m : forall {E R} n m, @spinI_nary E R n ≈ spinI_nary m.
+  Proof.
+    intros E R.
+    coinduction S CIH; symmetric.
+    cbn; intros * TR.
+    exfalso; eapply spinI_nary_is_stuck, TR.
+  Qed.
+
+(*
+
+  Lemma schedule_spin_nary {E R} n t : schedule_ (observe (@spin_nary E R n)) t -> False.
+  Proof.
+    intros.
+    remember (observe (spin_nary n)).
+    induction H; inversion Heqc.
+    cbv in *. subst. apply inj_pair2 in H3. subst. auto.
+  Qed.
+
+  #[global] Hint Unfold bisim : core.
+  Goal forall {E R} n m, @spin_nary E R n ≈ spin_nary m.
+  Proof.
+    intros. unfold bisim. step.
+    constructor; intros; exfalso; eapply schedule_spin_nary; eauto.
+  Qed.
+
+  Goal forall {E R} n, @spin_nary E R n ≈ spin.
+  Proof.
+    intros. unfold bisim. step.
+    constructor; intros; exfalso.
+    - eapply schedule_spin_nary; eauto.
+    - eapply schedule_spin; eauto.
+  Qed.
+
+  Lemma choice2_assoc : forall {E X} (t u v : ctree E X),
+	  choiceV2 (choiceV2 t u) v ≈
+      choiceV2 t (choiceV2 u v).
+  Proof.
+    intros. unfold bisim. step. constructor.
+    - intros. exists u'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
+      + inv H4. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
+        * apply SchedChoice with (x:=Fin.F1); auto.
+        * clear x. apply SchedChoice with (x:=Fin.FS Fin.F1).
+          apply SchedChoice with (x:=Fin.F1); auto.
+      + clear x. apply SchedChoice with (x:=Fin.FS Fin.F1).
+        apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+    - intros. exists t'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
+      + apply SchedChoice with (x:=Fin.F1).
+        apply SchedChoice with (x:=Fin.F1); auto.
+      + clear x. inv H4. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
+        * apply SchedChoice with (x:=Fin.F1).
+          apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+        * clear x. apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+  Qed.
+
+  Lemma choice2_commut : forall {E X} (t u : ctree E X),
+	  choiceV2 t u ≈ choiceV2 u t.
+  Proof.
+    intros. unfold bisim. step. constructor.
+    - intros. exists u'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
+      + apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+      + apply SchedChoice with (x0:=Fin.F1); auto.
+    - intros. exists t'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
+      + apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+      + apply SchedChoice with (x0:=Fin.F1); auto.
+  Qed.
+
+  (* To generalize to any arity *)
+  Lemma choice_merge : forall {E X} (t u v : ctree E X),
+	  choiceV2 (choiceV2 t u) v ≈
+		      choiceV3 t u v.
+  Proof.
+    intros. unfold bisim. step. constructor.
+    - intros. exists u'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
+      + inv H4. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
+        * apply SchedChoice with (x:=Fin.F1); auto.
+        * apply SchedChoice with (x0:=Fin.FS Fin.F1); auto.
+      + apply SchedChoice with (x0:=Fin.FS (Fin.FS Fin.F1)); auto.
+    - intros. exists t'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H3. subst. remember 3. destruct x; inv Heqn.
+      + apply SchedChoice with (x:=Fin.F1).
+        apply SchedChoice with (x:=Fin.F1); auto.
+      + remember 2. destruct x; inv Heqn.
+        * apply SchedChoice with (x:=Fin.F1).
+          apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+        * apply SchedChoice with (x0:=Fin.FS Fin.F1); auto.
+  Qed.
+
+  Lemma choice2_spin : forall {E X} (t : ctree E X),
+	  choiceV2 t spin ≈ t.
+  Proof.
+    intros. unfold bisim. step. constructor.
+    - intros. exists u'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn; auto.
+      exfalso. eapply schedule_spin; eauto.
+    - intros. exists t'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      apply SchedChoice with (x:=Fin.F1); auto.
+  Qed.
+
+  Lemma choice2_equ : forall {E X} (t u : ctree E X),
+	  t ≅ u ->
+	  choiceV2 t u ≈ t.
+  Proof.
+    intros. unfold bisim. step. constructor.
+    - intros. exists u'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      inv H0. apply inj_pair2 in H4. subst. remember 2. destruct x; inv Heqn; auto.
+      (* We should be able to use something like equ_schedule for
+         this, but we need a version with schedule_ *)
+      admit.
+    - intros. exists t'. split.
+      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+      apply SchedChoice with (x:=Fin.F1); auto.
+  Abort.
+
+  Lemma choice0_spin : forall {E X},
+    ChoiceV 0 (fun x:fin 0 => match x with end) ≈ @spin E X.
+  Proof.
+    intros; unfold bisim; step; constructor; intros * SCHED.
+    inv SCHED; inv x.
+    exfalso; eapply schedule_spin; eauto.
+  Qed.
+*)
+End Sanity.
 
