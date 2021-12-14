@@ -371,6 +371,35 @@ produce any challenge for the other.
     exfalso; eapply spinI_nary_is_stuck, TR.
   Qed.
 
+  Import Fin.
+
+  Ltac inv_trans_one :=
+    match goal with
+    | h : transR _ ?t _ |- _ =>
+        match t with
+        | TauI _            => apply trans_TauI_inv in h as h
+        | choiceI2 _ _      => apply trans_ChoiceI_inv in h as [[|] h]
+        | choiceI3 _ _ _    => apply trans_ChoiceI_inv in h as [[| ? [|]] h]
+        | ChoiceF false _ _ => idtac
+        end; cbn in h
+    | h : hrel_of (trans _) ?t _ |- _ => idtac
+    end.
+
+  Ltac inv_trans := repeat inv_trans_one.
+  Ltac reach_core :=
+    lazymatch goal with
+      | [|- transR _ (choiceI2 _ _) _] =>
+        first [eapply (trans_ChoiceI F1); [ | reflexivity]; cbn; first [easy | reach_core] |
+               eapply (trans_ChoiceI (FS F1)); [ | reflexivity]; cbn; first [easy | reach_core]]
+      | [|- transR _ (choiceI3 _ _ _) _] =>
+        first [eapply (trans_ChoiceI F1); [ | reflexivity]; cbn; first [easy | reach_core]      |
+               eapply (trans_ChoiceI (FS F1)); [ | reflexivity]; cbn; first [easy | reach_core] |
+               eapply (trans_ChoiceI (FS (FS F1))); [ | reflexivity]; cbn; first [easy | reach_core]]
+     end.
+  Ltac reach := eexists; [| reflexivity]; reach_core.
+
+  Ltac steps := step; split; cbn; intros ? ? ?TR.
+
 (*|
 TODO: automate
 Note: with choiceI2, these relations hold up-to strong bisimulation.
@@ -380,57 +409,27 @@ With choiceV2 however they don't even hold up-to weak bisimulation.
 	    choiceI2 (choiceI2 t u) v ~ choiceI2 t (choiceI2 u v).
   Proof.
     intros.
-    step.
-    split.
-    - intros ? ? TR.
-      repeat (apply trans_ChoiceI_inv in TR as ([|] & TR)). (* TODO: clever inversion tactics *)
-      + exists t'; auto.
-        eapply (trans_ChoiceI Fin.F1); eauto.
-      + exists t'; auto.
-        eapply (trans_ChoiceI (Fin.FS Fin.F1)); [|eauto].
-        eapply (trans_ChoiceI Fin.F1); eauto.
-      + exists t'; auto.
-        eapply (trans_ChoiceI (Fin.FS Fin.F1)); [|eauto].
-        eapply (trans_ChoiceI (Fin.FS Fin.F1)); eauto.
-    - intros ? ? TR; cbn.
-      repeat (apply trans_ChoiceI_inv in TR as ([|] & TR)). (* TODO: clever inversion tactics *)
-      + exists t'; auto.
-        eapply (trans_ChoiceI Fin.F1); [|eauto].
-        eapply (trans_ChoiceI Fin.F1); eauto.
-      + exists t'; auto.
-        eapply (trans_ChoiceI Fin.F1); [|eauto].
-        eapply (trans_ChoiceI (Fin.FS Fin.F1)); eauto.
-      + exists t'; auto.
-        eapply (trans_ChoiceI (Fin.FS Fin.F1)); eauto.
+    steps; inv_trans; reach.
   Qed.
 
   Lemma choiceI2_commut {E X} : forall (t u : ctree E X),
 	    choiceI2 t u ~ choiceI2 u t.
   Proof.
-    coinduction ? _; symmetric.
-    intros * ? ? TR.
-    apply trans_ChoiceI_inv in TR as ([|] & TR). (* TODO: clever inversion tactics *)
-    - exists t'; auto.
-      eapply (trans_ChoiceI (Fin.FS Fin.F1)); eauto.
-    - exists t'; auto.
-      eapply (trans_ChoiceI Fin.F1); eauto.
+(*|
+Note: could use a symmetry argument here as follows to only play one direction of the game.
+[coinduction ? _; symmetric.]
+but automation just handles it...
+|*)
+    intros.
+    steps; inv_trans; reach.
   Qed.
 
   Lemma choiceI_merge {E X} : forall (t u v : ctree E X),
 	    choiceI2 (choiceI2 t u) v ~ choiceI3 t u v.
   Proof.
     intros.
-    step; split; cbn; intros ? ? TR.
-    - repeat apply trans_ChoiceI_inv in TR as ([|] & TR). (* TODO: clever inversion tactics *)
-      eexists; eauto; eapply (trans_ChoiceI Fin.F1); eauto.
-      eexists; eauto; eapply (trans_ChoiceI (Fin.FS Fin.F1)); eauto.
-      eexists; eauto; eapply (trans_ChoiceI (Fin.FS (Fin.FS Fin.F1))); eauto.
-    - repeat apply trans_ChoiceI_inv in TR as ([| ? [|]] & TR). (* TODO: clever inversion tactics *)
-      eexists; eauto; eapply (trans_ChoiceI Fin.F1); [|eauto]; eapply (trans_ChoiceI Fin.F1); eauto.
-      eexists; eauto; eapply (trans_ChoiceI Fin.F1); [|eauto]; eapply (trans_ChoiceI (Fin.FS Fin.F1)); eauto.
-      eexists; eauto; eapply (trans_ChoiceI (Fin.FS Fin.F1)); eauto.
+    steps; inv_trans; reach.
   Qed.
-
 
 (*
   Lemma choice2_spin : forall {E X} (t : ctree E X),
