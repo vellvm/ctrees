@@ -24,7 +24,7 @@ From CTree Require Import
      CTrees
      Shallow.
 (*|
-.. coq:
+.. coq::
 |*)
 
 Section equ.
