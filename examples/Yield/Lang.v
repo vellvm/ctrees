@@ -10,6 +10,7 @@ From ExtLib Require Import
      Data.String
      Structures.Monad
      Structures.Traversable
+     Data.Monads.StateMonad
      Data.List
      Data.Map.FMapAList.
 
@@ -56,7 +57,7 @@ Inductive stmt : Type :=
 | Seq    (a b : stmt)            (* a ; b *)
 | If     (i : expr) (t e : stmt) (* if (i) then { t } else { e } *)
 | While  (t : expr) (b : stmt)   (* while (t) { b } *)
-| Spawn  (t : stmt)
+| Spawn  (t : stmt)              (* spawn t *)
 | Skip                           (* ; *)
 .
 
@@ -65,8 +66,6 @@ Variant ImpState : Type -> Type :=
 | SetVar (x : var) (v : value) : ImpState unit.
 
 Section Denote1.
-  (* Definition E : Type -> Type := stateE value +' spawnE. *)
-
   Fixpoint denote_expr (e : expr) : ctree (stateE value +' spawnE) value :=
     match e with
     | Var v     => trigger (Get _)
@@ -119,8 +118,10 @@ Section Denote1.
       end.
 
   #[global] Instance MonadChoice_stateT {M S} {MM : Monad M} {AM : Utils.MonadChoice M}
-    : Utils.MonadChoice (Monads.stateT S M).
-  Admitted.
+    : Utils.MonadChoice (Monads.stateT S M) :=
+    fun n s =>
+      f <- choice n;;
+      ret (s, f).
 
   Definition handler : forall X, (stateE value +' spawnE) X -> Monads.stateT value (ctree (parE value)) X :=
     (fun X (e : (stateE value +' spawnE) X) =>
