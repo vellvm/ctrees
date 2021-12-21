@@ -35,6 +35,44 @@ Import CTree.
 Import CTreeNotations.
 Open Scope ctree.
 
+Import Fin.
+
+(*|
+Automation for bisimulation proofs
+----------------------------------
+/!\/!\/!\ WIP /!\/!\/!\
+
+- [inv_trans_one] and [inv_trans] : systematic application of inversion rules for the [trans] relation in hypotheses
+- [reach] : recursive search to build a simulation for computations whose internal branching is built using [TauI], [choiceI2], or [choiceI3]. Should be used after [inv_trans].
+- [steps] : split a bisimulation goal into one play of its simulations
+|*)
+Ltac inv_trans_one :=
+  match goal with
+  | h : transR _ ?t _ |- _ =>
+      match t with
+      | TauI _            => apply trans_TauI_inv in h as h
+      | choiceI2 _ _      => apply trans_ChoiceI_inv in h as [[|] h]
+      | choiceI3 _ _ _    => apply trans_ChoiceI_inv in h as [[| ? [|]] h]
+      | ChoiceF false _ _ => idtac
+      end; cbn in h
+  | h : hrel_of (trans _) ?t _ |- _ => idtac
+  end.
+
+Ltac inv_trans := repeat inv_trans_one.
+
+Ltac reach_core :=
+  lazymatch goal with
+  | [|- transR _ (choiceI2 _ _) _] =>
+      first [eapply (trans_ChoiceI F1); [ | reflexivity]; cbn; first [easy | reach_core] |
+              eapply (trans_ChoiceI (FS F1)); [ | reflexivity]; cbn; first [easy | reach_core]]
+  | [|- transR _ (choiceI3 _ _ _) _] =>
+      first [eapply (trans_ChoiceI F1); [ | reflexivity]; cbn; first [easy | reach_core]      |
+              eapply (trans_ChoiceI (FS F1)); [ | reflexivity]; cbn; first [easy | reach_core] |
+              eapply (trans_ChoiceI (FS (FS F1))); [ | reflexivity]; cbn; first [easy | reach_core]]
+  end.
+Ltac reach := eexists; [| reflexivity]; reach_core.
+
+Ltac steps := step; split; cbn; intros ? ? ?TR.
 
 (*|
 Up-to [equ eq] bisimulations
@@ -328,9 +366,14 @@ Qed.
 (*|
 Sanity checks
 =============
+- invisible n-ary spins are strongly bisimilar
+- non-empty visible n-ary spins are strongly bisimilar
+- Binary invisible choice is:
+  + associative
+  + commutative
+  + merges into a ternary invisible choice
+  + admits any stuck computation as a unit
 |*)
-
-Module Sanity.
 
 (*|
 Note that with visible schedules, nary-spins are equivalent only
@@ -339,111 +382,258 @@ tau challenge infinitely often.
 With invisible schedules, they are always equivalent: neither of them
 produce any challenge for the other.
 |*)
-  Lemma spinV_nary_n_m : forall {E R} n m, n>0 -> m>0 -> @spinV_nary E R n ≈ spinV_nary m.
-  Proof.
-    intros E R.
-    coinduction S CIH; symmetric.
-    intros * ? ? l p' TR.
-    destruct m as [|m]; [lia |].
-    rewrite ctree_eta in TR; cbn in TR.
-    apply trans_ChoiceV_inv in TR as (_ & EQ & ->).
-    eexists.
-    apply trans_wtrans; rewrite ctree_eta; cbn.
-    econstructor. exact Fin.F1.
-    reflexivity.
-    rewrite EQ; eauto.
-  Qed.
+Lemma spinV_nary_n_m : forall {E R} n m, n>0 -> m>0 -> @spinV_nary E R n ~ spinV_nary m.
+Proof.
+  intros E R.
+  coinduction S CIH; symmetric.
+  intros * ? ? l p' TR.
+  destruct m as [|m]; [lia |].
+  rewrite ctree_eta in TR; cbn in TR.
+  apply trans_ChoiceV_inv in TR as (_ & EQ & ->).
+  eexists.
+  rewrite ctree_eta; cbn.
+  econstructor. exact Fin.F1.
+  reflexivity.
+  rewrite EQ; eauto.
+Qed.
 
-  Lemma spinV_nary_0 : forall {E R}, @spinV_nary E R 0 ≈ spinV_nary 0.
-  Proof.
-    intros E R.
-    coinduction S _; symmetric.
-    cbn; intros * TR.
-    rewrite ctree_eta in TR; cbn in TR.
-    apply trans_ChoiceV_inv in TR as (abs & _ & _); inv abs.
-  Qed.
+Lemma spinV_nary_0 : forall {E R}, @spinV_nary E R 0 ≈ spinV_nary 0.
+Proof.
+  intros E R.
+  reflexivity.
+Qed.
 
-  Lemma spinI_nary_n_m : forall {E R} n m, @spinI_nary E R n ≈ spinI_nary m.
-  Proof.
-    intros E R.
-    coinduction S _; symmetric.
-    cbn; intros * TR.
-    exfalso; eapply spinI_nary_is_stuck, TR.
-  Qed.
-
-  Import Fin.
-
-  Ltac inv_trans_one :=
-    match goal with
-    | h : transR _ ?t _ |- _ =>
-        match t with
-        | TauI _            => apply trans_TauI_inv in h as h
-        | choiceI2 _ _      => apply trans_ChoiceI_inv in h as [[|] h]
-        | choiceI3 _ _ _    => apply trans_ChoiceI_inv in h as [[| ? [|]] h]
-        | ChoiceF false _ _ => idtac
-        end; cbn in h
-    | h : hrel_of (trans _) ?t _ |- _ => idtac
-    end.
-
-  Ltac inv_trans := repeat inv_trans_one.
-  Ltac reach_core :=
-    lazymatch goal with
-      | [|- transR _ (choiceI2 _ _) _] =>
-        first [eapply (trans_ChoiceI F1); [ | reflexivity]; cbn; first [easy | reach_core] |
-               eapply (trans_ChoiceI (FS F1)); [ | reflexivity]; cbn; first [easy | reach_core]]
-      | [|- transR _ (choiceI3 _ _ _) _] =>
-        first [eapply (trans_ChoiceI F1); [ | reflexivity]; cbn; first [easy | reach_core]      |
-               eapply (trans_ChoiceI (FS F1)); [ | reflexivity]; cbn; first [easy | reach_core] |
-               eapply (trans_ChoiceI (FS (FS F1))); [ | reflexivity]; cbn; first [easy | reach_core]]
-     end.
-  Ltac reach := eexists; [| reflexivity]; reach_core.
-
-  Ltac steps := step; split; cbn; intros ? ? ?TR.
+Lemma spinI_nary_n_m : forall {E R} n m, @spinI_nary E R n ~ spinI_nary m.
+Proof.
+  intros E R.
+  coinduction S _; symmetric.
+  cbn; intros * TR.
+  exfalso; eapply spinI_nary_is_stuck, TR.
+Qed.
 
 (*|
-TODO: automate
 Note: with choiceI2, these relations hold up-to strong bisimulation.
 With choiceV2 however they don't even hold up-to weak bisimulation.
 |*)
-  Lemma choiceI2_assoc {E X} : forall (t u v : ctree E X),
-	    choiceI2 (choiceI2 t u) v ~ choiceI2 t (choiceI2 u v).
-  Proof.
-    intros.
-    steps; inv_trans; reach.
-  Qed.
+Lemma choiceI2_assoc {E X} : forall (t u v : ctree E X),
+	  choiceI2 (choiceI2 t u) v ~ choiceI2 t (choiceI2 u v).
+Proof.
+  intros.
+  steps; inv_trans; reach.
+Qed.
 
-  Lemma choiceI2_commut {E X} : forall (t u : ctree E X),
-	    choiceI2 t u ~ choiceI2 u t.
-  Proof.
+Lemma choiceI2_commut {E X} : forall (t u : ctree E X),
+	  choiceI2 t u ~ choiceI2 u t.
+Proof.
 (*|
 Note: could use a symmetry argument here as follows to only play one direction of the game.
 [coinduction ? _; symmetric.]
 but automation just handles it...
 |*)
-    intros.
-    steps; inv_trans; reach.
-  Qed.
+  intros.
+  steps; inv_trans; reach.
+Qed.
 
-  Lemma choiceI_merge {E X} : forall (t u v : ctree E X),
-	    choiceI2 (choiceI2 t u) v ~ choiceI3 t u v.
-  Proof.
-    intros.
-    steps; inv_trans; reach.
-  Qed.
+Lemma choiceI_merge {E X} : forall (t u v : ctree E X),
+	  choiceI2 (choiceI2 t u) v ~ choiceI3 t u v.
+Proof.
+  intros.
+  steps; inv_trans; reach.
+Qed.
+
+Lemma choiceI_is_stuck {E X} : forall (u v : ctree E X),
+    is_stuck u ->
+	  choiceI2 u v ~ v.
+Proof.
+  intros * ST.
+  steps.
+  - inv_trans.
+    exfalso; eapply ST, TR. (* automate stuck transition trying to step? *)
+    exists t'; auto.             (* automate trivial case *)
+  - reach.
+Qed.
+
+Lemma choiceI_stuck_l {E X} : forall (t : ctree E X),
+	  choiceI2 stuck t ~ t.
+Proof.
+  intros; apply choiceI_is_stuck, stuck_is_stuck.
+Qed.
+
+Lemma choiceI_stuck_r {E X} : forall (t : ctree E X),
+	  choiceI2 t stuck ~ t.
+Proof.
+  intros; rewrite choiceI2_commut; apply choiceI_stuck_l. 
+Qed.
+
+Lemma choiceI2_spinI_l {E X} : forall (t : ctree E X),
+	  choiceI2 spinI t ~ t.
+Proof.
+  intros; apply choiceI_is_stuck, spinI_is_stuck.
+Qed.
+
+Lemma choiceI2_spinI_r {E X} : forall (t : ctree E X),
+	  choiceI2 t spinI ~ t.
+Proof.
+  intros; rewrite choiceI2_commut; apply choiceI_is_stuck, spinI_is_stuck.
+Qed.
+
+Lemma trans_choiceV21 {E R} : forall (t u : ctree E R),
+    trans tau (choiceV2 t u) t.
+Proof.
+  intros.
+  unfold choiceV2.
+  match goal with
+    |- _ (trans tau) (ChoiceV 2 ?k) ?t => exact (trans_ChoiceV (k := k) F1)
+  end.
+Qed.
+
+Lemma trans_choiceV22 {E R} : forall (t u : ctree E R),
+    trans tau (choiceV2 t u) u.
+Proof.
+  intros.
+  unfold choiceV2.
+  match goal with
+    |- _ (trans tau) (ChoiceV 2 ?k) ?t => exact (trans_ChoiceV (k := k) (FS F1))
+  end.
+Qed.
+
+Lemma wtrans_case {E X} (t u : ctree E X) l:
+  wtrans l t u ->
+  t ≅ u \/
+    match l with
+    | tau => (exists v, trans tau t v /\ wtrans tau v u)
+    | _ => (exists v, trans l t v /\ wtrans tau v u) \/ (exists v, trans tau t v /\ wtrans l v u)
+    end.
+Proof.
+  intros WT; edestruct @wtrans_case; eauto.
+  destruct l; intuition.
+Qed.
+
+Ltac inv_trans_one' :=
+  match goal with
+  | h : transR _ ?t _ |- _ =>
+      match t with
+      | TauI _            => apply trans_TauI_inv in h as h
+      | choiceV2 _ _      => apply trans_ChoiceV_inv in h as [[|] h]
+      | choiceI3 _ _ _    => apply trans_ChoiceI_inv in h as [[| ? [|]] h]
+      | ChoiceF false _ _ => idtac
+      end; cbn in h
+  | h : hrel_of (trans _) ?t _ |- _ => idtac
+  end.
+
+(* Is that true? *)
+Goal forall {E R} (t u w : ctree E R),
+    choiceV2 t u ≈ w ->
+    w ≅ choiceV2 t u \/ (t ≈ w /\ u ≈ w).
+Proof.
+  intros * BIS.
+  step in BIS; destruct BIS as [F B]; cbn in *.
+  destruct (F tau t) as [? TR BIS].
+  apply trans_choiceV21.
+  apply wtrans_case in TR as [EQ|(? & T & TR)].
+
+  Abort.
 
 (*
-  Lemma choice2_spin : forall {E X} (t : ctree E X),
+(*|
+With choiceV2 however they don't even hold up-to weak bisimulation.
+|*)
+Lemma choiceV2_not_assoc :
+	  ~ (choiceV2 (choiceV2 (Ret 0 : ctree Sum.void1 nat) (Ret 1)) (Ret 2) ≈ choiceV2 (Ret 0) (choiceV2 (Ret 1) (Ret 2)))%nat.
+Proof.
+  intros abs; step in abs; destruct abs as [F _].
+  (* Suppose that left plays the undecisive move to the left *)
+  destruct (F tau (choiceV2 (Ret 0 : ctree Sum.void1 nat) (Ret 1))%nat) as [? TR BIS]; clear F.
+  apply trans_choiceV21.
+  (* Then right has no good way to answer.
+     To prove it, we need to consider every possibility
+   *)
+  apply wtrans_case in TR as [EQ|(? & T & TR)]; [rewrite <- EQ in BIS; clear EQ |].
+  - (* If it tries by not moving... *)
+    admit.
+    (* step in BIS; destruct BIS as [_ B]. *)
+    (* destruct (B (val 2) stuck). *)
+    (* apply trans_choiceV22. *)
+  - (* step at least once, it could be one of two steps *)
+    apply trans_ChoiceV_inv in T as ([|] & EQ & _); rewrite EQ in TR; clear EQ.
+    + (* to the left, and then wtrans... *)
+      apply wtrans_case in TR as [EQ|(? & T & TR)]; [rewrite <- EQ in BIS; clear EQ |].
+      * (* if it stops there *)
+
+
+  - (* *)
+  2,3:apply wtrans_case in TR as [EQ|(? & T & TR)]; [rewrite <- EQ in BIS; clear EQ |].
+  3:{
+
+
+  2:{
+    apply trans_ChoiceV_inv in T as ([|] & EQ & _); rewrite EQ in TR; clear EQ.
+    2:{
+      apply wtrans_case in TR as [EQ|(? & T & TR)].
+
+    }
+
+    apply wtrans_case in TR as [EQ|(? & T & TR)].
+    rewrite <- EQ in BIS; clear EQ.
+    cbn in T; inv_trans_one'.
+    apply trans_ChoiceV_inv in T.
+
+
+  apply trans_choiceV22.
+
+  2:{
+    destruct abs as [(? & abs & _)|(? & abs & _)]. repeat (apply trans_ChoiceV_inv in abs as ([|] & abs); try now inv abs).
+
+  2:destruct abs as [(? & abs & _)|(? & abs & _)]; repeat (apply trans_ChoiceV_inv in abs as ([|] & abs); try now inv abs).
+  2:destruct abs as [(? & abs & _)|(? & abs & _)]; repeat (apply trans_ChoiceI_inv in abs as ([|] & abs); try now inv abs).
+  lazymatch goal with
+  | [|- transR _ (choiceI2 _ _) _] =>
+      first [eapply (trans_ChoiceI F1); [ | reflexivity]; cbn; first [easy | reach_core] |
+              eapply (trans_ChoiceI (FS F1)); [ | reflexivity]; cbn; first [easy | reach_core]]
+  | [|- transR _ (choiceI3 _ _ _) _] =>
+      first [eapply (trans_ChoiceI F1); [ | reflexivity]; cbn; first [easy | reach_core]      |
+              eapply (trans_ChoiceI (FS F1)); [ | reflexivity]; cbn; first [easy | reach_core] |
+              eapply (trans_ChoiceI (FS (FS F1))); [ | reflexivity]; cbn; first [easy | reach_core]]
+  end.
+Ltac reach := eexists; [| reflexivity]; reach_core.
+
+
+  steps; inv_trans; reach.
+Qed.
+
+Lemma choiceI2_commut {E X} : forall (t u : ctree E X),
+	  choiceI2 t u ~ choiceI2 u t.
+Proof.
+(*|
+Note: could use a symmetry argument here as follows to only play one direction of the game.
+[coinduction ? _; symmetric.]
+but automation just handles it...
+|*)
+  intros.
+  steps; inv_trans; reach.
+Qed.
+
+Lemma choiceI_merge {E X} : forall (t u v : ctree E X),
+	  choiceI2 (choiceI2 t u) v ~ choiceI3 t u v.
+Proof.
+  intros.
+  steps; inv_trans; reach.
+Qed.
+
+
+
+Lemma choice2_spin : forall {E X} (t : ctree E X),
 	  choiceV2 t spin ≈ t.
-  Proof.
-    intros. unfold bisim. step. constructor.
-    - intros. exists u'. split.
-      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn; auto.
-      exfalso. eapply schedule_spin; eauto.
-    - intros. exists t'. split.
-      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      apply SchedChoice with (x:=Fin.F1); auto.
-  Qed.
+Proof.
+  intros. unfold bisim. step. constructor.
+  - intros. exists u'. split.
+    2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+    inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn; auto.
+    exfalso. eapply schedule_spin; eauto.
+  - intros. exists t'. split.
+    2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
+    apply SchedChoice with (x:=Fin.F1); auto.
+Qed.
 
   Lemma choice2_equ : forall {E X} (t u : ctree E X),
 	  t ≅ u ->
@@ -469,6 +659,4 @@ but automation just handles it...
     exfalso; eapply schedule_spin; eauto.
   Qed.
  *)
-
-End Sanity.
 

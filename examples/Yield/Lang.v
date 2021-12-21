@@ -14,6 +14,10 @@ From ExtLib Require Import
      Data.List
      Data.Map.FMapAList.
 
+(* Universe issue, TO FIX *)
+Unset Universe Checking.
+Unset Auto Template Polymorphism.
+
 From ITree Require Import
      ITree
      Basics.CategoryKleisli
@@ -27,13 +31,6 @@ From CTree Require Import
 From CTreeYield Require Import
      Par.
 
-(* From ITree Require Import *)
-(*      ITree *)
-(*      ITreeFacts *)
-(*      Events.MapDefault *)
-(*      Events.StateFacts. *)
-
-(* Import Monads. *)
 Import ListNotations.
 Import MonadNotation.
 Local Open Scope monad_scope.
@@ -94,10 +91,12 @@ Section Denote1.
              then denote_imp b ;; ret (inl tt)
              else ret (inr tt))
 
-    | Spawn t => vis Par.Spawn (fun b : bool =>
-                                 if b
-                                 then (denote_imp t;; ChoiceI 0 (fun _ => ret tt)) (* force the thread to halt here *)
-                                 else ret tt)
+    | Spawn t =>
+        vis Par.Spawn
+            (fun b : bool =>
+               if b
+               then (denote_imp t;; ChoiceI 0 (fun _ => ret tt)) (* force the thread to halt here *)
+               else ret tt)
     | Skip => ret tt
 
     (* | Atomic t => translate ... (denote_imp t) *)

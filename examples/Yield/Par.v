@@ -3,13 +3,15 @@ From Coq Require Import
      List
      Logic.FunctionalExtensionality.
 
+Require Import Coq.micromega.Lia.
+
 From CTree Require Import
-	Utils
-	CTrees
- 	Interp
-	Equ
-	Bisim
-    Shallow.
+	   Utils
+	   CTrees
+ 	   Interp
+	   Equ
+	   Bisim
+     Shallow.
 
 From ITree Require Import
      Sum.
@@ -38,7 +40,7 @@ Fixpoint choose' {E} {X} (x : X) (xs : list X) (rest : list X) :
   := match xs with
      | [] => Ret (x, rest)
      | x' :: xs =>
-       Sanity.choice2
+         choiceI2
          (Ret (x, (x' :: xs) ++ rest)) (* [x] *)
          (choose' x' xs (x :: rest)) (* not [x] *)
      end.
@@ -67,18 +69,18 @@ Section parallel.
                        end
       | ChoiceF b n k => Choice b n (fun c => (schedule (fun _ => k c) rest s))
       | VisF (inl1 e) k =>
-        match e in yieldE _ C return (C -> ctree (parE config) (config * unit)) -> _ with
-        | Yield _ s' =>
-          fun k =>
-            '(curr', rest') <- choose k rest;;
-            TauI (schedule curr' rest' s')
-        end k
+          match e in yieldE _ C return (C -> ctree (parE config) (config * unit)) -> _ with
+          | Yield _ s' =>
+              fun k =>
+                '(curr', rest') <- choose k rest;;
+                TauI (schedule curr' rest' s')
+          end k
       | VisF (inr1 e) k =>
-        match e in spawnE R return (R -> ctree (parE config) (config * unit)) -> _ with
-        | Spawn =>
-          fun k =>
-            TauI (schedule (fun _ => k false) ((fun _ => k true) :: rest) s) (* this s doesn't matter, since the running thread won't use it *)
-        end k
+          match e in spawnE R return (R -> ctree (parE config) (config * unit)) -> _ with
+          | Spawn =>
+              fun k =>
+                TauI (schedule (fun _ => k false) ((fun _ => k true) :: rest) s) (* this s doesn't matter, since the running thread won't use it *)
+          end k
       end.
   CoFixpoint schedule := schedule_match schedule.
   Lemma rewrite_schedule curr rest s : schedule curr rest s ≅ schedule_match schedule curr rest s.
@@ -153,8 +155,6 @@ Section parallel.
     - cbn. constructor. intros. apply CIH; auto.
       intro. apply REL.
   Qed.
-
-  Require Import Coq.micromega.Lia.
 
   Definition vec n := fin n -> thread.
 

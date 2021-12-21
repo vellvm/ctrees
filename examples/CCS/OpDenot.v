@@ -15,7 +15,6 @@ Import DenNotations.
 Import OpNotations.
 Open Scope ccs_scope.
 
-
 Definition forward (R : term -> term -> Prop) : Prop :=
 	forall P a P' Q, 
 		R P Q ->
@@ -36,5 +35,4 @@ Admitted.
 
 Lemma bisim : exists R, backward R /\ forward R.
 Admitted.
-
 
