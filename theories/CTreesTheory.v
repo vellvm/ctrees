@@ -187,7 +187,7 @@ Section bind.
 
 (*|
 Specialization of [bind_ctx] to the [sbisim]-based closure we are
-looking for, and the proof of validity of the principle. 
+looking for, and the proof of validity of the principle.
 |*)
    Section Sbisim_Bind_ctx.
 
@@ -462,7 +462,7 @@ Qed.
 Lemma choiceI_stuck_r {E X} : forall (t : ctree E X),
 	  choiceI2 t stuck ~ t.
 Proof.
-  intros; rewrite choiceI2_commut; apply choiceI_stuck_l. 
+  intros; rewrite choiceI2_commut; apply choiceI_stuck_l.
 Qed.
 
 Lemma choiceI2_spinI_l {E X} : forall (t : ctree E X),
@@ -477,7 +477,7 @@ Proof.
   intros; rewrite choiceI2_commut; apply choiceI_is_stuck, spinI_is_stuck.
 Qed.
 
-Lemma trans_choiceV21 {E R} : forall (t u : ctree E R),
+Lemma trans_choiceV21 E R : forall (t u : ctree E R),
     trans tau (choiceV2 t u) t.
 Proof.
   intros.
@@ -499,14 +499,28 @@ Qed.
 
 Lemma wtrans_case {E X} (t u : ctree E X) l:
   wtrans l t u ->
-  t ≅ u \/
     match l with
-    | tau => (exists v, trans tau t v /\ wtrans tau v u)
-    | _ => (exists v, trans l t v /\ wtrans tau v u) \/ (exists v, trans tau t v /\ wtrans l v u)
+    | tau => (t ≅ u \/ exists v, trans tau t v /\ wtrans tau v u)
+    | _   => (exists v, trans l t v /\ wtrans tau v u) \/
+            (exists v, trans tau t v /\ wtrans l v u)
     end.
 Proof.
-  intros WT; edestruct @wtrans_case; eauto.
-  destruct l; intuition.
+  intros [t2 [t1 [n TR1] TR2] TR3].
+  destruct n as [| n].
+  - apply wtrans_tau in TR3.
+    cbn in TR1; rewrite <- TR1 in TR2.
+    destruct l; eauto.
+    destruct TR2; eauto.
+    cbn in H; rewrite <- H in TR3.
+    apply wtrans_tau in TR3.
+    destruct TR3 as [[| n] ?]; eauto.
+    destruct H0 as [? ? ?]; right; eexists; split; eauto.
+    apply wtrans_tau; exists n; auto.
+  - destruct TR1 as [? ? ?].
+    destruct l; right.
+    all:eexists; split; eauto.
+    all:exists t2; [exists t1|]; eauto.
+    all:exists n; eauto.
 Qed.
 
 Ltac inv_trans_one' :=
@@ -514,93 +528,232 @@ Ltac inv_trans_one' :=
   | h : transR _ ?t _ |- _ =>
       match t with
       | TauI _            => apply trans_TauI_inv in h as h
-      | choiceV2 _ _      => apply trans_ChoiceV_inv in h as [[|] h]
+      | choiceI2 _ _      => apply trans_ChoiceI_inv in h as [[|] h]
       | choiceI3 _ _ _    => apply trans_ChoiceI_inv in h as [[| ? [|]] h]
+      | choiceV2 _ _      => apply trans_ChoiceV_inv in h as [[|] h]
+      | choiceV3 _ _ _    => apply trans_ChoiceV_inv in h as [[| ? [|]] h]
+      | stuck             => exfalso; eapply stuck_is_stuck; now apply h
       | ChoiceF false _ _ => idtac
       end; cbn in h
   | h : hrel_of (trans _) ?t _ |- _ => idtac
   end.
 
-(* Is that true? *)
-Goal forall {E R} (t u w : ctree E R),
-    choiceV2 t u ≈ w ->
-    w ≅ choiceV2 t u \/ (t ≈ w /\ u ≈ w).
+Ltac break :=
+  repeat match goal with
+         | h : _ \/ _  |- _ => destruct h
+         | h : _ /\ _  |- _ => destruct h
+         | h : exists x, _ |- _ => destruct h
+         end.
+
+Lemma wtrans_stuck_inv {E R} :
+  forall (t : ctree E R) l,
+    wtrans l stuck t ->
+    match l with | tau => t ≅ stuck | _ => False end.
 Proof.
-  intros * BIS.
-  step in BIS; destruct BIS as [F B]; cbn in *.
-  destruct (F tau t) as [? TR BIS].
-  apply trans_choiceV21.
-  apply wtrans_case in TR as [EQ|(? & T & TR)].
-
-  Abort.
-
-(*
-(*|
-With choiceV2 however they don't even hold up-to weak bisimulation.
-|*)
-Lemma choiceV2_not_assoc :
-	  ~ (choiceV2 (choiceV2 (Ret 0 : ctree Sum.void1 nat) (Ret 1)) (Ret 2) ≈ choiceV2 (Ret 0) (choiceV2 (Ret 1) (Ret 2)))%nat.
-Proof.
-  intros abs; step in abs; destruct abs as [F _].
-  (* Suppose that left plays the undecisive move to the left *)
-  destruct (F tau (choiceV2 (Ret 0 : ctree Sum.void1 nat) (Ret 1))%nat) as [? TR BIS]; clear F.
-  apply trans_choiceV21.
-  (* Then right has no good way to answer.
-     To prove it, we need to consider every possibility
-   *)
-  apply wtrans_case in TR as [EQ|(? & T & TR)]; [rewrite <- EQ in BIS; clear EQ |].
-  - (* If it tries by not moving... *)
-    admit.
-    (* step in BIS; destruct BIS as [_ B]. *)
-    (* destruct (B (val 2) stuck). *)
-    (* apply trans_choiceV22. *)
-  - (* step at least once, it could be one of two steps *)
-    apply trans_ChoiceV_inv in T as ([|] & EQ & _); rewrite EQ in TR; clear EQ.
-    + (* to the left, and then wtrans... *)
-      apply wtrans_case in TR as [EQ|(? & T & TR)]; [rewrite <- EQ in BIS; clear EQ |].
-      * (* if it stops there *)
-
-
-  - (* *)
-  2,3:apply wtrans_case in TR as [EQ|(? & T & TR)]; [rewrite <- EQ in BIS; clear EQ |].
-  3:{
-
-
-  2:{
-    apply trans_ChoiceV_inv in T as ([|] & EQ & _); rewrite EQ in TR; clear EQ.
-    2:{
-      apply wtrans_case in TR as [EQ|(? & T & TR)].
-
-    }
-
-    apply wtrans_case in TR as [EQ|(? & T & TR)].
-    rewrite <- EQ in BIS; clear EQ.
-    cbn in T; inv_trans_one'.
-    apply trans_ChoiceV_inv in T.
-
-
-  apply trans_choiceV22.
-
-  2:{
-    destruct abs as [(? & abs & _)|(? & abs & _)]. repeat (apply trans_ChoiceV_inv in abs as ([|] & abs); try now inv abs).
-
-  2:destruct abs as [(? & abs & _)|(? & abs & _)]; repeat (apply trans_ChoiceV_inv in abs as ([|] & abs); try now inv abs).
-  2:destruct abs as [(? & abs & _)|(? & abs & _)]; repeat (apply trans_ChoiceI_inv in abs as ([|] & abs); try now inv abs).
-  lazymatch goal with
-  | [|- transR _ (choiceI2 _ _) _] =>
-      first [eapply (trans_ChoiceI F1); [ | reflexivity]; cbn; first [easy | reach_core] |
-              eapply (trans_ChoiceI (FS F1)); [ | reflexivity]; cbn; first [easy | reach_core]]
-  | [|- transR _ (choiceI3 _ _ _) _] =>
-      first [eapply (trans_ChoiceI F1); [ | reflexivity]; cbn; first [easy | reach_core]      |
-              eapply (trans_ChoiceI (FS F1)); [ | reflexivity]; cbn; first [easy | reach_core] |
-              eapply (trans_ChoiceI (FS (FS F1))); [ | reflexivity]; cbn; first [easy | reach_core]]
-  end.
-Ltac reach := eexists; [| reflexivity]; reach_core.
-
-
-  steps; inv_trans; reach.
+  intros * TR.
+  apply wtrans_case in TR.
+  destruct l; break; cbn in *; try now inv_trans_one'.
+  symmetry; auto.
 Qed.
 
+Lemma val_eq_inv : forall E R x y, @val E R x = val y -> x = y.
+  intros * EQ.
+  now dependent induction EQ.
+Qed.
+
+Lemma wbisim_ret_inv {E R} : forall (x y : R),
+    Ret x ≈ (Ret y : ctree E R) ->
+    x = y.
+Proof.
+  intros * EQ.
+  step in EQ; destruct EQ as [F B].
+  cbn in *.
+  edestruct (F (val x)); [apply trans_ret |].
+  apply wtrans_case in H as [(?v & TR & WTR)|(?v & TR & WTR)].
+  apply trans_ret_inv in TR; break.
+  apply val_eq_inv in H; congruence.
+  apply trans_ret_inv in TR; break; inv H.
+Qed.
+
+Ltac stepF H :=
+  match goal with
+  | h : wbisim _ _ |- _ =>
+      step in h; destruct h as [?F _]; cbn in F;
+      edestruct F as [? ?TR ?BIS]; [now apply H | clear F]
+  end.
+
+Ltac stepB H :=
+  match goal with
+  | h : wbisim _ _ |- _ =>
+      step in h; destruct h as [_ ?B]; cbn in B;
+      edestruct B as [? ?TR ?BIS]; [now apply H | clear B]
+  end.
+
+Ltac wcase :=
+  match goal with
+    [ h   : hrel_of (wtrans ?l) _ _,
+      bis : wbisim _ _
+      |- _] =>
+      let EQ := fresh "EQ" in
+      match l with
+      | tau => apply wtrans_case in h as [EQ|(? & ?TR & ?WTR)];
+              [rewrite <- EQ in bis; clear EQ |]
+      | _   => apply wtrans_case in h as [(? & ?TR & ?WTR)|(? & ?TR & ?WTR)]
+      end
+  end.
+
+Ltac solve_abs :=
+  match goal with
+  | h : hrel_of (trans _) _ _ |- _ =>
+      first [now inversion TR | idtac]
+  end.
+
+Ltac subs :=
+  match goal with
+    [ h : ?x ≅ _, h' : context[?x] |- _ ] =>
+      rewrite h in h'; clear h
+  end.
+
+Ltac inv_trans_one'' :=
+  match goal with
+  (* Reduces trans to transR *)
+  | h : hrel_of (trans _) _ _ |- _ => cbn in h; inv_trans_one''
+
+  (* Inverting visible choices *)
+  (* choiceV2 *)
+  | h : transR tau (choiceV2 _ _) _ |- _ =>
+      let x := fresh in
+      apply trans_ChoiceV_inv in h as [x [?EQ _]];
+      dependent destruction x;
+      subs
+  (* choiceV3 *)
+  | h : transR tau (choiceV3 _ _ _) _ |- _ =>
+      apply trans_ChoiceV_inv in h as [[| ? [|]] [?EQ _]];
+      subs
+  (* valid choiceV *)
+  | h : transR tau (Choice true _ _) _ |- _ => idtac
+  (* invalid choiceV *)
+  | h : transR _   (Choice true _ _) _ |- _ => now inv h
+  | h : transR _   (choiceV2 _ _) _    |- _ => now inv h
+  | h : transR _   (choiceV3 _ _) _    |- _ => now inv h
+
+  (* Valid Ret transition *)
+  | h : transR (val ?x) (Ret ?x) _ |- _ =>
+      apply trans_ret_inv in h as [_ ?EQ]
+  (* Invalid Ret transition 1 *)
+  | h : transR (val ?x) (Ret ?y) _ |- _ =>
+      let abs := fresh in
+      apply trans_ret_inv in h as [abs _];
+      apply val_eq_inv in abs; congruence
+  (* Invalid Ret transition 2 *)
+  | h : transR _ (Ret ?x) _ |- _ =>
+      now inv h
+
+  | h : transR _ stuck _               |- _ =>
+      exfalso; eapply stuck_is_stuck; now apply h
+  end.
+
+
+(* TODO: maximally inserted arguments are bad to pass by arguments to tactics *)
+Arguments trans_choiceV21 [_ _].
+Arguments trans_choiceV22 [_ _].
+Arguments trans_ret [_ _] _.
+
+(*|
+With choiceV2 however they don't even hold up-to weak bisimulation.
+The proof is not interesting, but it would be good to have a
+light way to automate it, so it's a decent case study.
+|*)
+Lemma choiceV2_not_assoc :
+	~ (choiceV2 (choiceV2 (Ret 0 : ctree Sum.void1 nat) (Ret 1)) (Ret 2) ≈ choiceV2 (Ret 0) (choiceV2 (Ret 1) (Ret 2)))%nat.
+Proof.
+  intros abs.
+  (* init: 012 || 012 *)
+  stepF trans_choiceV21.
+  (* PL  : 01  || 012 *)
+  wcase.
+  - (* AR:  01  || 012 *)
+    stepB trans_choiceV22.
+    (* PR:  01  ||  12 *)
+    wcase.
+    + (* AL:  01  ||  12 *)
+      stepB trans_choiceV22.
+      (* PR:  01  ||   2 *)
+      wcase.
+      * (* AL: 01  ||   2 *)
+        stepB trans_ret.
+        (* PR: 01  |2?|   ∅ *)
+        wcase.
+        (* AL: steps with 2, abs *)
+        inv_trans_one''.
+        inv_trans_one''.
+        (* PR: 0   ||   ∅ *)
+        wcase; inv_trans_one''.
+        (* PR: 1   ||   ∅ *)
+        wcase; inv_trans_one''.
+      * inv_trans_one''.
+        (* AL: 0  ||   2 *)
+        wcase.
+        apply wbisim_ret_inv in BIS; inv BIS.
+        inv_trans_one''.
+        (* AL: 1  ||   2 *)
+        wcase.
+        apply wbisim_ret_inv in BIS; inv BIS.
+        inv_trans_one''.
+    + inv_trans_one''.
+      * (* AL:  0  ||  12 *)
+        wcase.
+        stepF trans_ret.
+        wcase; inv_trans_one''.
+        wcase; inv_trans_one''.
+        wcase; inv_trans_one''.
+        inv_trans_one''.
+      * (* AL:  1  ||  12 *)
+        wcase.
+        stepB trans_choiceV22.
+        wcase.
+        apply wbisim_ret_inv in BIS; inv BIS.
+        inv_trans_one''.
+        inv_trans_one''.
+  - inv_trans_one''.
+    + wcase.
+      * stepF trans_choiceV22.
+        wcase.
+        apply wbisim_ret_inv in BIS; inv BIS.
+        inv_trans_one''.
+      * inv_trans_one''.
+    + wcase.
+      stepF trans_choiceV21.
+      wcase.
+      stepF trans_ret.
+      wcase.
+      inv_trans_one''.
+      inv_trans_one''.
+      wcase; inv_trans_one''.
+      wcase; inv_trans_one''.
+      inv_trans_one''.
+      wcase.
+      apply wbisim_ret_inv in BIS; inv BIS.
+      inv_trans_one''.
+      wcase.
+      apply wbisim_ret_inv in BIS; inv BIS.
+      inv_trans_one''.
+      inv_trans_one''.
+      wcase.
+      stepF trans_choiceV21.
+      wcase.
+      apply wbisim_ret_inv in BIS; inv BIS.
+      inv_trans_one''.
+      inv_trans_one''.
+      wcase.
+      stepF trans_choiceV21.
+      wcase.
+      apply wbisim_ret_inv in BIS; inv BIS.
+      inv_trans_one''.
+      inv_trans_one''.
+Qed.
+
+(*
 Lemma choiceI2_commut {E X} : forall (t u : ctree E X),
 	  choiceI2 t u ~ choiceI2 u t.
 Proof.
@@ -659,4 +812,3 @@ Qed.
     exfalso; eapply schedule_spin; eauto.
   Qed.
  *)
-
