@@ -70,7 +70,7 @@ Ltac reach_core :=
               eapply (trans_ChoiceI (FS F1)); [ | reflexivity]; cbn; first [easy | reach_core] |
               eapply (trans_ChoiceI (FS (FS F1))); [ | reflexivity]; cbn; first [easy | reach_core]]
   end.
-Ltac reach := eexists; [| reflexivity]; reach_core.
+Ltac reach := eexists; [| reflexivity]; first [eassumption | reach_core].
 
 Ltac steps := step; split; cbn; intros ? ? ?TR.
 
@@ -434,14 +434,24 @@ but automation just handles it...
   steps; inv_trans; reach.
 Qed.
 
-Lemma choiceI_merge {E X} : forall (t u v : ctree E X),
+(*|
+ChoiceI is idempotent
+|*)
+Lemma choiceI2_idem {E X} : forall (t : ctree E X),
+	  choiceI2 t t ~ t.
+Proof.
+  intros.
+  steps; inv_trans; reach.
+Qed.
+
+Lemma choiceI2_merge {E X} : forall (t u v : ctree E X),
 	  choiceI2 (choiceI2 t u) v ~ choiceI3 t u v.
 Proof.
   intros.
   steps; inv_trans; reach.
 Qed.
 
-Lemma choiceI_is_stuck {E X} : forall (u v : ctree E X),
+Lemma choiceI2_is_stuck {E X} : forall (u v : ctree E X),
     is_stuck u ->
 	  choiceI2 u v ~ v.
 Proof.
@@ -453,28 +463,28 @@ Proof.
   - reach.
 Qed.
 
-Lemma choiceI_stuck_l {E X} : forall (t : ctree E X),
+Lemma choiceI2_stuck_l {E X} : forall (t : ctree E X),
 	  choiceI2 stuck t ~ t.
 Proof.
-  intros; apply choiceI_is_stuck, stuck_is_stuck.
+  intros; apply choiceI2_is_stuck, stuck_is_stuck.
 Qed.
 
-Lemma choiceI_stuck_r {E X} : forall (t : ctree E X),
+Lemma choiceI2_stuck_r {E X} : forall (t : ctree E X),
 	  choiceI2 t stuck ~ t.
 Proof.
-  intros; rewrite choiceI2_commut; apply choiceI_stuck_l.
+  intros; rewrite choiceI2_commut; apply choiceI2_stuck_l.
 Qed.
 
 Lemma choiceI2_spinI_l {E X} : forall (t : ctree E X),
 	  choiceI2 spinI t ~ t.
 Proof.
-  intros; apply choiceI_is_stuck, spinI_is_stuck.
+  intros; apply choiceI2_is_stuck, spinI_is_stuck.
 Qed.
 
 Lemma choiceI2_spinI_r {E X} : forall (t : ctree E X),
 	  choiceI2 t spinI ~ t.
 Proof.
-  intros; rewrite choiceI2_commut; apply choiceI_is_stuck, spinI_is_stuck.
+  intros; rewrite choiceI2_commut; apply choiceI2_is_stuck, spinI_is_stuck.
 Qed.
 
 Lemma trans_choiceV21 E R : forall (t u : ctree E R),

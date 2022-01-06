@@ -1,4 +1,4 @@
-(*| 
+(*|
 Denotation of [ccs] into [ctree]s
 |*)
 
@@ -23,10 +23,13 @@ From CTreeCCS Require Import
 From Coinduction Require Import
 	coinduction rel tactics.
 
+(* Import CTree. *)
+
 Import CTreeNotations.
 Open Scope ctree_scope.
 
-(* TODO FIX *)
+Set Implicit Arguments.
+Set Contextual Implicit.
 
 (*|
 Event signature
@@ -36,24 +39,27 @@ Processes can perform actions, synchronizations, or be unresponsive
 
 Variant ActionE : Type -> Type :=
 	| Act (a : action) : ActionE unit.
-(* Variant SynchE : Type -> Type := Tau : SynchE unit. *)
+Variant SynchE : Type -> Type :=
+  Tau : SynchE unit.
+(* Variant DeadE : Type -> Type := *)
+(* 	| throw : DeadE void. *)
 
-Variant DeadE : Type -> Type :=
-	| throw : DeadE void.
+(* Definition dead {A : Type} {E} `{DeadE -< E} : ctree E A := *)
+(* 	x <- trigger throw;; match x: void with end. *)
 
-Definition dead {A : Type} {E} `{DeadE -< E} : ctree E A :=
-	x <- trigger throw;; match x: void with end.
+(* Definition ccsE : Type -> Type := ((* SynchE +' *) ActionE +' DeadE). *)
+Definition ccsE : Type -> Type := (SynchE +' ActionE).
 
-Definition ccsE : Type -> Type := ((* SynchE +' *) ActionE +' DeadE).
+Definition ccsT' T := ctree' ccsE T.
+Definition ccsT  := ctree ccsE.
 
-Definition ccsT := ctree ccsE.
-
+Definition ccs' := ccsT' unit.
 Definition ccs := ccsT unit.
 
 (*| Process algebra |*)
 Section Combinators.
 
-	Definition nil : ccs := CTree.stuck. (* Or should it be Choice 0 ? *)
+	Definition nil : ccs := CTree.stuck.
 
 	Definition prefix (a : action) (P: ccs) : ccs := trigger (Act a);; P.
 
@@ -67,7 +73,7 @@ Section Combinators.
             match a with
             | Send c'
             | Rcv c' =>
-              if (c =? c')%string then dead else trigger e
+              if (c =? c')%string then CTree.stuck else trigger e
             end.
 
 	Definition case_ctree {E F G} (f : E ~> ctree G) (g : F ~> ctree G)
@@ -80,137 +86,106 @@ Section Combinators.
   (* TODO: define basically the theory of handlers for ctrees, all the constructions are specialized to ccs right now *)
 
   Definition h_restrict c : ccsE ~> ctree ccsE :=
-    case_ctree (h_restrict_ c) h_trigger.
+    case_ctree h_trigger (h_restrict_ c).
     (* case_ctree h_trigger (case_ctree (h_restrict_ c) h_trigger). *)
 
   Definition restrict {X} : chan -> ccsT X -> ccsT X :=
     fun c P => interp (h_restrict c) P.
 
-  Notation "0" := nil: ccs_scope.
-  Infix "+" := plus (at level 50, left associativity).
+(*|
+We could define generic [get_hd] functions as follows.
+For now, we'll work with specialized versions below
+|*)
+	Variant head_gen {E R} :=
+	  | HRet    (r : R)
+	  | HChoice (choice : {n : nat & Fin.t n -> ctree E R})
+	  | HVis    (obs : {X : Type & E X & X -> ctree E R}).
 
-  Lemma plsC: forall p q, p+q ~ q+p.
-  Proof.
-    apply choiceI2_commut.
-  Qed.
+  Definition get_hd_gen {E X} : ctree E X -> ctree void1 (@head_gen E X) :=
+    cofix get_hd_gen (t : ctree E X) :=
+      match observe t with
+      | RetF x            => Ret (HRet x)
+      | VisF e k          => Ret (HVis (existT2 _ _ _ e k))
+      | ChoiceF true n k  => Ret (HChoice (existT _ n k))
+      | ChoiceF false n k => Choice false n (fun i => get_hd_gen (k i))
+      end.
 
-  Lemma plsA p q r: p+(q+r) ~ (p+q)+r.
-  Proof.
-    symmetry; apply choiceI2_assoc.
-  Qed.
-
-  Lemma pls0p p: 0 + p ~ p.
-  Proof.
-    apply choiceI_stuck_l.
-  Qed.
-
-  Lemma plsp0 p: p + 0 ~ p.
-  Proof. now rewrite plsC, pls0p. Qed.
-
-
-	(* TO THINK : how should the head be wrapped? More concretely, leading to more dirty pattern matching in [get_hd],
-	or generically, making get_hd both very generic and simpler, but leading to more work in the parallel composition operator?
-	*)
 	Variant head :=
-	| Hdone
-	| Hact (a : option action) (P : ccs).
+	  | Hdone
+	  | Hact (a : option action) (P : ccs).
 
-	Variant head' {E R} :=
-	| HDone'
-	| HVis (obs : {X : Type & ccsE X & X -> ctree E R}).
+  Notation "'tauP' e" := (inl1 e) (at level 10).
+  Notation "'actP' e" := (inr1 e) (at level 10).
+(*|
+In order to compose in parallel processes, we need to compute for each process
+the set of possibly next communication they would perform.
+Doing so corresponds to crawling the tree through invisible schedules until a
+communication node is reached. We then wrap the whole subtree into a returned
+value. We also wrap stuck computations into a returned value in order to
+be able to bind the head tree in the parallel composition without creating a
+stuck computation.
+We have for our purpose some invariants on the trees:
+- They do not contain [Ret] nodes, they are concluded by stuck ones
+- They do not contain visible choices
+- They do not contain invisible choices of arity > 3
+We currently return stuck computations in these cases.
+|*)
 
-  (* Notations for patterns *)
-  (* Notation "'synchP' e" := (inl1 e) (at level 10). *)
-  (* Notation "'actP' e" := (inr1 (inl1 e)) (at level 10). *)
-  (* Notation "'deadP' e" :=  (inr1 (inr1 e)) (at level 10). *)
-  Notation "'actP' e" := (inl1 e) (at level 10).
-  Notation "'deadP' e" :=  (inr1 e) (at level 10).
-
-
-	Notation "pf ↦ k" := (eq_rect_r (fun T => T -> ccs) k pf tt) (at level 40, k at next level).
+  Definition get_hd : ccs -> ccsT head :=
+    cofix get_hd (t : ccs) :=
+      match observe t with
+      | RetF x            =>
+          CTree.stuck
+      | VisF (tauP e) k   =>
+          match e,k with
+          | Tau,k => Ret (Hact None (k tt))
+          end
+      | VisF (actP e) k   =>
+          match e, k with
+          | Act a, k => Ret (Hact (Some a) (k tt))
+          end
+      | ChoiceF true n k  => CTree.stuck
+      | ChoiceF false n k =>
+          if Nat.eqb n 0
+          then Ret Hdone
+          else Choice false n (fun i => get_hd (k i))
+      end.
 
   Definition can_synch (a b : option action) : bool :=
 		match a, b with | Some a, Some b => are_opposite a b | _, _ => false end.
-
-  Definition get_hd : ccs -> ccsT head.
-    refine (cofix get_hd (P : ccs) :=
-      match observe P with
-      | RetF x => Ret Hdone
-      | @VisF _ _ _ T e k =>
-				match e  with
-				| actP e   => match e in ActionE X return X = T -> ccsT head with
-											| Act a => fun pf => (Ret (Hact (Some a) (pf ↦ k)))
-											end eq_refl
-				| deadP e  => dead
-				end
-      | ChoiceF false n k => Choice false n (fun i => get_hd (k i))
-      | ChoiceF true n k  => _
-          (* Ret (Hact None (k) *)
-			end).
-
-
-  (* Definition get_hd : ccs -> ccsT head := *)
-  (*   cofix get_hd (P : ccs) := *)
-  (*     match observe P with *)
-  (*     | RetF x => Ret Hdone *)
-  (*     | @VisF _ _ _ T e k => *)
-	(* 			  match e  with *)
-	(* 			  | actP e   => match e in ActionE X return X = T -> ccsT head with *)
-	(* 										 | Act a => fun pf => (Ret (Hact (Some a) (pf ↦ k))) *)
-	(* 										 end eq_refl *)
-	(* 			  | synchP e => match e in SynchE X return X = T -> ccsT head with *)
-	(* 										 | Tau => fun pf => (Ret (Hact None (pf ↦ k))) *)
-	(* 										 end eq_refl *)
-	(* 			  | deadP e  => dead *)
-	(* 			  end *)
-  (*     | ChoiceF b n k => Choice b n (fun i => get_hd (k i)) *)
-	(* 		end. *)
+  Definition reemit (a : option action) : ccsE unit :=
+		match a with
+    | Some a => inr1 (Act a)
+    | None => inl1 Tau
+    end.
 
   Definition para : ccs -> ccs -> ccs :=
-		cofix F (P : ccs) (Q : ccs) :=
+    cofix F (P : ccs) (Q : ccs) :=
+
       (* We construct the "heads" of both computations to get all reachable events *)
 			rP <- get_hd P;;
 			rQ <- get_hd Q;;
 
+      (* We then proceed by case analysis on these events *)
 			match rP, rQ with
+
       (* Things are straightforward if all or part of the computations are over *)
-			| Hdone, Hdone => done
-			| Hdone, _ => Q
+			| Hdone, Hdone => nil   (* Both computations ended *)
+			| Hdone, _ => Q         (* Both computations ended *)
 			| _, Hdone => P
 
-      (* If two communications happen *)
+      (* If two actions happen, we distinguish two cases *)
 			| Hact a P', Hact b Q' =>
-				match a, b with
-				| Some a, Some b =>
-					if are_opposite a b
-					then choiceI3 (vis Tau (fun _ => F P' Q')) (vis (Act a) (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
-					else choiceI2 (vis (Act a) (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
-
-				| Some a, None => choiceI2 (vis (Act a) (fun _ => F P' Q)) (vis Tau (fun _ => F P Q'))
-				| None, Some b => choiceI2 (vis Tau (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
-				| None, None =>   choiceI2 (vis Tau (fun _ => F P' Q)) (vis Tau (fun _ => F P Q'))
-				end
-			end	.
-
-  Definition para : ccs -> ccs -> ccs :=
-		cofix F (P : ccs) (Q : ccs) :=
-			rP <- get_hd P;;
-			rQ <- get_hd Q;;
-			match rP, rQ with
-			| Hdone, Hdone => done
-			| Hdone, _ => Q
-			| _, Hdone => P
-			| Hact a P', Hact b Q' =>
-				match a, b with
-				| Some a, Some b =>
-					if are_opposite a b
-					then choiceI3 (vis Tau (fun _ => F P' Q')) (vis (Act a) (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
-					else choiceI2 (vis (Act a) (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
-				| Some a, None => choiceI2 (vis (Act a) (fun _ => F P' Q)) (vis Tau (fun _ => F P Q'))
-				| None, Some b => choiceI2 (vis Tau (fun _ => F P' Q)) (vis (Act b) (fun _ => F P Q'))
-				| None, None =>   choiceI2 (vis Tau (fun _ => F P' Q)) (vis Tau (fun _ => F P Q'))
-				end
-			end	.
+          if can_synch a b then
+            (* A communication could happen, we have hence three non-deterministic possibilities *)
+            choiceI3 (trigger Tau    ;; F P' Q')
+                     (trigger (reemit a);; F P' Q )
+                     (trigger (reemit b);; F P  Q')
+					else
+            (* Incompatible communications, only two possibilities *)
+            choiceI2 (trigger (reemit a);; F P' Q)
+                     (trigger (reemit b);; F P Q')
+      end.
 
 (*
 				-------------------------------------------------
@@ -221,6 +196,193 @@ Section Combinators.
 *)
 
 End Combinators.
+
+Notation "'tauP' e" := (inl1 e) (at level 10).
+Notation "'actP' e" := (inr1 e) (at level 10).
+Notation get_hd_ P :=
+  match observe P with
+  | RetF x            => CTree.stuck
+  | VisF (tauP e) k   =>
+      match e,k with
+      | Tau,k => Ret (Hact None (k tt))
+      end
+  | VisF (actP e) k   =>
+      match e, k with
+      | Act a, k => Ret (Hact (Some a) (k tt))
+      end
+  | ChoiceF true n k  => CTree.stuck
+  | ChoiceF false n k =>
+      if Nat.eqb n 0
+      then Ret Hdone
+      else Choice false n (fun i => get_hd (k i))
+  end.
+
+Lemma unfold_get_hd : forall P,
+    get_hd P ≅ get_hd_ P.
+Proof.
+  intros.
+	now step.
+Qed.
+
+Notation para_ P Q :=
+			(rP <- get_hd P;;
+			rQ <- get_hd Q;;
+			match rP, rQ with
+			| Hdone, Hdone => nil
+			| Hdone, _ => Q
+			| _, Hdone => P
+			| Hact a P', Hact b Q' =>
+          if can_synch a b then
+            choiceI3 (trigger Tau    ;; para P' Q')
+                     (trigger (reemit a);; para P' Q )
+                     (trigger (reemit b);; para P  Q')
+					else
+            (* Incompatible communications, only two possibilities *)
+            choiceI2 (trigger (reemit a);; para P' Q)
+                     (trigger (reemit b);; para P Q')
+      end)%ctree.
+
+Lemma unfold_para : forall P Q, para P Q ≅ para_ P Q.
+Proof.
+  intros.
+	now step.
+Qed.
+
+Notation "0" := nil: ccs_scope.
+Infix "+" := plus (at level 50, left associativity).
+Infix "∥" := para (at level 29, left associativity).
+
+Lemma plsC: forall p q, p+q ~ q+p.
+Proof.
+  apply choiceI2_commut.
+Qed.
+
+Lemma plsA p q r: p+(q+r) ~ (p+q)+r.
+Proof.
+  symmetry; apply choiceI2_assoc.
+Qed.
+
+Lemma pls0p p: 0 + p ~ p.
+Proof.
+  apply choiceI2_stuck_l.
+Qed.
+
+Lemma plsp0 p: p + 0 ~ p.
+Proof. now rewrite plsC, pls0p. Qed.
+
+Lemma plsidem p: p + p ~ p.
+Proof.
+  apply choiceI2_idem.
+Qed.
+
+Lemma get_hd0 : get_hd 0 ≅ Ret Hdone.
+Proof.
+  now rewrite unfold_get_hd.
+Qed.
+
+Ltac eq2equ H :=
+  match type of H with
+  | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≅ t) by (subst; reflexivity); clear H
+  end.
+
+Lemma trans_get_hd_inv : forall P l u,
+    transR l (get_hd P) u ->
+    is_val l.
+Proof.
+  intros * TR.
+  red in TR.
+  remember (get_hd P) as HP.
+  eq2equ HeqHP.
+  rewrite ctree_eta in EQ.
+  revert P EQ.
+  induction TR; intros; subst.
+  - rewrite unfold_get_hd in EQ.
+    desobs P.
+    + step in EQ; apply equF_choice_invT in EQ as [-> _]; inv x.
+    + destruct e as [e|e]; destruct e; step in EQ; inv EQ.
+    + destruct vis.
+      step in EQ; apply equF_choice_invT in EQ as [-> _]; inv x.
+      destruct n0 as [|n0]; cbn in *.
+      * step in EQ; inv EQ.
+      * step in EQ; destruct (equF_choice_invT _ _ EQ) as [-> _].
+        eapply equF_choice_invE in EQ.
+        setoid_rewrite <- ctree_eta in IHTR.
+        eapply IHTR; eauto.
+  - exfalso.
+    rewrite unfold_get_hd in EQ.
+    desobs P.
+    + step in EQ; apply equF_choice_invT in EQ as [-> _]; inv x.
+    + destruct e as [e|e]; destruct e; step in EQ; inv EQ.
+    + destruct vis.
+      step in EQ; apply equF_choice_invT in EQ as [_ abs]; inv abs.
+      destruct n0 as [|n0]; cbn in *.
+      step in EQ; inv EQ.
+      step in EQ; apply equF_choice_invT in EQ as [_ abs]; inv abs.
+  - exfalso.
+    rewrite unfold_get_hd in EQ.
+    desobs P.
+    + step in EQ; inv EQ.
+    + destruct e0 as [e0|e0]; destruct e0; step in EQ; inv EQ.
+    + destruct vis.
+      step in EQ; inv EQ.
+      destruct n as [|n]; cbn in *.
+      step in EQ; inv EQ.
+      step in EQ; inv EQ.
+  - constructor.
+Qed.
+
+Lemma trans_get_hd_bind_inv : forall l P (k : _ -> ccs) u,
+    transR l (get_hd P >>= k) u ->
+    exists hd, transR (val hd) (get_hd P) CTree.stuck /\ transR l (k hd) u.
+Proof.
+  intros * TR.
+  edestruct @trans_bind_inv; [apply TR | | assumption].
+  destruct H as (? & ? & ? & ?).
+  apply trans_get_hd_inv in H0; contradiction.
+Qed.
+
+(* The following three facts are currently a bit messed up by
+   [get_hd] assuming invariants on the computations.
+   We need to either condition the lemmas, or generalize [get_hd]
+ *)
+Lemma trans_get_hd : forall l P Q,
+    transR l P Q ->
+    exists a P', transR (val (Hact a P')) (get_hd P) CTree.stuck /\
+              transR l P' Q.
+Proof.
+  intros * TR.
+  unfold transR in *.
+  setoid_rewrite unfold_get_hd; cbn.
+  (* genobs P oP. *)
+  (* revert P HeqoP. *)
+  induction TR; intros.
+Admitted.
+
+Lemma trans_parL : forall l P P' Q,
+    transR l P P' ->
+    transR l (P ∥ Q) (P' ∥ Q).
+Proof.
+  intros * TR.
+  red in TR; red.
+  rewrite unfold_para.
+  rewrite unfold_bind.
+Admitted.
+
+Lemma para0p : forall P, 0 ∥ P ~ P.
+Proof.
+  intros ?.
+  steps.
+  - rewrite unfold_para, get_hd0, bind_ret_l in TR.
+    apply trans_get_hd_bind_inv in TR as (? & ? & ?).
+    destruct x.
+    exfalso; eapply stuck_is_stuck; apply H0.
+    now exists t'.
+  - exists t'; [| reflexivity].
+    rewrite unfold_para, get_hd0, bind_ret_l.
+    apply trans_get_hd in TR as (? & ? & ? & ?).
+    eapply trans_bind_r; [apply H | cbn].
+
+Admitted.
 
 Import CCSNotations.
 Open Scope ccs_scope.
@@ -234,12 +396,12 @@ Open Scope ccs_scope.
 
 Fixpoint model (t : term) : ccs :=
 	match t with
-	| 0     => done
-	| a ⋅ P => prefix a (model P)
+	| 0      => nil
+	| a ⋅ P  => prefix a (model P)
 	| TauT P => TauV (model P)
-	| P ∥ Q => para (model P) (model Q)
-	| P ⊕ Q => plus (model P) (model Q)
-	| P ∖ c => restrict c (model P)
+	| P ∥ Q  => para (model P) (model Q)
+	| P ⊕ Q  => plus (model P) (model Q)
+	| P ∖ c  => restrict c (model P)
 	end.
 
 (*
@@ -271,54 +433,3 @@ Module DenNotations.
 End DenNotations.
 
 Import DenNotations.
-
-Notation "pf ↦ k" := (eq_rect_r (fun T => T -> ccs) k pf tt) (at level 40, k at next level).
-Notation get_hd_ P :=
-  match observe P with
-  | RetF x => Ret Hdone
-  | @VisF _ _ _ T e k =>
-  	match e  with
-		| actP e   => match e in ActionE X return X = T -> ccsT head with
-									| Act a => fun pf => (Ret (Hact (Some a) (pf ↦ k)))
-									end eq_refl
-		| synchP e => match e in SynchE X return X = T -> ccsT head with
-									| Tau => fun pf => (Ret (Hact None (pf ↦ k)))
-									end eq_refl
-		| deadP e  => dead
-		end
-  | ChoiceF b n k => Choice b n (fun i => get_hd (k i))
-  end.
-
-Lemma get_hd_unfold : forall P,
-    get_hd P ≅ get_hd_ P.
-Proof.
-  intros.
-	now step.
-Qed.
-
-Notation para_ P Q :=
-			(rP <- get_hd P;;
-			rQ <- get_hd Q;;
-			match rP, rQ with
-			| Hdone, Hdone => done
-			| Hdone, _ => Q
-			| _, Hdone => P
-			| Hact a P', Hact b Q' =>
-				match a, b with
-				| Some a, Some b =>
-					if are_opposite a b
-					then choice3 (vis Tau (fun _ => para P' Q')) (vis (Act a) (fun _ => para P' Q)) (vis (Act b) (fun _ => para P Q'))
-					else choice2 (vis (Act a) (fun _ => para P' Q)) (vis (Act b) (fun _ => para P Q'))
-				| Some a, None => choice2 (vis (Act a) (fun _ => para P' Q)) (vis Tau (fun _ => para P Q'))
-				| None, Some b => choice2 (vis Tau (fun _ => para P' Q)) (vis (Act b) (fun _ => para P Q'))
-				| None, None =>   choice2 (vis Tau (fun _ => para P' Q)) (vis Tau (fun _ => para P Q'))
-				end
-			end)%ctree.
-
-Lemma para_unfold : forall P Q, para P Q ≅ para_ P Q.
-Proof.
-  intros.
-	now step.
-Qed.
-
-
