@@ -17,6 +17,17 @@ From CTree Require Import
 	Bisim
   CTreesTheory.
 
+From RelationAlgebra Require Import
+     monoid
+     kat
+     kat_tac
+     prop
+     rel
+     srel
+     comparisons
+     rewriting
+     normalisation.
+
 From CTreeCCS Require Import
 	Syntax.
 
@@ -98,15 +109,15 @@ For now, we'll work with specialized versions below
 |*)
 	Variant head_gen {E R} :=
 	  | HRet    (r : R)
-	  | HChoice (choice : {n : nat & Fin.t n -> ctree E R})
-	  | HVis    (obs : {X : Type & E X & X -> ctree E R}).
+	  | HChoice (n : nat) (k : Fin.t n -> ctree E R)
+	  | HVis    (X : Type) (e : E X) (k : X -> ctree E R).
 
   Definition get_hd_gen {E X} : ctree E X -> ctree void1 (@head_gen E X) :=
     cofix get_hd_gen (t : ctree E X) :=
       match observe t with
       | RetF x            => Ret (HRet x)
-      | VisF e k          => Ret (HVis (existT2 _ _ _ e k))
-      | ChoiceF true n k  => Ret (HChoice (existT _ n k))
+      | VisF e k          => Ret (HVis  e k)
+      | ChoiceF true n k  => Ret (HChoice k)
       | ChoiceF false n k => Choice false n (fun i => get_hd_gen (k i))
       end.
 
@@ -219,6 +230,21 @@ Notation get_hd_ P :=
 
 Lemma unfold_get_hd : forall P,
     get_hd P ≅ get_hd_ P.
+Proof.
+  intros.
+	now step.
+Qed.
+
+Notation get_hd_gen_ t :=
+  match observe t with
+  | RetF x            => Ret (HRet x)
+  | VisF e k          => Ret (HVis e k)
+  | ChoiceF true n k  => Ret (HChoice k)
+  | ChoiceF false n k => Choice false n (fun i => get_hd_gen (k i))
+  end.
+
+Lemma unfold_get_hd_gen {E X} : forall (t : ctree E X),
+    get_hd_gen t ≅ get_hd_gen_ t.
 Proof.
   intros.
 	now step.
@@ -341,6 +367,105 @@ Proof.
   apply trans_get_hd_inv in H0; contradiction.
 Qed.
 
+Lemma trans_get_hd_gen_obs {E X} : forall (t u : ctree E X) Y (e : E Y) v,
+    transR (obs e v) t u ->
+    exists (k : Y -> ctree E X),
+      transR (val (HVis e k)) (get_hd_gen t) CTree.stuck /\
+        u ≅ k v.
+Proof.
+  intros * TR.
+  unfold transR in *.
+  remember (obs e v) as ob.
+  setoid_rewrite (ctree_eta u).
+  setoid_rewrite unfold_get_hd_gen.
+  induction TR; try now inv Heqob.
+  - destruct IHTR as (kf & IHTR & EQ); auto.
+    exists kf; split; [| exact EQ].
+    rename x into y.
+    rewrite <- unfold_get_hd_gen in IHTR.
+    eapply trans_ChoiceI with (x := y).
+    apply IHTR.
+    reflexivity.
+  - dependent induction Heqob.
+    exists k; split.
+    constructor.
+    rewrite <- ctree_eta; symmetry; assumption.
+Qed.
+
+Lemma trans_get_hd_gen_tau {E X} : forall (t u : ctree E X),
+    transR tau t u ->
+    exists n (k : Fin.t n -> ctree E X) x,
+      transR (val (HChoice k)) (get_hd_gen t) CTree.stuck /\
+        u ≅ k x.
+Proof.
+  intros * TR.
+  unfold transR in *.
+  remember tau as ob.
+  setoid_rewrite (ctree_eta u).
+  setoid_rewrite unfold_get_hd_gen.
+  induction TR; try now inv Heqob; subst.
+  - destruct IHTR as (m & kf & z & IHTR & EQ); auto.
+    exists m, kf, z; split; [| exact EQ].
+    rename x into y.
+    rewrite <- unfold_get_hd_gen in IHTR.
+    eapply trans_ChoiceI with (x := y).
+    apply IHTR.
+    reflexivity.
+  - exists n,k,x; split.
+    constructor.
+    rewrite <- ctree_eta; symmetry; assumption.
+Qed.
+
+(* Convenience: we don't need to rely on bisimulation even if we don't know the continuation *)
+Lemma choiceI0_always_stuck : forall {E R} k,
+    ChoiceI 0 k ≅ @CTree.stuck E R.
+Proof.
+  intros.
+  step.
+  constructor; intros abs; inv abs.
+Qed.
+
+Lemma trans_get_hd_gen_ret {E X} : forall (t u : ctree E X) (v : X),
+    transR (val v) t u ->
+    transR (val (@HRet E X v)) (get_hd_gen t) CTree.stuck /\
+      u ≅ CTree.stuck.
+Proof.
+  intros * TR.
+  unfold transR in *.
+  remember (val v) as ob.
+  setoid_rewrite (ctree_eta u).
+  setoid_rewrite unfold_get_hd_gen.
+  induction TR; try now inv Heqob; subst.
+  - destruct IHTR as (IHTR & EQ); auto.
+    split; [| exact EQ].
+    rewrite <- unfold_get_hd_gen in IHTR.
+    rename x into y.
+    eapply trans_ChoiceI with (x := y).
+    apply IHTR.
+    reflexivity.
+  - dependent induction Heqob.
+    split.
+    constructor.
+    symmetry; rewrite choiceI0_always_stuck; reflexivity.
+Qed.
+
+Lemma trans_get_hd_gen : forall {E X} (t u : ctree E X) l,
+    transR l t u ->
+    match l with
+    | tau => exists n (k : Fin.t n -> ctree E X) x,
+        transR (val (HChoice k)) (get_hd_gen t) CTree.stuck /\ u ≅ k x
+    | obs e v => exists (k : _ -> ctree E X),
+        transR (val (HVis e k)) (get_hd_gen t) CTree.stuck /\ u ≅ k v
+    | val v => transR (val (@HRet E _ v)) (get_hd_gen t) CTree.stuck /\ u ≅ CTree.stuck
+    end.
+Proof.
+  intros *; destruct l.
+  apply trans_get_hd_gen_tau.
+  apply trans_get_hd_gen_obs.
+  intros H.
+  pose proof (trans_val_invT H); subst; apply trans_get_hd_gen_ret; assumption.
+Qed.
+
 (* The following three facts are currently a bit messed up by
    [get_hd] assuming invariants on the computations.
    We need to either condition the lemmas, or generalize [get_hd]
@@ -384,6 +509,7 @@ Proof.
 
 Admitted.
 
+
 Import CCSNotations.
 Open Scope ccs_scope.
 
@@ -397,7 +523,7 @@ Open Scope ccs_scope.
 Fixpoint model (t : term) : ccs :=
 	match t with
 	| 0      => nil
-	| a ⋅ P  => prefix a (model P)
+	| a · P  => prefix a (model P)
 	| TauT P => TauV (model P)
 	| P ∥ Q  => para (model P) (model Q)
 	| P ⊕ Q  => plus (model P) (model Q)

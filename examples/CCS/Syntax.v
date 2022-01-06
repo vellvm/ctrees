@@ -55,7 +55,7 @@ Module CCSNotations.
 
   Infix "=?" := eqb_action : ccs_scope.
   Notation "0" := DoneT : ccs_scope.
-  Notation "a ⋅ P" := (ActionT a P) (at level 10) : ccs_scope.
+  Notation "a · P" := (ActionT a P) (at level 10) : ccs_scope.
   (* Notation "τ ⋅ P" := (TauT P) (at level 10) : ccs_scope. *)
   Notation "P ∥ Q" := (ParaT P Q) (at level 29, left associativity) : ccs_scope.
   Notation "P ⊕ Q" := (PlusT P Q) (at level 28, left associativity) : ccs_scope.
@@ -75,7 +75,7 @@ Section Ex.
   Definition b := "b".
 
   Definition ex P Q : term :=
-    ((↑a ⋅ P ⊕ ↑b ⋅ 0) ∥ ↓a ⋅ Q) ∖ a.
+    ((↑a · P ⊕ ↑b · 0) ∥ ↓a · Q) ∖ a.
 
 End Ex.
 
