@@ -112,13 +112,58 @@ For now, we'll work with specialized versions below
 	  | HChoice (n : nat) (k : Fin.t n -> ctree E R)
 	  | HVis    (X : Type) (e : E X) (k : X -> ctree E R).
 
-  Definition get_hd_gen {E X} : ctree E X -> ctree void1 (@head_gen E X) :=
+  Definition get_hd_gen {E F X} : ctree E X -> ctree F (@head_gen E X) :=
     cofix get_hd_gen (t : ctree E X) :=
       match observe t with
       | RetF x            => Ret (HRet x)
-      | VisF e k          => Ret (HVis  e k)
+      | VisF e k          => Ret (HVis e k)
       | ChoiceF true n k  => Ret (HChoice k)
       | ChoiceF false n k => Choice false n (fun i => get_hd_gen (k i))
+      end.
+
+  Definition communicating {E} :
+    ctree (ActionE +' E) unit ->
+    ctree (ActionE +' E) unit ->
+    ctree (ActionE +' E) unit :=
+    cofix F (P : ctree (ActionE +' E) unit) (Q : ctree (ActionE +' E) unit) :=
+
+      (* We construct the "heads" of both computations to get all reachable events *)
+			rP <- get_hd_gen P;;
+			rQ <- get_hd_gen Q;;
+
+      (* And then proceed to:
+         - collect all interleavings of visible choices and visible events
+         - dismiss terminated computations, disregarding their returned values
+         - when encountering two synchronizable actions, adding the communication
+         as a third possibility
+       *)
+      match rP, rQ with
+      | HRet rP, _ => Q
+      | _, HRet rQ => P
+      | HChoice kP, HChoice kQ =>
+          choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
+                   (ChoiceV _ (fun i => F P (kQ i)))
+      | HChoice kP, HVis e kQ =>
+          choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
+                   (Vis e     (fun x => F P (kQ x)))
+      | HVis e kP, HChoice kQ =>
+          choiceI2 (Vis e     (fun x => F (kP x) Q))
+                   (ChoiceV _ (fun i => F P (kQ i)))
+      | HVis (inl1 eP) kP, HVis (inl1 eQ) kQ =>
+          match eP, kP, eQ, kQ with
+          | Act a, kP, Act b, kQ =>
+              if are_opposite a b
+              then
+                choiceI3 (TauV (F (kP tt) (kQ tt)))
+                         (trigger (inl1 (Act a));; F (kP tt) Q)
+                         (trigger (inl1 (Act b));; F P (kQ tt))
+              else
+                choiceI2 (trigger (inl1 (Act a));; F (kP tt) Q)
+                         (trigger (inl1 (Act b));; F P (kQ tt))
+          end
+      | HVis eP kP, HVis eQ kQ =>
+          choiceI2 (Vis eP (fun x => F (kP x) Q))
+                   (Vis eQ (fun x => F P (kQ x)))
       end.
 
 	Variant head :=
@@ -243,8 +288,8 @@ Notation get_hd_gen_ t :=
   | ChoiceF false n k => Choice false n (fun i => get_hd_gen (k i))
   end.
 
-Lemma unfold_get_hd_gen {E X} : forall (t : ctree E X),
-    get_hd_gen t ≅ get_hd_gen_ t.
+Lemma unfold_get_hd_gen {E F X} : forall (t : ctree E X),
+    get_hd_gen (F := F) t ≅ get_hd_gen_ t.
 Proof.
   intros.
 	now step.
@@ -370,7 +415,7 @@ Qed.
 Lemma trans_get_hd_gen_obs {E X} : forall (t u : ctree E X) Y (e : E Y) v,
     transR (obs e v) t u ->
     exists (k : Y -> ctree E X),
-      transR (val (HVis e k)) (get_hd_gen t) CTree.stuck /\
+      transR (val (HVis e k)) (get_hd_gen (F := E) t) CTree.stuck /\
         u ≅ k v.
 Proof.
   intros * TR.
@@ -395,7 +440,7 @@ Qed.
 Lemma trans_get_hd_gen_tau {E X} : forall (t u : ctree E X),
     transR tau t u ->
     exists n (k : Fin.t n -> ctree E X) x,
-      transR (val (HChoice k)) (get_hd_gen t) CTree.stuck /\
+      transR (val (HChoice k)) (get_hd_gen (F := E) t) CTree.stuck /\
         u ≅ k x.
 Proof.
   intros * TR.
@@ -427,7 +472,7 @@ Qed.
 
 Lemma trans_get_hd_gen_ret {E X} : forall (t u : ctree E X) (v : X),
     transR (val v) t u ->
-    transR (val (@HRet E X v)) (get_hd_gen t) CTree.stuck /\
+    transR (val (@HRet E X v)) (get_hd_gen (F := E) t) CTree.stuck /\
       u ≅ CTree.stuck.
 Proof.
   intros * TR.
@@ -453,10 +498,10 @@ Lemma trans_get_hd_gen : forall {E X} (t u : ctree E X) l,
     transR l t u ->
     match l with
     | tau => exists n (k : Fin.t n -> ctree E X) x,
-        transR (val (HChoice k)) (get_hd_gen t) CTree.stuck /\ u ≅ k x
+        transR (val (HChoice k)) (get_hd_gen (F := E) t) CTree.stuck /\ u ≅ k x
     | obs e v => exists (k : _ -> ctree E X),
-        transR (val (HVis e k)) (get_hd_gen t) CTree.stuck /\ u ≅ k v
-    | val v => transR (val (@HRet E _ v)) (get_hd_gen t) CTree.stuck /\ u ≅ CTree.stuck
+        transR (val (HVis e k)) (get_hd_gen (F := E) t) CTree.stuck /\ u ≅ k v
+    | val v => transR (val (@HRet E _ v)) (get_hd_gen (F := E) t) CTree.stuck /\ u ≅ CTree.stuck
     end.
 Proof.
   intros *; destruct l.
