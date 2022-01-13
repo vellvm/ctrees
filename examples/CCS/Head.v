@@ -1,3 +1,18 @@
+(*|
+============================
+Scheduling head of [ctree]s
+============================
+It is sometimes useful to compute the set of transition that a process
+can perform.
+From the traditional perspective of a LTS, this corresponds
+to computing all possible finite trees justifying a transition.
+From the perspective of [ctree]s, it corresponds to prefix of the
+tree only made of invisible choice nodes.
+We develop in this file the [get_head] function to compute this prefix.
+
+.. coq:: none
+|*)
+
 From CTree Require Import
 	Utils
 	CTrees
@@ -21,15 +36,26 @@ Set Implicit Arguments.
 Set Contextual Implicit.
 
 (*|
-We could define generic [get_hd] functions as follows.
-For now, we'll work with specialized versions below
+The [get_head] computation is itself a tree. The values it computes is
+the set of possible transition, i.e. enough data to recover the next label
+and process.
+The [head] data structure captures trivially this data.
+.. coq::
 |*)
-Variant head_gen {E R} :=
+
+Variant head {E R} :=
 	| HRet    (r : R)
 	| HChoice (n : nat) (k : Fin.t n -> ctree E R)
 	| HVis    (X : Type) (e : E X) (k : X -> ctree E R).
 
-Definition get_head {E F X} : ctree E X -> ctree F (@head_gen E X) :=
+
+(*|
+The [get_head] computation simply scrolls the tree until it reaches
+a none invisible choice node.
+Notice that this computation may loop if the original computation
+admits a infinite branch of invisible choices.
+|*)
+Definition get_head {E F X} : ctree E X -> ctree F (@head E X) :=
   cofix get_head (t : ctree E X) :=
     match observe t with
     | RetF x            => Ret (HRet x)
@@ -53,6 +79,11 @@ Proof.
 	now step.
 Qed.
 
+(*|
+Transitions in a tree can always be reflected in their head-tree.
+The exact shape of the lemma depends on the nature of the transition.
+We wrap them together in [trans_get_head].
+|*)
 Lemma trans_get_head_obs {E X} : forall (t u : ctree E X) Y (e : E Y) v,
     trans (obs e v) t u ->
     exists (k : Y -> ctree E X),
@@ -143,41 +174,15 @@ Proof.
   pose proof (trans_val_invT H); subst; apply trans_get_head_ret; assumption.
 Qed.
 
-Inductive eq_head {E R} : @head_gen E R -> head_gen -> Prop :=
-| eq_head_ret : forall r, eq_head (HRet r) (HRet r)
-| eq_head_choice : forall n (k1 k2 : fin n -> _),
-    (forall i, k1 i ≅ k2 i) ->
-    eq_head (HChoice k1) (HChoice k2)
-| eq_head_vis : forall X (e : E X) k1 k2,
-    (forall x, k1 x ≅ k2 x) ->
-    eq_head (HVis e k1) (HVis e k2).
-
-#[global] Instance Equivalence_bt_equ_gen {E X Y R S}:
-  Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E Y _ eq)) ==> iff) (bt_equ R S).
-Admitted.
-
-#[global] Instance get_head_equ {E F X} :
-  Proper (equ eq ==> equ (eq_head)) (@get_head E F X).
-Proof.
-  unfold Proper, respectful.
-  coinduction S CIH.
-  intros.
-  rewrite 2 unfold_get_head.
-  step in H.
-  inv H.
-  - do 2 constructor.
-  - do 2 constructor; auto.
-  - destruct b.
-    + do 2 constructor; auto.
-    + constructor; intros ?; auto.
-Qed.
-
+(*|
+The only transitions that the head-tree can take are value ones.
+|*)
 Ltac eq2equ H :=
   match type of H with
   | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≅ t) by (subst; reflexivity); clear H
   end.
 
-Lemma trans_get_hhead {E F X} : forall (P : ctree E X) l u,
+Lemma trans_get_head_inv {E F X} : forall (P : ctree E X) l u,
     trans l (get_head (F := F) P) u ->
     is_val l.
 Proof.
@@ -209,4 +214,41 @@ Proof.
   - constructor.
 Qed.
 
+(*|
+[get_head] is a computation computing computations. It's therefore not as
+well-behaved w.r.t. to [equ] as usual: rewriting [equ eq] leads to [equ eq_head]
+computations, where [eq_head] propagates [equ] to the computations contained in the
+heads.
+|*)
+Inductive eq_head {E R} : @head E R -> head -> Prop :=
+| eq_head_ret : forall r, eq_head (HRet r) (HRet r)
+| eq_head_choice : forall n (k1 k2 : fin n -> _),
+    (forall i, k1 i ≅ k2 i) ->
+    eq_head (HChoice k1) (HChoice k2)
+| eq_head_vis : forall X (e : E X) k1 k2,
+    (forall x, k1 x ≅ k2 x) ->
+    eq_head (HVis e k1) (HVis e k2).
+
+(*|
+TOOD: Generalization of [Equivalence_bt_equ]
+|*)
+#[global] Instance Equivalence_bt_equ_gen {E X Y R S}:
+  Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E Y _ eq)) ==> iff) (bt_equ R S).
+Admitted.
+
+#[global] Instance get_head_equ {E F X} :
+  Proper (equ eq ==> equ (eq_head)) (@get_head E F X).
+Proof.
+  unfold Proper, respectful.
+  coinduction S CIH.
+  intros.
+  rewrite 2 unfold_get_head.
+  step in H.
+  inv H.
+  - do 2 constructor.
+  - do 2 constructor; auto.
+  - destruct b.
+    + do 2 constructor; auto.
+    + constructor; intros ?; auto.
+Qed.
 
