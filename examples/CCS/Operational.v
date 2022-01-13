@@ -12,7 +12,7 @@ Definition use_channel (c : chan) (a : option action) : bool :=
 Inductive step : term -> option action -> term -> Prop :=
 
 | SAct: forall a P,
-    step (a ⋅ P) (Some a) P
+    step (a · P) (Some a) P
 
 | STau: forall P,
     step (TauT P) None P
@@ -61,7 +61,7 @@ Section Example.
   Qed.
 
   Fact ex2: forall P Q,
-      step (ex P Q) (Some (↑b)) ((0 ∥ ↓a ⋅ Q) ∖ a).
+      step (ex P Q) (Some (↑b)) ((0 ∥ ↓a · Q) ∖ a).
     intros.
     apply SRes; auto.
     eapply SParL.
@@ -78,7 +78,7 @@ Section Example.
   Fact ex3 : forall P Q R α,
       step (ex P Q) α R ->
     (α = None /\ R = ((P ∥ Q) ∖ a)) \/
-    (α = Some (↑b) /\ R = ((0 ∥ ↓a ⋅ Q) ∖ a)).
+    (α = Some (↑b) /\ R = ((0 ∥ ↓a · Q) ∖ a)).
     intros.
     repeat inv_step; cbn in *; try (easy || eauto).
   Qed.

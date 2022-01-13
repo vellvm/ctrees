@@ -29,7 +29,8 @@ From RelationAlgebra Require Import
      normalisation.
 
 From CTreeCCS Require Import
-	Syntax.
+	   Syntax
+     Head.
 
 From Coinduction Require Import
 	coinduction rel tactics.
@@ -50,25 +51,22 @@ Processes can perform actions, synchronizations, or be unresponsive
 
 Variant ActionE : Type -> Type :=
 	| Act (a : action) : ActionE unit.
-Variant SynchE : Type -> Type :=
-  Tau : SynchE unit.
-(* Variant DeadE : Type -> Type := *)
-(* 	| throw : DeadE void. *)
 
-(* Definition dead {A : Type} {E} `{DeadE -< E} : ctree E A := *)
-(* 	x <- trigger throw;; match x: void with end. *)
+Definition ccsE E : Type -> Type := ActionE +' E.
 
-(* Definition ccsE : Type -> Type := ((* SynchE +' *) ActionE +' DeadE). *)
-Definition ccsE : Type -> Type := (SynchE +' ActionE).
+Definition ccsT' E T := ctree' (ccsE E) T.
+Definition ccsT E  := ctree (ccsE E).
 
-Definition ccsT' T := ctree' ccsE T.
-Definition ccsT  := ctree ccsE.
-
-Definition ccs' := ccsT' unit.
-Definition ccs := ccsT unit.
+Definition ccs' E := ccsT' E unit.
+Definition ccs  E := ccsT E unit.
 
 (*| Process algebra |*)
 Section Combinators.
+
+  Variable (E : Type -> Type).
+  Notation ccs := (ccs E).
+  Notation ccsE := (ccsE E).
+  Notation ccsT := (ccsT E).
 
 	Definition nil : ccs := CTree.stuck.
 
@@ -97,39 +95,16 @@ Section Combinators.
   (* TODO: define basically the theory of handlers for ctrees, all the constructions are specialized to ccs right now *)
 
   Definition h_restrict c : ccsE ~> ctree ccsE :=
-    case_ctree h_trigger (h_restrict_ c).
-    (* case_ctree h_trigger (case_ctree (h_restrict_ c) h_trigger). *)
+    case_ctree (h_restrict_ c) h_trigger.
 
   Definition restrict {X} : chan -> ccsT X -> ccsT X :=
     fun c P => interp (h_restrict c) P.
-
-(*|
-We could define generic [get_hd] functions as follows.
-For now, we'll work with specialized versions below
-|*)
-	Variant head_gen {E R} :=
-	  | HRet    (r : R)
-	  | HChoice (n : nat) (k : Fin.t n -> ctree E R)
-	  | HVis    (X : Type) (e : E X) (k : X -> ctree E R).
-
-  Definition get_hd_gen {E F X} : ctree E X -> ctree F (@head_gen E X) :=
-    cofix get_hd_gen (t : ctree E X) :=
-      match observe t with
-      | RetF x            => Ret (HRet x)
-      | VisF e k          => Ret (HVis e k)
-      | ChoiceF true n k  => Ret (HChoice k)
-      | ChoiceF false n k => Choice false n (fun i => get_hd_gen (k i))
-      end.
-
-  Definition communicating {E} :
-    ctree (ActionE +' E) unit ->
-    ctree (ActionE +' E) unit ->
-    ctree (ActionE +' E) unit :=
-    cofix F (P : ctree (ActionE +' E) unit) (Q : ctree (ActionE +' E) unit) :=
+  Definition communicating : ccs -> ccs -> ccs :=
+    cofix F (P : ccs) (Q : ccs) :=
 
       (* We construct the "heads" of both computations to get all reachable events *)
-			rP <- get_hd_gen P;;
-			rQ <- get_hd_gen Q;;
+			rP <- get_head P;;
+			rQ <- get_head Q;;
 
       (* And then proceed to:
          - collect all interleavings of visible choices and visible events
@@ -166,82 +141,14 @@ For now, we'll work with specialized versions below
                    (Vis eQ (fun x => F P (kQ x)))
       end.
 
-	Variant head :=
-	  | Hdone
-	  | Hact (a : option action) (P : ccs).
+  (* Definition elim_void1 {E X} (t : ctree (E +' void1) X) : ctree E X := *)
+  (*   translate (fun Y e => match e with | inl1 e => e | inr1 e => (match e : void1 _ with end) end) t. *)
 
-  Notation "'tauP' e" := (inl1 e) (at level 10).
-  Notation "'actP' e" := (inr1 e) (at level 10).
-(*|
-In order to compose in parallel processes, we need to compute for each process
-the set of possibly next communication they would perform.
-Doing so corresponds to crawling the tree through invisible schedules until a
-communication node is reached. We then wrap the whole subtree into a returned
-value. We also wrap stuck computations into a returned value in order to
-be able to bind the head tree in the parallel composition without creating a
-stuck computation.
-We have for our purpose some invariants on the trees:
-- They do not contain [Ret] nodes, they are concluded by stuck ones
-- They do not contain visible choices
-- They do not contain invisible choices of arity > 3
-We currently return stuck computations in these cases.
-|*)
+  (* Definition intro_void1 {E X} (t : ctree E X) : ctree (E +' void1) X := *)
+  (*   translate inl1 t. *)
 
-  Definition get_hd : ccs -> ccsT head :=
-    cofix get_hd (t : ccs) :=
-      match observe t with
-      | RetF x            =>
-          CTree.stuck
-      | VisF (tauP e) k   =>
-          match e,k with
-          | Tau,k => Ret (Hact None (k tt))
-          end
-      | VisF (actP e) k   =>
-          match e, k with
-          | Act a, k => Ret (Hact (Some a) (k tt))
-          end
-      | ChoiceF true n k  => CTree.stuck
-      | ChoiceF false n k =>
-          if Nat.eqb n 0
-          then Ret Hdone
-          else Choice false n (fun i => get_hd (k i))
-      end.
-
-  Definition can_synch (a b : option action) : bool :=
-		match a, b with | Some a, Some b => are_opposite a b | _, _ => false end.
-  Definition reemit (a : option action) : ccsE unit :=
-		match a with
-    | Some a => inr1 (Act a)
-    | None => inl1 Tau
-    end.
-
-  Definition para : ccs -> ccs -> ccs :=
-    cofix F (P : ccs) (Q : ccs) :=
-
-      (* We construct the "heads" of both computations to get all reachable events *)
-			rP <- get_hd P;;
-			rQ <- get_hd Q;;
-
-      (* We then proceed by case analysis on these events *)
-			match rP, rQ with
-
-      (* Things are straightforward if all or part of the computations are over *)
-			| Hdone, Hdone => nil   (* Both computations ended *)
-			| Hdone, _ => Q         (* Both computations ended *)
-			| _, Hdone => P
-
-      (* If two actions happen, we distinguish two cases *)
-			| Hact a P', Hact b Q' =>
-          if can_synch a b then
-            (* A communication could happen, we have hence three non-deterministic possibilities *)
-            choiceI3 (trigger Tau    ;; F P' Q')
-                     (trigger (reemit a);; F P' Q )
-                     (trigger (reemit b);; F P  Q')
-					else
-            (* Incompatible communications, only two possibilities *)
-            choiceI2 (trigger (reemit a);; F P' Q)
-                     (trigger (reemit b);; F P Q')
-      end.
+  (* Definition para (P Q : ccs) : ccs := *)
+  (*   elim_void1 (communicating (intro_void1 P) (intro_void1 Q)). *)
 
 (*
 				-------------------------------------------------
@@ -253,25 +160,9 @@ We currently return stuck computations in these cases.
 
 End Combinators.
 
-
-Notation get_hd_gen_ t :=
-  match observe t with
-  | RetF x            => Ret (HRet x)
-  | VisF e k          => Ret (HVis e k)
-  | ChoiceF true n k  => Ret (HChoice k)
-  | ChoiceF false n k => Choice false n (fun i => get_hd_gen (k i))
-  end.
-
-Lemma unfold_get_hd_gen {E F X} : forall (t : ctree E X),
-    get_hd_gen (F := F) t ≅ get_hd_gen_ t.
-Proof.
-  intros.
-	now step.
-Qed.
-
 Notation communicating_ P Q :=
-	(rP <- get_hd_gen P;;
-	 rQ <- get_hd_gen Q;;
+	(rP <- get_head P;;
+	 rQ <- get_head Q;;
    match rP, rQ with
    | HRet rP, _ => Q
    | _, HRet rQ => P
@@ -307,122 +198,6 @@ Proof.
 	now step.
 Qed.
 
-Lemma trans_get_hd_gen_obs {E X} : forall (t u : ctree E X) Y (e : E Y) v,
-    transR (obs e v) t u ->
-    exists (k : Y -> ctree E X),
-      transR (val (HVis e k)) (get_hd_gen (F := E) t) CTree.stuck /\
-        u ≅ k v.
-Proof.
-  intros * TR.
-  unfold transR in *.
-  remember (obs e v) as ob.
-  setoid_rewrite (ctree_eta u).
-  setoid_rewrite unfold_get_hd_gen.
-  induction TR; try now inv Heqob.
-  - destruct IHTR as (kf & IHTR & EQ); auto.
-    exists kf; split; [| exact EQ].
-    rename x into y.
-    rewrite <- unfold_get_hd_gen in IHTR.
-    eapply trans_ChoiceI with (x := y).
-    apply IHTR.
-    reflexivity.
-  - dependent induction Heqob.
-    exists k; split.
-    constructor.
-    rewrite <- ctree_eta; symmetry; assumption.
-Qed.
-
-Lemma trans_get_hd_gen_tau {E X} : forall (t u : ctree E X),
-    transR tau t u ->
-    exists n (k : Fin.t n -> ctree E X) x,
-      transR (val (HChoice k)) (get_hd_gen (F := E) t) CTree.stuck /\
-        u ≅ k x.
-Proof.
-  intros * TR.
-  unfold transR in *.
-  remember tau as ob.
-  setoid_rewrite (ctree_eta u).
-  setoid_rewrite unfold_get_hd_gen.
-  induction TR; try now inv Heqob; subst.
-  - destruct IHTR as (m & kf & z & IHTR & EQ); auto.
-    exists m, kf, z; split; [| exact EQ].
-    rename x into y.
-    rewrite <- unfold_get_hd_gen in IHTR.
-    eapply trans_ChoiceI with (x := y).
-    apply IHTR.
-    reflexivity.
-  - exists n,k,x; split.
-    constructor.
-    rewrite <- ctree_eta; symmetry; assumption.
-Qed.
-
-(* Convenience: we don't need to rely on bisimulation even if we don't know the continuation *)
-Lemma choiceI0_always_stuck : forall {E R} k,
-    ChoiceI 0 k ≅ @CTree.stuck E R.
-Proof.
-  intros.
-  step.
-  constructor; intros abs; inv abs.
-Qed.
-
-Lemma trans_get_hd_gen_ret {E X} : forall (t u : ctree E X) (v : X),
-    transR (val v) t u ->
-    transR (val (@HRet E X v)) (get_hd_gen (F := E) t) CTree.stuck /\
-      u ≅ CTree.stuck.
-Proof.
-  intros * TR.
-  unfold transR in *.
-  remember (val v) as ob.
-  setoid_rewrite (ctree_eta u).
-  setoid_rewrite unfold_get_hd_gen.
-  induction TR; try now inv Heqob; subst.
-  - destruct IHTR as (IHTR & EQ); auto.
-    split; [| exact EQ].
-    rewrite <- unfold_get_hd_gen in IHTR.
-    rename x into y.
-    eapply trans_ChoiceI with (x := y).
-    apply IHTR.
-    reflexivity.
-  - dependent induction Heqob.
-    split.
-    constructor.
-    symmetry; rewrite choiceI0_always_stuck; reflexivity.
-Qed.
-
-Lemma trans_get_hd_gen : forall {E X} (t u : ctree E X) l,
-    transR l t u ->
-    match l with
-    | tau => exists n (k : Fin.t n -> ctree E X) x,
-        transR (val (HChoice k)) (get_hd_gen (F := E) t) CTree.stuck /\ u ≅ k x
-    | obs e v => exists (k : _ -> ctree E X),
-        transR (val (HVis e k)) (get_hd_gen (F := E) t) CTree.stuck /\ u ≅ k v
-    | val v => transR (val (@HRet E _ v)) (get_hd_gen (F := E) t) CTree.stuck /\ u ≅ CTree.stuck
-    end.
-Proof.
-  intros *; destruct l.
-  apply trans_get_hd_gen_tau.
-  apply trans_get_hd_gen_obs.
-  intros H.
-  pose proof (trans_val_invT H); subst; apply trans_get_hd_gen_ret; assumption.
-Qed.
-
-Inductive eq_hd {E R} : @head_gen E R -> head_gen -> Prop :=
-| eq_hd_ret : forall r, eq_hd (HRet r) (HRet r)
-| eq_hd_choice : forall n (k1 k2 : fin n -> _),
-    (forall i, k1 i ≅ k2 i) ->
-    eq_hd (HChoice k1) (HChoice k2)
-| eq_hd_vis : forall X (e : E X) k1 k2,
-    (forall x, k1 x ≅ k2 x) ->
-    eq_hd (HVis e k1) (HVis e k2).
-
-#[global] Instance get_hd_gen_equ {E F X} :
-  Proper (equ eq ==> equ (eq_hd)) (@get_hd_gen E F X).
-Proof.
-  unfold Proper, respectful.
-  coinduction S CIH.
-  intros.
-Admitted.
-
 #[global] Instance communicating_equ {E} :
   Proper (equ eq ==> equ eq ==> equ eq) (@communicating E).
 Proof.
@@ -431,9 +206,9 @@ Proof.
   intros P1 P2 EQP Q1 Q2 EQQ.
   rewrite 2 unfold_communicating.
   eapply (fbt_bt (bind_ctx_equ_t _ _)).
-  apply in_bind_ctx; [apply get_hd_gen_equ; auto | intros hdP1 hdP2 eqp].
+  apply in_bind_ctx; [apply get_head_equ; auto | intros hdP1 hdP2 eqp].
   eapply (fbt_bt (bind_ctx_equ_t _ _)).
-  apply in_bind_ctx; [apply get_hd_gen_equ; auto | intros hdQ1 hdQ2 eqq].
+  apply in_bind_ctx; [apply get_head_equ; auto | intros hdQ1 hdQ2 eqq].
   destruct hdP1, hdP2; try now inv eqp.
   - rewrite EQQ; reflexivity.
   - destruct hdQ1, hdQ2; try now inv eqq.
@@ -493,12 +268,12 @@ Proof.
 Qed.
 
 Lemma trans_communicatingL {E} : forall l (P P' Q : ctree (_ +' E) unit),
-    transR l P P' ->
-    transR l (communicating P Q) (communicating P' Q).
+    trans l P P' ->
+    trans l (communicating P Q) (communicating P' Q).
 Proof.
   intros * TR.
   (* red in TR; red. *)
-  pose proof (trans_get_hd_gen TR) as TRhd.
+  pose proof (trans_get_head TR) as TRhd.
   destruct l.
   - destruct TRhd as (n & k & x & TRhd & EQ).
     rewrite unfold_communicating.
@@ -507,36 +282,16 @@ Proof.
        preventing any communication from happening *)
 Abort.
 
-Lemma trans_trigger : forall {E X Y} (e : E X) x (k : X -> ctree E Y),
-		transR (obs e x) (trigger e >>= k) (k x).
-Proof.
-  intros.
-  unfold CTree.trigger.
-  rewrite unfold_bind; cbn.
-  setoid_rewrite bind_ret_l.
-  constructor; auto.
-Qed.
-
-Lemma trans_trigger' : forall {E X Y} (e : E X) x (t : ctree E Y),
-		transR (obs e x) (trigger e;; t) t.
-Proof.
-  intros.
-  unfold CTree.trigger.
-  rewrite unfold_bind; cbn.
-  setoid_rewrite bind_ret_l.
-  constructor; auto.
-Qed.
-
 Definition comm {E} a : @label (_ +' E) := obs (inl1 (Act a)) tt.
 Lemma trans_communicatingSynch {E} : forall a b (P P' Q Q' : ctree (_ +' E) unit),
-    transR (comm a) P P' ->
-    transR (comm b) Q Q' ->
+    trans (comm a) P P' ->
+    trans (comm b) Q Q' ->
     are_opposite a b ->
-    transR tau (communicating P Q) (communicating P' Q').
+    trans tau (communicating P Q) (communicating P' Q').
 Proof.
   intros * TRP TRQ OP.
-  apply trans_get_hd_gen in TRP as (kP & TRP & EQP).
-  apply trans_get_hd_gen in TRQ as (kQ & TRQ & EQQ).
+  apply trans_get_head in TRP as (kP & TRP & EQP).
+  apply trans_get_head in TRQ as (kQ & TRQ & EQQ).
   rewrite unfold_communicating.
   eapply trans_bind_r; [apply TRP |].
   eapply trans_bind_r; [apply TRQ |].
@@ -546,52 +301,56 @@ Proof.
   apply trans_TauV.
 Qed.
 
-Lemma trans_communicatingLstrong {E} :
+Lemma trans_communicatingL {E} :
   forall l l' (P P' Q Q' : ctree (_ +' E) unit),
-    transR l P P' ->
-    transR l' Q Q' ->
-    (transR l (communicating P Q) (communicating P' Q) \/
-       (l' = val tt /\ Q' ≅ CTree.stuck /\ transR l  (communicating P Q) P') \/
-       (l = val tt /\ P' ≅ CTree.stuck /\ transR l' (communicating P Q) Q')
+    trans l P P' ->
+    trans l' Q Q' ->
+    (trans l (communicating P Q) (communicating P' Q) \/
+       (l' = val tt /\ Q' ≅ CTree.stuck /\ trans l  (communicating P Q) P') \/
+       (l = val tt /\ P' ≅ CTree.stuck /\ trans l' (communicating P Q) Q')
     ).
 Proof.
   intros * TRP TRQ.
   destruct l, l'.
   - left.
-    apply trans_get_hd_gen in TRP.
-    apply trans_get_hd_gen in TRQ.
+    apply trans_get_head in TRP.
+    apply trans_get_head in TRQ.
     destruct TRP as (? & ? & ? & TRP & EQP).
     destruct TRQ as (? & ? & ? & TRQ & EQQ).
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
     eapply (trans_ChoiceI Fin.F1); [| reflexivity].
     rewrite EQP.
     pose proof (@trans_ChoiceV _ _ x (fun i : fin x => communicating (x0 i) Q) x1); auto.
   - left.
-    apply trans_get_hd_gen in TRP.
-    apply trans_get_hd_gen in TRQ.
+    apply trans_get_head in TRP.
+    apply trans_get_head in TRQ.
     destruct TRP as (? & ? & ? & TRP & EQP).
     destruct TRQ as (? & TRQ & EQQ).
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
     eapply (trans_ChoiceI Fin.F1); [| reflexivity].
     rewrite EQP.
     pose proof (@trans_ChoiceV _ _ x (fun i : fin x => communicating (x0 i) Q) x1); auto.
   - right; left.
-    destruct (trans_get_hd_gen TRP) as (? & ? & ? & TRP' & EQP).
+    destruct (trans_get_head TRP) as (? & ? & ? & TRP' & EQP).
     pose proof (trans_val_invT TRQ); subst X; destruct v.
-    apply trans_get_hd_gen in TRQ.
+    apply trans_get_head in TRQ.
     destruct TRQ as (TRQ & EQQ).
     do 2 split; auto.
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
     auto.
   - left.
-    apply trans_get_hd_gen in TRP.
-    apply trans_get_hd_gen in TRQ.
+    apply trans_get_head in TRP.
+    apply trans_get_head in TRQ.
     destruct TRP as (? & TRP & EQP).
     destruct TRQ as (? & ? & ? & TRQ & EQQ).
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
     destruct e.
     + eapply (trans_ChoiceI Fin.F1); [| reflexivity].
@@ -601,11 +360,12 @@ Proof.
       constructor.
       rewrite EQP; auto.
   - left.
-    apply trans_get_hd_gen in TRP.
-    apply trans_get_hd_gen in TRQ.
+    apply trans_get_head in TRP.
+    apply trans_get_head in TRQ.
     destruct TRP as (? & TRP & EQP).
     destruct TRQ as (? & TRQ & EQQ).
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
     destruct e, e0, a; try destruct a0.
     destruct (are_opposite a a0).
@@ -619,81 +379,89 @@ Proof.
     eapply trans_trigger'.
     all: constructor; reflexivity.
   - right; left.
-    destruct (trans_get_hd_gen TRP) as (? & TRP' & EQP).
+    destruct (trans_get_head TRP) as (? & TRP' & EQP).
     pose proof (trans_val_invT TRQ); subst; destruct v0.
-    apply trans_get_hd_gen in TRQ.
+    apply trans_get_head in TRQ.
     destruct TRQ as (TRQ & EQQ).
     do 2 split; auto.
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
     destruct e; auto.
   - right; right.
     pose proof (trans_val_invT TRP); subst; destruct v.
-    destruct (trans_get_hd_gen TRP) as (TRP' & EQP).
-    destruct (trans_get_hd_gen TRQ) as (? & ? & ? & TRQ' & EQQ).
+    destruct (trans_get_head TRP) as (TRP' & EQP).
+    destruct (trans_get_head TRQ) as (? & ? & ? & TRQ' & EQQ).
     do 2 split; auto.
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
   - (* We cannot if P returns *)
     right; right.
     pose proof (trans_val_invT TRP); subst; destruct v.
-    destruct (trans_get_hd_gen TRP) as (TRP' & EQP).
-    destruct (trans_get_hd_gen TRQ) as (? & TRQ' & EQQ).
+    destruct (trans_get_head TRP) as (TRP' & EQP).
+    destruct (trans_get_head TRQ) as (? & TRQ' & EQQ).
     do 2 split; auto.
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
    - (* We cannot if P returns *)
     right; right.
     pose proof (trans_val_invT TRP); subst; destruct v.
-    destruct (trans_get_hd_gen TRP) as (TRP' & EQP).
+    destruct (trans_get_head TRP) as (TRP' & EQP).
     pose proof (trans_val_invT TRQ); subst; destruct v0.
-    destruct (trans_get_hd_gen TRQ) as (TRQ' & EQQ).
+    destruct (trans_get_head TRQ) as (TRQ' & EQQ).
     do 2 split; auto.
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
  Qed.
 
-Lemma trans_communicatingRstrong {E} :
+Lemma trans_communicatingR {E} :
   forall l l' (P P' Q Q' : ctree (_ +' E) unit),
-    transR l P P' ->
-    transR l' Q Q' ->
-    (transR l' (communicating P Q) (communicating P Q') \/
-       (l = val tt /\ P' ≅ CTree.stuck /\ transR l' (communicating P Q) Q') \/
-       (l' = val tt /\ Q' ≅ CTree.stuck /\ transR l (communicating P Q) P')
+    trans l P P' ->
+    trans l' Q Q' ->
+    (trans l' (communicating P Q) (communicating P Q') \/
+       (l = val tt /\ P' ≅ CTree.stuck /\ trans l' (communicating P Q) Q') \/
+       (l' = val tt /\ Q' ≅ CTree.stuck /\ trans l (communicating P Q) P')
     ).
 Proof.
-  intros * TRP TRQ.
+  intros * TRP TRQ; cbn in *.
   destruct l, l'.
   - left.
-    apply trans_get_hd_gen in TRP.
-    apply trans_get_hd_gen in TRQ.
+    apply trans_get_head in TRP.
+    apply trans_get_head in TRQ.
     destruct TRP as (? & ? & ? & TRP & EQP).
     destruct TRQ as (? & ? & ? & TRQ & EQQ).
+    cbn in *.
     rewrite unfold_communicating.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
     eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
     rewrite EQQ.
     pose proof (@trans_ChoiceV _ _ x2 (fun i : fin x2 => communicating P (x3 i)) x4); auto.
   - left.
-    apply trans_get_hd_gen in TRP.
-    apply trans_get_hd_gen in TRQ.
+    apply trans_get_head in TRP.
+    apply trans_get_head in TRQ.
     destruct TRP as (? & ? & ? & TRP & EQP).
     destruct TRQ as (? & TRQ & EQQ).
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
     eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
     constructor; rewrite EQQ; auto.
   - right; right.
     pose proof (trans_val_invT TRQ); subst; destruct v.
-    destruct (trans_get_hd_gen TRP) as (? & ? & ? & TRP' & EQP).
-    destruct (trans_get_hd_gen TRQ) as (TRQ' & EQQ).
+    destruct (trans_get_head TRP) as (? & ? & ? & TRP' & EQP).
+    destruct (trans_get_head TRQ) as (TRQ' & EQQ).
     do 2 split; auto.
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
   - left.
-    destruct (trans_get_hd_gen TRP) as (? & TRP' & EQP).
-    destruct (trans_get_hd_gen TRQ) as (? & ? & ? & TRQ' & EQQ).
+    destruct (trans_get_head TRP) as (? & TRP' & EQP).
+    destruct (trans_get_head TRQ) as (? & ? & ? & TRQ' & EQQ).
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
     destruct e.
     + eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
@@ -701,9 +469,10 @@ Proof.
     + eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
       rewrite EQQ; econstructor; auto.
   - left.
-    destruct (trans_get_hd_gen TRP) as (? & TRP' & EQP).
-    destruct (trans_get_hd_gen TRQ) as (? & TRQ' & EQQ).
+    destruct (trans_get_head TRP) as (? & TRP' & EQP).
+    destruct (trans_get_head TRQ) as (? & TRQ' & EQQ).
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
     destruct e, e0, a; try destruct a0.
     destruct (are_opposite a a0).
@@ -718,226 +487,90 @@ Proof.
     all: constructor; reflexivity.
   - right; right.
     pose proof (trans_val_invT TRQ); subst; destruct v0.
-    destruct (trans_get_hd_gen TRP) as (? & TRP' & EQP).
-    destruct (trans_get_hd_gen TRQ) as (TRQ' & EQQ).
+    destruct (trans_get_head TRP) as (? & TRP' & EQP).
+    destruct (trans_get_head TRQ) as (TRQ' & EQQ).
     do 2 split; auto.
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
     destruct e; eauto.
   - right; left.
     pose proof (trans_val_invT TRP); subst; destruct v.
-    destruct (trans_get_hd_gen TRP) as (TRP' & EQP).
-    destruct (trans_get_hd_gen TRQ) as (? & ? & ? & TRQ' & EQQ).
+    destruct (trans_get_head TRP) as (TRP' & EQP).
+    destruct (trans_get_head TRQ) as (? & ? & ? & TRQ' & EQQ).
     do 2 split; auto.
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
   - right; left.
     pose proof (trans_val_invT TRP); subst; destruct v.
-    destruct (trans_get_hd_gen TRP) as (TRP' & EQP).
-    destruct (trans_get_hd_gen TRQ) as (? & TRQ' & EQQ).
+    destruct (trans_get_head TRP) as (TRP' & EQP).
+    destruct (trans_get_head TRQ) as (? & TRQ' & EQQ).
     do 2 split; auto.
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
   - right; left.
     pose proof (trans_val_invT TRP); subst; destruct v.
     pose proof (trans_val_invT TRQ); subst; destruct v0.
-    destruct (trans_get_hd_gen TRP) as (TRP' & EQP).
-    destruct (trans_get_hd_gen TRQ) as (TRQ' & EQQ).
+    destruct (trans_get_head TRP) as (TRP' & EQP).
+    destruct (trans_get_head TRQ) as (TRQ' & EQQ).
     do 2 split; auto.
     rewrite unfold_communicating.
+    cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
-Qed.
-
-Notation para_ P Q :=
-	(rP <- get_hd P;;
-	 rQ <- get_hd Q;;
-	 match rP, rQ with
-	 | Hdone, Hdone => nil
-	 | Hdone, _ => Q
-	 | _, Hdone => P
-	 | Hact a P', Hact b Q' =>
-       if can_synch a b then
-         choiceI3 (trigger Tau    ;; para P' Q')
-                  (trigger (reemit a);; para P' Q )
-                  (trigger (reemit b);; para P  Q')
-			 else
-         (* Incompatible communications, only two possibilities *)
-         choiceI2 (trigger (reemit a);; para P' Q)
-                  (trigger (reemit b);; para P Q')
-   end)%ctree.
-
-Lemma unfold_para : forall P Q, para P Q ≅ para_ P Q.
-Proof.
-  intros.
-	now step.
 Qed.
 
 Notation "0" := nil: ccs_scope.
 Infix "+" := plus (at level 50, left associativity).
-Infix "∥" := para (at level 29, left associativity).
+Infix "∥" := communicating (at level 29, left associativity).
 
-Lemma plsC: forall p q, p+q ~ q+p.
-Proof.
-  apply choiceI2_commut.
-Qed.
+Section Theory.
 
-Lemma plsA p q r: p+(q+r) ~ (p+q)+r.
-Proof.
-  symmetry; apply choiceI2_assoc.
-Qed.
-
-Lemma pls0p p: 0 + p ~ p.
-Proof.
-  apply choiceI2_stuck_l.
-Qed.
-
-Lemma plsp0 p: p + 0 ~ p.
-Proof. now rewrite plsC, pls0p. Qed.
-
-Lemma plsidem p: p + p ~ p.
-Proof.
-  apply choiceI2_idem.
-Qed.
-
-Ltac eq2equ H :=
-  match type of H with
-  | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≅ t) by (subst; reflexivity); clear H
-  end.
-
-Notation "'tauP' e" := (inl1 e) (at level 10).
-Notation "'actP' e" := (inr1 e) (at level 10).
-Notation get_hd_ P :=
-  match observe P with
-  | RetF x            => CTree.stuck
-  | VisF (tauP e) k   =>
-      match e,k with
-      | Tau,k => Ret (Hact None (k tt))
-      end
-  | VisF (actP e) k   =>
-      match e, k with
-      | Act a, k => Ret (Hact (Some a) (k tt))
-      end
-  | ChoiceF true n k  => CTree.stuck
-  | ChoiceF false n k =>
-      if Nat.eqb n 0
-      then Ret Hdone
-      else Choice false n (fun i => get_hd (k i))
-  end.
-
-Lemma unfold_get_hd : forall P,
-    get_hd P ≅ get_hd_ P.
-Proof.
-  intros.
-	now step.
-Qed.
+  Variable (E : Type -> Type).
+  Notation ccs := (ccs E).
 
 
-Lemma get_hd0 : get_hd 0 ≅ Ret Hdone.
-Proof.
-  now rewrite unfold_get_hd.
-Qed.
+  Lemma plsC: forall (p q : ccs), p+q ~ q+p.
+  Proof.
+    apply choiceI2_commut.
+  Qed.
 
+  Lemma plsA (p q r : ccs): p+(q+r) ~ (p+q)+r.
+  Proof.
+    symmetry; apply choiceI2_assoc.
+  Qed.
 
-Lemma trans_get_hd_inv : forall P l u,
-    transR l (get_hd P) u ->
-    is_val l.
-Proof.
-  intros * TR.
-  red in TR.
-  remember (get_hd P) as HP.
-  eq2equ HeqHP.
-  rewrite ctree_eta in EQ.
-  revert P EQ.
-  induction TR; intros; subst.
-  - rewrite unfold_get_hd in EQ.
-    desobs P.
-    + step in EQ; apply equF_choice_invT in EQ as [-> _]; inv x.
-    + destruct e as [e|e]; destruct e; step in EQ; inv EQ.
-    + destruct vis.
-      step in EQ; apply equF_choice_invT in EQ as [-> _]; inv x.
-      destruct n0 as [|n0]; cbn in *.
-      * step in EQ; inv EQ.
-      * step in EQ; destruct (equF_choice_invT _ _ EQ) as [-> _].
-        eapply equF_choice_invE in EQ.
-        setoid_rewrite <- ctree_eta in IHTR.
-        eapply IHTR; eauto.
-  - exfalso.
-    rewrite unfold_get_hd in EQ.
-    desobs P.
-    + step in EQ; apply equF_choice_invT in EQ as [-> _]; inv x.
-    + destruct e as [e|e]; destruct e; step in EQ; inv EQ.
-    + destruct vis.
-      step in EQ; apply equF_choice_invT in EQ as [_ abs]; inv abs.
-      destruct n0 as [|n0]; cbn in *.
-      step in EQ; inv EQ.
-      step in EQ; apply equF_choice_invT in EQ as [_ abs]; inv abs.
-  - exfalso.
-    rewrite unfold_get_hd in EQ.
-    desobs P.
-    + step in EQ; inv EQ.
-    + destruct e0 as [e0|e0]; destruct e0; step in EQ; inv EQ.
-    + destruct vis.
-      step in EQ; inv EQ.
-      destruct n as [|n]; cbn in *.
-      step in EQ; inv EQ.
-      step in EQ; inv EQ.
-  - constructor.
-Qed.
+  Lemma pls0p (p : ccs) : 0 + p ~ p.
+  Proof.
+    apply choiceI2_stuck_l.
+  Qed.
 
-Lemma trans_get_hd_bind_inv : forall l P (k : _ -> ccs) u,
-    transR l (get_hd P >>= k) u ->
-    exists hd, transR (val hd) (get_hd P) CTree.stuck /\ transR l (k hd) u.
-Proof.
-  intros * TR.
-  edestruct @trans_bind_inv; [apply TR | | assumption].
-  destruct H as (? & ? & ? & ?).
-  apply trans_get_hd_inv in H0; contradiction.
-Qed.
+  Lemma plsp0 (p : ccs) : p + 0 ~ p.
+  Proof. now rewrite plsC, pls0p. Qed.
 
+  Lemma plsidem (p : ccs) : p + p ~ p.
+  Proof.
+    apply choiceI2_idem.
+  Qed.
 
-(* The following three facts are currently a bit messed up by
-   [get_hd] assuming invariants on the computations.
-   We need to either condition the lemmas, or generalize [get_hd]
- *)
-Lemma trans_get_hd : forall l P Q,
-    transR l P Q ->
-    exists a P', transR (val (Hact a P')) (get_hd P) CTree.stuck /\
-              transR l P' Q.
-Proof.
-  intros * TR.
-  unfold transR in *.
-  setoid_rewrite unfold_get_hd; cbn.
-  (* genobs P oP. *)
-  (* revert P HeqoP. *)
-  induction TR; intros.
-Admitted.
+  Lemma paraC: forall (p q : ccs), p ∥ q ~ q ∥ p.
+  Proof.
+    coinduction ? CIH; symmetric.
+    intros p q l r tr.
+    cbn in *.
+    rewrite unfold_communicating in tr.
+  Admitted.
 
-Lemma trans_parL : forall l P P' Q,
-    transR l P P' ->
-    transR l (P ∥ Q) (P' ∥ Q).
-Proof.
-  intros * TR.
-  red in TR; red.
-  rewrite unfold_para.
-  rewrite unfold_bind.
-Admitted.
+  Lemma para0p : forall (p : ccs), 0 ∥ p ~ p.
+  Proof.
+  Admitted.
 
-Lemma para0p : forall P, 0 ∥ P ~ P.
-Proof.
-  intros ?.
-  steps.
-  - rewrite unfold_para, get_hd0, bind_ret_l in TR.
-    apply trans_get_hd_bind_inv in TR as (? & ? & ?).
-    destruct x.
-    exfalso; eapply stuck_is_stuck; apply H0.
-    now exists t'.
-  - exists t'; [| reflexivity].
-    rewrite unfold_para, get_hd0, bind_ret_l.
-    apply trans_get_hd in TR as (? & ? & ? & ?).
-    eapply trans_bind_r; [apply H | cbn].
+  Lemma commC: forall (p q : ccs), p ∥ q ~ q ∥ p.
+  Proof.
+  Admitted.
 
-Admitted.
-
+End Theory.
 
 Import CCSNotations.
 Open Scope ccs_scope.
@@ -949,12 +582,12 @@ Open Scope ccs_scope.
    -sem> : term -> term -> Prop := fun P Q => model P -ccs> model Q
 *)
 
-Fixpoint model (t : term) : ccs :=
+Fixpoint model (t : term) : ccs void1 :=
 	match t with
 	| 0      => nil
 	| a · P  => prefix a (model P)
 	| TauT P => TauV (model P)
-	| P ∥ Q  => para (model P) (model Q)
+	| P ∥ Q  => communicating (model P) (model Q)
 	| P ⊕ Q  => plus (model P) (model Q)
 	| P ∖ c  => restrict c (model P)
 	end.

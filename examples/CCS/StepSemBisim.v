@@ -19,7 +19,13 @@ Import DenNotations.
 Open Scope ccs_scope.
 
 Definition strongc : term -> term -> Prop :=
+	fun P Q => ⟦P⟧ ~ ⟦Q⟧.
+
+(* Is that true? *)
+Definition weakc : term -> term -> Prop :=
 	fun P Q => ⟦P⟧ ≈ ⟦Q⟧.
+
+(*
 
 Definition hide_tau : SynchE ~> ctree (ActionE +' DeadE) :=
 	fun _ 'Tau => CTrees.TauI (Ret tt).
@@ -29,6 +35,7 @@ Definition h_tau : ccsE ~> ctree (ActionE +' DeadE) :=
 
 Definition weakc : term -> term -> Prop :=
 	fun P Q => interp h_tau ⟦P⟧ ≈ interp h_tau ⟦Q⟧.
+ *)
 
 (*
 Goal weakc (TauT (↑a ⋅ 0) ⊕ ↑b ⋅ 0) (↑a ⋅ 0 ⊕ ↑b ⋅ 0).
@@ -62,6 +69,7 @@ bisim_bisim corresponds strong operational bisimulation
 
 *)
 
+(*
 Definition forward (R : term -> term -> Prop) : Prop :=
 	forall P a P' Q, 
 		R P Q ->
@@ -90,3 +98,5 @@ Proof.
 			unfold forward in FOR; clear BACK.
  *)
 Admitted.
+ *)
+

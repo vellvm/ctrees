@@ -1006,3 +1006,23 @@ Proof.
     eapply wtrans_bind_r'; eauto.
 Qed.
 
+Lemma trans_trigger : forall {E X Y} (e : E X) x (k : X -> ctree E Y),
+		transR (obs e x) (trigger e >>= k) (k x).
+Proof.
+  intros.
+  unfold CTree.trigger.
+  rewrite unfold_bind; cbn.
+  setoid_rewrite bind_ret_l.
+  constructor; auto.
+Qed.
+
+Lemma trans_trigger' : forall {E X Y} (e : E X) x (t : ctree E Y),
+		transR (obs e x) (trigger e;; t) t.
+Proof.
+  intros.
+  unfold CTree.trigger.
+  rewrite unfold_bind; cbn.
+  setoid_rewrite bind_ret_l.
+  constructor; auto.
+Qed.
+
