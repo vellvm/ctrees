@@ -78,7 +78,7 @@ Furthermore comes the question of cutting off dead branches: if nil is [Ret tt],
 failure could be modelled as stuck processes, but not otherwise.
 Unless one is silent stuck, the other visible stuck...
    *)
-	Definition nil : ccs := CTree.stuck.
+	Definition nil : ccs := ChoiceV 0 (fun x : fin 0 => match x with end).
 
 	Definition prefix (a : action) (P: ccs) : ccs := trigger (Act a);; P.
 
@@ -127,13 +127,21 @@ Unless one is silent stuck, the other visible stuck...
               if are_opposite a b
               then
                 choiceI3 (TauV (F (kP tt) (kQ tt)))
-                         (trigger (inl1 (Act a));; F (kP tt) Q)
-                         (trigger (inl1 (Act b));; F P (kQ tt))
+                         (trigger (Act a);; F (kP tt) Q)
+                         (trigger (Act b);; F P (kQ tt))
               else
-                choiceI2 (trigger (inl1 (Act a));; F (kP tt) Q)
-                         (trigger (inl1 (Act b));; F P (kQ tt))
+                choiceI2 (trigger (Act a);; F (kP tt) Q)
+                         (trigger (Act b);; F P (kQ tt))
           end
       end.
+
+  (* Option 1
+     Difference stuck pour erreur et 0 pour 0 : get_head les traite différemment
+     Pour ce qui est de la divergence d'un process, deux options :
+     - toujours ternaire, une seule head dans deux branches, seulement comme dans la troisième
+     - get_head parallel
+
+   *)
 
   (* Definition elim_void1 {E X} (t : ctree (E +' void1) X) : ctree E X := *)
   (*   translate (fun Y e => match e with | inl1 e => e | inr1 e => (match e : void1 _ with end) end) t. *)
@@ -150,6 +158,14 @@ Unless one is silent stuck, the other visible stuck...
 
 					Question: is !P ≈ P || !P?
   Definition bang : ccs -> ccs.
+
+
+bang p = get_head P ;;
+         match hd with
+         | choiceV k => choiceV k (fun i => k i || P)
+         | Vis e k => Vis e k (fun i => k i || P)
+
+
 *)
 
 End Combinators.
@@ -503,8 +519,9 @@ Section Theory.
 
   Lemma pls0p (p : ccs) : 0 + p ~ p.
   Proof.
-    apply choiceI2_stuck_l.
-  Qed.
+    (* apply choiceI2_stuck_l. *)
+  (* Qed. *)
+  Admitted.
 
   Lemma plsp0 (p : ccs) : p + 0 ~ p.
   Proof. now rewrite plsC, pls0p. Qed.
