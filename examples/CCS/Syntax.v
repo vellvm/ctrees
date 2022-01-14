@@ -1,7 +1,20 @@
+(*|
+==============
+Syntax for ccs
+==============
+Traditional syntax for ccs with explicit prefix by tau for convenience.
+No recursion nor replication at the moment, todo.
+
+.. coq:: none
+|*)
+
 From Coq Require Export
   List
   Strings.String.
 
+(*|
+.. coq::
+|*)
 
 Section Channels.
 

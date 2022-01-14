@@ -1,3 +1,5 @@
+(* Alternate version of denotation where the communicating combinator handles the presence of extra events *)
+
 (*|
 =================================
 Denotation of [ccs] into [ctree]s
@@ -58,40 +60,50 @@ unary visible choice nodes.
 Variant ActionE : Type -> Type :=
 	| Act (a : action) : ActionE unit.
 
-Definition ccsE : Type -> Type := ActionE.
+Definition ccsE E : Type -> Type := ActionE +' E.
 
-Definition ccsT' T := ctree' ccsE T.
-Definition ccsT := ctree ccsE.
+Definition ccsT' E T := ctree' (ccsE E) T.
+Definition ccsT E  := ctree (ccsE E).
 
-Definition ccs' := ccsT' unit.
-Definition ccs  := ccsT unit.
+Definition ccs' E := ccsT' E unit.
+Definition ccs  E := ccsT E unit.
 
 (*| Process algebra |*)
 Section Combinators.
 
-  (* A bit annoying. The [nil] process should exhibit no behavior.
-     However we do observe returned value, so [Ret tt] is not ideal
-from this perspective. [stuck] seems like a good alternative, but that
-would therefore require from [get_head] to catch on stuck processes and
-reinterpret them as terminating ones when passing them to [communicating].
-Furthermore comes the question of cutting off dead branches: if nil is [Ret tt],
-failure could be modelled as stuck processes, but not otherwise.
-Unless one is silent stuck, the other visible stuck...
-   *)
+  Variable (E : Type -> Type).
+  Notation ccs := (ccs E).
+  Notation ccsE := (ccsE E).
+  Notation ccsT := (ccsT E).
+
 	Definition nil : ccs := CTree.stuck.
 
 	Definition prefix (a : action) (P: ccs) : ccs := trigger (Act a);; P.
 
 	Definition plus (P Q : ccs) : ccs := choiceI2 P Q.
 
-  (* Stuck? Failure event? *)
-  Definition h_restrict (c : chan) : ActionE ~> ctree ccsE :=
+  Definition h_trigger {E F} `{E -< F} : E ~> ctree F :=
+    fun _ e => trigger e.
+
+  Definition h_restrict_ (c : chan) : ActionE ~> ctree ccsE :=
     fun _ e => let '(Act a) := e in
             match a with
             | Send c'
             | Rcv c' =>
-                if (c =? c')%string then CTree.stuck else trigger e
+              if (c =? c')%string then CTree.stuck else trigger e
             end.
+
+	Definition case_ctree {E F G} (f : E ~> ctree G) (g : F ~> ctree G)
+		: E +' F ~> ctree G :=
+		fun T ab => match ab with
+		| inl1 a => f _ a
+		| inr1 b => g _ b
+		end.
+
+  (* TODO: define basically the theory of handlers for ctrees, all the constructions are specialized to ccs right now *)
+
+  Definition h_restrict c : ccsE ~> ctree ccsE :=
+    case_ctree (h_restrict_ c) h_trigger.
 
   Definition restrict {X} : chan -> ccsT X -> ccsT X :=
     fun c P => interp (h_restrict c) P.
@@ -121,7 +133,7 @@ Unless one is silent stuck, the other visible stuck...
       | HVis e kP, HChoice kQ =>
           choiceI2 (Vis e     (fun x => F (kP x) Q))
                    (ChoiceV _ (fun i => F P (kQ i)))
-      | HVis eP kP, HVis eQ kQ =>
+      | HVis (inl1 eP) kP, HVis (inl1 eQ) kQ =>
           match eP, kP, eQ, kQ with
           | Act a, kP, Act b, kQ =>
               if are_opposite a b
@@ -133,6 +145,9 @@ Unless one is silent stuck, the other visible stuck...
                 choiceI2 (trigger (inl1 (Act a));; F (kP tt) Q)
                          (trigger (inl1 (Act b));; F P (kQ tt))
           end
+      | HVis eP kP, HVis eQ kQ =>
+          choiceI2 (Vis eP (fun x => F (kP x) Q))
+                   (Vis eQ (fun x => F P (kQ x)))
       end.
 
   (* Definition elim_void1 {E X} (t : ctree (E +' void1) X) : ctree E X := *)
@@ -169,7 +184,7 @@ Notation communicating_ P Q :=
    | HVis e kP, HChoice kQ =>
        choiceI2 (Vis e     (fun x => communicating (kP x) Q))
                 (ChoiceV _ (fun i => communicating P (kQ i)))
-   | HVis eP kP, HVis eQ kQ =>
+   | HVis (inl1 eP) kP, HVis (inl1 eQ) kQ =>
        match eP, kP, eQ, kQ with
        | Act a, kP, Act b, kQ =>
            if are_opposite a b
@@ -181,16 +196,19 @@ Notation communicating_ P Q :=
              choiceI2 (trigger (inl1 (Act a));; communicating (kP tt) Q)
                       (trigger (inl1 (Act b));; communicating P (kQ tt))
        end
+   | HVis eP kP, HVis eQ kQ =>
+       choiceI2 (Vis eP (fun x => communicating (kP x) Q))
+                (Vis eQ (fun x => communicating P (kQ x)))
    end)%ctree.
 
-Lemma unfold_communicating : forall P Q, communicating P Q ≅ communicating_ P Q.
+Lemma unfold_communicating : forall {E} P Q, @communicating E P Q ≅ communicating_ P Q.
 Proof.
   intros.
 	now step.
 Qed.
 
-#[global] Instance communicating_equ :
-  Proper (equ eq ==> equ eq ==> equ eq) communicating.
+#[global] Instance communicating_equ {E} :
+  Proper (equ eq ==> equ eq ==> equ eq) (@communicating E).
 Proof.
   unfold Proper, respectful.
   coinduction R CIH.
@@ -221,14 +239,19 @@ Proof.
     + dependent induction eqp.
       dependent induction eqq.
       destruct e0.
-      constructor.
-      intros [|].
-      step; constructor; auto.
-      step; constructor; auto.
+      * constructor.
+        intros [|].
+        step; constructor; auto.
+        step; constructor; auto.
+      * constructor.
+        intros [|].
+        step; constructor; auto.
+        step; constructor; auto.
     + dependent induction eqp.
       dependent induction eqq.
       destruct e0, e2.
-      * destruct (are_opposite a a0).
+      * destruct a, a0.
+        destruct (are_opposite a a0).
         constructor.
         intros [|].
         step; constructor; auto.
@@ -239,9 +262,21 @@ Proof.
         intros [|].
         eapply equ_clo_bind; [reflexivity | intros [] [] _; auto].
         eapply equ_clo_bind; [reflexivity | intros [] [] _; auto].
+      * constructor.
+        intros [|].
+        step; constructor; auto.
+        step; constructor; auto.
+      * constructor.
+        intros [|].
+        step; constructor; auto.
+        step; constructor; auto.
+      * constructor.
+        intros [|].
+        step; constructor; auto.
+        step; constructor; auto.
 Qed.
 
-Lemma trans_communicatingL : forall l (P P' Q : ccs),
+Lemma trans_communicatingL {E} : forall l (P P' Q : ctree (_ +' E) unit),
     trans l P P' ->
     trans l (communicating P Q) (communicating P' Q).
 Proof.
@@ -256,8 +291,8 @@ Proof.
        preventing any communication from happening *)
 Abort.
 
-Definition comm a : label := obs (Act a) tt.
-Lemma trans_communicatingSynch : forall a b (P P' Q Q' : ccs),
+Definition comm {E} a : @label (_ +' E) := obs (inl1 (Act a)) tt.
+Lemma trans_communicatingSynch {E} : forall a b (P P' Q Q' : ctree (_ +' E) unit),
     trans (comm a) P P' ->
     trans (comm b) Q Q' ->
     are_opposite a b ->
@@ -275,8 +310,8 @@ Proof.
   apply trans_TauV.
 Qed.
 
-Lemma trans_communicatingL :
-  forall l l' (P P' Q Q' : ccs),
+Lemma trans_communicatingL {E} :
+  forall l l' (P P' Q Q' : ctree (_ +' E) unit),
     trans l P P' ->
     trans l' Q Q' ->
     (trans l (communicating P Q) (communicating P' Q) \/
@@ -326,9 +361,13 @@ Proof.
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
-    eapply (trans_ChoiceI Fin.F1); [| reflexivity].
-    constructor.
-    rewrite EQP; auto.
+    destruct e.
+    + eapply (trans_ChoiceI Fin.F1); [| reflexivity].
+      constructor.
+      rewrite EQP; auto.
+    + eapply (trans_ChoiceI Fin.F1); [| reflexivity].
+      constructor.
+      rewrite EQP; auto.
   - left.
     apply trans_get_head in TRP.
     apply trans_get_head in TRQ.
@@ -337,16 +376,17 @@ Proof.
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
-    destruct e, e0. 
+    destruct e, e0, a; try destruct a0.
     destruct (are_opposite a a0).
-    + eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
-      rewrite EQP.
-      destruct v.
-      eapply trans_trigger'.
-    + eapply (trans_ChoiceI Fin.F1); [| reflexivity].
-      rewrite EQP.
-      repeat match goal with | h : unit |- _ => destruct h end.
-      eapply trans_trigger'.
+    eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
+    rewrite EQP.
+    destruct v.
+    eapply trans_trigger'.
+    all: eapply (trans_ChoiceI Fin.F1); [| reflexivity].
+    all: rewrite EQP.
+    all: repeat match goal with | h : unit |- _ => destruct h end.
+    eapply trans_trigger'.
+    all: constructor; reflexivity.
   - right; left.
     destruct (trans_get_head TRP) as (? & TRP' & EQP).
     pose proof (trans_val_invT TRQ); subst; destruct v0.
@@ -386,8 +426,8 @@ Proof.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
  Qed.
 
-Lemma trans_communicatingR :
-  forall l l' (P P' Q Q' : ccs),
+Lemma trans_communicatingR {E} :
+  forall l l' (P P' Q Q' : ctree (_ +' E) unit),
     trans l P P' ->
     trans l' Q Q' ->
     (trans l' (communicating P Q) (communicating P Q') \/
@@ -432,24 +472,28 @@ Proof.
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
-    eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
-    rewrite EQQ; econstructor; auto.
+    destruct e.
+    + eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
+      rewrite EQQ; econstructor; auto.
+    + eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
+      rewrite EQQ; econstructor; auto.
   - left.
     destruct (trans_get_head TRP) as (? & TRP' & EQP).
     destruct (trans_get_head TRQ) as (? & TRQ' & EQQ).
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
-    destruct e, e0.
+    destruct e, e0, a; try destruct a0.
     destruct (are_opposite a a0).
-    + eapply (trans_ChoiceI (Fin.FS (Fin.FS Fin.F1))); [| reflexivity].
-      rewrite EQQ.
-      destruct v,v0.
-      eapply trans_trigger'.
-    + eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
-      rewrite EQQ.
-      repeat match goal with | h : unit |- _ => destruct h end.
-      eapply trans_trigger'.
+    eapply (trans_ChoiceI (Fin.FS (Fin.FS Fin.F1))); [| reflexivity].
+    rewrite EQQ.
+    destruct v,v0.
+    eapply trans_trigger'.
+    all: eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
+    all: rewrite EQQ.
+    all: repeat match goal with | h : unit |- _ => destruct h end.
+    eapply trans_trigger'.
+    all: constructor; reflexivity.
   - right; right.
     pose proof (trans_val_invT TRQ); subst; destruct v0.
     destruct (trans_get_head TRP) as (? & TRP' & EQP).
@@ -458,6 +502,7 @@ Proof.
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
+    destruct e; eauto.
   - right; left.
     pose proof (trans_val_invT TRP); subst; destruct v.
     destruct (trans_get_head TRP) as (TRP' & EQP).
@@ -490,6 +535,10 @@ Infix "+" := plus (at level 50, left associativity).
 Infix "∥" := communicating (at level 29, left associativity).
 
 Section Theory.
+
+  Variable (E : Type -> Type).
+  Notation ccs := (ccs E).
+
 
   Lemma plsC: forall (p q : ccs), p+q ~ q+p.
   Proof.
@@ -542,7 +591,7 @@ Open Scope ccs_scope.
    -sem> : term -> term -> Prop := fun P Q => model P -ccs> model Q
 *)
 
-Fixpoint model (t : term) : ccs :=
+Fixpoint model (t : term) : ccs void1 :=
 	match t with
 	| 0      => nil
 	| a · P  => prefix a (model P)
