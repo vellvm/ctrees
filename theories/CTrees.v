@@ -244,8 +244,11 @@ Silent failure: contrary to an event-based failure, this
 stuck state cannot be observed, it will be indistinguishable
 from [spin] w.r.t. the bisimulations introduced.
 |*)
-Definition stuck {E R} : ctree E R :=
+Definition stuckI {E R} : ctree E R :=
   ChoiceI 0 (fun x : fin 0 => match x with end).
+
+Definition stuckV {E R} : ctree E R :=
+  ChoiceV 0 (fun x : fin 0 => match x with end).
 
 (*|
 Ignore the result of a tree.

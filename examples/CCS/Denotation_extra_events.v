@@ -76,7 +76,7 @@ Section Combinators.
   Notation ccsE := (ccsE E).
   Notation ccsT := (ccsT E).
 
-	Definition nil : ccs := CTree.stuck.
+	Definition nil : ccs := CTree.stuckI.
 
 	Definition prefix (a : action) (P: ccs) : ccs := trigger (Act a);; P.
 
@@ -90,7 +90,7 @@ Section Combinators.
             match a with
             | Send c'
             | Rcv c' =>
-              if (c =? c')%string then CTree.stuck else trigger e
+              if (c =? c')%string then CTree.stuckI else trigger e
             end.
 
 	Definition case_ctree {E F G} (f : E ~> ctree G) (g : F ~> ctree G)
@@ -315,8 +315,8 @@ Lemma trans_communicatingL {E} :
     trans l P P' ->
     trans l' Q Q' ->
     (trans l (communicating P Q) (communicating P' Q) \/
-       (l' = val tt /\ Q' ≅ CTree.stuck /\ trans l  (communicating P Q) P') \/
-       (l = val tt /\ P' ≅ CTree.stuck /\ trans l' (communicating P Q) Q')
+       (l' = val tt /\ Q' ≅ CTree.stuckI /\ trans l  (communicating P Q) P') \/
+       (l = val tt /\ P' ≅ CTree.stuckI /\ trans l' (communicating P Q) Q')
     ).
 Proof.
   intros * TRP TRQ.
@@ -431,8 +431,8 @@ Lemma trans_communicatingR {E} :
     trans l P P' ->
     trans l' Q Q' ->
     (trans l' (communicating P Q) (communicating P Q') \/
-       (l = val tt /\ P' ≅ CTree.stuck /\ trans l' (communicating P Q) Q') \/
-       (l' = val tt /\ Q' ≅ CTree.stuck /\ trans l (communicating P Q) P')
+       (l = val tt /\ P' ≅ CTree.stuckI /\ trans l' (communicating P Q) Q') \/
+       (l' = val tt /\ Q' ≅ CTree.stuckI /\ trans l (communicating P Q) P')
     ).
 Proof.
   intros * TRP TRQ; cbn in *.
@@ -552,7 +552,7 @@ Section Theory.
 
   Lemma pls0p (p : ccs) : 0 + p ~ p.
   Proof.
-    apply choiceI2_stuck_l.
+    apply choiceI2_stuckI_l.
   Qed.
 
   Lemma plsp0 (p : ccs) : p + 0 ~ p.

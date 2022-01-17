@@ -319,7 +319,7 @@ Backward reasoning for [trans]
 |*)
 
 	Lemma trans_ret : forall x,
-		  trans (val x) (Ret x) stuck.
+		  trans (val x) (Ret x) stuckI.
 	Proof.
     intros; constructor.
   Qed.
@@ -367,7 +367,7 @@ Forward reasoning for [trans]
 
 	Lemma trans_ret_inv : forall x l t,
 		  trans l (Ret x) t ->
-		  l = val x /\ t ≅ stuck.
+		  l = val x /\ t ≅ stuckI.
 	Proof.
 		intros * TR; inv TR; intuition.
     rewrite ctree_eta, <- H2; auto.
@@ -437,7 +437,7 @@ useful.
   Lemma trans_val_inv :
     forall (t u : ctree E R) (v : R),
       trans (val v) t u ->
-      u ≅ stuck.
+      u ≅ stuckI.
   Proof.
     intros * TR.
     remember (val v) as ov.
@@ -446,8 +446,8 @@ useful.
   Qed.
 
   Lemma wtrans_val_inv : forall (x : R) (u : ctree E R),
-      wtrans (val x) u stuck ->
-      exists t, wtrans tau u t /\ trans (val x) t stuck.
+      wtrans (val x) u stuckI ->
+      exists t, wtrans tau u t /\ trans (val x) t stuckI.
   Proof.
     intros * TR.
 	  destruct TR as [t2 [t1 step1 step2] step3].
@@ -470,7 +470,7 @@ useful.
 
 	Lemma etrans_ret_inv : forall x l t,
 		  etrans l (Ret x) t ->
-		  (l = tau /\ t ≅ Ret x) \/ (l = val x /\ t ≅ stuck).
+		  (l = tau /\ t ≅ Ret x) \/ (l = val x /\ t ≅ stuckI).
 	Proof.
 		intros ? [] ? step; cbn in step.
     - intuition; try (eapply trans_ret in step; now apply step).
@@ -532,8 +532,14 @@ is not.
     rewrite H, H0; auto.
   Qed.
 
-  Lemma stuck_is_stuck :
-    is_stuck stuck.
+  Lemma stuckI_is_stuck :
+    is_stuck stuckI.
+  Proof.
+    red; intros * abs; inv abs; inv x.
+  Qed.
+
+  Lemma stuckV_is_stuck :
+    is_stuck stuckV.
   Proof.
     red; intros * abs; inv abs; inv x.
   Qed.
@@ -601,7 +607,7 @@ wtrans theory
 
 	Lemma wtrans_ret_inv : forall x l t,
 		  wtrans l (Ret x) t ->
-		  (l = tau /\ t ≅ Ret x) \/ (l = val x /\ t ≅ stuck).
+		  (l = tau /\ t ≅ Ret x) \/ (l = val x /\ t ≅ stuckI).
 	Proof.
 		intros * step.
 		destruct step as [? [? step1 step2] step3].
@@ -610,7 +616,7 @@ wtrans theory
 		apply etrans_ret_inv in step2 as [[-> EQ] |[-> EQ]].
 		rewrite EQ in step3; apply trans_tau_str_ret_inv in step3; auto.
 		rewrite EQ in step3.
-    apply transs_is_stuck_inv in step3; [| apply stuck_is_stuck].
+    apply transs_is_stuck_inv in step3; [| apply stuckI_is_stuck].
     intuition.
 	Qed.
 
@@ -632,7 +638,7 @@ Lemma trans_bind_inv_aux {E X Y} l T U :
     go T ≅ t >>= k ->
     go U ≅ u ->
     (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
-      (exists (x : X), trans (val x) t stuck /\ trans l (k x) u).
+      (exists (x : X), trans (val x) t stuckI /\ trans l (k x) u).
 Proof.
   intros TR; induction TR; intros.
   - rewrite unfold_bind in H; setoid_rewrite (ctree_eta t0).
@@ -698,7 +704,7 @@ Qed.
 Lemma trans_bind_inv {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) l :
   trans l (t >>= k) u ->
   (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), trans (val x) t stuck /\ trans l (k x) u).
+    (exists (x : X), trans (val x) t stuckI /\ trans l (k x) u).
 Proof.
   intros TR.
   eapply trans_bind_inv_aux.
@@ -734,13 +740,13 @@ Proof.
 Qed.
 
 Lemma trans_bind_r {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) x l :
-  trans (val x) t stuck ->
+  trans (val x) t stuckI ->
   trans l (k x) u ->
   trans l (t >>= k) u.
 Proof.
   cbn; unfold transR; intros TR1.
   genobs t ot.
-  remember (observe stuck) as oc.
+  remember (observe stuckI) as oc.
   remember (val x) as v.
   revert t x Heqot Heqoc Heqv.
   induction TR1; intros; try (inv Heqv; fail).
@@ -758,7 +764,7 @@ Forward and backward rules for [wtrans] w.r.t. [bind]
 Lemma etrans_bind_inv {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) l :
   etrans l (t >>= k) u ->
   (~ (is_val l) /\ exists t', etrans l t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), trans (val x) t stuck /\ etrans l (k x) u).
+    (exists (x : X), trans (val x) t stuckI /\ etrans l (k x) u).
 Proof.
   intros TR.
   apply @etrans_case in TR as [ | (-> & ?)].
@@ -774,7 +780,7 @@ Qed.
 Lemma transs_bind_inv {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) :
  	(trans tau)^* (t >>= k) u ->
   (exists t', (trans tau)^* t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), wtrans (val x) t stuck /\ (trans tau)^* (k x) u).
+    (exists (x : X), wtrans (val x) t stuckI /\ (trans tau)^* (k x) u).
 Proof.
   intros [n TR].
   revert t k u TR.
@@ -812,8 +818,8 @@ the last visible state reached by [wtrans] and add a [trans (val _)] afterward.
 Lemma wtrans_bind_inv {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) l :
   wtrans l (t >>= k) u ->
   (~ (is_val l) /\ exists t', wtrans l t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), wtrans (val x) t stuck /\ wtrans l (k x) u) \/
-    (exists (x : X) s, wtrans l t s /\ trans (val x) s stuck /\ wtrans tau (k x) u).
+    (exists (x : X), wtrans (val x) t stuckI /\ wtrans l (k x) u) \/
+    (exists (x : X) s, wtrans l t s /\ trans (val x) s stuckI /\ wtrans tau (k x) u).
 Proof.
   intros TR.
 	destruct TR as [t2 [t1 step1 step2] step3].
@@ -925,7 +931,7 @@ by taking the [Ret] in the prefix, but we cannot process it to
 reach [u] in the bound computation.
 |*)
 Lemma wtrans_bind_r {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) x l :
-  wtrans (val x) t stuck ->
+  wtrans (val x) t stuckI ->
   wtrans l (k x) u ->
   (u ≅ k x \/ wtrans l (t >>= k) u).
 Proof.
@@ -947,7 +953,7 @@ Proof.
 Qed.
 
 Lemma wtrans_bind_r' {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) x l :
-  wtrans (val x) t stuck ->
+  wtrans (val x) t stuckI ->
   pwtrans l (k x) u ->
   (wtrans l (t >>= k) u).
 Proof.
@@ -979,7 +985,7 @@ Qed.
 
 Lemma wtrans_bind_lr {E X Y} (t u : ctree E X) (k : X -> ctree E Y) (v : ctree E Y) x l :
   pwtrans l t u ->
-  wtrans (val x) u stuck ->
+  wtrans (val x) u stuckI ->
   pwtrans tau (k x) v ->
   (wtrans l (t >>= k) v).
 Proof.
@@ -992,9 +998,9 @@ Proof.
       pose proof (trans_val_invT TR1'); subst.
       apply trans_val_inv in TR1'.
       rewrite TR1' in TR1''.
-      apply transs_is_stuck_inv in TR1''; [| apply stuck_is_stuck].
+      apply transs_is_stuck_inv in TR1''; [| apply stuckI_is_stuck].
       rewrite <- TR1'' in TR2.
-      apply wtrans_is_stuck_inv in TR2; [| apply stuck_is_stuck].
+      apply wtrans_is_stuck_inv in TR2; [| apply stuckI_is_stuck].
       destruct TR2 as [abs _]; inv abs.
     }
     eexists.

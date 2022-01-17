@@ -39,7 +39,7 @@ From CTreeCCS Require Import
 From Coinduction Require Import
 	coinduction rel tactics.
 
-(* Import CTree. *)
+Import CTree.
 
 Import CTreeNotations.
 Open Scope ctree_scope.
@@ -90,7 +90,7 @@ Unless one is silent stuck, the other visible stuck...
             match a with
             | Send c'
             | Rcv c' =>
-                if (c =? c')%string then CTree.stuck else trigger e
+                if (c =? c')%string then stuckI else trigger e
             end.
 
   Definition restrict {X} : chan -> ccsT X -> ccsT X :=
@@ -132,6 +132,139 @@ Unless one is silent stuck, the other visible stuck...
               else
                 choiceI2 (trigger (Act a);; F (kP tt) Q)
                          (trigger (Act b);; F P (kQ tt))
+          end
+      end.
+
+  Definition para : ccs -> ccs -> ccs :=
+    cofix F (P : ccs) (Q : ccs) :=
+      choiceI3
+        (rP <- get_head P;;
+         match rP with
+         | HRet rP => stuckI
+         | HChoice kP => ChoiceV _ (fun i => F (kP i) Q)
+         | HVis e kP => Vis e (fun i => F (kP i) Q)
+         end)
+
+        (rQ <- get_head Q;;
+         match rQ with
+         | HRet rQ => stuckI
+         | HChoice kQ => ChoiceV _ (fun i => F (kQ i) Q)
+         | HVis e kQ => Vis e (fun i => F (kQ i) Q)
+         end)
+
+        (rP <- get_head P;;
+         rQ <- get_head Q;;
+         match rP, rQ with
+         | HVis eP kP, HVis eQ kQ =>
+             match eP, kP, eQ, kQ with
+             | Act a, kP, Act b, kQ =>
+                 if are_opposite a b
+                 then
+                   TauV (F (kP tt) (kQ tt))
+                 else
+                   stuckI
+             end
+         | _, _ => stuckI
+         end).
+
+  Inductive heads E X :=
+  | Lheads : (@head E X) -> heads E X
+  | Rheads : (@head E X) -> heads E X
+  | Sheads : (@head E X * @head E X) -> heads E X.
+
+  Definition pairing {X} (x1 : X + X) (x2 : X) : X * X :=
+    match x1 with
+    | inl x1 => (x1,x2)
+    | inr x1 => (x2,x1)
+    end.
+
+  Definition get_head_cst {E X} (hd : @head E X + @head E X) : ctree E X -> ctree E (heads E X) :=
+    cofix get_head_cst (t : ctree E X) :=
+      match observe t with
+      | RetF x            => Ret (Sheads (pairing hd (HRet x)))
+      | VisF e k          => Ret (Sheads (pairing hd (HVis e k)))
+      | ChoiceF true n k  => Ret (Sheads (pairing hd (HChoice k)))
+      | ChoiceF false n k => Choice false n (fun i => get_head_cst (k i))
+      end.
+
+  Definition get_heads {E X} : ctree E X -> ctree E X -> ctree E (heads E X) :=
+    cofix get_heads (t u : ctree E X) :=
+      match observe t, observe u with
+      | ChoiceF false n1 k1, ChoiceF false n2 k2 =>
+          ChoiceI n1 (fun i => ChoiceI n2 (fun j => get_heads (k1 i) (k2 j)))
+      | RetF x, ChoiceF false _ _     =>
+          choiceI2 (Ret (Lheads (HRet x))) (get_head_cst (inl (HRet x)) u)
+      | VisF e k, ChoiceF false _ _      =>
+          choiceI2 (Ret (Lheads (HVis e k))) (get_head_cst (inl (HVis e k)) u)
+      | ChoiceF true n k, ChoiceF false _ _ =>
+          choiceI2 (Ret (Lheads (HChoice k))) (get_head_cst (inl (HChoice k)) u)
+      | ChoiceF false _ _, RetF x      =>
+          choiceI2 (Ret (Rheads (HRet x))) (get_head_cst (inr (HRet x)) u)
+      | ChoiceF false _ _, VisF e k       =>
+          choiceI2 (Ret (Rheads (HVis e k))) (get_head_cst (inr (HVis e k)) u)
+      | ChoiceF false _ _, ChoiceF true n k =>
+          choiceI2 (Ret (Rheads (HChoice k))) (get_head_cst (inr (HChoice k)) u)
+      | RetF x, RetF y     =>
+          Ret (Sheads (HRet x, HRet y))
+      | VisF e k, RetF y     =>
+          Ret (Sheads (HVis e k, HRet y))
+      | ChoiceF true n k, RetF y     =>
+          Ret (Sheads (HChoice k, HRet y))
+      | RetF x, VisF e' k'     =>
+          Ret (Sheads (HRet x, HVis e' k'))
+      | VisF e k, VisF e' k'     =>
+          Ret (Sheads (HVis e k, HVis e' k'))
+      | ChoiceF true n k, VisF e' k'     =>
+          Ret (Sheads (HChoice k, HVis e' k'))
+      | RetF x, ChoiceF true n k'     =>
+          Ret (Sheads (HRet x, HChoice k'))
+      | VisF e k, ChoiceF true n k'     =>
+          Ret (Sheads (HVis e k, HChoice k'))
+      | ChoiceF true n k, ChoiceF true n' k'     =>
+          Ret (Sheads (HChoice k, HChoice k'))
+      end.
+
+  Definition communicating_synch : ccs -> ccs -> ccs :=
+    cofix F (P : ccs) (Q : ccs) :=
+      hds <- get_heads P Q;;
+      match hds with
+      | Lheads hdP =>
+          match hdP with
+          | HRet rP => Q
+          | HChoice kP => ChoiceV _ (fun i => F (kP i) Q)
+          | HVis e kP => Vis e (fun i => F (kP i) Q)
+          end
+      | Rheads hdQ =>
+          match hdQ with
+          | HRet rQ => P
+          | HChoice kQ => ChoiceV _ (fun i => F P (kQ i))
+          | HVis e kQ => Vis e (fun i => F P (kQ i))
+          end
+      | Sheads (hdP,hdQ) =>
+          match hdP, hdQ with
+          | HRet rP, _ => Q
+          | _, HRet rQ => P
+          | HChoice kP, HChoice kQ =>
+              choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
+                       (ChoiceV _ (fun i => F P (kQ i)))
+          | HChoice kP, HVis e kQ =>
+              choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
+                       (Vis e     (fun x => F P (kQ x)))
+          | HVis e kP, HChoice kQ =>
+              choiceI2 (Vis e     (fun x => F (kP x) Q))
+                       (ChoiceV _ (fun i => F P (kQ i)))
+          | HVis eP kP, HVis eQ kQ =>
+              match eP, kP, eQ, kQ with
+              | Act a, kP, Act b, kQ =>
+                  if are_opposite a b
+                  then
+                    choiceI3 (TauV (F (kP tt) (kQ tt)))
+                             (trigger (Act a);; F (kP tt) Q)
+                             (trigger (Act b);; F P (kQ tt))
+                  else
+                    choiceI2 (trigger (Act a);; F (kP tt) Q)
+                             (trigger (Act b);; F P (kQ tt))
+              end
           end
       end.
 
@@ -191,11 +324,11 @@ Notation communicating_ P Q :=
            if are_opposite a b
            then
              choiceI3 (TauV (communicating (kP tt) (kQ tt)))
-                      (trigger (inl1 (Act a));; communicating (kP tt) Q)
-                      (trigger (inl1 (Act b));; communicating P (kQ tt))
+                      (trigger (Act a);; communicating (kP tt) Q)
+                      (trigger (Act b);; communicating P (kQ tt))
            else
-             choiceI2 (trigger (inl1 (Act a));; communicating (kP tt) Q)
-                      (trigger (inl1 (Act b));; communicating P (kQ tt))
+             choiceI2 (trigger (Act a);; communicating (kP tt) Q)
+                      (trigger (Act b);; communicating P (kQ tt))
        end
    end)%ctree.
 
@@ -296,8 +429,8 @@ Lemma trans_communicatingL :
     trans l P P' ->
     trans l' Q Q' ->
     (trans l (communicating P Q) (communicating P' Q) \/
-       (l' = val tt /\ Q' ≅ CTree.stuck /\ trans l  (communicating P Q) P') \/
-       (l = val tt /\ P' ≅ CTree.stuck /\ trans l' (communicating P Q) Q')
+       (l' = val tt /\ Q' ≅ stuckI /\ trans l  (communicating P Q) P') \/
+       (l = val tt /\ P' ≅ stuckI /\ trans l' (communicating P Q) Q')
     ).
 Proof.
   intros * TRP TRQ.
@@ -407,8 +540,8 @@ Lemma trans_communicatingR :
     trans l P P' ->
     trans l' Q Q' ->
     (trans l' (communicating P Q) (communicating P Q') \/
-       (l = val tt /\ P' ≅ CTree.stuck /\ trans l' (communicating P Q) Q') \/
-       (l' = val tt /\ Q' ≅ CTree.stuck /\ trans l (communicating P Q) P')
+       (l = val tt /\ P' ≅ stuckI /\ trans l' (communicating P Q) Q') \/
+       (l' = val tt /\ Q' ≅ stuckI /\ trans l (communicating P Q) P')
     ).
 Proof.
   intros * TRP TRQ; cbn in *.
@@ -519,9 +652,8 @@ Section Theory.
 
   Lemma pls0p (p : ccs) : 0 + p ~ p.
   Proof.
-    (* apply choiceI2_stuck_l. *)
-  (* Qed. *)
-  Admitted.
+    apply choiceI2_stuckV_l.
+  Qed.
 
   Lemma plsp0 (p : ccs) : p + 0 ~ p.
   Proof. now rewrite plsC, pls0p. Qed.

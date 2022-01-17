@@ -70,7 +70,7 @@ Definition ccs := ccsT unit.
 (*| Process algebra |*)
 Section Combinators.
 
-	Definition nil : ccs := CTree.stuck.
+	Definition nil : ccs := CTree.stuckI.
 
 	Definition prefix (a : action) (P: ccs) : ccs := trigger (Act a);; P.
 
@@ -84,7 +84,7 @@ Section Combinators.
             match a with
             | Send c'
             | Rcv c' =>
-              if (c =? c')%string then CTree.stuck else trigger e
+              if (c =? c')%string then CTree.stuckI else trigger e
             end.
 
 	Definition case_ctree {E F G} (f : E ~> ctree G) (g : F ~> ctree G)
@@ -128,7 +128,7 @@ We currently return stuck computations in these cases.
     cofix get_hd (t : ccs) :=
       match observe t with
       | RetF x            =>
-          CTree.stuck
+          CTree.stuckI
       | VisF (tauP e) k   =>
           match e,k with
           | Tau,k => Ret (Hact None (k tt))
@@ -137,7 +137,7 @@ We currently return stuck computations in these cases.
           match e, k with
           | Act a, k => Ret (Hact (Some a) (k tt))
           end
-      | ChoiceF true n k  => CTree.stuck
+      | ChoiceF true n k  => CTree.stuckI
       | ChoiceF false n k =>
           if Nat.eqb n 0
           then Ret Hdone
@@ -230,7 +230,7 @@ Qed.
 
 Lemma pls0p p: 0 + p ~ p.
 Proof.
-  apply choiceI2_stuck_l.
+  apply choiceI2_stuckI_l.
 Qed.
 
 Lemma plsp0 p: p + 0 ~ p.
@@ -250,7 +250,7 @@ Notation "'tauP' e" := (inl1 e) (at level 10).
 Notation "'actP' e" := (inr1 e) (at level 10).
 Notation get_hd_ P :=
   match observe P with
-  | RetF x            => CTree.stuck
+  | RetF x            => CTree.stuckI
   | VisF (tauP e) k   =>
       match e,k with
       | Tau,k => Ret (Hact None (k tt))
@@ -259,7 +259,7 @@ Notation get_hd_ P :=
       match e, k with
       | Act a, k => Ret (Hact (Some a) (k tt))
       end
-  | ChoiceF true n k  => CTree.stuck
+  | ChoiceF true n k  => CTree.stuckI
   | ChoiceF false n k =>
       if Nat.eqb n 0
       then Ret Hdone
@@ -328,7 +328,7 @@ Qed.
 
 Lemma trans_get_hd_bind_inv : forall l P (k : _ -> ccs) u,
     transR l (get_hd P >>= k) u ->
-    exists hd, transR (val hd) (get_hd P) CTree.stuck /\ transR l (k hd) u.
+    exists hd, transR (val hd) (get_hd P) CTree.stuckI /\ transR l (k hd) u.
 Proof.
   intros * TR.
   edestruct @trans_bind_inv; [apply TR | | assumption].
@@ -343,7 +343,7 @@ Qed.
  *)
 Lemma trans_get_hd : forall l P Q,
     transR l P Q ->
-    exists a P', transR (val (Hact a P')) (get_hd P) CTree.stuck /\
+    exists a P', transR (val (Hact a P')) (get_hd P) CTree.stuckI /\
               transR l P' Q.
 Proof.
   intros * TR.
@@ -371,7 +371,7 @@ Proof.
   - rewrite unfold_para, get_hd0, bind_ret_l in TR.
     apply trans_get_hd_bind_inv in TR as (? & ? & ?).
     destruct x.
-    exfalso; eapply stuck_is_stuck; apply H0.
+    exfalso; eapply stuckI_is_stuck; apply H0.
     now exists t'.
   - exists t'; [| reflexivity].
     rewrite unfold_para, get_hd0, bind_ret_l.
