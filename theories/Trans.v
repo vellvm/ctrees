@@ -377,7 +377,7 @@ Forward reasoning for [trans]
 
 	Lemma trans_vis_inv : forall {X} (e : E X) k l u,
 		  trans l (Vis e k) u ->
-      exists x, l = obs e x /\ u ≅ k x.
+      exists x, u ≅ k x /\ l = obs e x.
 	Proof.
     intros * TR.
     inv TR.
@@ -1030,5 +1030,20 @@ Proof.
   rewrite unfold_bind; cbn.
   setoid_rewrite bind_ret_l.
   constructor; auto.
+Qed.
+
+Lemma trans_trigger_inv : forall {E X Y} (e : E X) (k : X -> ctree E Y) l u,
+		trans l (trigger e >>= k) u ->
+    exists x, u ≅ k x /\ l = obs e x.
+Proof.
+  intros * TR.
+  unfold trigger in TR.
+  apply trans_bind_inv in TR.
+  destruct TR as [(? & ? & TR & ?) |(? & TR & ?)].
+  - apply trans_vis_inv in TR.
+    destruct TR as (? & ? & ->); eexists; split; eauto.
+    rewrite H0, H1, bind_ret_l; reflexivity.
+  - apply trans_vis_inv in TR.
+    destruct TR as (? & ? & abs); inv abs.
 Qed.
 

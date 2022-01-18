@@ -29,6 +29,7 @@ From RelationAlgebra Require Import
 From Coinduction Require Import
 	coinduction rel tactics.
 
+Import CTree.
 Import CTreeNotations.
 Open Scope ctree_scope.
 
@@ -55,7 +56,7 @@ a none invisible choice node.
 Notice that this computation may loop if the original computation
 admits a infinite branch of invisible choices.
 |*)
-Definition get_head {E F X} : ctree E X -> ctree F (@head E X) :=
+Definition get_head {E X} : ctree E X -> ctree E (@head E X) :=
   cofix get_head (t : ctree E X) :=
     match observe t with
     | RetF x            => Ret (HRet x)
@@ -72,8 +73,8 @@ Notation get_head_ t :=
   | ChoiceF false n k => Choice false n (fun i => get_head (k i))
   end.
 
-Lemma unfold_get_head {E F X} : forall (t : ctree E X),
-    get_head (F := F) t ≅ get_head_ t.
+Lemma unfold_get_head {E X} : forall (t : ctree E X),
+    get_head t ≅ get_head_ t.
 Proof.
   intros.
 	now step.
@@ -87,7 +88,7 @@ We wrap them together in [trans_get_head].
 Lemma trans_get_head_obs {E X} : forall (t u : ctree E X) Y (e : E Y) v,
     trans (obs e v) t u ->
     exists (k : Y -> ctree E X),
-      trans (val (HVis e k)) (get_head (F := E) t) CTree.stuck /\
+      trans (val (HVis e k)) (get_head t) stuckI /\
         u ≅ k v.
 Proof.
   intros * TR.
@@ -112,7 +113,7 @@ Qed.
 Lemma trans_get_head_tau {E X} : forall (t u : ctree E X),
     trans tau t u ->
     exists n (k : Fin.t n -> ctree E X) x,
-      trans (val (HChoice k)) (get_head (F := E) t) CTree.stuck /\
+      trans (val (HChoice k)) (get_head t) stuckI /\
         u ≅ k x.
 Proof.
   intros * TR.
@@ -135,8 +136,8 @@ Qed.
 
 Lemma trans_get_head_ret {E X} : forall (t u : ctree E X) (v : X),
     trans (val v) t u ->
-    trans (val (@HRet E X v)) (get_head (F := E) t) CTree.stuck /\
-      u ≅ CTree.stuck.
+    trans (val (@HRet E X v)) (get_head t) stuckI /\
+      u ≅ stuckI.
 Proof.
   intros * TR.
   unfold trans in *.
@@ -161,10 +162,10 @@ Lemma trans_get_head : forall {E X} (t u : ctree E X) l,
     trans l t u ->
     match l with
     | tau => exists n (k : Fin.t n -> ctree E X) x,
-        trans (val (HChoice k)) (get_head (F := E) t) CTree.stuck /\ u ≅ k x
+        trans (val (HChoice k)) (get_head t) stuckI /\ u ≅ k x
     | obs e v => exists (k : _ -> ctree E X),
-        trans (val (HVis e k)) (get_head (F := E) t) CTree.stuck /\ u ≅ k v
-    | val v => trans (val (@HRet E _ v)) (get_head (F := E) t) CTree.stuck /\ u ≅ CTree.stuck
+        trans (val (HVis e k)) (get_head t) stuckI /\ u ≅ k v
+    | val v => trans (val (@HRet E _ v)) (get_head t) stuckI /\ u ≅ stuckI
     end.
 Proof.
   intros *; destruct l.
@@ -182,12 +183,11 @@ Ltac eq2equ H :=
   | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≅ t) by (subst; reflexivity); clear H
   end.
 
-Lemma trans_get_head_inv {E F X} : forall (P : ctree E X) l u,
-    trans l (get_head (F := F) P) u ->
+Lemma trans_get_head_inv {E X} : forall (P : ctree E X) l u,
+    trans l (get_head P) u ->
     is_val l.
 Proof.
   intros * TR.
-  red in TR.
   remember (get_head P) as HP.
   eq2equ HeqHP.
   rewrite ctree_eta in EQ.
@@ -214,6 +214,104 @@ Proof.
   - constructor.
 Qed.
 
+Lemma trans_HRet :
+  forall {E X} r (p: ctree E X) q,
+    trans (val (@HRet E X r)) (get_head p) q ->
+    trans (val r) p stuckI.
+Proof.
+  intros * TR.
+  remember (get_head p) as Hp.
+  remember (val (HRet r)) as l.
+  eq2equ HeqHp.
+  rewrite ctree_eta in EQ.
+  revert p EQ r Heql.
+  induction TR; intros; subst; try now inv Heql.
+  - rewrite unfold_get_head in EQ.
+    cbn; red.
+    desobs p; try now (step in EQ; inv EQ).
+    destruct vis.
+    + step in EQ; inv EQ.
+    + step in EQ; destruct (equF_choice_invT _ _ EQ) as [-> _].
+      eapply equF_choice_invE in EQ.
+      setoid_rewrite <- ctree_eta in IHTR.
+      econstructor.
+      apply IHTR; eauto.
+  - apply val_eq_inv in Heql; inv Heql.
+    rewrite unfold_get_head in EQ.
+    cbn; red.
+    desobs p; try now (step in EQ; inv EQ).
+    step in EQ; inv EQ; inv REL; constructor.
+    destruct vis.
+    + step in EQ; inv EQ; inv REL.
+    + step in EQ; inv EQ; inv REL.
+Qed.
+
+Lemma trans_HChoice :
+  forall {E X} n k (p: ctree E X) q,
+    trans (val (HChoice (n := n) k)) (get_head p) q ->
+    forall i, trans tau p (k i).
+Proof.
+  intros * TR.
+  remember (get_head p) as Hp.
+  remember (val (HChoice k)) as l.
+  eq2equ HeqHp.
+  rewrite ctree_eta in EQ.
+  revert p EQ k Heql.
+  induction TR; intros; subst; try now inv Heql.
+  - rewrite unfold_get_head in EQ.
+    cbn; red.
+    desobs p; try now (step in EQ; inv EQ).
+    destruct vis.
+    + step in EQ; inv EQ.
+    + step in EQ; destruct (equF_choice_invT _ _ EQ) as [-> _].
+      eapply equF_choice_invE in EQ.
+      setoid_rewrite <- ctree_eta in IHTR.
+      econstructor.
+      apply IHTR; eauto.
+  - apply val_eq_inv in Heql; inv Heql.
+    rewrite unfold_get_head in EQ.
+    cbn; red.
+    desobs p; try now (step in EQ; inv EQ).
+    destruct vis.
+    + step in EQ; inv EQ.
+      dependent induction REL.
+      apply trans_ChoiceV.
+    + step in EQ; inv EQ; inv REL.
+Qed.
+
+Lemma trans_HVis :
+  forall {E X Y} (e : E Y) (p: ctree E X) (k : Y -> ctree E X) q,
+    trans (val (HVis e k)) (get_head p) q ->
+    forall i, trans (obs e i) p (k i).
+Proof.
+  intros * TR.
+  remember (get_head p) as Hp.
+  remember (val (HVis e k)) as l.
+  eq2equ HeqHp.
+  rewrite ctree_eta in EQ.
+  revert p EQ k Heql.
+  induction TR; intros; subst; try now inv Heql.
+  - rewrite unfold_get_head in EQ.
+    cbn; red.
+    desobs p; try now (step in EQ; inv EQ).
+    destruct vis.
+    + step in EQ; inv EQ.
+    + step in EQ; destruct (equF_choice_invT _ _ EQ) as [-> _].
+      eapply equF_choice_invE in EQ.
+      setoid_rewrite <- ctree_eta in IHTR.
+      econstructor.
+      apply IHTR; eauto.
+  - apply val_eq_inv in Heql; inv Heql.
+    rewrite unfold_get_head in EQ.
+    cbn; red.
+    desobs p; try now (step in EQ; inv EQ).
+    + step in EQ; inv EQ.
+      dependent induction REL.
+      constructor; reflexivity.
+    + destruct vis; step in EQ; inv EQ.
+      inv REL.
+Qed.
+
 (*|
 [get_head] is a computation computing computations. It's therefore not as
 well-behaved w.r.t. to [equ] as usual: rewriting [equ eq] leads to [equ eq_head]
@@ -236,8 +334,8 @@ TOOD: Generalization of [Equivalence_bt_equ]
   Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E Y _ eq)) ==> iff) (bt_equ R S).
 Admitted.
 
-#[global] Instance get_head_equ {E F X} :
-  Proper (equ eq ==> equ (eq_head)) (@get_head E F X).
+#[global] Instance get_head_equ {E X} :
+  Proper (equ eq ==> equ (eq_head)) (@get_head E X).
 Proof.
   unfold Proper, respectful.
   coinduction S CIH.
