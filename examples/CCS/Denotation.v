@@ -140,14 +140,14 @@ Unless one is silent stuck, the other visible stuck...
       choiceI3
         (rP <- get_head P;;
          match rP with
-         | HRet rP => stuckI
+         | HRet rP => match rP with end
          | HChoice kP => ChoiceV _ (fun i => F (kP i) Q)
          | HVis e kP => Vis e (fun i => F (kP i) Q)
          end)
 
         (rQ <- get_head Q;;
          match rQ with
-         | HRet rQ => stuckI
+         | HRet rQ => match rQ with end
          | HChoice kQ => ChoiceV _ (fun i => F P (kQ i))
          | HVis e kQ => Vis e (fun i => F P (kQ i))
          end)
@@ -268,22 +268,15 @@ Unless one is silent stuck, the other visible stuck...
           end
       end.
 
-  (* Option 1
-     Difference stuck pour erreur et 0 pour 0 : get_head les traite différemment
-     Pour ce qui est de la divergence d'un process, deux options :
-     - toujours ternaire, une seule head dans deux branches, seulement comme dans la troisième
-     - get_head parallel
+  Definition bang (p : ccs) : ccs :=
+    hd <- get_head p;;
+    match hd with
+    | HRet r => match r with end
+    | HChoice k => ChoiceV _ (fun i => para (k i) p)
+    | HVis e k =>  Vis e (fun i => para (k i) p)
+    end
+  .
 
-   *)
-
-  (* Definition elim_void1 {E X} (t : ctree (E +' void1) X) : ctree E X := *)
-  (*   translate (fun Y e => match e with | inl1 e => e | inr1 e => (match e : void1 _ with end) end) t. *)
-
-  (* Definition intro_void1 {E X} (t : ctree E X) : ctree (E +' void1) X := *)
-  (*   translate inl1 t. *)
-
-  (* Definition para (P Q : ccs) : ccs := *)
-  (*   elim_void1 (communicating (intro_void1 P) (intro_void1 Q)). *)
 
 (*
 				-------------------------------------------------
@@ -313,14 +306,14 @@ Notation para_ p q :=
   (choiceI3
     (rp <- get_head p;;
      match rp with
-     | HRet rp => stuckI
+     | HRet rp => match rp with end
      | HChoice kp => ChoiceV _ (fun i => para (kp i) q)
      | HVis e kp => Vis e (fun i => para (kp i) q)
      end)
 
     (rq <- get_head q;;
      match rq with
-     | HRet rq => stuckI
+     | HRet rq => match rq with end
      | HChoice kq => ChoiceV _ (fun i => para p (kq i))
      | HVis e kq => Vis e (fun i => para p (kq i))
      end)
