@@ -71,15 +71,6 @@ Definition comm a : label := obs (Act a) tt.
 (*| Process algebra |*)
 Section Combinators.
 
-  (* A bit annoying. The [nil] process should exhibit no behavior.
-     However we do observe returned value, so [Ret tt] is not ideal
-from this perspective. [stuck] seems like a good alternative, but that
-would therefore require from [get_head] to catch on stuck processes and
-reinterpret them as terminating ones when passing them to [communicating].
-Furthermore comes the question of cutting off dead branches: if nil is [Ret tt],
-failure could be modelled as stuck processes, but not otherwise.
-Unless one is silent stuck, the other visible stuck...
-   *)
 	Definition nil : ccs := ChoiceV 0 (fun x : fin 0 => match x with end).
 
 	Definition prefix (a : action) (P: ccs) : ccs := trigger (Act a);; P.
@@ -97,45 +88,6 @@ Unless one is silent stuck, the other visible stuck...
 
   Definition new : chan -> ccs -> ccs :=
     fun c P => interp (h_new c) P.
-
-  Definition communicating : ccs -> ccs -> ccs :=
-    cofix F (P : ccs) (Q : ccs) :=
-
-      (* We construct the "heads" of both computations to get all reachable events *)
-			rP <- get_head P;;
-			rQ <- get_head Q;;
-
-      (* And then proceed to:
-         - collect all interleavings of visible choices and visible events
-         - dismiss terminated computations, disregarding their returned values
-         - when encountering two synchronizable actions, adding the communication
-         as a third possibility
-       *)
-      match rP, rQ with
-      | HRet rP, _ => Q
-      | _, HRet rQ => P
-      | HChoice kP, HChoice kQ =>
-          choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
-                   (ChoiceV _ (fun i => F P (kQ i)))
-      | HChoice kP, HVis e kQ =>
-          choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
-                   (Vis e     (fun x => F P (kQ x)))
-      | HVis e kP, HChoice kQ =>
-          choiceI2 (Vis e     (fun x => F (kP x) Q))
-                   (ChoiceV _ (fun i => F P (kQ i)))
-      | HVis eP kP, HVis eQ kQ =>
-          match eP, kP, eQ, kQ with
-          | Act a, kP, Act b, kQ =>
-              if are_opposite a b
-              then
-                choiceI3 (TauV (F (kP tt) (kQ tt)))
-                         (trigger (Act a);; F (kP tt) Q)
-                         (trigger (Act b);; F P (kQ tt))
-              else
-                choiceI2 (trigger (Act a);; F (kP tt) Q)
-                         (trigger (Act b);; F P (kQ tt))
-          end
-      end.
 
   Definition para : ccs -> ccs -> ccs :=
     cofix F (P : ccs) (Q : ccs) :=
@@ -169,107 +121,7 @@ Unless one is silent stuck, the other visible stuck...
          | _, _ => stuckI
          end).
 
-  Inductive heads E X :=
-  | Lheads : (@head E X) -> heads E X
-  | Rheads : (@head E X) -> heads E X
-  | Sheads : (@head E X * @head E X) -> heads E X.
-
-  Definition pairing {X} (x1 : X + X) (x2 : X) : X * X :=
-    match x1 with
-    | inl x1 => (x1,x2)
-    | inr x1 => (x2,x1)
-    end.
-
-  Definition get_head_cst {E X} (hd : @head E X + @head E X) : ctree E X -> ctree E (heads E X) :=
-    cofix get_head_cst (t : ctree E X) :=
-      match observe t with
-      | RetF x            => Ret (Sheads (pairing hd (HRet x)))
-      | VisF e k          => Ret (Sheads (pairing hd (HVis e k)))
-      | ChoiceF true n k  => Ret (Sheads (pairing hd (HChoice k)))
-      | ChoiceF false n k => Choice false n (fun i => get_head_cst (k i))
-      end.
-
-  Definition get_heads {E X} : ctree E X -> ctree E X -> ctree E (heads E X) :=
-    cofix get_heads (t u : ctree E X) :=
-      match observe t, observe u with
-      | ChoiceF false n1 k1, ChoiceF false n2 k2 =>
-          ChoiceI n1 (fun i => ChoiceI n2 (fun j => get_heads (k1 i) (k2 j)))
-      | RetF x, ChoiceF false _ _     =>
-          choiceI2 (Ret (Lheads (HRet x))) (get_head_cst (inl (HRet x)) u)
-      | VisF e k, ChoiceF false _ _      =>
-          choiceI2 (Ret (Lheads (HVis e k))) (get_head_cst (inl (HVis e k)) u)
-      | ChoiceF true n k, ChoiceF false _ _ =>
-          choiceI2 (Ret (Lheads (HChoice k))) (get_head_cst (inl (HChoice k)) u)
-      | ChoiceF false _ _, RetF x      =>
-          choiceI2 (Ret (Rheads (HRet x))) (get_head_cst (inr (HRet x)) u)
-      | ChoiceF false _ _, VisF e k       =>
-          choiceI2 (Ret (Rheads (HVis e k))) (get_head_cst (inr (HVis e k)) u)
-      | ChoiceF false _ _, ChoiceF true n k =>
-          choiceI2 (Ret (Rheads (HChoice k))) (get_head_cst (inr (HChoice k)) u)
-      | RetF x, RetF y     =>
-          Ret (Sheads (HRet x, HRet y))
-      | VisF e k, RetF y     =>
-          Ret (Sheads (HVis e k, HRet y))
-      | ChoiceF true n k, RetF y     =>
-          Ret (Sheads (HChoice k, HRet y))
-      | RetF x, VisF e' k'     =>
-          Ret (Sheads (HRet x, HVis e' k'))
-      | VisF e k, VisF e' k'     =>
-          Ret (Sheads (HVis e k, HVis e' k'))
-      | ChoiceF true n k, VisF e' k'     =>
-          Ret (Sheads (HChoice k, HVis e' k'))
-      | RetF x, ChoiceF true n k'     =>
-          Ret (Sheads (HRet x, HChoice k'))
-      | VisF e k, ChoiceF true n k'     =>
-          Ret (Sheads (HVis e k, HChoice k'))
-      | ChoiceF true n k, ChoiceF true n' k'     =>
-          Ret (Sheads (HChoice k, HChoice k'))
-      end.
-
-  Definition communicating_synch : ccs -> ccs -> ccs :=
-    cofix F (P : ccs) (Q : ccs) :=
-      hds <- get_heads P Q;;
-      match hds with
-      | Lheads hdP =>
-          match hdP with
-          | HRet rP => Q
-          | HChoice kP => ChoiceV _ (fun i => F (kP i) Q)
-          | HVis e kP => Vis e (fun i => F (kP i) Q)
-          end
-      | Rheads hdQ =>
-          match hdQ with
-          | HRet rQ => P
-          | HChoice kQ => ChoiceV _ (fun i => F P (kQ i))
-          | HVis e kQ => Vis e (fun i => F P (kQ i))
-          end
-      | Sheads (hdP,hdQ) =>
-          match hdP, hdQ with
-          | HRet rP, _ => Q
-          | _, HRet rQ => P
-          | HChoice kP, HChoice kQ =>
-              choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
-                       (ChoiceV _ (fun i => F P (kQ i)))
-          | HChoice kP, HVis e kQ =>
-              choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
-                       (Vis e     (fun x => F P (kQ x)))
-          | HVis e kP, HChoice kQ =>
-              choiceI2 (Vis e     (fun x => F (kP x) Q))
-                       (ChoiceV _ (fun i => F P (kQ i)))
-          | HVis eP kP, HVis eQ kQ =>
-              match eP, kP, eQ, kQ with
-              | Act a, kP, Act b, kQ =>
-                  if are_opposite a b
-                  then
-                    choiceI3 (TauV (F (kP tt) (kQ tt)))
-                             (trigger (Act a);; F (kP tt) Q)
-                             (trigger (Act b);; F P (kQ tt))
-                  else
-                    choiceI2 (trigger (Act a);; F (kP tt) Q)
-                             (trigger (Act b);; F P (kQ tt))
-              end
-          end
-      end.
-
+  (* This is wrong, need to keep bang p, but that won't be guarded... *)
   Definition bang (p : ccs) : ccs :=
     hd <- get_head p;;
     match hd with
@@ -286,14 +138,10 @@ Unless one is silent stuck, the other visible stuck...
 
 					Question: is !P ≈ P || !P?
   Definition bang : ccs -> ccs.
-
-
 bang p = get_head P ;;
          match hd with
          | choiceV k => choiceV k (fun i => k i || P)
          | Vis e k => Vis e k (fun i => k i || P)
-
-
 *)
 
 End Combinators.
@@ -906,6 +754,45 @@ End DenNotations.
 
 Import DenNotations.
 
+  Definition communicating : ccs -> ccs -> ccs :=
+    cofix F (P : ccs) (Q : ccs) :=
+
+      (* We construct the "heads" of both computations to get all reachable events *)
+			rP <- get_head P;;
+			rQ <- get_head Q;;
+
+      (* And then proceed to:
+         - collect all interleavings of visible choices and visible events
+         - dismiss terminated computations, disregarding their returned values
+         - when encountering two synchronizable actions, adding the communication
+         as a third possibility
+       *)
+      match rP, rQ with
+      | HRet rP, _ => Q
+      | _, HRet rQ => P
+      | HChoice kP, HChoice kQ =>
+          choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
+                   (ChoiceV _ (fun i => F P (kQ i)))
+      | HChoice kP, HVis e kQ =>
+          choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
+                   (Vis e     (fun x => F P (kQ x)))
+      | HVis e kP, HChoice kQ =>
+          choiceI2 (Vis e     (fun x => F (kP x) Q))
+                   (ChoiceV _ (fun i => F P (kQ i)))
+      | HVis eP kP, HVis eQ kQ =>
+          match eP, kP, eQ, kQ with
+          | Act a, kP, Act b, kQ =>
+              if are_opposite a b
+              then
+                choiceI3 (TauV (F (kP tt) (kQ tt)))
+                         (trigger (Act a);; F (kP tt) Q)
+                         (trigger (Act b);; F P (kQ tt))
+              else
+                choiceI2 (trigger (Act a);; F (kP tt) Q)
+                         (trigger (Act b);; F P (kQ tt))
+          end
+      end.
+
 Notation communicating_ P Q :=
 	(rP <- get_head P;;
 	 rQ <- get_head Q;;
@@ -1238,3 +1125,105 @@ Qed.
 
    *)
 Admitted.
+
+  Inductive heads E X :=
+  | Lheads : (@head E X) -> heads E X
+  | Rheads : (@head E X) -> heads E X
+  | Sheads : (@head E X * @head E X) -> heads E X.
+
+  Definition pairing {X} (x1 : X + X) (x2 : X) : X * X :=
+    match x1 with
+    | inl x1 => (x1,x2)
+    | inr x1 => (x2,x1)
+    end.
+
+  Definition get_head_cst {E X} (hd : @head E X + @head E X) : ctree E X -> ctree E (heads E X) :=
+    cofix get_head_cst (t : ctree E X) :=
+      match observe t with
+      | RetF x            => Ret (Sheads (pairing hd (HRet x)))
+      | VisF e k          => Ret (Sheads (pairing hd (HVis e k)))
+      | ChoiceF true n k  => Ret (Sheads (pairing hd (HChoice k)))
+      | ChoiceF false n k => Choice false n (fun i => get_head_cst (k i))
+      end.
+
+  Definition get_heads {E X} : ctree E X -> ctree E X -> ctree E (heads E X) :=
+    cofix get_heads (t u : ctree E X) :=
+      match observe t, observe u with
+      | ChoiceF false n1 k1, ChoiceF false n2 k2 =>
+          ChoiceI n1 (fun i => ChoiceI n2 (fun j => get_heads (k1 i) (k2 j)))
+      | RetF x, ChoiceF false _ _     =>
+          choiceI2 (Ret (Lheads (HRet x))) (get_head_cst (inl (HRet x)) u)
+      | VisF e k, ChoiceF false _ _      =>
+          choiceI2 (Ret (Lheads (HVis e k))) (get_head_cst (inl (HVis e k)) u)
+      | ChoiceF true n k, ChoiceF false _ _ =>
+          choiceI2 (Ret (Lheads (HChoice k))) (get_head_cst (inl (HChoice k)) u)
+      | ChoiceF false _ _, RetF x      =>
+          choiceI2 (Ret (Rheads (HRet x))) (get_head_cst (inr (HRet x)) u)
+      | ChoiceF false _ _, VisF e k       =>
+          choiceI2 (Ret (Rheads (HVis e k))) (get_head_cst (inr (HVis e k)) u)
+      | ChoiceF false _ _, ChoiceF true n k =>
+          choiceI2 (Ret (Rheads (HChoice k))) (get_head_cst (inr (HChoice k)) u)
+      | RetF x, RetF y     =>
+          Ret (Sheads (HRet x, HRet y))
+      | VisF e k, RetF y     =>
+          Ret (Sheads (HVis e k, HRet y))
+      | ChoiceF true n k, RetF y     =>
+          Ret (Sheads (HChoice k, HRet y))
+      | RetF x, VisF e' k'     =>
+          Ret (Sheads (HRet x, HVis e' k'))
+      | VisF e k, VisF e' k'     =>
+          Ret (Sheads (HVis e k, HVis e' k'))
+      | ChoiceF true n k, VisF e' k'     =>
+          Ret (Sheads (HChoice k, HVis e' k'))
+      | RetF x, ChoiceF true n k'     =>
+          Ret (Sheads (HRet x, HChoice k'))
+      | VisF e k, ChoiceF true n k'     =>
+          Ret (Sheads (HVis e k, HChoice k'))
+      | ChoiceF true n k, ChoiceF true n' k'     =>
+          Ret (Sheads (HChoice k, HChoice k'))
+      end.
+
+  Definition communicating_synch : ccs -> ccs -> ccs :=
+    cofix F (P : ccs) (Q : ccs) :=
+      hds <- get_heads P Q;;
+      match hds with
+      | Lheads hdP =>
+          match hdP with
+          | HRet rP => Q
+          | HChoice kP => ChoiceV _ (fun i => F (kP i) Q)
+          | HVis e kP => Vis e (fun i => F (kP i) Q)
+          end
+      | Rheads hdQ =>
+          match hdQ with
+          | HRet rQ => P
+          | HChoice kQ => ChoiceV _ (fun i => F P (kQ i))
+          | HVis e kQ => Vis e (fun i => F P (kQ i))
+          end
+      | Sheads (hdP,hdQ) =>
+          match hdP, hdQ with
+          | HRet rP, _ => Q
+          | _, HRet rQ => P
+          | HChoice kP, HChoice kQ =>
+              choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
+                       (ChoiceV _ (fun i => F P (kQ i)))
+          | HChoice kP, HVis e kQ =>
+              choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
+                       (Vis e     (fun x => F P (kQ x)))
+          | HVis e kP, HChoice kQ =>
+              choiceI2 (Vis e     (fun x => F (kP x) Q))
+                       (ChoiceV _ (fun i => F P (kQ i)))
+          | HVis eP kP, HVis eQ kQ =>
+              match eP, kP, eQ, kQ with
+              | Act a, kP, Act b, kQ =>
+                  if are_opposite a b
+                  then
+                    choiceI3 (TauV (F (kP tt) (kQ tt)))
+                             (trigger (Act a);; F (kP tt) Q)
+                             (trigger (Act b);; F P (kQ tt))
+                  else
+                    choiceI2 (trigger (Act a);; F (kP tt) Q)
+                             (trigger (Act b);; F P (kQ tt))
+              end
+          end
+      end.
+
