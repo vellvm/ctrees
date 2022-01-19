@@ -215,18 +215,29 @@ Qed.
 
 #[global] Instance prefix_t a: forall R, Proper (st R ==> st R) (prefix a) := unary_proper_t (@ctx_prefix_t a).
 
-Lemma trans_new_inv : forall l a p p',
-    trans l (new a p) p' ->
-    exists q, trans l p q /\ p' ≅ new a q.
+Definition can_comm (c : chan) (a : @label ccsE) : bool :=
+  match a with
+  | obs (Act a) _ =>
+      match a with
+      | Send c'
+      | Rcv c' => if (c =? c')%string then false else true
+      end
+  | _ => true
+  end.
+
+Lemma trans_new_inv : forall l c p p',
+    trans l (new c p) p' ->
+    exists q, can_comm c l = true /\ trans l p q /\ p' ≅ new c q.
 Proof.
   intros * tr.
   unfold new in tr.
   (* TODO, theory for interp *)
 Admitted.
 
-Lemma trans_new : forall l a p p',
+Lemma trans_new : forall l c p p',
     trans l p p' ->
-    trans l (new a p) (new a p').
+    can_comm c l = true ->
+    trans l (new c p) (new c p').
 Proof.
   intros * tr.
   (* TODO, theory for interp *)
@@ -244,7 +255,7 @@ Lemma ctx_new_t a: unary_ctx (new a) <= st.
 Proof.
   apply Coinduction, by_Symmetry. apply unary_sym.
   intro R. apply (leq_unary_ctx (new a)). intros p q Hpq l p0 Hp0.
-  apply trans_new_inv in Hp0 as (? & tr & EQ).
+  apply trans_new_inv in Hp0 as (? & comm & tr & EQ).
   destruct (proj1 Hpq _ _ tr) as [???].
   eexists.
   apply trans_new; eauto.
