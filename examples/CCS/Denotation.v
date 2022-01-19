@@ -66,6 +66,8 @@ Definition ccsT := ctree ccsE.
 Definition ccs' := ccsT' void.
 Definition ccs  := ccsT void.
 
+Definition comm a : label := obs (Act a) tt.
+
 (*| Process algebra |*)
 Section Combinators.
 
@@ -85,7 +87,7 @@ Unless one is silent stuck, the other visible stuck...
 	Definition plus (P Q : ccs) : ccs := choiceI2 P Q.
 
   (* Stuck? Failure event? *)
-  Definition h_restrict (c : chan) : ActionE ~> ctree ccsE :=
+  Definition h_new (c : chan) : ActionE ~> ctree ccsE :=
     fun _ e => let '(Act a) := e in
             match a with
             | Send c'
@@ -93,8 +95,8 @@ Unless one is silent stuck, the other visible stuck...
                 if (c =? c')%string then stuckI else trigger e
             end.
 
-  Definition restrict {X} : chan -> ccsT X -> ccsT X :=
-    fun c P => interp (h_restrict c) P.
+  Definition new : chan -> ccs -> ccs :=
+    fun c P => interp (h_new c) P.
 
   Definition communicating : ccs -> ccs -> ccs :=
     cofix F (P : ccs) (Q : ccs) :=
@@ -296,11 +298,212 @@ bang p = get_head P ;;
 
 End Combinators.
 
-Definition comm a : label := obs (Act a) tt.
 Notation "0" := nil: ccs_scope.
 Infix "+" := plus (at level 50, left associativity).
 (* Infix "∥" := communicating (at level 29, left associativity). *)
 Infix "∥" := para (at level 29, left associativity).
+
+#[global] Instance equ_clos_sb_proper {E R} RR :
+  Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (sb RR).
+Proof.
+  unfold Proper, respectful; intros * eq1 * eq2.
+  split; intros bis.
+  - destruct bis as [F B]; cbn in *.
+    split.
+    + intros ? ? TR.
+      rewrite <- eq1 in TR.
+      apply F in TR as [].
+      eexists.
+      rewrite <- eq2; eauto.
+      eauto.
+    + intros ? ? TR.
+      rewrite <- eq2 in TR.
+      apply B in TR as [].
+      eexists.
+      rewrite <- eq1; eauto.
+      eauto.
+  - destruct bis as [F B]; cbn in *.
+    split.
+    + intros ? ? TR.
+      rewrite eq1 in TR.
+      apply F in TR as [].
+      eexists.
+      rewrite eq2; eauto.
+      eauto.
+    + intros ? ? TR.
+      rewrite eq2 in TR.
+      apply B in TR as [].
+      eexists.
+      rewrite eq1; eauto.
+      eauto.
+Qed.
+
+Lemma trans_prefix_inv : forall l a p p',
+    trans l (prefix a p) p' ->
+    p' ≅ p /\ l = comm a.
+Proof.
+  intros * tr.
+  apply trans_trigger_inv in tr as (? & ? & ->).
+  destruct x; split; auto.
+Qed.
+
+Lemma trans_prefix : forall a p,
+    trans (comm a) (prefix a p) p.
+Proof.
+  intros; eapply trans_trigger.
+Qed.
+
+(** ** prefix *)
+Lemma ctx_prefix_t a: unary_ctx (prefix a) <= st.
+Proof.
+  apply Coinduction, by_Symmetry. apply unary_sym.
+  rewrite <-b_T.
+  intro R. apply (leq_unary_ctx (prefix a)). intros p q Hpq.
+  intros l p' pp'.
+  apply trans_prefix_inv in pp' as (EQ & ->).
+  eexists.
+  apply trans_prefix.
+  rewrite EQ; auto.
+Qed.
+
+#[global] Instance prefix_t a: forall R, Proper (st R ==> st R) (prefix a) := unary_proper_t (@ctx_prefix_t a).
+
+Lemma trans_new_inv : forall l a p p',
+    trans l (new a p) p' ->
+    exists q, trans l p q /\ p' ≅ new a q.
+Proof.
+  intros * tr.
+  unfold new in tr.
+  (* TODO, theory for interp *)
+Admitted.
+
+Lemma trans_new : forall l a p p',
+    trans l p p' ->
+    trans l (new a p) (new a p').
+Proof.
+  intros * tr.
+  (* TODO, theory for interp *)
+Admitted.
+
+#[global] Instance equ_clos_sT_proper {E R} RR f : Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (T sb f RR).
+Proof.
+  intros ? ? eq1 ? ? eq2; split; intros H.
+  apply (fT_T equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
+  apply (fT_T equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption.
+Qed.
+
+(** ** name restriction *)
+Lemma ctx_new_t a: unary_ctx (new a) <= st.
+Proof.
+  apply Coinduction, by_Symmetry. apply unary_sym.
+  intro R. apply (leq_unary_ctx (new a)). intros p q Hpq l p0 Hp0.
+  apply trans_new_inv in Hp0 as (? & tr & EQ).
+  destruct (proj1 Hpq _ _ tr) as [???].
+  eexists.
+  apply trans_new; eauto.
+  rewrite EQ.
+  now apply unary_proper_Tctx, (id_T sb).
+Qed.
+
+Global Instance new_t a: forall R, Proper (st R ==> st R) (new a) := unary_proper_t (@ctx_new_t a).
+
+Lemma trans_plus_inv : forall l p q r,
+    trans l (p + q) r ->
+    (exists p', trans l p p' /\ r ≅ p') \/
+    (exists q', trans l q q' /\ r ≅ q').
+Proof.
+  intros * tr.
+  apply trans_ChoiceI_inv in tr as ([|] & tr); eauto.
+Qed.
+
+Lemma trans_choiceI21 :
+  forall {E X} (t t' u : ctree E X) l,
+    trans l t t' ->
+    trans l (choiceI2 t u) t'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.F1); eauto.
+Qed.
+
+Lemma trans_choiceI22 :
+  forall {E X} (t u u' : ctree E X) l,
+    trans l u u' ->
+    trans l (choiceI2 t u) u'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.FS Fin.F1); eauto.
+Qed.
+
+Lemma trans_choiceI31 :
+  forall {E X} (t t' u v : ctree E X) l,
+    trans l t t' ->
+    trans l (choiceI3 t u v) t'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.F1); eauto.
+Qed.
+
+Lemma trans_choiceI32 :
+  forall {E X} (t u u' v : ctree E X) l,
+    trans l u u' ->
+    trans l (choiceI3 t u v) u'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.FS Fin.F1); eauto.
+Qed.
+
+Lemma trans_choiceI33 :
+  forall {E X} (t u v v' : ctree E X) l,
+    trans l v v' ->
+    trans l (choiceI3 t u v) v'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.FS (Fin.FS Fin.F1)); eauto.
+Qed.
+
+Lemma trans_ChoiceV' {E X} : forall n (k : fin n -> ctree E X) x u,
+    u ≅ k x ->
+		trans tau (ChoiceV n k) u.
+Proof.
+	intros * eq; rewrite eq; apply trans_ChoiceV.
+Qed.
+
+Lemma trans_plusL : forall l p p' q,
+    trans l p p' ->
+    trans l (p + q) p'.
+Proof.
+  intros * tr.
+  now apply trans_choiceI21.
+Qed.
+
+Lemma trans_plusR : forall l p q q',
+    trans l q q' ->
+    trans l (p + q) q'.
+Proof.
+  intros * tr.
+  now apply trans_choiceI22.
+Qed.
+
+(** ** choice *)
+Lemma ctx_plus_t: binary_ctx plus <= st.
+Proof.
+  apply Coinduction, by_Symmetry. apply binary_sym.
+  intro R. apply (leq_binary_ctx plus).
+  intros * [F1 B1] * [F2 B2] ? * tr.
+  apply trans_plus_inv in tr as [(? & tr & EQ) | (? & tr & EQ)].
+  - apply F1 in tr as [? tr ?].
+    eexists.
+    apply trans_plusL; eauto.
+    rewrite EQ.
+    now apply (id_T sb).
+  - apply F2 in tr as [? tr ?].
+    eexists.
+    apply trans_plusR; eauto.
+    rewrite EQ.
+    now apply (id_T sb).
+Qed.
+#[global] Instance plus_t:
+  forall R, Proper (st R ==> st R ==> st R) plus := binary_proper_t ctx_plus_t.
 
 Notation para_ p q :=
   (choiceI3
@@ -367,40 +570,6 @@ Proof.
     inv eqq; auto.
     destruct e, e0, (are_opposite a a0); auto.
     step; constructor; auto.
-Qed.
-
-Lemma trans_choiceI31 :
-  forall {E X} (t t' u v : ctree E X) l,
-    trans l t t' ->
-    trans l (choiceI3 t u v) t'.
-Proof.
-  intros * TR.
-  eapply trans_ChoiceI with (x := Fin.F1); eauto.
-Qed.
-
-Lemma trans_choiceI32 :
-  forall {E X} (t u u' v : ctree E X) l,
-    trans l u u' ->
-    trans l (choiceI3 t u v) u'.
-Proof.
-  intros * TR.
-  eapply trans_ChoiceI with (x := Fin.FS Fin.F1); eauto.
-Qed.
-
-Lemma trans_choiceI33 :
-  forall {E X} (t u v v' : ctree E X) l,
-    trans l v v' ->
-    trans l (choiceI3 t u v) v'.
-Proof.
-  intros * TR.
-  eapply trans_ChoiceI with (x := Fin.FS (Fin.FS Fin.F1)); eauto.
-Qed.
-
-Lemma trans_ChoiceV' {E X} : forall n (k : fin n -> ctree E X) x u,
-    u ≅ k x ->
-		trans tau (ChoiceV n k) u.
-Proof.
-	intros * eq; rewrite eq; apply trans_ChoiceV.
 Qed.
 
 Lemma trans_paraSynch : forall a b (p p' q q' : ccs),
@@ -523,6 +692,43 @@ Proof.
     repeat split; eauto.
 Qed.
 
+Ltac trans_para_invT H :=
+  apply trans_para_inv in H as
+      [(?p' & ?TRp & ?EQ) |
+        [(?q' & ?TRq & ?EQ) |
+          (?p' & ?q' & ?a & ?b & ?TRp & ?TRq & ?Op & ? & ?EQ) ]]; subst.
+
+(** ** parallel composition *)
+Lemma ctx_para_t: binary_ctx para <= st.
+Proof.
+  apply Coinduction, by_Symmetry. apply binary_sym.
+  intro R. apply (leq_binary_ctx para).
+  intros * [F1 B1] * [F2 B2] ? * tr.
+  trans_para_invT tr.
+  - apply F1 in TRp as [? tr ?].
+    eexists.
+    apply trans_paraL; eauto.
+    rewrite EQ.
+    apply (fTf_Tf sb). apply (in_binary_ctx para).
+    now apply (id_T sb).
+    now apply (b_T sb).
+  - apply F2 in TRq as [? tr ?].
+    eexists.
+    apply trans_paraR; eauto.
+    rewrite EQ.
+    apply (fTf_Tf sb). apply (in_binary_ctx para).
+    now apply (b_T sb).
+    now apply (id_T sb).
+  - apply F1 in TRp as [? trp ?].
+    apply F2 in TRq as [? trq ?].
+    eexists.
+    eapply trans_paraSynch; eauto.
+    rewrite EQ.
+    apply (fTf_Tf sb). apply (in_binary_ctx para); now apply (id_T sb).
+Qed.
+#[global] Instance para_t: forall R, Proper (st R ==> st R ==> st R) para := binary_proper_t ctx_para_t.
+#[global] Instance para_T f: forall R, Proper (T sb f R ==> T sb f R ==> T sb f R) para := binary_proper_T ctx_para_t.
+
 Section Theory.
 
   Lemma plsC: forall (p q : ccs), p+q ~ q+p.
@@ -547,12 +753,6 @@ Section Theory.
   Proof.
     apply choiceI2_idem.
   Qed.
-
-  Ltac trans_para_invT H :=
-    apply trans_para_inv in H as
-        [(?p' & ?TRp & ?EQ) |
-          [(?q' & ?TRq & ?EQ) |
-            (?p' & ?q' & ?a & ?b & ?TRp & ?TRq & ?Op & ? & ?EQ) ]]; subst.
 
   #[global] Instance are_opposite_sym : Symmetric are_opposite.
   Proof.
@@ -673,7 +873,7 @@ Fixpoint model (t : term) : ccs :=
 	| TauT P => TauV (model P)
 	| P ∥ Q  => para (model P) (model Q)
 	| P ⊕ Q  => plus (model P) (model Q)
-	| P ∖ c  => restrict c (model P)
+	| P ∖ c  => new c (model P)
 	end.
 
 (*
@@ -1038,4 +1238,3 @@ Qed.
 
    *)
 Admitted.
-
