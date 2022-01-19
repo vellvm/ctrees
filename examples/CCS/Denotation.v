@@ -121,15 +121,13 @@ Section Combinators.
          | _, _ => stuckI
          end).
 
-  (* This is wrong, need to keep bang p, but that won't be guarded... *)
-  Definition bang (p : ccs) : ccs :=
-    hd <- get_head p;;
-    match hd with
-    | HRet r => match r with end
-    | HChoice k => ChoiceV _ (fun i => para (k i) p)
-    | HVis e k =>  Vis e (fun i => para (k i) p)
-    end
-  .
+  (* We would like to define the following, but it is not syntactically guarded *)
+  Fail Definition bang : ccs -> ccs :=
+    cofix bang (p : ccs ) : ccs := para (bang p) p.
+
+  Parameter bang: ccs -> ccs.
+  Axiom unfold_bang: forall p, bang p ≅ para (bang p) p.
+
 
 
 (*
@@ -147,9 +145,10 @@ bang p = get_head P ;;
 End Combinators.
 
 Notation "0" := nil: ccs_scope.
-Infix "+" := plus (at level 50, left associativity).
+Infix "+" := plus (at level 50, left associativity) : ccs_scope.
 (* Infix "∥" := communicating (at level 29, left associativity). *)
-Infix "∥" := para (at level 29, left associativity).
+Infix "∥" := para (at level 29, left associativity) : ccs_scope.
+Notation "! x" := (bang x) : ccs_scope.
 
 #[global] Instance equ_clos_sb_proper {E R} RR :
   Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (sb RR).
@@ -576,6 +575,34 @@ Proof.
 Qed.
 #[global] Instance para_t: forall R, Proper (st R ==> st R ==> st R) para := binary_proper_t ctx_para_t.
 #[global] Instance para_T f: forall R, Proper (T sb f R ==> T sb f R ==> T sb f R) para := binary_proper_T ctx_para_t.
+
+Lemma trans_bang : forall p l p',
+    trans l (!p ∥ p) p' ->
+    trans l (!p) p'.
+Proof.
+  intros * TR.
+  rewrite unfold_bang; assumption.
+Qed.
+
+Lemma trans_bang': forall p l p',
+    trans l p p' ->
+    trans l (!p) (!p ∥ p').
+Proof.
+  intros.
+  apply trans_bang, trans_paraR; auto.
+Qed.
+
+Lemma trans_bang'': forall p a b p1 p2,
+    are_opposite a b ->
+    trans (comm a) p p1 ->
+    trans (comm b) p p2 ->
+    trans tau (!p) (!p ∥ p1 ∥ p2).
+Proof.
+  intros.
+  eapply trans_bang.
+  eapply trans_paraSynch; eauto.
+  apply trans_bang'; auto.
+Qed.
 
 Section Theory.
 
