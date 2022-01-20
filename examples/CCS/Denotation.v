@@ -201,7 +201,7 @@ Proof.
 Qed.
 
 (** ** prefix *)
-Lemma ctx_prefix_t a: unary_ctx (prefix a) <= st.
+Lemma ctx_prefix_st a: unary_ctx (prefix a) <= st.
 Proof.
   apply Coinduction, by_Symmetry. apply unary_sym.
   rewrite <-b_T.
@@ -213,7 +213,26 @@ Proof.
   rewrite EQ; auto.
 Qed.
 
-#[global] Instance prefix_t a: forall R, Proper (st R ==> st R) (prefix a) := unary_proper_t (@ctx_prefix_t a).
+(** ** prefix *)
+Lemma ctx_prefix_tequ a: unary_ctx (prefix a) <= (t_equ eq).
+Proof.
+  apply Coinduction.
+  intro R.
+  apply (leq_unary_ctx (prefix a)).
+  intros p q Hpq.
+  cbn in *.
+  constructor.
+  intros [].
+  fold (@bind ccsE _ _ (Ret tt) (fun _ => p)).
+  fold (@bind ccsE _ _ (Ret tt) (fun _ => q)).
+  rewrite 2 unfold_bind; cbn.
+  apply (b_T (fequ eq)).
+  apply Hpq.
+Qed.
+
+#[global] Instance prefix_st a: forall R, Proper (st R ==> st R) (prefix a) := unary_proper_t (@ctx_prefix_st a).
+
+#[global] Instance prefix_tequ a: forall R, Proper (t_equ eq R ==> t_equ eq R) (prefix a) := unary_proper_t (@ctx_prefix_tequ a).
 
 Definition can_comm (c : chan) (a : @label ccsE) : bool :=
   match a with
@@ -251,7 +270,7 @@ Proof.
 Qed.
 
 (** ** name restriction *)
-Lemma ctx_new_t a: unary_ctx (new a) <= st.
+Lemma ctx_new_st a: unary_ctx (new a) <= st.
 Proof.
   apply Coinduction, by_Symmetry. apply unary_sym.
   intro R. apply (leq_unary_ctx (new a)). intros p q Hpq l p0 Hp0.
@@ -263,7 +282,16 @@ Proof.
   now apply unary_proper_Tctx, (id_T sb).
 Qed.
 
-Global Instance new_t a: forall R, Proper (st R ==> st R) (new a) := unary_proper_t (@ctx_new_t a).
+(** ** name restriction *)
+Lemma ctx_new_tequ a: unary_ctx (new a) <= t_equ eq.
+Proof.
+  apply Coinduction.
+  intro R. apply (leq_unary_ctx (new a)). intros p q Hpq.
+Admitted.
+
+#[global] Instance new_st a: forall R, Proper (st R ==> st R) (new a) := unary_proper_t (@ctx_new_st a).
+
+#[global] Instance new_tequ a: forall R, Proper (t_equ eq R ==> t_equ eq R) (new a) := unary_proper_t (@ctx_new_tequ a).
 
 Lemma trans_plus_inv : forall l p q r,
     trans l (p + q) r ->

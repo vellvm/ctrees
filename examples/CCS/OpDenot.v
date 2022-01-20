@@ -53,6 +53,15 @@ Proof.
   intros []; cbn; rewrite eqb_refl; auto.
 Qed.
 
+Lemma are_opposite_are_op : forall a b,
+    are_opposite a b ->
+    a = op b.
+Proof.
+  unfold are_opposite,op; intros [] []; cbn; intuition.
+  all:destruct (c =? c0)%string eqn:EQ; try easy.
+  all:apply eqb_eq in EQ; subst; auto.
+Qed.
+
 Lemma use_channel_can_comm : forall c a,
   use_channel c a = false <->
   can_comm c (ι a) = true.
@@ -62,12 +71,187 @@ Proof.
   all:match goal with |- context[if ?b then _ else _] => destruct b; easy end.
 Qed.
 
+Lemma trans_model : forall P l q,
+    trans l ⟦P⟧ q ->
+    exists Q, q ≅ ⟦Q⟧.
+Proof.
+  induction P; intros * TR.
+  - apply trans_nil_inv in TR; easy.
+  - apply trans_TauV_inv in TR as [EQ ->]; eauto.
+  - apply trans_prefix_inv in TR as [EQ ->]; eauto.
+  - trans_para_invT TR; fold model in *.
+    + apply IHP1 in TRp as [Q' ?EQ].
+      rewrite EQ0 in EQ.
+      exists (Q' ∥ P2); auto.
+    + apply IHP2 in TRq as [Q' ?EQ].
+      rewrite EQ0 in EQ.
+      exists (P1 ∥ Q'); auto.
+    + apply IHP1 in TRp as [P' ?EQ].
+      apply IHP2 in TRq as [Q' ?EQ].
+      rewrite EQ0,EQ1 in EQ.
+      exists (P' ∥ Q'); auto.
+  - apply trans_plus_inv in TR as [(?&TR&EQ)|(?&TR&EQ)]; fold model in *.
+    + apply IHP1 in TR as [? ?].
+      rewrite <- EQ in H; eauto.
+    + apply IHP2 in TR as [? ?].
+      rewrite <- EQ in H; eauto.
+  - apply trans_new_inv in TR as (? & ? & TR & EQ); fold model in *.
+    apply IHP in TR as [? ?].
+    rewrite H0 in EQ.
+    exists (x0 ∖ c).
+    auto.
+Qed.
+
 Definition forward_func (R : term -> term -> Prop) : Prop :=
   forall P P' Q a,
 		R P Q ->
 		P ⊢ a →op P' ->
 	  exists Q', trans (ι a) ⟦Q⟧ ⟦Q'⟧ /\ R P' Q'.
 
+Definition backward_func (R : term -> term -> Prop) : Prop :=
+  forall P Q Q' l,
+		R P Q ->
+    trans l ⟦Q⟧ ⟦Q'⟧ ->
+	  exists P', P ⊢ γ l →op P' /\ R P' Q'.
+
+Definition bisimilar := exists R, forward_func R /\ backward_func R.
+
+Definition equ_models := fun P Q => ⟦P⟧ ≅ ⟦Q⟧.
+
+Lemma complete_func : forward_func equ_models.
+Proof.
+  unfold equ_models; red.
+  induction P; intros * HR TR; cbn in *.
+  - inv TR.
+  - inv TR.
+    eexists; split; [| reflexivity].
+    rewrite <- HR; apply trans_TauV.
+  - inv TR.
+    eexists; split; [| reflexivity].
+    rewrite <- HR; apply trans_prefix.
+  - inv TR.
+    + edestruct IHP1 as (? & ? & EQ); eauto.
+      rewrite <- EQ in H; clear x EQ.
+      setoid_rewrite <- HR.
+      exists (P'0 ∥ P2) ; split.
+      cbn; apply trans_paraL; eassumption.
+      reflexivity.
+    + edestruct IHP2 as (? & ? & EQ); eauto.
+      rewrite <- EQ in H; clear x EQ.
+      setoid_rewrite <- HR.
+      exists (P1 ∥ Q'); split.
+      apply trans_paraR; eassumption.
+      reflexivity.
+    + edestruct IHP1 as (? & ? & EQ1); eauto.
+      edestruct IHP2 as (? & ? & EQ2); eauto.
+      rewrite <- EQ1 in H; rewrite <- EQ2 in H0; clear x x0 EQ1 EQ2.
+      exists (P'0 ∥ Q'); split.
+      rewrite <- HR; eapply trans_paraSynch; cbn in *; eauto.
+      apply are_opposite_op.
+      reflexivity.
+  - inv TR.
+    + edestruct IHP1 as (? & ? & EQ); eauto.
+      rewrite <- EQ in H.
+      eexists; split; [| reflexivity].
+      rewrite <- HR; apply trans_plusL; eassumption.
+    + edestruct IHP2 as (? & ? & EQ); eauto.
+      rewrite <- EQ in H.
+      eexists; split; [| reflexivity].
+      rewrite <- HR; apply trans_plusR; eassumption.
+  - inv TR.
+    edestruct IHP as (? & ? & EQ); eauto.
+    rewrite <- EQ in H.
+    eexists; split; [| reflexivity].
+    rewrite <- HR; apply trans_new; eauto.
+    apply use_channel_can_comm; auto.
+Qed.
+
+Lemma correct_func : backward_func equ_models.
+Proof.
+  unfold equ_models; red; induction P; intros * HR TR;
+    cbn in *; rewrite <- HR in TR.
+  - exfalso; eapply trans_nil_inv,TR.
+  - apply trans_TauV_inv in TR as [EQ ->].
+    eexists; split; [constructor |].
+    symmetry; auto.
+  - apply trans_prefix_inv in TR as [EQ ->].
+    eexists; split; [constructor |].
+    symmetry; auto.
+  - trans_para_invT TR.
+    + edestruct trans_model; eauto.
+      rewrite H in TRp.
+      apply IHP1 in TRp; auto.
+      destruct TRp as (? & ? & ?).
+      eexists.
+      split.
+      apply SParL; eauto.
+      cbn; rewrite EQ,H,H1; reflexivity.
+    + edestruct trans_model; eauto.
+      rewrite H in TRq.
+      apply IHP2 in TRq; auto.
+      destruct TRq as (? & ? & ?).
+      eexists.
+      split.
+      apply SParR; eauto.
+      cbn; rewrite EQ,H,H1; reflexivity.
+    + edestruct trans_model; [exact TRp |].
+      edestruct trans_model; [exact TRq |].
+      rewrite H in TRp.
+      rewrite H0 in TRq.
+      apply IHP1 in TRp; auto.
+      apply IHP2 in TRq; auto.
+      destruct TRp as (? & ? & ?).
+      destruct TRq as (? & ? & ?).
+      cbn in *.
+      apply are_opposite_sym in Op.
+      apply are_opposite_are_op in Op; subst.
+      eexists.
+      split.
+      eapply SPar; eauto.
+      cbn; rewrite EQ,H,H0,H2,H4; reflexivity.
+  - apply trans_plus_inv in TR as [(? & TR & EQ) | (? & TR & EQ)].
+    + edestruct trans_model; eauto.
+      rewrite H in TR.
+      apply IHP1 in TR as (P' & ? & ?); auto.
+      eexists; split; [apply SSumL; eauto |].
+      rewrite H1,EQ,H; reflexivity.
+    + edestruct trans_model; eauto.
+      rewrite H in TR.
+      apply IHP2 in TR as (P' & ? & ?); auto.
+      eexists; split; [apply SSumR; eauto |].
+      rewrite H1,EQ,H; reflexivity.
+  - apply trans_new_inv in TR as (? & ? & TR & EQ).
+    edestruct trans_model; eauto.
+    rewrite H0 in TR.
+    apply IHP in TR as (P' & ? & ?); auto.
+    eexists; split.
+    constructor; eauto.
+    apply use_channel_can_comm; cbn; auto.
+    destruct l; try now inv H.
+    destruct e; auto.
+    cbn; rewrite EQ, H2, H0; auto.
+Qed.
+
+Theorem bisim : bisimilar.
+Proof.
+  exists equ_models.
+  auto using correct_func, complete_func.
+Qed.
+
+(* More general (?) notions of simulations *)
+Definition forward (R : term -> ccs -> Prop) : Prop :=
+  forall P P' Q a,
+		R P Q ->
+		P ⊢ a →op P' ->
+	  exists Q', trans (ι a) Q Q' /\ R P' Q'.
+
+Definition backward (R : term -> ccs -> Prop) : Prop :=
+  forall P Q Q' l,
+		R P Q ->
+    trans l Q Q' ->
+	  exists P', P ⊢ γ l →op P' /\ R P' Q'.
+
+(* Simpler forward, but not a backward *)
 Lemma complete_func : forward_func eq.
 Proof.
   red.
@@ -104,91 +288,4 @@ Proof.
     apply trans_new; eauto.
     apply use_channel_can_comm; auto.
 Qed.
-
-Definition backward_func (R : term -> term -> Prop) : Prop :=
-  forall P Q Q' l,
-		R P Q ->
-    trans l ⟦Q⟧ ⟦Q'⟧ ->
-	  exists P', P ⊢ γ l →op P' /\ R P' Q'.
-
-Lemma correct_func : backward_func (fun P Q => ⟦P⟧ ≅ ⟦Q⟧).
-Proof.
-  red; induction P; intros * HR TR;
-    cbn in *; rewrite <- HR in TR.
-  - exfalso; eapply trans_nil_inv,TR.
-  - apply trans_TauV_inv in TR as [EQ ->].
-    eexists; split; [constructor |].
-    symmetry; auto.
-  - apply trans_prefix_inv in TR as [EQ ->].
-    eexists; split; [constructor |].
-    symmetry; auto.
-  - trans_para_invT TR.
-    + (* Need to ensure that trans led to the model of someone? *)
-      (* apply IHP1 in TRp. *)
-      (* eexists; split. *)
-      (* apply SParL; eauto. *)
-Admitted.
-
-Definition forward (R : term -> ccs -> Prop) : Prop :=
-  forall P P' Q a,
-		R P Q ->
-		P ⊢ a →op P' ->
-	  exists Q', trans (ι a) Q Q' /\ R P' Q'.
-
-Definition bisim_rel := fun P q => q ≅ ⟦P⟧.
-Arguments bisim_rel/.
-
-Lemma complete : forward bisim_rel.
-Proof.
-  red.
-  induction P; intros * HR TR; cbn in *.
-  - inv TR.
-  - inv TR.
-    exists ⟦ P' ⟧.
-    split; [| reflexivity].
-    rewrite HR; apply trans_TauV.
-  - inv TR.
-    exists ⟦ P' ⟧.
-    split; [| reflexivity].
-    rewrite HR. apply trans_prefix.
-  - inv TR.
-    + edestruct IHP1 as (? & ? & EQ); eauto.
-      eexists; split.
-      rewrite HR; apply trans_paraL; eassumption.
-      rewrite EQ; reflexivity.
-    + edestruct IHP2 as (? & ? & EQ); eauto.
-      eexists; split.
-      rewrite HR; apply trans_paraR; eassumption.
-      rewrite EQ; reflexivity.
-    + edestruct IHP1 as (? & ? & EQ1); eauto.
-      edestruct IHP2 as (? & ? & EQ2); eauto.
-      eexists; split.
-      rewrite HR; eapply trans_paraSynch; cbn in *; eauto.
-      apply are_opposite_op.
-      rewrite EQ1,EQ2; reflexivity.
-  - inv TR.
-    + edestruct IHP1 as (? & ? & EQ); eauto.
-      eexists; split.
-      rewrite HR; apply trans_plusL; eassumption.
-      rewrite EQ; reflexivity.
-    + edestruct IHP2 as (? & ? & EQ); eauto.
-      eexists; split.
-      rewrite HR; apply trans_plusR; eassumption.
-      rewrite EQ; reflexivity.
-  - inv TR.
-    edestruct IHP as (? & ? & EQ); eauto.
-    eexists.
-    split.
-    rewrite HR.
-    apply trans_new; eauto.
-    apply use_channel_can_comm; auto.
-    (* Need congruence for restrict *)
-    admit.
-Admitted.
-
-Definition backward (R : term -> ccs -> Prop) : Prop :=
-  forall P Q Q' l,
-		R P Q ->
-    trans l Q Q' ->
-	  exists P', P ⊢ γ l →op P' /\ R P' Q'.
 
