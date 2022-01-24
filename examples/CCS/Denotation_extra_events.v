@@ -44,7 +44,7 @@ From Coinduction Require Import
 (* Import CTree. *)
 
 Import CTreeNotations.
-Open Scope ctree_scope.
+Open Scope term_scope.
 
 Set Implicit Arguments.
 Set Contextual Implicit.
@@ -530,9 +530,18 @@ Proof.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
 Qed.
 
-Notation "0" := nil: ccs_scope.
-Infix "+" := plus (at level 50, left associativity).
-Infix "∥" := communicating (at level 29, left associativity).
+Module CCSNotationsSem.
+
+  Declare Scope ccs_scope.
+
+  Notation "0" := nil: ccs_scope.
+  Infix "+" := plus (at level 50, left associativity).
+  Infix "∥" := communicating (at level 29, left associativity).
+
+End CCSNotationsSem.
+
+Import CCSNotationsSem.
+Open Scope ccs_scope.
 
 Section Theory.
 
@@ -582,7 +591,7 @@ Section Theory.
 End Theory.
 
 Import CCSNotations.
-Open Scope ccs_scope.
+Open Scope term_scope.
 
 (* fun P Q => bisim (model P) (model Q): is this weak bisimulation of CCS?
 

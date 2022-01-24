@@ -37,7 +37,7 @@ From Coinduction Require Import
 (* Import CTree. *)
 
 Import CTreeNotations.
-Open Scope ctree_scope.
+Open Scope term_scope.
 
 Set Implicit Arguments.
 Set Contextual Implicit.
@@ -214,9 +214,18 @@ Proof.
 	now step.
 Qed.
 
-Notation "0" := nil: ccs_scope.
-Infix "+" := plus (at level 50, left associativity).
-Infix "∥" := para (at level 29, left associativity).
+Module CCSNotationsSem.
+
+  Declare Scope ccs_scope.
+
+  Notation "0" := nil: ccs_scope.
+  Infix "+" := plus (at level 50, left associativity).
+  Infix "∥" := para (at level 29, left associativity).
+
+End CCSNotationsSem.
+
+Import CCSNotationsSem.
+Open Scope ccs_scope.
 
 Lemma plsC: forall p q, p+q ~ q+p.
 Proof.
@@ -382,7 +391,7 @@ Admitted.
 
 
 Import CCSNotations.
-Open Scope ccs_scope.
+Open Scope term_scope.
 
 (* fun P Q => bisim (model P) (model Q): is this weak bisimulation of CCS?
 
@@ -415,18 +424,3 @@ Variant step_ccs : ccs -> option action -> ccs -> Prop :=
 Definition step_sem : term -> option action -> term -> Prop :=
 	fun P a Q => step_ccs (model P) a (model Q).
 *)
-
-Module DenNotations.
-
-  (* Notations for patterns *)
-  Notation "'synchP' e" := (inl1 e) (at level 10).
-  Notation "'actP' e" := (inr1 (inl1 e)) (at level 10).
-  Notation "'deadP' e" :=  (inr1 (inr1 e)) (at level 10).
-
-  Notation "⟦ t ⟧" := (model t).
-  (* Notation "P '⊢' a '→ccs' Q" := (step_ccs P a Q) (at level 50). *)
-  (* Notation "P '⊢' a '→sem' Q" := (step_sem P a Q) (at level 50). *)
-
-End DenNotations.
-
-Import DenNotations.

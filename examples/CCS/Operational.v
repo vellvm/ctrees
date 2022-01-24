@@ -1,7 +1,7 @@
 From CTreeCCS Require Import
   Syntax.
 Import CCSNotations.
-Open Scope ccs_scope.
+Open Scope term_scope.
 
 Definition use_channel (c : chan) (a : option action) : bool :=
   match a with

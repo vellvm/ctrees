@@ -252,7 +252,7 @@ Definition backward (R : term -> ccs -> Prop) : Prop :=
 	  exists P', P ⊢ γ l →op P' /\ R P' Q'.
 
 (* Simpler forward, but not a backward *)
-Lemma complete_func : forward_func eq.
+Lemma complete_func_simpler : forward_func eq.
 Proof.
   red.
   induction P; intros * HR TR; cbn in *.

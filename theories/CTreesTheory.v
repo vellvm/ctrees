@@ -51,14 +51,14 @@ Ltac steps := step; split; cbn; intros ? ? ?TR.
 
 Ltac stepF H :=
   match goal with
-  | h : wbisim _ _ |- _ =>
+  | h : gfp wb _ _ |- _ => 
       step in h; destruct h as [?F _]; cbn in F;
       edestruct F as [? ?TR ?BIS]; [now apply H | clear F]
   end.
 
 Ltac stepB H :=
   match goal with
-  | h : wbisim _ _ |- _ =>
+  | h : gfp wb _ _ |- _ =>
       step in h; destruct h as [_ ?B]; cbn in B;
       edestruct B as [? ?TR ?BIS]; [now apply H | clear B]
   end.
@@ -241,7 +241,7 @@ Qed.
 Ltac wcase :=
   match goal with
     [ h   : hrel_of (wtrans ?l) _ _,
-      bis : wbisim _ _
+      bis : gfp wb _ _
       |- _] =>
       let EQ := fresh "EQ" in
       match l with
@@ -467,27 +467,32 @@ The resulting enhancing function gives a valid up-to technique
       apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
       - apply F in STEP as [u' STEP EQ'].
         eexists.
-
-(*
-        apply trans_bind_l; eauto.
-        apply (fT_T equ_clos_t).
+        apply wtrans_bind_l; eauto.
+        apply (fT_T equ_clos_wt).
         econstructor; [exact EQ | | reflexivity].
-        apply (fTf_Tf sb).
+        apply (fTf_Tf wb).
         apply in_bind_ctx; auto.
         intros ? ? ->.
-        apply (b_T sb).
+        apply (b_T wb).
         apply kk; auto.
-      - apply F in STEPres as [u' STEPres EQ'].
-        pose proof (trans_val_inv _ _ _ STEPres) as EQ.
-        rewrite EQ in STEPres.
-        specialize (kk v v eq_refl) as [Fk Bk].
-        apply Fk in STEP as [u'' STEP EQ'']; cbn in *.
-        eexists.
-        eapply trans_bind_r; cbn in *; eauto.
-        eapply (id_T sb); cbn; auto.
-    Qed.
- *)
-        Admitted.
+      - clear B.
+        (* Things are tricky, the bind inversion rule is messy *)
+        specialize (kk v v eq_refl).
+        destruct kk as [F' _].
+        apply F  in STEPres as [x STEPres EQ].
+        apply F' in STEP    as [u' STEP HR].
+        pose proof (wtrans_val_inv' STEPres) as (? & wtr & ? & EQ').
+        rewrite EQ' in STEPres.
+        pose proof wtrans_bind_r _ STEPres STEP as [EQ'' | ?].
+        + rewrite EQ'' in STEP.
+          assert (l = tau) by admit.
+          subst.
+          exists (k2 v).
+          admit.
+          admit.
+        + admit.
+
+    Admitted.
 
   End Wbisim_Bind_ctx.
 

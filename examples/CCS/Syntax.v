@@ -64,22 +64,22 @@ End Syntax.
 
 Module CCSNotations.
 
-  Declare Scope ccs_scope.
+  Declare Scope term_scope.
 
-  Infix "=?" := eqb_action : ccs_scope.
-  Notation "0" := DoneT : ccs_scope.
-  Notation "a · P" := (ActionT a P) (at level 10) : ccs_scope.
-  (* Notation "τ ⋅ P" := (TauT P) (at level 10) : ccs_scope. *)
-  Notation "P ∥ Q" := (ParaT P Q) (at level 29, left associativity) : ccs_scope.
-  Notation "P ⊕ Q" := (PlusT P Q) (at level 28, left associativity) : ccs_scope.
-  Notation "P ∖ c" := (RestrictT c P) (at level 10) : ccs_scope.
-  Notation "↑" := Send.
-  Notation "↓" := Rcv.
+  Infix "=?" := eqb_action : term_scope.
+  Notation "0" := DoneT : term_scope.
+  Notation "a · P" := (ActionT a P) (at level 10) : term_scope.
+  (* Notation "τ ⋅ P" := (TauT P) (at level 10) : term_scope. *)
+  Notation "P ∥ Q" := (ParaT P Q) (at level 29, left associativity) : term_scope.
+  Notation "P ⊕ Q" := (PlusT P Q) (at level 28, left associativity) : term_scope.
+  Notation "P ∖ c" := (RestrictT c P) (at level 10) : term_scope.
+  Notation "↑" := Send : term_scope.
+  Notation "↓" := Rcv : term_scope.
 
 End CCSNotations.
 
 Import CCSNotations.
-Open Scope ccs_scope.
+Open Scope term_scope.
 Open Scope string.
 
 Section Ex.

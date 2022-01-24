@@ -374,7 +374,6 @@ Forward reasoning for [trans]
     step; constructor; intros abs; inv abs.
   Qed.
 
-
 	Lemma trans_vis_inv : forall {X} (e : E X) k l u,
 		  trans l (Vis e k) u ->
       exists x, u ≅ k x /\ l = obs e x.
@@ -619,6 +618,21 @@ wtrans theory
     apply transs_is_stuck_inv in step3; [| apply stuckI_is_stuck].
     intuition.
 	Qed.
+
+  Lemma wtrans_val_inv' : forall (x : R) (t v : ctree E R),
+      wtrans (val x) t v ->
+      exists u, wtrans tau t u /\ trans (val x) u v /\ v ≅ stuckI.
+  Proof.
+    intros * TR.
+	  destruct TR as [t2 [t1 step1 step2] step3].
+    pose proof trans_val_inv step2 as EQ.
+    rewrite EQ in step3, step2.
+    apply transs_is_stuck_inv in step3; auto using stuckI_is_stuck.
+    exists t1; repeat split.
+    apply wtrans_tau, step1.
+    rewrite <- step3; auto.
+    symmetry; auto.
+  Qed.
 
 End Trans.
 

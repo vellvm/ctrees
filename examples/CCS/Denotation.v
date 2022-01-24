@@ -144,11 +144,20 @@ bang p = get_head P ;;
 
 End Combinators.
 
-Notation "0" := nil: ccs_scope.
-Infix "+" := plus (at level 50, left associativity) : ccs_scope.
-(* Infix "∥" := communicating (at level 29, left associativity). *)
-Infix "∥" := para (at level 29, left associativity) : ccs_scope.
-Notation "! x" := (bang x) : ccs_scope.
+Module CCSNotationsSem.
+
+  Declare Scope ccs_scope.
+
+  Notation "0" := nil: ccs_scope.
+  Infix "+" := plus (at level 50, left associativity) : ccs_scope.
+  (* Infix "∥" := communicating (at level 29, left associativity). *)
+  Infix "∥" := para (at level 29, left associativity) : ccs_scope.
+  Notation "! x" := (bang x) : ccs_scope.
+
+End CCSNotationsSem.
+
+Import CCSNotationsSem.
+Open Scope ccs_scope.
 
 #[global] Instance equ_clos_sb_proper {E R} RR :
   Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (sb RR).
@@ -771,7 +780,7 @@ Section Theory.
 End Theory.
 
 Import CCSNotations.
-Open Scope ccs_scope.
+Open Scope term_scope.
 
 (* fun P Q => bisim (model P) (model Q): is this weak bisimulation of CCS?
 
