@@ -49,7 +49,6 @@ Variant head {E R} :=
 	| HChoice (n : nat) (k : Fin.t n -> ctree E R)
 	| HVis    (X : Type) (e : E X) (k : X -> ctree E R).
 
-
 (*|
 The [get_head] computation simply scrolls the tree until it reaches
 a none invisible choice node.

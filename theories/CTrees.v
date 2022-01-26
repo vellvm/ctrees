@@ -349,6 +349,14 @@ Definition choiceV3 {E X} (t u v : ctree E X) :=
 			   | Fin.FS Fin.F1 => u
 			   | _ => v end)).
 
+Definition choiceV4 {E X} (t u v w : ctree E X) :=
+ (ChoiceV 4 (fun (b : fin 4) =>
+			   match b with
+			   | Fin.F1 => t
+			   | Fin.FS Fin.F1 => u
+			   | Fin.FS (Fin.FS Fin.F1) => v
+			   | _ => w end)).
+
 Definition choiceI2 {E X} (t u : ctree E X) :=
  (ChoiceI 2 (fun b =>
 			   match b with | Fin.F1 => t | _ => u end)).
@@ -360,6 +368,13 @@ Definition choiceI3 {E X} (t u v : ctree E X) :=
 			   | Fin.FS Fin.F1 => u
 			   | _ => v end)).
 
+Definition choiceI4 {E X} (t u v w : ctree E X) :=
+ (ChoiceI 4 (fun (b : fin 4) =>
+			   match b with
+			   | Fin.F1 => t
+			   | Fin.FS Fin.F1 => u
+			   | Fin.FS (Fin.FS Fin.F1) => v
+			   | _ => w end)).
 
 Notation trigger e :=
 	(CTree.trigger (subevent _ e)).

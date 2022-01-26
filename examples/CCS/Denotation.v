@@ -121,12 +121,76 @@ Section Combinators.
          | _, _ => stuckI
          end).
 
-  (* We would like to define the following, but it is not syntactically guarded *)
+(*|
+We would like to define [bang] directly as in the following.
+Unfortunately, it is not syntactically guarded and convincing Coq
+seems challenging.
+We therefore instead define a more general function [parabang] expressing
+at once the parallel composition of a process [p] with a server of [q].
+The usual [bang p] is then defined as [parabang p p].
+|*)
   Fail Definition bang : ccs -> ccs :=
     cofix bang (p : ccs ) : ccs := para (bang p) p.
 
-  Parameter bang: ccs -> ccs.
-  Axiom unfold_bang: forall p, bang p ≅ para (bang p) p.
+  Definition parabang : ccs ->ccs -> ccs :=
+    cofix pB (p : ccs ) (q:ccs) : ccs :=
+
+      choiceI4
+
+           (* Communication by p *)
+           (rp <- get_head p;;
+            match rp with
+            | HRet rp => match rp with end
+            | HChoice kp => ChoiceV _ (fun i =>  pB (kp i) q )
+            | HVis e kp => Vis e (fun i => pB (kp i) q)
+            end)
+
+           (* Communication by a fresh copy of q *)
+           (rq <- get_head q;;
+            match rq with
+            | HRet rq => match rq with end
+            | HChoice kq => ChoiceV _ (fun i => (pB  (para p (kq i)) q))
+            | HVis e kq => Vis e (fun i => (pB  (para p (kq i)) q))
+            end)
+
+           (* Communication between p and a fresh copy of q *)
+           (rp <- get_head p;;
+            rq <- get_head q;;
+            match rp, rq with
+            | HVis ep kp, HVis eq kq =>
+                match ep, kp, eq, kq with
+                | Act a, kp, Act b, kq =>
+                    if are_opposite a b
+                    then
+                      TauV (pB (para (kp tt) (kq tt)) q)
+                    else
+                      stuckI
+                end
+
+            | _, _ => stuckI
+            end)
+
+           (* Communication between two fresh copies of q *)
+           (rq1 <- get_head q;;
+            rq2 <- get_head q;;
+            match rq1, rq2 with
+            | HVis eq1 kq1, HVis eq2 kq2 =>
+                match eq1, kq1, eq2, kq2 with
+                | Act a, kq1, Act b, kq2 =>
+                    if are_opposite a b
+                    then
+                      TauV (pB (para p (para (kq1 tt) (kq2 tt))) q)
+                    else
+                      stuckI
+                end
+
+            | _, _ => stuckI
+            end).
+
+  Definition bang (P : ccs) : ccs := parabang P P.
+
+  (* Parameter bang: ccs -> ccs. *)
+  (* Axiom unfold_bang: forall p, bang p ≅ para (bang p) p. *)
 
 
 
@@ -309,51 +373,6 @@ Lemma trans_plus_inv : forall l p q r,
 Proof.
   intros * tr.
   apply trans_ChoiceI_inv in tr as ([|] & tr); eauto.
-Qed.
-
-Lemma trans_choiceI21 :
-  forall {E X} (t t' u : ctree E X) l,
-    trans l t t' ->
-    trans l (choiceI2 t u) t'.
-Proof.
-  intros * TR.
-  eapply trans_ChoiceI with (x := Fin.F1); eauto.
-Qed.
-
-Lemma trans_choiceI22 :
-  forall {E X} (t u u' : ctree E X) l,
-    trans l u u' ->
-    trans l (choiceI2 t u) u'.
-Proof.
-  intros * TR.
-  eapply trans_ChoiceI with (x := Fin.FS Fin.F1); eauto.
-Qed.
-
-Lemma trans_choiceI31 :
-  forall {E X} (t t' u v : ctree E X) l,
-    trans l t t' ->
-    trans l (choiceI3 t u v) t'.
-Proof.
-  intros * TR.
-  eapply trans_ChoiceI with (x := Fin.F1); eauto.
-Qed.
-
-Lemma trans_choiceI32 :
-  forall {E X} (t u u' v : ctree E X) l,
-    trans l u u' ->
-    trans l (choiceI3 t u v) u'.
-Proof.
-  intros * TR.
-  eapply trans_ChoiceI with (x := Fin.FS Fin.F1); eauto.
-Qed.
-
-Lemma trans_choiceI33 :
-  forall {E X} (t u v v' : ctree E X) l,
-    trans l v v' ->
-    trans l (choiceI3 t u v) v'.
-Proof.
-  intros * TR.
-  eapply trans_ChoiceI with (x := Fin.FS (Fin.FS Fin.F1)); eauto.
 Qed.
 
 Lemma trans_ChoiceV' {E X} : forall n (k : fin n -> ctree E X) x u,
@@ -624,33 +643,6 @@ Qed.
 #[global] Instance para_t: forall R, Proper (st R ==> st R ==> st R) para := binary_proper_t ctx_para_t.
 #[global] Instance para_T f: forall R, Proper (T sb f R ==> T sb f R ==> T sb f R) para := binary_proper_T ctx_para_t.
 
-Lemma trans_bang : forall p l p',
-    trans l (!p ∥ p) p' ->
-    trans l (!p) p'.
-Proof.
-  intros * TR.
-  rewrite unfold_bang; assumption.
-Qed.
-
-Lemma trans_bang': forall p l p',
-    trans l p p' ->
-    trans l (!p) (!p ∥ p').
-Proof.
-  intros.
-  apply trans_bang, trans_paraR; auto.
-Qed.
-
-Lemma trans_bang'': forall p a b p1 p2,
-    are_opposite a b ->
-    trans (comm a) p p1 ->
-    trans (comm b) p p2 ->
-    trans tau (!p) (!p ∥ p1 ∥ p2).
-Proof.
-  intros.
-  eapply trans_bang.
-  eapply trans_paraSynch; eauto.
-  apply trans_bang'; auto.
-Qed.
 
 Section Theory.
 
@@ -778,6 +770,771 @@ Section Theory.
   Qed.
 
 End Theory.
+
+Notation parabang_ p q :=
+  (choiceI4
+
+           (* Communication by p *)
+           (rp <- get_head p;;
+            match rp with
+            | HRet rp => match rp with end
+            | HChoice kp => ChoiceV _ (fun i => parabang (kp i) q )
+            | HVis e kp => Vis e (fun i => parabang (kp i) q)
+            end)
+
+           (* Communication by a fresh copy of q *)
+           (rq <- get_head q;;
+            match rq with
+            | HRet rq => match rq with end
+            | HChoice kq => ChoiceV _ (fun i => (parabang (para p (kq i)) q))
+            | HVis e kq => Vis e (fun i => (parabang (para p (kq i)) q))
+            end)
+
+           (* Communication between p and a fresh copy of q *)
+           (rp <- get_head p;;
+            rq <- get_head q;;
+            match rp, rq with
+            | HVis ep kp, HVis eq kq =>
+                match ep, kp, eq, kq with
+                | Act a, kp, Act b, kq =>
+                    if are_opposite a b
+                    then
+                      TauV (parabang (para (kp tt) (kq tt)) q)
+                    else
+                      stuckI
+                end
+
+            | _, _ => stuckI
+            end)
+
+           (* Communication between two fresh copies of q *)
+           (rq1 <- get_head q;;
+            rq2 <- get_head q;;
+            match rq1, rq2 with
+            | HVis eq1 kq1, HVis eq2 kq2 =>
+                match eq1, kq1, eq2, kq2 with
+                | Act a, kq1, Act b, kq2 =>
+                    if are_opposite a b
+                    then
+                      TauV (parabang (para p (para (kq1 tt) (kq2 tt))) q)
+                    else
+                      stuckI
+                end
+
+            | _, _ => stuckI
+            end))%ctree.
+
+Lemma unfold_parabang : forall p q, parabang p q ≅ parabang_ p q.
+Proof.
+  intros.
+	now step.
+Qed.
+
+Lemma unfold_bang : forall p, !p ≅ parabang_ p p.
+Proof.
+  intros; unfold bang. apply unfold_parabang.
+Qed.
+
+#[global] Instance parabang_equ :
+  Proper (equ eq ==> equ eq ==> equ eq) parabang.
+Proof.
+  unfold Proper, respectful.
+  coinduction R CIH.
+  intros p1 p2 EQp q1 q2 EQq.
+  rewrite 2 unfold_parabang.
+  constructor.
+  intros i.
+  destruct i; [| destruct i; [| destruct i]].
+  - eapply (ft_t (bind_ctx_equ_t _ _)).
+    apply in_bind_ctx; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
+    inv eqp; auto.
+    step; constructor; auto.
+    step; constructor; auto.
+  - eapply (ft_t (bind_ctx_equ_t _ _)).
+    apply in_bind_ctx; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
+    inv eqp; auto.
+    step; constructor; intros ?.
+    apply CIH; auto; rewrite EQp, H; reflexivity.
+    step; constructor; intros ?.
+    apply CIH; auto; rewrite EQp, H; reflexivity.
+  - eapply (ft_t (bind_ctx_equ_t _ _)).
+    apply in_bind_ctx; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
+    eapply (ft_t (bind_ctx_equ_t _ _)).
+    apply in_bind_ctx; [apply get_head_equ; auto | intros hdq1 hdq2 eqq].
+    inv eqp; auto.
+    inv eqq; auto.
+    destruct e, e0, (are_opposite a a0); auto.
+    step; constructor; intros ?.
+    apply CIH; auto.
+    rewrite H,H0; reflexivity.
+  - eapply (ft_t (bind_ctx_equ_t _ _)).
+    apply in_bind_ctx; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
+    eapply (ft_t (bind_ctx_equ_t _ _)).
+    apply in_bind_ctx; [apply get_head_equ; auto | intros hdq1 hdq2 eqq].
+    inv eqp; auto.
+    inv eqq; auto.
+    destruct e, e0, (are_opposite a a0); auto.
+    step; constructor; intros ?.
+    apply CIH; auto.
+    rewrite EQp, H,H0; reflexivity.
+Qed.
+
+(* Lemma trans_bang : forall p l p', *)
+(*     trans l (!p) p' -> False. *)
+(*     (* trans l (!p ∥ p) p' -> *) *)
+(* Proof. *)
+(*   intros * TR. *)
+(*   rewrite unfold_bang in TR; *)
+(*     apply trans_ChoiceI_inv in TR as [[|? [|? [| ? x]]] TR]. *)
+(*   -  *)
+
+
+Lemma trans_vis' {E R X} : forall (e : E X) x (k : X -> ctree E R) u,
+    u ≅ k x ->
+		trans (obs e x) (Vis e k) u.
+Proof.
+	intros * eq; rewrite eq; apply trans_vis.
+Qed.
+
+Ltac copy h :=
+  let foo := fresh "cpy" in
+  assert (foo := h).
+
+Lemma trans_parabangL : forall p l p' q,
+    trans l p p' ->
+    trans l (parabang p q) (parabang p' q).
+Proof.
+  intros * TR.
+  pose proof trans_get_head TR.
+  rewrite unfold_parabang.
+  apply trans_choiceI41.
+  destruct l;
+    repeat match goal with
+           | h : Logic.ex _ |- _ => destruct h
+           | h : Logic.and _ _ |- _ => destruct h
+           end.
+  - eapply trans_bind_r; eauto. cbn.
+    rewrite H0; econstructor; reflexivity.
+  - eapply trans_bind_r; eauto. cbn.
+    rewrite H0; econstructor; reflexivity.
+  - apply trans_val_invT in TR; subst; easy.
+Qed.
+
+Lemma trans_parabangR : forall p l q q',
+    trans l q q' ->
+    trans l (parabang p q) (parabang (p ∥ q') q).
+Proof.
+  intros * TR.
+  pose proof trans_get_head TR.
+  rewrite unfold_parabang.
+  apply trans_choiceI42.
+  destruct l;
+    repeat match goal with
+           | h : Logic.ex _ |- _ => destruct h
+           | h : Logic.and _ _ |- _ => destruct h
+           end.
+  - eapply trans_bind_r; eauto. cbn.
+    econstructor; rewrite H0; reflexivity.
+  - eapply trans_bind_r; eauto. cbn.
+    rewrite H0; econstructor; reflexivity.
+  - apply trans_val_invT in TR; subst; easy.
+Qed.
+
+Lemma para_parabang : forall p q r,
+    parabang (p ∥ q) r ~ p ∥ parabang q r.
+Proof.
+  coinduction ? CIH.
+  intros; split.
+
+  - intros l s TR.
+    rewrite unfold_parabang in TR.
+    apply trans_ChoiceI_inv in TR as [[|? [|? [| ? x]]] TR].
+    + apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x; try easy.
+      * apply trans_ChoiceV_inv in TR2 as (x & EQ & ->).
+        pose proof trans_HChoice _ TR1 x.
+        trans_para_invT H.
+        ** eexists.
+           apply trans_paraL; eauto.
+           rewrite EQ, EQ0; auto.
+        ** eexists.
+           apply trans_paraR.
+           apply trans_parabangL; eauto.
+           rewrite EQ,EQ0; auto.
+        ** eexists.
+           eapply trans_paraSynch; eauto.
+           apply trans_parabangL; eauto.
+           rewrite EQ,EQ0; auto.
+      * apply trans_vis_inv in TR2 as (x & EQ & ->).
+        pose proof trans_HVis _ TR1 (i := x).
+        trans_para_invT H; try easy.
+        ** eexists.
+           apply trans_paraL; eauto.
+           rewrite EQ, EQ0; auto.
+        ** eexists.
+           apply trans_paraR.
+           apply trans_parabangL; eauto.
+           rewrite EQ,EQ0; auto.
+
+    + apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x; try easy.
+      * apply trans_ChoiceV_inv in TR2 as (x & EQ & ->).
+        pose proof trans_HChoice _ TR1 x.
+        eexists.
+        apply trans_paraR.
+        apply trans_parabangR; eauto.
+        rewrite EQ.
+        rewrite !CIH.
+        rewrite paraA; auto.
+      * apply trans_vis_inv in TR2 as (x & EQ & ->).
+        pose proof trans_HVis _ TR1 (i := x).
+        eexists.
+        apply trans_paraR.
+        apply trans_parabangR; eauto.
+        rewrite EQ.
+        rewrite !CIH.
+        rewrite paraA; auto.
+
+    + apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      apply trans_bind_inv in TR2.
+      destruct TR2 as [(NV & ? & TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x, x0; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
+      destruct e, e0, (are_opposite a a0); try now (exfalso; eapply stuckI_is_stuck; eauto).
+      apply trans_TauV_inv in TR3.
+      eexists.
+
+Admitted.
+
+Lemma ctx_parabang_t: binary_ctx parabang <= st.
+Proof.
+Admitted.
+#[global] Instance parabang_t: forall R, Proper (st R ==> st R ==> st R) parabang := binary_proper_t ctx_parabang_t.
+#[global] Instance parabang_T f: forall R, Proper (T sb f R ==> T sb f R ==> T sb f R) parabang := binary_proper_T ctx_parabang_t.
+
+Lemma parabang_aux : forall p q,
+    parabang (p ∥ q) q ~ parabang p q.
+Proof.
+  coinduction ? CIH.
+  split.
+  - intros l r TR.
+    rewrite unfold_parabang in TR.
+    apply trans_ChoiceI_inv in TR as [[|? [|? [| ? x]]] TR].
+
+    + (* (p || q) fait un pas *)
+      apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x; try easy.
+      * apply trans_ChoiceV_inv in TR2 as (x & EQ & ->).
+        pose proof trans_HChoice _ TR1.
+        specialize (H x).
+        trans_para_invT H.
+        ** rewrite EQ0 in EQ.
+           eexists.
+           apply trans_parabangL; eauto.
+           rewrite EQ; auto.
+        ** rewrite EQ0 in EQ.
+           eexists.
+           apply trans_parabangR; eauto.
+           rewrite EQ; auto.
+        ** rewrite EQ0 in EQ.
+           pose proof trans_get_head TRp as (kp & TRph & EQp).
+           pose proof trans_get_head TRq as (kq & TRqh & EQq).
+           eexists.
+           rewrite unfold_parabang.
+           apply trans_choiceI43.
+           eapply trans_bind_r; [apply TRph | ].
+           eapply trans_bind_r; [apply TRqh | ].
+           cbn; rewrite Op.
+           apply trans_TauV.
+           rewrite EQ, EQp, EQq.
+           auto.
+      * apply trans_vis_inv in TR2 as (x & EQ & ->).
+        pose proof trans_HVis _ TR1 (i := x).
+        trans_para_invT H; try easy.
+        ** rewrite EQ0 in EQ.
+           eexists.
+           apply trans_parabangL; eauto.
+           rewrite EQ; auto.
+        ** rewrite EQ0 in EQ.
+           eexists.
+           apply trans_parabangR; eauto.
+           rewrite EQ; auto.
+
+    + (* a copy of q steps *)
+      apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x; try easy.
+      * apply trans_ChoiceV_inv in TR2 as (x & EQ & ->).
+        pose proof trans_HChoice _ TR1 x.
+        eexists.
+        apply trans_parabangR; eauto.
+        rewrite EQ.
+        rewrite <- paraA.
+        rewrite (paraC q (k x)).
+        rewrite paraA.
+        auto.
+      * apply trans_vis_inv in TR2 as (x & EQ & ->).
+        pose proof trans_HVis _ TR1 (i := x).
+        eexists.
+        apply trans_parabangR; eauto.
+        rewrite EQ.
+        rewrite <- paraA.
+        rewrite (paraC q (k x)).
+        rewrite paraA.
+        auto.
+
+    + (* (p || q) communicates with a copy of q *)
+      apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      apply trans_bind_inv in TR2.
+      destruct TR2 as [(NV & ? & ?TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x, x0; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
+      destruct e,e0, (are_opposite a a0) eqn: Op; try now (exfalso; eapply stuckI_is_stuck; eauto).
+      apply trans_TauV_inv in TR3 as [EQ ->].
+      pose proof trans_HVis _ TR1 (i := tt) as TRp.
+      pose proof trans_HVis _ TR2 (i := tt) as TRq.
+      trans_para_invT TRp; [| | easy].
+      * rewrite EQ0 in EQ.
+        pose proof trans_get_head TRp as (kq & TRph & EQp).
+        rewrite EQp in EQ.
+        eexists.
+        rewrite unfold_parabang.
+        apply trans_choiceI43.
+        eapply trans_bind_r; eauto.
+        eapply trans_bind_r; eauto.
+        cbn; rewrite Op.
+        apply trans_TauV.
+        rewrite EQ.
+        rewrite <- paraA.
+        rewrite (paraC q (k0 tt)).
+        rewrite paraA.
+        auto.
+      * rewrite EQ0 in EQ.
+        pose proof trans_get_head TRq0 as (kq & TRqh & EQp).
+        eexists.
+        rewrite unfold_parabang.
+        apply trans_choiceI44.
+        eapply trans_bind_r; [apply TRqh |].
+        eapply trans_bind_r; [apply TR2 |].
+        cbn; rewrite Op.
+        apply trans_TauV.
+        rewrite EQ, EQp.
+        rewrite <- paraA.
+        reflexivity.
+
+    + (* two copies of q communicate *)
+      apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      apply trans_bind_inv in TR2.
+      destruct TR2 as [(NV & ? & ?TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x0, x1; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
+      destruct e,e0, (are_opposite a a0) eqn: Op; try now (exfalso; eapply stuckI_is_stuck; eauto).
+      apply trans_TauV_inv in TR3 as [EQ ->].
+      pose proof trans_HVis _ TR1 (i := tt) as TRp.
+      pose proof trans_HVis _ TR2 (i := tt) as TRq.
+      eexists.
+      rewrite unfold_parabang.
+      apply trans_choiceI44.
+      eapply trans_bind_r; [apply TR1 |].
+      eapply trans_bind_r; [apply TR2 |].
+      cbn; rewrite Op.
+      apply trans_TauV.
+      rewrite EQ.
+      rewrite <- paraA.
+      rewrite (paraC q _).
+      rewrite 2 paraA.
+      auto.
+
+  - intros l r TR.
+    rewrite unfold_parabang in TR.
+    apply trans_ChoiceI_inv in TR as [[|? [|? [| ? x]]] TR].
+    + apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x; try easy.
+      * apply trans_ChoiceV_inv in TR2 as (? & EQ & ->).
+        pose proof trans_HChoice _ TR1 as TRq.
+        eexists.
+        apply trans_parabangL, trans_paraL; eauto.
+        cbn; rewrite EQ.
+        auto.
+      * apply trans_vis_inv in TR2 as (? & EQ & ->).
+        pose proof trans_HVis _ TR1 (i := x) as TRq.
+        eexists.
+        apply trans_parabangL, trans_paraL; eauto.
+        cbn; rewrite EQ.
+        auto.
+
+    + apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x; try easy.
+      * apply trans_ChoiceV_inv in TR2 as (? & EQ & ->).
+        pose proof trans_HChoice _ TR1 as TRq.
+        eexists.
+        apply trans_parabangL, trans_paraR; eauto.
+        cbn; rewrite EQ;
+        auto.
+      * apply trans_vis_inv in TR2 as (? & EQ & ->).
+        pose proof trans_HVis _ TR1 (i := x) as TRq.
+        eexists.
+        apply trans_parabangL, trans_paraR; eauto.
+        cbn; rewrite EQ.
+        auto.
+
+    + apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      apply trans_bind_inv in TR2.
+      destruct TR2 as [(NV & ? & ?TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x, x0; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
+      destruct e,e0, (are_opposite a a0) eqn: Op; try now (exfalso; eapply stuckI_is_stuck; eauto).
+      apply trans_TauV_inv in TR3 as [EQ ->].
+      pose proof trans_HVis _ TR1 (i := tt) as TRp.
+      pose proof trans_HVis _ TR2 (i := tt) as TRq.
+      eexists.
+      eapply trans_parabangL, trans_paraSynch; eauto.
+      cbn; rewrite EQ.
+      reflexivity.
+
+    + apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      apply trans_bind_inv in TR2.
+      destruct TR2 as [(NV & ? & ?TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x0, x1; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
+      destruct e,e0, (are_opposite a a0) eqn: Op; try now (exfalso; eapply stuckI_is_stuck; eauto).
+      apply trans_TauV_inv in TR3 as [EQ ->].
+      pose proof trans_HVis _ TR1 (i := tt) as TRp.
+      pose proof trans_HVis _ TR2 (i := tt) as TRq.
+      eexists.
+      rewrite unfold_parabang.
+      apply trans_choiceI44.
+      eapply trans_bind_r; [apply TR1 |].
+      eapply trans_bind_r; [apply TR2 |].
+      cbn; rewrite Op.
+      apply trans_TauV.
+      cbn; rewrite EQ.
+      rewrite <- paraA.
+      rewrite (paraC q _).
+      rewrite ! paraA.
+      auto.
+Qed.
+
+Lemma parabang_eq : forall p q,
+    parabang p q ~ p ∥ !q.
+Proof.
+  coinduction ? CIH.
+  intros p q; split.
+
+  - intros l p' TR.
+    rewrite unfold_parabang in TR.
+    apply trans_ChoiceI_inv in TR as [[|? [|? [| ? x]]] TR].
+    + (* p moved *)
+      apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x; try easy.
+      * apply trans_ChoiceV_inv in TR2 as (x & EQ & ->).
+        pose proof trans_HChoice _ TR1.
+        exists (k x ∥ !q).
+        apply trans_paraL; auto.
+        rewrite EQ; auto.
+      * apply trans_vis_inv in TR2 as (x & EQ & ->).
+        epose proof trans_HVis _ TR1 (i := x).
+        exists (k x ∥ !q).
+        apply trans_paraL; auto.
+        rewrite EQ; auto.
+
+    + (* a copy of q moved *)
+      apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x; try easy.
+      * apply trans_ChoiceV_inv in TR2 as (x & EQ & ->).
+        pose proof trans_HChoice _ TR1.
+        exists (p ∥ parabang (k x) q).
+        apply trans_paraR.
+        rewrite unfold_bang at 1.
+        apply trans_choiceI41.
+        eapply trans_bind_r; eauto; cbn.
+        eapply trans_ChoiceV'; reflexivity.
+        rewrite EQ.
+        rewrite para_parabang; auto.
+      * apply trans_vis_inv in TR2 as (x & EQ & ->).
+        exists (p ∥ parabang (k x) q).
+        apply trans_paraR.
+        rewrite unfold_bang at 1.
+        apply trans_choiceI41.
+        eapply trans_bind_r; eauto; cbn.
+        eapply trans_vis'; reflexivity.
+        rewrite EQ.
+        rewrite para_parabang; auto.
+
+    + (* p communicated with a copy of q moved *)
+      apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      apply trans_bind_inv in TR2.
+      destruct TR2 as [(NV & ? & TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x, x0; try easy; try (exfalso; eapply stuckI_is_stuck; now eauto).
+      destruct e, e0, (are_opposite a a0) eqn:?; try (exfalso; eapply stuckI_is_stuck; now eauto).
+      apply trans_TauV_inv in TR3 as (EQ & ->).
+      pose proof trans_HVis _ TR1 (i := tt).
+      pose proof trans_HVis _ TR2 (i := tt).
+      (* exists (p ∥ parabang (k x) q). *)
+      eexists.
+      eapply trans_paraSynch; eauto.
+      rewrite unfold_bang at 1.
+      apply trans_choiceI41.
+      eapply trans_bind_r; eauto; cbn.
+      eapply trans_vis'; reflexivity.
+      rewrite EQ.
+      rewrite para_parabang; auto.
+
+    + (* two copies of q communicated *)
+      apply trans_bind_inv in TR.
+      destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+      apply trans_bind_inv in TR2.
+      destruct TR2 as [(NV & ? & TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
+      destruct x0, x1; try easy; try (exfalso; eapply stuckI_is_stuck; now eauto).
+      destruct e, e0, (are_opposite a a0) eqn:?; try (exfalso; eapply stuckI_is_stuck; now eauto).
+      apply trans_TauV_inv in TR3 as (EQ & ->).
+      pose proof trans_HVis _ TR1 (i := tt).
+      pose proof trans_HVis _ TR2 (i := tt).
+      eexists.
+      eapply trans_paraR; eauto.
+      rewrite unfold_bang at 1.
+      apply trans_choiceI43.
+      eapply trans_bind_r; [apply TR1 | ].
+      eapply trans_bind_r; [apply TR2 | ].
+      cbn; rewrite Heqb.
+      apply trans_TauV.
+      rewrite EQ.
+      rewrite para_parabang; auto.
+
+  - intros l p' TR.
+    (* Challenge issued by [p ∥ !q] *)
+    trans_para_invT TR.
+    + (* [p] has moved *)
+      cbn.
+      (* We unfortunately need to duplicate the proof: we can only instantiate [u'] once we know [l].
+         But essentially, the first of the four transitions by [parabang p q] simulates the move.
+       *)
+      destruct l.
+      * apply trans_get_head in TRp.
+        destruct TRp as (? & ? & ? & TRp & Eqp).
+        rewrite Eqp in EQ; clear p'0 Eqp.
+        exists (parabang (x0 x1) q).
+        rewrite unfold_parabang.
+        apply trans_choiceI41.
+        eapply trans_bind_r; eauto; cbn.
+        eapply (Steptau x1).
+        reflexivity.
+        rewrite EQ; auto.
+      * apply trans_get_head in TRp.
+        destruct TRp as (? & TRp & Eqp).
+        rewrite Eqp in EQ; clear p'0 Eqp.
+        exists (parabang (x v) q).
+        rewrite unfold_parabang.
+        apply trans_choiceI41.
+        eapply trans_bind_r; eauto; cbn.
+        constructor; auto.
+        rewrite EQ; auto.
+      * apply trans_val_invT in TRp; subst; easy.
+
+    + (* [!q] has moved *)
+      cbn.
+      (* We need to exhibit that [q'] is essentially some [q''] in parallel with a [!q] *)
+      rewrite unfold_bang in TRq.
+      apply trans_ChoiceI_inv in TRq as [[|? [|? [| ? x]]] TR].
+
+      * (* q has moved *)
+        apply trans_bind_inv in TR.
+        destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+        destruct x; try easy.
+        {
+          apply trans_ChoiceV_inv in TR2 as (? & ? & ->).
+          exists (parabang (p ∥ k x) q).
+          rewrite unfold_parabang.
+          apply trans_choiceI42.
+          eapply trans_bind_r; eauto.
+          cbn.
+          eapply trans_ChoiceV'; reflexivity.
+          rewrite EQ, H.
+          rewrite 2 CIH.
+          rewrite <- paraA.
+          reflexivity.
+        }
+        {
+          apply trans_vis_inv in TR2 as (? & ? & ->).
+          exists (parabang (p ∥ k x) q).
+          rewrite unfold_parabang.
+          apply trans_choiceI42.
+          eapply trans_bind_r; eauto.
+          cbn.
+          eapply trans_vis'; reflexivity.
+          rewrite EQ, H.
+          rewrite 2 CIH.
+          rewrite <- paraA.
+          reflexivity.
+        }
+
+      * (* a copy of q has moved *)
+        apply trans_bind_inv in TR.
+        destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+        destruct x; try easy.
+        {
+          apply trans_ChoiceV_inv in TR2 as (? & ? & ->).
+          pose proof trans_HChoice _ TR1 as TR1'.
+          rewrite H in EQ; clear q' H.
+          eexists.
+          specialize (TR1' x).
+          rewrite unfold_parabang.
+          apply trans_choiceI42.
+          eapply trans_bind_r; eauto.
+          cbn. eapply trans_ChoiceV'. reflexivity.
+          rewrite EQ.
+          rewrite (paraC q).
+          rewrite parabang_aux.
+          rewrite 2 CIH.
+          rewrite paraA.
+          reflexivity.
+        }
+        {
+          apply trans_vis_inv in TR2 as (? & ? & ->).
+          pose proof trans_HVis _ TR1 (i := x) as TR1'.
+          rewrite H in EQ; clear q' H.
+          eexists.
+          rewrite unfold_parabang.
+          apply trans_choiceI42.
+          eapply trans_bind_r; eauto.
+          cbn. eapply trans_vis'. reflexivity.
+          rewrite EQ.
+          rewrite (paraC q).
+          rewrite parabang_aux.
+          rewrite 2 CIH.
+          rewrite paraA.
+          reflexivity.
+        }
+
+      * (* two copies of q communicate *)
+        apply trans_bind_inv in TR.
+        destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+        apply trans_bind_inv in TR2.
+        destruct TR2 as [(NV & ? & TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
+        destruct x, x0; try easy; try (exfalso; eapply stuckI_is_stuck; now eauto).
+        destruct e, e0, (are_opposite a a0) eqn:?; try (exfalso; eapply stuckI_is_stuck; now eauto).
+        apply trans_TauV_inv in TR3 as (EQ' & ->).
+        rewrite EQ' in EQ; clear q' EQ'.
+        pose proof trans_HVis _ TR1 (i := tt).
+        pose proof trans_HVis _ TR2 (i := tt).
+        eexists.
+        rewrite unfold_parabang.
+        apply trans_choiceI44.
+        eapply trans_bind_r; [apply TR1 | ].
+        eapply trans_bind_r; [apply TR2 | ].
+        cbn; rewrite Heqb.
+        apply trans_TauV.
+        rewrite EQ.
+        rewrite !CIH.
+        rewrite !paraA.
+        reflexivity.
+
+      * (* two copies of q communicate *)
+        apply trans_bind_inv in TR.
+        destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+        apply trans_bind_inv in TR2.
+        destruct TR2 as [(NV & ? & TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
+        destruct x0, x1; try easy; try (exfalso; eapply stuckI_is_stuck; now eauto).
+        destruct e, e0, (are_opposite a a0) eqn:?; try (exfalso; eapply stuckI_is_stuck; now eauto).
+        apply trans_TauV_inv in TR3 as (EQ' & ->).
+        rewrite EQ' in EQ; clear q' EQ'.
+        pose proof trans_HVis _ TR1 (i := tt).
+        pose proof trans_HVis _ TR2 (i := tt).
+        eexists.
+        rewrite unfold_parabang.
+        apply trans_choiceI44.
+        eapply trans_bind_r; [apply TR1 | ].
+        eapply trans_bind_r; [apply TR2 | ].
+        cbn; rewrite Heqb.
+        apply trans_TauV.
+        rewrite EQ.
+        rewrite (paraC q).
+        rewrite parabang_aux.
+        rewrite !CIH.
+        rewrite !paraA.
+        reflexivity.
+
+    + (* p and !p communicate *)
+      pose proof trans_get_head TRp as (kp & TRhp & EQp).
+      (* pose proof trans_get_head TRq as (kq & TRhq & EQq). *)
+      rewrite EQp in EQ,TRp; clear p'0 EQp.
+      (* rewrite EQq in EQ,TRq; clear q' EQq. *)
+      rewrite unfold_bang in TRq.
+      apply trans_ChoiceI_inv in TRq as [[|? [|? [| ? ?]]] TR].
+
+      * apply trans_bind_inv in TR.
+        destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+        destruct x; try easy.
+        (* Weird stuff here *)
+        pose proof trans_vis_inv TR2 as (? & ? & ?).
+        destruct e.
+        unfold comm in H0.
+        dependent induction H0.
+        eexists.
+        rewrite unfold_parabang.
+        apply trans_choiceI43.
+        eapply trans_bind_r; [apply TRhp | ].
+        eapply trans_bind_r; [apply TR1 | ].
+        cbn. rewrite Op.
+        apply trans_TauV.
+        cbn; rewrite EQ,H.
+        rewrite !CIH.
+        rewrite paraA; auto.
+
+      * apply trans_bind_inv in TR.
+        destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+        destruct x; try easy.
+        (* Weird stuff here *)
+        pose proof trans_vis_inv TR2 as (? & ? & ?).
+        destruct e.
+        unfold comm in H0.
+        dependent induction H0.
+        eexists.
+        rewrite unfold_parabang.
+        apply trans_choiceI43.
+        eapply trans_bind_r; [apply TRhp | ].
+        eapply trans_bind_r; [apply TR1 | ].
+        cbn. rewrite Op.
+        apply trans_TauV.
+        cbn; rewrite EQ,H.
+        rewrite (paraC q).
+        rewrite parabang_aux.
+        rewrite !CIH.
+        rewrite paraA; auto.
+
+      * apply trans_bind_inv in TR.
+        destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+        apply trans_bind_inv in TR2.
+        destruct TR2 as [(NV & ? & TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
+        destruct x, x0; try easy; try (exfalso; eapply stuckI_is_stuck; now eauto).
+        destruct e,e0, (are_opposite a0 a1).
+        exfalso; now eauto.
+        exfalso; eapply stuckI_is_stuck; now eauto.
+
+      * apply trans_bind_inv in TR.
+        destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
+        apply trans_bind_inv in TR2.
+        destruct TR2 as [(NV & ? & TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
+        destruct x, x0; try easy; try (exfalso; eapply stuckI_is_stuck; now eauto).
+        destruct e,e0, (are_opposite a0 a1).
+        exfalso; now eauto.
+        exfalso; eapply stuckI_is_stuck; now eauto.
+Qed.
+
+Lemma unfold_bang' : forall p,
+    !p ~ !p ∥ p.
+Proof.
+  intros; unfold bang at 1.
+  rewrite parabang_eq. rewrite paraC; reflexivity.
+Qed.
 
 Import CCSNotations.
 Open Scope term_scope.
@@ -1301,4 +2058,3 @@ Admitted.
               end
           end
       end.
-

@@ -201,6 +201,88 @@ Proof.
   end.
 Qed.
 
+Lemma trans_choiceI21 :
+  forall {E X} (t t' u : ctree E X) l,
+    trans l t t' ->
+    trans l (choiceI2 t u) t'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.F1); eauto.
+Qed.
+
+Lemma trans_choiceI22 :
+  forall {E X} (t u u' : ctree E X) l,
+    trans l u u' ->
+    trans l (choiceI2 t u) u'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.FS Fin.F1); eauto.
+Qed.
+
+Lemma trans_choiceI31 :
+  forall {E X} (t t' u v : ctree E X) l,
+    trans l t t' ->
+    trans l (choiceI3 t u v) t'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.F1); eauto.
+Qed.
+
+Lemma trans_choiceI32 :
+  forall {E X} (t u u' v : ctree E X) l,
+    trans l u u' ->
+    trans l (choiceI3 t u v) u'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.FS Fin.F1); eauto.
+Qed.
+
+Lemma trans_choiceI33 :
+  forall {E X} (t u v v' : ctree E X) l,
+    trans l v v' ->
+    trans l (choiceI3 t u v) v'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.FS (Fin.FS Fin.F1)); eauto.
+Qed.
+
+Lemma trans_choiceI41 :
+  forall {E X} (t t' u v w : ctree E X) l,
+    trans l t t' ->
+    trans l (choiceI4 t u v w) t'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.F1); eauto.
+Qed.
+
+Lemma trans_choiceI42 :
+  forall {E X} (t u u' v w : ctree E X) l,
+    trans l u u' ->
+    trans l (choiceI4 t u v w) u'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.FS Fin.F1); eauto.
+Qed.
+
+Lemma trans_choiceI43 :
+  forall {E X} (t u v v' w : ctree E X) l,
+    trans l v v' ->
+    trans l (choiceI4 t u v w) v'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.FS (Fin.FS Fin.F1)); eauto.
+Qed.
+
+Lemma trans_choiceI44 :
+  forall {E X} (t u v w w' : ctree E X) l,
+    trans l w w' ->
+    trans l (choiceI4 t u v w) w'.
+Proof.
+  intros * TR.
+  eapply trans_ChoiceI with (x := Fin.FS (Fin.FS (Fin.FS Fin.F1))); eauto.
+Qed.
+
+
 Lemma wtrans_case {E X} (t u : ctree E X) l:
   wtrans l t u ->
     match l with
