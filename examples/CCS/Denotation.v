@@ -1125,7 +1125,51 @@ Qed.
 
 Lemma ctx_parabang_t: binary_ctx parabang <= st.
 Proof.
-Admitted.
+  apply Coinduction, by_Symmetry. apply binary_sym.
+  intro R. apply (leq_binary_ctx parabang).
+  intros * [F1 B1] * [F2 B2] ? * tr.
+  trans_parabang_invT tr.
+  - apply F1 in TRp' as [? tr ?].
+    eexists.
+    pbL; eauto.
+    rewrite EQ.
+    apply (fTf_Tf sb). apply (in_binary_ctx parabang).
+    now apply (id_T sb).
+    now apply (b_T sb).
+  - apply F2 in TRq' as [? tr ?].
+    eexists.
+    pbR; eauto.
+    rewrite EQ.
+    apply (fTf_Tf sb). apply (in_binary_ctx parabang).
+    apply (fT_T ctx_para_t).
+    apply (in_binary_ctx para).
+    now apply (b_T sb).
+    now apply (id_T sb).
+    now apply (b_T sb).
+  - apply F1 in TRp' as [? trp ?].
+    apply F2 in TRq' as [? trq ?].
+    eexists.
+    pbSL; eauto.
+    rewrite EQ.
+    apply (fTf_Tf sb). apply (in_binary_ctx parabang).
+    apply (fT_T ctx_para_t).
+    apply (in_binary_ctx para).
+    now apply (id_T sb).
+    now apply (id_T sb).
+    now apply (b_T sb).
+  - apply F2 in TRq' as [? trp ?].
+    apply F2 in TRq'' as [? trq ?].
+    eexists.
+    pbSR; eauto.
+    rewrite EQ.
+    apply (fTf_Tf sb). apply (in_binary_ctx parabang).
+    apply (fT_T ctx_para_t), (in_binary_ctx para).
+    now apply (b_T sb).
+    apply (fT_T ctx_para_t), (in_binary_ctx para).
+    now apply (id_T sb).
+    now apply (id_T sb).
+    now apply (b_T sb).
+Qed.
 #[global] Instance parabang_t: forall R, Proper (st R ==> st R ==> st R) parabang := binary_proper_t ctx_parabang_t.
 #[global] Instance parabang_T f: forall R, Proper (T sb f R ==> T sb f R ==> T sb f R) parabang := binary_proper_T ctx_parabang_t.
 
