@@ -389,38 +389,3 @@ Proof.
 
 Admitted.
 
-
-Import CCSNotations.
-Open Scope term_scope.
-
-(* fun P Q => bisim (model P) (model Q): is this weak bisimulation of CCS?
-
-   -> : term -> term -> Prop
-   -ccs> : ccs -> ccs -> Prop as
-   -sem> : term -> term -> Prop := fun P Q => model P -ccs> model Q
-*)
-
-Fixpoint model (t : term) : ccs :=
-	match t with
-	| 0      => nil
-	| a · P  => prefix a (model P)
-	| TauT P => TauV (model P)
-	| P ∥ Q  => para (model P) (model Q)
-	| P ⊕ Q  => plus (model P) (model Q)
-	| P ∖ c  => restrict c (model P)
-	end.
-
-(*
-Variant step_ccs : ccs -> option action -> ccs -> Prop :=
-| Sted_comm : forall (t : ccs) a u k,
-	schedule t u ->
-  u ≅ trigger (Act a);; k ->
-	step_ccs t (Some a) k
-| Step_tau : forall (t : ccs) u k,
-	schedule t u ->
-  u ≅ trigger Tau;; k ->
-	step_ccs t None k.
-
-Definition step_sem : term -> option action -> term -> Prop :=
-	fun P a Q => step_ccs (model P) a (model Q).
-*)

@@ -40,7 +40,10 @@ Inductive step : term -> option action -> term -> Prop :=
     step P a P' ->
     use_channel c a = false ->
     step (P ∖ c) a (P' ∖ c)
-.
+
+| SRep: forall P a P',
+    step (P ∥ !P) a P' ->
+    step (!P) a P'.
 
 Module OpNotations.
 

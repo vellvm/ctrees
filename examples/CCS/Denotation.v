@@ -189,23 +189,6 @@ The usual [bang p] is then defined as [parabang p p].
 
   Definition bang (P : ccs) : ccs := parabang P P.
 
-  (* Parameter bang: ccs -> ccs. *)
-  (* Axiom unfold_bang: forall p, bang p ≅ para (bang p) p. *)
-
-
-
-(*
-				-------------------------------------------------
-				!(a.P || bara.Q) -τ> (P || Q) || !(a.P || bara.Q)
-
-					Question: is !P ≈ P || !P?
-  Definition bang : ccs -> ccs.
-bang p = get_head P ;;
-         match hd with
-         | choiceV k => choiceV k (fun i => k i || P)
-         | Vis e k => Vis e k (fun i => k i || P)
- *)
-
 End Combinators.
 
 Module CCSNotationsSem.
@@ -879,26 +862,12 @@ Proof.
     rewrite EQp, H,H0; reflexivity.
 Qed.
 
-(* Lemma trans_bang : forall p l p', *)
-(*     trans l (!p) p' -> False. *)
-(*     (* trans l (!p ∥ p) p' -> *) *)
-(* Proof. *)
-(*   intros * TR. *)
-(*   rewrite unfold_bang in TR; *)
-(*     apply trans_ChoiceI_inv in TR as [[|? [|? [| ? x]]] TR]. *)
-(*   -  *)
-
-
 Lemma trans_vis' {E R X} : forall (e : E X) x (k : X -> ctree E R) u,
     u ≅ k x ->
 		trans (obs e x) (Vis e k) u.
 Proof.
 	intros * eq; rewrite eq; apply trans_vis.
 Qed.
-
-Ltac copy h :=
-  let foo := fresh "cpy" in
-  assert (foo := h).
 
 Lemma trans_parabangL : forall p l p' q,
     trans l p p' ->
@@ -1324,13 +1293,6 @@ Qed.
 Import CCSNotations.
 Open Scope term_scope.
 
-(* fun P Q => bisim (model P) (model Q): is this weak bisimulation of CCS?
-
-   -> : term -> term -> Prop
-   -ccs> : ccs -> ccs -> Prop as
-   -sem> : term -> term -> Prop := fun P Q => model P -ccs> model Q
- *)
-
 Fixpoint model (t : term) : ccs :=
 	match t with
 	| 0      => nil
@@ -1339,22 +1301,8 @@ Fixpoint model (t : term) : ccs :=
 	| P ∥ Q  => para (model P) (model Q)
 	| P ⊕ Q  => plus (model P) (model Q)
 	| P ∖ c  => new c (model P)
+	| !P    => bang (model P)
 	end.
-
-(*
-Variant step_ccs : ccs -> option action -> ccs -> Prop :=
-| Sted_comm : forall (t : ccs) a u k,
-	schedule t u ->
-  u ≅ trigger (Act a);; k ->
-	step_ccs t (Some a) k
-| Step_tau : forall (t : ccs) u k,
-	schedule t u ->
-  u ≅ trigger Tau;; k ->
-	step_ccs t None k.
-
-Definition step_sem : term -> option action -> term -> Prop :=
-	fun P a Q => step_ccs (model P) a (model Q).
- *)
 
 Module DenNotations.
 

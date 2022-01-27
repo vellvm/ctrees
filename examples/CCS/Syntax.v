@@ -58,7 +58,8 @@ Section Syntax.
   | ActionT (a : action) (P : term)
   | ParaT (P1 P2 : term)
   | PlusT (P1 P2 : term)
-  | RestrictT (c : chan) (P : term).
+  | RestrictT (c : chan) (P : term)
+  | rep (P : term).
 
 End Syntax.
 
@@ -73,6 +74,7 @@ Module CCSNotations.
   Notation "P ∥ Q" := (ParaT P Q) (at level 29, left associativity) : term_scope.
   Notation "P ⊕ Q" := (PlusT P Q) (at level 28, left associativity) : term_scope.
   Notation "P ∖ c" := (RestrictT c P) (at level 10) : term_scope.
+  Notation "! P" := (rep P) (right associativity, at level 20): term_scope.
   Notation "↑" := Send : term_scope.
   Notation "↓" := Rcv : term_scope.
 

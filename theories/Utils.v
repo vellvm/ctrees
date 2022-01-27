@@ -28,3 +28,8 @@ Ltac invert :=
   match goal with
   | h : existT _ _ _ = existT _ _ _ |- _ => dependent induction h
   end.
+
+Ltac copy h :=
+  let foo := fresh "cpy" in
+  assert (foo := h).
+

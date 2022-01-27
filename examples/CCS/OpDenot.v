@@ -100,6 +100,73 @@ Proof.
     rewrite H0 in EQ.
     exists (x0 ∖ c).
     auto.
+  - (* unsolvable, the model steps to a parabang that is not the model of anyone up-to [equ] *)
+Abort.
+
+Lemma trans_model : forall P l q,
+    trans l ⟦P⟧ q ->
+    exists Q, q ~ ⟦Q⟧.
+Proof.
+  induction P; intros * TR.
+  - apply trans_nil_inv in TR; easy.
+  - apply trans_TauV_inv in TR as [EQ ->]; fold model in *.
+    setoid_rewrite EQ; eauto.
+  - apply trans_prefix_inv in TR as [EQ ->]; fold model in *.
+    setoid_rewrite EQ; eauto.
+  - trans_para_invT TR; fold model in *.
+    + apply IHP1 in TRp as [Q' ?EQ].
+      apply equ_sbisim_subrelation in EQ.
+      rewrite EQ0 in EQ.
+      exists (Q' ∥ P2); auto.
+    + apply IHP2 in TRq as [Q' ?EQ].
+      apply equ_sbisim_subrelation in EQ.
+      rewrite EQ0 in EQ.
+      exists (P1 ∥ Q'); auto.
+    + apply IHP1 in TRp as [P' ?EQ].
+      apply IHP2 in TRq as [Q' ?EQ].
+      apply equ_sbisim_subrelation in EQ.
+      rewrite EQ0,EQ1 in EQ.
+      exists (P' ∥ Q'); auto.
+  - apply trans_plus_inv in TR as [(?&TR&EQ)|(?&TR&EQ)]; fold model in *.
+    + apply IHP1 in TR as [? ?].
+      rewrite <- EQ in H; eauto.
+    + apply IHP2 in TR as [? ?].
+      rewrite <- EQ in H; eauto.
+  - apply trans_new_inv in TR as (? & ? & TR & EQ); fold model in *.
+    apply IHP in TR as [? ?].
+    apply equ_sbisim_subrelation in EQ.
+    rewrite H0 in EQ.
+    exists (x0 ∖ c).
+    auto.
+  - trans_parabang_invT TR; fold model in *.
+    + apply IHP in TRp' as [Q' ?EQ].
+      apply equ_sbisim_subrelation in EQ.
+      rewrite EQ0 in EQ.
+      rewrite parabang_eq in EQ.
+      exists (Q' ∥ !P).
+      cbn; auto.
+    + apply IHP in TRq' as [Q' ?EQ].
+      apply equ_sbisim_subrelation in EQ.
+      rewrite EQ0 in EQ.
+      rewrite paraC, parabang_aux in EQ.
+      rewrite parabang_eq in EQ.
+      exists (Q' ∥ !P).
+      cbn; auto.
+    + apply IHP in TRp' as [Q' ?EQ].
+      apply IHP in TRq' as [Q'' ?EQ].
+      apply equ_sbisim_subrelation in EQ.
+      rewrite EQ0,EQ1 in EQ.
+      rewrite parabang_eq in EQ.
+      exists ((Q' ∥ Q'') ∥ !P).
+      cbn; auto.
+    + apply IHP in TRq'  as [Q' ?EQ].
+      apply IHP in TRq'' as [Q'' ?EQ].
+      apply equ_sbisim_subrelation in EQ.
+      rewrite EQ0,EQ1 in EQ.
+      rewrite paraC, parabang_aux in EQ.
+      rewrite parabang_eq in EQ.
+      exists ((Q' ∥ Q'') ∥ !P).
+      cbn; auto.
 Qed.
 
 Definition forward_func (R : term -> term -> Prop) : Prop :=
@@ -116,6 +183,10 @@ Definition backward_func (R : term -> term -> Prop) : Prop :=
 
 Definition bisimilar := exists R, forward_func R /\ backward_func R.
 
+(* Need to move toward [bisim] instead of [equ].
+   Fixing the proof will require a whole new bunch of inversion
+   lemmas unfortunately
+ *)
 Definition equ_models := fun P Q => ⟦P⟧ ≅ ⟦Q⟧.
 
 Lemma complete_func : forward_func equ_models.
@@ -164,10 +235,15 @@ Proof.
     eexists; split; [| reflexivity].
     rewrite <- HR; apply trans_new; eauto.
     apply use_channel_can_comm; auto.
-Qed.
+  - admit.
+Admitted.
 
+(* Proof broken due to the weaking in [trans_model].
+   Needs to be redone against the bigger bisimulation invariant anyway.
+ *)
 Lemma correct_func : backward_func equ_models.
 Proof.
+  (*
   unfold equ_models; red; induction P; intros * HR TR;
     cbn in *; rewrite <- HR in TR.
   - exfalso; eapply trans_nil_inv,TR.
@@ -231,6 +307,8 @@ Proof.
     destruct e; auto.
     cbn; rewrite EQ, H2, H0; auto.
 Qed.
+   *)
+Admitted.
 
 Theorem bisim : bisimilar.
 Proof.
@@ -287,5 +365,6 @@ Proof.
     eexists; split; [| reflexivity].
     apply trans_new; eauto.
     apply use_channel_can_comm; auto.
-Qed.
+  - admit.
+Admitted.
 
