@@ -17,32 +17,32 @@ Inductive step : term -> option action -> term -> Prop :=
 | STau: forall P,
     step (TauT P) None P
 
-| SSumL: forall P a P' Q,
-    step P a P' ->
+| SSumL: forall P a P' Q
+           (STEPL : step P a P'),
     step (P ⊕ Q) a P'
-| SSumR: forall P Q a Q',
-    step Q a Q' ->
+| SSumR: forall P Q a Q'
+           (STEPR : step Q a Q'),
     step (P ⊕ Q) a Q'
 
-| SParL: forall P a P' Q,
-    step P a P' ->
+| SParL: forall P a P' Q
+           (STEPL : step P a P'),
     step (P ∥ Q) a (P' ∥ Q)
-| SParR: forall P Q a Q',
-    step Q a Q' ->
+| SParR: forall P Q a Q'
+           (STEPR : step Q a Q'),
     step (P ∥ Q) a (P ∥ Q')
 
-| SPar: forall P a P' Q Q',
-    step P (Some a) P' ->
-    step Q (Some (op a)) Q' ->
+| SPar: forall P a P' Q Q'
+          (STEPL : step P (Some a) P')
+          (STEPR : step Q (Some (op a)) Q'),
     step (P ∥ Q) None (P' ∥ Q')
 
-| SRes: forall P a P' c,
-    step P a P' ->
-    use_channel c a = false ->
+| SRes: forall P a P' c
+          (STEP : step P a P')
+          (FC : use_channel c a = false),
     step (P ∖ c) a (P' ∖ c)
 
-| SRep: forall P a P',
-    step (P ∥ !P) a P' ->
+| SRep: forall P a P'
+          (STEP : step (P ∥ !P) a P'),
     step (!P) a P'.
 
 Module OpNotations.

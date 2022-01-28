@@ -27,6 +27,9 @@ Import DenNotations.
 Import OpNotations.
 Open Scope ccs_scope.
 
+Set Implicit Arguments.
+Set Contextual Implicit.
+
 (* Notation "t ⊢ l →sem u" := (trans l ⟦t⟧ ⟦u⟧) (at level 10) : ccs_scope. *)
 
 Lemma trans_nil_inv : forall l p, ~ trans l nil p.
@@ -169,6 +172,73 @@ Proof.
       cbn; auto.
 Qed.
 
+(* More general (?) notions of simulations *)
+Definition forward (R : term -> ccs -> Prop) : Prop :=
+  forall P P' q a,
+		R P q ->
+		P ⊢ a →op P' ->
+	  exists q', trans (ι a) q q' /\ R P' q'.
+
+Definition backward (R : term -> ccs -> Prop) : Prop :=
+  forall P q q' l,
+		R P q ->
+    trans l q q' ->
+	  exists P', P ⊢ γ l →op P' /\ R P' q'.
+
+Definition bisim_model := fun P q => ⟦P⟧ ~ q.
+
+Lemma complete_func : forward bisim_model.
+Proof.
+  unfold bisim_model; red.
+  intros * HR TR.
+  revert q HR.
+  induction TR; intros * HR; cbn in *.
+  - step in HR; edestruct HR as [[? TR EQ] _].
+    apply trans_prefix.
+    cbn in *; eauto.
+  - step in HR; edestruct HR as [[? TR EQ] _].
+    cbn; apply trans_TauV.
+    cbn in *; eauto.
+  - edestruct IHTR as (q1 & TR1 & EQ1); eauto.
+    step in HR; edestruct HR as [[q' TR' EQ'] _].
+    apply trans_plusL; apply TR1. (* Need to fix automation w.r.t. trans/transR *)
+    eexists; split; [apply TR' |].
+    cbn; rewrite <- EQ', <- EQ1; auto.
+  - edestruct IHTR as (q2 & TR2 & EQ2); eauto.
+    step in HR; edestruct HR as [[q' TR' EQ'] _].
+    apply trans_plusR; apply TR2. (* Need to fix automation w.r.t. trans/transR *)
+    eexists; split; [apply TR' |].
+    cbn; rewrite <- EQ', <- EQ2; auto.
+  - edestruct IHTR as (q1 & TR1 & EQ1); eauto.
+    step in HR; edestruct HR as [[q' TR' EQ'] _].
+    pL; apply TR1. (* Need to fix automation w.r.t. trans/transR *)
+    eexists; split; [apply TR' |].
+    cbn; rewrite <- EQ', <- EQ1; auto.
+  - edestruct IHTR as (q2 & TR2 & EQ2); eauto.
+    step in HR; edestruct HR as [[q' TR' EQ'] _].
+    pR; apply TR2. (* Need to fix automation w.r.t. trans/transR *)
+    eexists; split; [apply TR' |].
+    cbn; rewrite <- EQ', <- EQ2; auto.
+  - edestruct IHTR1 as (q1 & TR1' & EQ1); eauto.
+    edestruct IHTR2 as (q2 & TR2' & EQ2); eauto.
+    step in HR; edestruct HR as [[q' TR' EQ'] _].
+    pS; [apply TR1' | apply TR2' | apply are_opposite_op]. (* Need to fix automation w.r.t. trans/transR *)
+    eexists; split; [apply TR' |].
+    cbn; rewrite <- EQ', <- EQ1, <- EQ2; auto.
+  - edestruct IHTR as (q' & TR' & EQ'); eauto.
+    step in HR; edestruct HR as [[q'' TR'' EQ''] _].
+    apply trans_new.
+    apply TR'.
+    apply use_channel_can_comm; auto.
+    eexists; split.
+    apply TR''.
+    rewrite <- EQ'', <- EQ'; auto.
+  - rewrite unfold_bang', paraC in HR.
+    exact (IHTR _ HR).
+Qed.
+
+
+
 Definition forward_func (R : term -> term -> Prop) : Prop :=
   forall P P' Q a,
 		R P Q ->
@@ -184,17 +254,26 @@ Definition backward_func (R : term -> term -> Prop) : Prop :=
 Definition bisimilar := exists R, forward_func R /\ backward_func R.
 
 (* Need to move toward [bisim] instead of [equ].
-   Fixing the proof will require a whole new bunch of inversion
-   lemmas unfortunately
+   Fixing the proof will require a whole new bunch of inversion lemmas unfortunately
+
+Actually need to change stuff: the semantics does not always reduce to models of terms
  *)
-Definition equ_models := fun P Q => ⟦P⟧ ≅ ⟦Q⟧.
+Definition equ_models := fun P Q => ⟦P⟧ ~ ⟦Q⟧.
 
 Lemma complete_func : forward_func equ_models.
 Proof.
   unfold equ_models; red.
   induction P; intros * HR TR; cbn in *.
   - inv TR.
-  - inv TR.
+  - clear IHP.
+    inv TR.
+    pose proof @trans_TauV _ _ ⟦ P' ⟧ as TR.
+    copy HR; copy TR.
+    step in HR; destruct HR as [F _].
+    apply F in TR as [? TR' EQ]; clear F.
+    pose proof trans_model _ TR' as [Q' ?].
+    exists Q'; split.
+    apply TR'.
     eexists; split; [| reflexivity].
     rewrite <- HR; apply trans_TauV.
   - inv TR.
@@ -316,19 +395,6 @@ Proof.
   auto using correct_func, complete_func.
 Qed.
 
-(* More general (?) notions of simulations *)
-Definition forward (R : term -> ccs -> Prop) : Prop :=
-  forall P P' Q a,
-		R P Q ->
-		P ⊢ a →op P' ->
-	  exists Q', trans (ι a) Q Q' /\ R P' Q'.
-
-Definition backward (R : term -> ccs -> Prop) : Prop :=
-  forall P Q Q' l,
-		R P Q ->
-    trans l Q Q' ->
-	  exists P', P ⊢ γ l →op P' /\ R P' Q'.
-
 (* Simpler forward, but not a backward *)
 Lemma complete_func_simpler : forward_func eq.
 Proof.
@@ -367,4 +433,3 @@ Proof.
     apply use_channel_can_comm; auto.
   - admit.
 Admitted.
-
