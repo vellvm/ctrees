@@ -1,3 +1,5 @@
 _build
+.DS_Store
+.nia.cache
 *~
 .lia.cache
