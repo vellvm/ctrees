@@ -51,7 +51,7 @@ Ltac steps := step; split; cbn; intros ? ? ?TR.
 
 Ltac stepF H :=
   match goal with
-  | h : gfp wb _ _ |- _ => 
+  | h : gfp wb _ _ |- _ =>
       step in h; destruct h as [?F _]; cbn in F;
       edestruct F as [? ?TR ?BIS]; [now apply H | clear F]
   end.
