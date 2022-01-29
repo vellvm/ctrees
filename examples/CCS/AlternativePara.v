@@ -10,7 +10,8 @@ From CTree Require Import
  	   Interp
 	   Equ
 	   Bisim
-     CTreesTheory.
+     CTreesTheory
+     Head.
 
 From RelationAlgebra Require Import
      monoid
@@ -25,7 +26,6 @@ From RelationAlgebra Require Import
 
 From CTreeCCS Require Import
 	   Syntax
-     Head
      Denotation.
 
 From Coinduction Require Import

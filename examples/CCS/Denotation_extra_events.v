@@ -21,7 +21,8 @@ From CTree Require Import
  	Interp
 	Equ
 	Bisim
-  CTreesTheory.
+  CTreesTheory
+  Head.
 
 From RelationAlgebra Require Import
      monoid
@@ -35,8 +36,7 @@ From RelationAlgebra Require Import
      normalisation.
 
 From CTreeCCS Require Import
-	   Syntax
-     Head.
+	   Syntax.
 
 From Coinduction Require Import
 	coinduction rel tactics.
