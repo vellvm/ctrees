@@ -6,8 +6,8 @@ The [equ] relation provides [ctree]s with a suitable notion of equality.
 It is however much too fine to properly capture any notion of behavioral
 equivalence that we could want to capture over computations modelled as
 [ctree]s.
-If we draw the parallel with [itree]s, [equ] maps directly to [eq_itree],
-while [eutt] were introduced to caracterize computations that exhibit the
+If we draw a parallel with [itree]s, [equ] maps directly to [eq_itree],
+while [eutt] was introduced to characterize computations that exhibit the
 same external observations, but may disagree finitely on the amount of
 internal steps occuring between any two observations.
 While the only consideration over [itree]s was to be insensitive to the
@@ -19,13 +19,13 @@ nodes -- in particular, we want [choice t u ~~ choice u t];
 through -- they really are a generalization of [Tau] in [itree]s;
 - to have the flexibility to be sensible or not to the amount of _visible_
 choice nodes encountered -- they really are a generalization of CCS's tau
-steps. This last fact, whether we observe or not these nodes, will constraint
+steps. This last fact, whether we observe or not these nodes, will constrain
 the distinction between the weak and strong bisimulations we define.
 
 In contrast with [equ], as well as the relations in [itree]s, we do not
 define the functions generating the relations directly structurally on
-the trees. Instead, we follow a definition following closely the style
-developped for process calculi, essentially stating that diagrams of this
+the trees. Instead, we follow a definition closely following the style
+developed for process calculi, essentially stating that diagrams of this
 shape can be closed.
 t  R  u
 |     |
@@ -65,7 +65,7 @@ Section Bisim.
 (*|
 Strong Bisimulation
 -------------------
-Relation relaxing [equ] to become insensible to:
+Relation relaxing [equ] to become insensitive to:
 - the amount of _invisible_ choices taken;
 - the particular branches taken during (any kind of) choices.
 |*)
@@ -252,7 +252,7 @@ is once again obtained by expliciting the symmetric aspect of the definition.
 
 
 (*|
-The bisimulation is obtained by intersecting [ws] with its symmetrized version. 
+The bisimulation is obtained by intersecting [ws] with its symmetrized version.
 |*)
     Notation wb := (Coinduction.lattice.cap ws (comp converse (comp ws converse))).
 
@@ -407,7 +407,7 @@ on operators from the relation algebra library.
       {| hrel_of := wbisim : hrel SS SS |}.
 
 (*|
-Algebraic refomulation of the right-to-left part of the game
+Algebraic reformulation of the right-to-left part of the game
 
 Note: We can express these laws in the setoid world or not.
 Unclear if there's a benefit to either at this point, we do everything
@@ -549,7 +549,7 @@ Disproving the transitivity of [wt R]
       - intros abs. step in abs; destruct abs as [abs _].
         destruct (abs (obs e z) (Ret x)) as [? step EQ].
         constructor; reflexivity.
-        apply wtrans_ret_inv in step as [[abs' ?] | [abs' ?]]; inv abs'. 
+        apply wtrans_ret_inv in step as [[abs' ?] | [abs' ?]]; inv abs'.
       - rewrite <- TauV_wb.
         rewrite <- (TauV_wb (Ret x)).
         coinduction ? CIH.

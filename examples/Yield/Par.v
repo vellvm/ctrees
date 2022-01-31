@@ -11,7 +11,8 @@ From CTree Require Import
  	   Interp
 	   Equ
 	   Bisim
-     Shallow.
+       Shallow
+       CTreesTheory.
 
 From ITree Require Import
      Sum.
@@ -141,7 +142,8 @@ Section parallel.
     Proper ((pointwise_relation _ (equ eq)) ==> (list_relation (pointwise_relation _ (equ eq))) ==> eq ==> equ eq)
            schedule.
   Proof.
-    repeat intro. subst. revert H H0. revert x y x0 y0 y1. coinduction r CIH. intros t1 t2 l1 l2 c Ht Hl.
+    repeat intro. subst. revert H H0. revert x y x0 y0 y1.
+    coinduction r CIH. intros t1 t2 l1 l2 c Ht Hl.
     do 2 rewrite rewrite_schedule. unfold schedule_match. simpl.
     specialize (Ht c). step in Ht. inv Ht; eauto. 2: destruct e.
     - destruct y. destruct l1, l2; inv Hl; auto.
@@ -158,8 +160,18 @@ Section parallel.
 
   Definition vec n := fin n -> thread.
 
-  Fixpoint remove_front_vec {n : nat} (v : vec (S n)) : vec n :=
+  Definition vec_relation {n : nat} (P : rel _ _) (v1 v2 : vec n) : Prop :=
+    forall i c, P (v1 i c) (v2 i c).
+
+  Definition remove_front_vec {n : nat} (v : vec (S n)) : vec n :=
     fun i => v (Fin.FS i).
+
+  Lemma remove_front_vec_vec_relation n P (v1 v2 : vec (S n)) :
+    vec_relation P v1 v2 ->
+    vec_relation P (remove_front_vec v1) (remove_front_vec v2).
+  Proof.
+    repeat intro. apply H.
+  Qed.
 
   Program Fixpoint remove_vec {n : nat} (v : vec (S n)) (i : fin (S n)) : vec n :=
     match i with
@@ -173,25 +185,65 @@ Section parallel.
                    end
     end.
 
+  Lemma remove_vec_vec_relation n P (v1 v2 : vec (S n)) i :
+    vec_relation P v1 v2 ->
+    vec_relation P (remove_vec v1 i) (remove_vec v2 i).
+  Proof.
+    intros. unfold remove_vec.
+    dependent induction i; [apply remove_front_vec_vec_relation; auto |].
+    repeat intro. destruct i0; auto. apply IHi; auto. cbn.
+    repeat intro. apply remove_front_vec_vec_relation; auto.
+  Qed.
+
   Definition replace_vec {n : nat} (v : vec n) (i : fin n) (t : thread) : vec n :=
     fun i' => if Fin.eqb i i' then t else v i'.
 
-  Program Definition append_vec {n : nat} (v : vec n) (t : thread) : vec (S n) :=
-    fun i => let i' := Fin.to_nat i in
-          match PeanoNat.Nat.eqb (`i') n with
-          | true => t
-          | false => v (@Fin.of_nat_lt (`i') _ _)
+  Lemma replace_vec_vec_relation n P (v1 v2 : vec n) i t1 t2 :
+    vec_relation P v1 v2 ->
+    (forall x, P (t1 x) (t2 x)) ->
+    vec_relation P (replace_vec v1 i t1) (replace_vec v2 i t2).
+  Proof.
+    unfold replace_vec. repeat intro. destruct (Fin.eqb i i0); auto.
+  Qed.
+
+  Program Definition cons_vec {n : nat} (t : thread) (v : vec n) : vec (S n) :=
+    fun i => match i with
+          | Fin.F1 => t
+          | Fin.FS i' => v i'
           end.
-  Next Obligation.
-    (* why is the space after ` necessary...... *)
-    assert ((` (Fin.to_nat i)) <> n).
-    {
-      pose proof (Bool.reflect_iff _ _ (PeanoNat.Nat.eqb_spec (` (Fin.to_nat i)) n)).
-      intro. rewrite H in H0. rewrite H0 in Heq_anonymous. inv Heq_anonymous.
-    }
-    pose proof (proj2_sig (Fin.to_nat i)).
-    simpl in H0. lia.
-  Defined.
+
+  Lemma cons_vec_vec_relation n P (v1 v2 : vec n) t1 t2 :
+    vec_relation P v1 v2 ->
+    (forall x, P (t1 x) (t2 x)) ->
+    vec_relation P (cons_vec t1 v1) (cons_vec t2 v2).
+  Proof.
+    unfold cons_vec. repeat intro. dependent destruction i; auto.
+  Qed.
+
+  (* Program Definition append_vec {n : nat} (v : vec n) (t : thread) : vec (S n) := *)
+  (*   fun i => let i' := Fin.to_nat i in *)
+  (*         match PeanoNat.Nat.eqb (`i') n with *)
+  (*         | true => t *)
+  (*         | false => v (@Fin.of_nat_lt (`i') _ _) *)
+  (*         end. *)
+  (* Next Obligation. *)
+  (*   (* why is the space after ` necessary...... *) *)
+  (*   assert ((` (Fin.to_nat i)) <> n). *)
+  (*   { *)
+  (*     pose proof (Bool.reflect_iff _ _ (PeanoNat.Nat.eqb_spec (` (Fin.to_nat i)) n)). *)
+  (*     intro. rewrite H in H0. rewrite H0 in Heq_anonymous. inv Heq_anonymous. *)
+  (*   } *)
+  (*   pose proof (proj2_sig (Fin.to_nat i)). *)
+  (*   simpl in H0. lia. *)
+  (* Defined. *)
+
+  (* Lemma append_vec_vec_relation n P (v1 v2 : vec n) t1 t2 : *)
+  (*   vec_relation P v1 v2 -> *)
+  (*   (forall x, P (t1 x) (t2 x)) -> *)
+  (*   vec_relation P (append_vec v1 t1) (append_vec v2 t2). *)
+  (* Proof. *)
+  (*   unfold append_vec. repeat intro. *)
+  (* Qed. *)
 
   Definition schedule'_match
           (schedule' : forall (n : nat), vec n -> vec n)
@@ -225,7 +277,7 @@ Section parallel.
              fun k =>
                TauI (schedule'
                        (S n)
-                       (append_vec (replace_vec v i (fun _ => k false)) (fun _ => k true))
+                       (cons_vec (fun _ => k true) (replace_vec v i (fun _ => k false)))
                        (* The [i] here means that we don't yield at a spawn *)
                        (Fin.L_R 1 i) (* view [i] as a [fin (n + 1)] *)
                        s) (* this [s] doesn't matter, since the running thread won't use it *)
@@ -237,5 +289,30 @@ Section parallel.
   Defined.
 
   CoFixpoint schedule' := schedule'_match schedule'.
+
+  Lemma rewrite_schedule' n v i s : schedule' n v i s ≅ schedule'_match schedule' n v i s.
+  Proof.
+    step. eauto.
+  Qed.
+
+  #[global] Instance equ_schedule' n :
+    Proper ((vec_relation (equ eq)) ==> vec_relation (equ eq)) (schedule' n).
+  Proof.
+    repeat intro. revert H. revert x y i c. revert n.
+    coinduction r CIH. intros n v1 v2 i c Hv.
+    do 2 rewrite rewrite_schedule'. unfold schedule'_match. cbn.
+    pose proof (Hv i c). step in H. inv H; eauto. 2: destruct e.
+    - clear H1 H2. destruct y. destruct n; cbn in *; auto.
+      destruct n; cbn; auto. constructor. intros. apply CIH.
+      apply remove_vec_vec_relation; auto.
+    - clear H1 H2. destruct y. cbn.
+      constructor. intros. eapply CIH.
+      apply replace_vec_vec_relation; auto.
+    - destruct s. constructor. intros. eapply CIH.
+      apply cons_vec_vec_relation; auto.
+      apply replace_vec_vec_relation; auto.
+    - cbn. constructor. intros. apply CIH.
+      apply replace_vec_vec_relation; auto.
+  Qed.
 
 End parallel.
