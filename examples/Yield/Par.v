@@ -315,4 +315,25 @@ Section parallel.
       apply replace_vec_vec_relation; auto.
   Qed.
 
+  #[global] Instance equ_schedule' n :
+    Proper ((vec_relation sbisim) ==> vec_relation sbisim) (schedule' n).
+  Proof.
+    repeat intro. revert H. revert x y i c. revert n.
+    coinduction r CIH. intros n v1 v2 i c Hv.
+    do 2 rewrite rewrite_schedule'. unfold schedule'_match. cbn.
+  (*   pose proof (Hv i c). step in H. inv H; eauto. 2: destruct e. *)
+  (*   - clear H1 H2. destruct y. destruct n; cbn in *; auto. *)
+  (*     destruct n; cbn; auto. constructor. intros. apply CIH. *)
+  (*     apply remove_vec_vec_relation; auto. *)
+  (*   - clear H1 H2. destruct y. cbn. *)
+  (*     constructor. intros. eapply CIH. *)
+  (*     apply replace_vec_vec_relation; auto. *)
+  (*   - destruct s. constructor. intros. eapply CIH. *)
+  (*     apply cons_vec_vec_relation; auto. *)
+  (*     apply replace_vec_vec_relation; auto. *)
+  (*   - cbn. constructor. intros. apply CIH. *)
+  (*     apply replace_vec_vec_relation; auto. *)
+  (* Qed. *)
+  Abort.
+
 End parallel.

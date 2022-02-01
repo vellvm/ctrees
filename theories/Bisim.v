@@ -162,11 +162,14 @@ i.e. validity of up-to symmetry
 (*|
 Thus bisimilarity and [t R] are always equivalence relations.
 |*)
-    Global Instance Equivalence_st R: Equivalence (st R).
+    #[global] Instance Equivalence_st R: Equivalence (st R).
     Proof. apply Equivalence_t. apply refl_st. apply square_st. apply converse_st. Qed.
 
     Corollary Equivalence_bisim: Equivalence sbisim.
     Proof. apply Equivalence_st. Qed.
+
+	#[global] Instance Equivalence_sbt R: Equivalence (sbt R).
+	Proof. apply rel.Equivalence_bt. apply refl_st. apply square_st. apply converse_st. Qed.
 
 (*|
 [sbism] is closed under [equ]
@@ -209,6 +212,14 @@ This proof should be shorter if actually using some braincells I think.
           eapply CIH; try reflexivity; auto.
     Qed.
 
+    #[global] Instance equ_sbt_closed {r} :
+      Proper (gfp (fequ eq) ==> equ eq ==> flip impl)
+             (sbt r).
+    Proof.
+      repeat intro. pose proof (gfp_bt sb r).
+      etransitivity; [| etransitivity]; [ | apply H1 | ]; apply H2.
+      rewrite H; auto. rewrite H0; auto.
+    Qed.
 (*|
 Hence [equ eq] is a included in [sbisim]
 |*)
