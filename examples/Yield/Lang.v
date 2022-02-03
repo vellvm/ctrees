@@ -125,7 +125,7 @@ Section Denote1.
   Definition handler : forall X, (stateE value +' spawnE) X -> Monads.stateT value (ctree (parE value)) X :=
     (fun X (e : (stateE value +' spawnE) X) =>
        match e with
-       | inl1 e' => h_state _ e'
+       | inl1 e' => h_state_yield _ e'
        | inr1 e' =>
          match e' in spawnE R return Monads.stateT value (ctree (parE value)) R with
          | Par.Spawn => fun s => b <- trigger Par.Spawn;; Ret(s, b) (* TODO: use MonadTrigger *)
@@ -137,5 +137,7 @@ Section Denote1.
 
   Definition schedule_denot (t : stmt) : completed :=
     schedule (interp_state (denote_imp t)) [].
+
+
 
 End Denote1.
