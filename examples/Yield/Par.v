@@ -12,7 +12,19 @@ From CTree Require Import
 	   Equ
 	   Bisim
        Shallow
-       CTreesTheory.
+       CTreesTheory
+       Trans.
+
+From RelationAlgebra Require Import
+     monoid
+     kat
+     kat_tac
+     prop
+     rel
+     srel
+     comparisons
+     rewriting
+     normalisation.
 
 From ITree Require Import
      Sum.
@@ -163,6 +175,10 @@ Section parallel.
   Definition vec_relation {n : nat} (P : rel _ _) (v1 v2 : vec n) : Prop :=
     forall i c, P (v1 i c) (v2 i c).
 
+  Instance vec_relation_symmetric n (P : rel _ _) `{@Symmetric _ P} :
+    Symmetric (@vec_relation n P).
+  Proof. repeat intro. auto. Qed.
+
   Definition remove_front_vec {n : nat} (v : vec (S n)) : vec n :=
     fun i => v (Fin.FS i).
 
@@ -204,6 +220,14 @@ Section parallel.
     vec_relation P (replace_vec v1 i t1) (replace_vec v2 i t2).
   Proof.
     unfold replace_vec. repeat intro. destruct (Fin.eqb i i0); auto.
+  Qed.
+
+  Lemma replace_vec_eq n (v : vec n) i t :
+    (replace_vec v i t) i = t.
+  Proof.
+    unfold replace_vec.
+    assert (i = i) by reflexivity. apply Fin.eqb_eq in H. rewrite H.
+    reflexivity.
   Qed.
 
   Program Definition cons_vec {n : nat} (t : thread) (v : vec n) : vec (S n) :=
@@ -251,23 +275,23 @@ Section parallel.
           (v: vec n)
     : vec n.
     refine
-      (fun (i : fin n) s =>
-         match (observe (v i s)) with
-         | RetF (s', _) =>
+      (fun (i : fin n) c =>
+         match (observe (v i c)) with
+         | RetF (c', _) =>
            match n as m return n = m -> _ with
            | 0 => _
            | S n' => match n' as m return n' = m -> _ with
-                   | 0 => fun H1 H2 => Ret (s', tt)
-                   | S n'' => fun H1 H2 => ChoiceI
+                   | 0 => fun H1 H2 => Ret (c', tt)
+                   | S n'' => fun H1 H2 => ChoiceV
                                        n'
-                                       (fun i' => schedule' n' (remove_vec _ _) i' s')
+                                       (fun i' => schedule' n' (remove_vec _ _) i' c')
                    end (eq_refl n')
            end (eq_refl n)
-         | ChoiceF b n' k => Choice b n' (fun c => schedule' n (replace_vec v i (fun _ => k c)) i s)
+         | ChoiceF b n' k => Choice b n' (fun i' => schedule' n (replace_vec v i (fun _ => k i')) i c)
          | VisF (inl1 e) k =>
            match e in yieldE _ R return (R -> ctree (parE config) (config * unit)) -> _ with
            | Yield _ s' =>
-             fun k => ChoiceI
+             fun k => ChoiceV
                      n
                      (fun i' => schedule' n (replace_vec v i k) i' s')
            end k
@@ -275,12 +299,12 @@ Section parallel.
            match e in spawnE R return (R -> ctree (parE config) (config * unit)) -> _ with
            | Spawn =>
              fun k =>
-               TauI (schedule'
+               TauV (schedule'
                        (S n)
                        (cons_vec (fun _ => k true) (replace_vec v i (fun _ => k false)))
                        (* The [i] here means that we don't yield at a spawn *)
                        (Fin.L_R 1 i) (* view [i] as a [fin (n + 1)] *)
-                       s) (* this [s] doesn't matter, since the running thread won't use it *)
+                       c) (* this [c] doesn't matter, since the running thread won't use it *)
            end k
          end).
     - intro. subst. inv i.
@@ -290,7 +314,7 @@ Section parallel.
 
   CoFixpoint schedule' := schedule'_match schedule'.
 
-  Lemma rewrite_schedule' n v i s : schedule' n v i s ≅ schedule'_match schedule' n v i s.
+  Lemma rewrite_schedule' n v i c : schedule' n v i c ≅ schedule'_match schedule' n v i c.
   Proof.
     step. eauto.
   Qed.
@@ -318,10 +342,108 @@ Section parallel.
   #[global] Instance equ_schedule' n :
     Proper ((vec_relation sbisim) ==> vec_relation sbisim) (schedule' n).
   Proof.
-    repeat intro. revert H. revert x y i c. revert n.
-    coinduction r CIH. intros n v1 v2 i c Hv.
-    do 2 rewrite rewrite_schedule'. unfold schedule'_match. cbn.
-  (*   pose proof (Hv i c). step in H. inv H; eauto. 2: destruct e. *)
+    repeat intro. revert H. revert n x y i c.
+    coinduction r CIH.
+    symmetric using intuition.
+    intros n v1 v2 i c Hv. (* Unset Printing Notations. *)
+    pose proof (Hv i c) as H.
+    destruct (observe (v1 i c)) eqn:Hv1; [| | destruct vis];
+      (destruct (observe (v2 i c)) eqn:Hv2; [| | destruct vis]);
+      rewrite ctree_eta, (ctree_eta (v2 i c)) in H; rewrite Hv1, Hv2 in H.
+    (* Ret *)
+    - pose proof (sbisim_ret_ret_inv _ _ H). subst.
+      do 2 rewrite rewrite_schedule'. unfold schedule'_match.
+      rewrite Hv1, Hv2. destruct r1. destruct n. inv i.
+      destruct n; repeat intro.
+      + apply trans_ret_inv in H0. destruct H0; subst.
+        eexists; eauto. rewrite H1. constructor.
+      + apply trans_ChoiceV_inv in H0. destruct H0 as [? [? ?]]. subst.
+        eexists. econstructor; eauto.
+        rewrite H0. apply CIH. apply remove_vec_vec_relation; eauto.
+    - contradiction (sbisim_ret_vis_inv _ _ _ H).
+    - contradiction (sbisim_ret_ChoiceV_inv _ _ _ H).
+    - (* ChoiceI *)
+      step in H. destruct H as [H H'].
+      cbn in H. specialize (H _ _ (trans_ret _)).
+      destruct H.
+      do 2 rewrite rewrite_schedule'. unfold schedule'_match.
+      rewrite Hv1, Hv2. destruct r0, u. destruct n. inv i.
+      (* repeat intro. *)
+      (* eexists. *)
+      (* 2: { apply CIH. *)
+
+
+      remember (ChoiceI _ _); remember (val _). revert n0 k H' Hv1 Hv2 Heqc1 Heql.
+      induction H.
+      + auto.
+      + intros. inv Heql.
+      + intros. inv Heql.
+      + intros. inv Heql.
+        apply inj_pair2 in H1. subst.
+
+      (* do 2 rewrite rewrite_schedule'. unfold schedule'_match. *)
+      (* rewrite Hv1, Hv2. destruct r0, u. destruct n. inv i. *)
+      (* destruct n. *)
+      (* + repeat intro. apply trans_ret_inv in H. destruct H. subst. *)
+      (*   assert (exists i', k i' ~ Ret (c0, ())) by admit. destruct H0. *)
+      (*   eexists. *)
+      (*   2: { rewrite H1. reflexivity. } *)
+      (*   apply (Stepchoice x). *)
+
+      (*   (* eapply (trans_ChoiceI _ _); eauto. *) *)
+      (*   rewrite rewrite_schedule'. unfold schedule'_match. *)
+      (*   rewrite replace_vec_eq. *)
+        admit.
+      (* + repeat intro. *)
+      (*   apply trans_ChoiceV_inv in H0. destruct H0 as [? [? ?]]. subst. *)
+      (*   eexists. *)
+      (*   2: { rewrite H0. apply CIH. apply remove_vec_vec_relation; eauto. } *)
+      (*   econstructor; eauto. *)
+    (* Vis *)
+    - symmetry in H. contradiction (sbisim_ret_vis_inv _ _ _ H).
+    - assert (x : X).
+      { destruct e. destruct y; auto. destruct s; auto. apply false. }
+      pose proof (sbisim_vis_vis_inv_type _ _ _ _ x H). subst.
+      pose proof (sbisim_vis_vis_inv _ _ _ _ x H). destruct H0 as [? Hk]; subst.
+      clear x. rename e0 into e.
+      do 2 rewrite rewrite_schedule'. unfold schedule'_match.
+      rewrite Hv1, Hv2. destruct e; [destruct y | destruct s].
+      + intros l s Ht. apply trans_ChoiceV_inv in Ht.
+        destruct Ht as [i' [Hs ?]]; subst.
+        eexists. econstructor; eauto. rewrite Hs.
+        apply CIH; auto. apply replace_vec_vec_relation; auto.
+      + intros l s Ht. apply trans_TauV_inv in Ht.
+        destruct Ht as [Hs ?]; subst.
+        eexists. econstructor; eauto. apply Fin.F1. rewrite Hs.
+        apply CIH; auto.
+        apply cons_vec_vec_relation; auto.
+        apply replace_vec_vec_relation; auto.
+    - assert (x : X) by admit.
+      contradiction (sbisim_vis_ChoiceV_inv _ _ _ _ x H).
+    - admit.
+    (* ChoiceV *)
+    - symmetry in H.
+      contradiction (sbisim_ret_ChoiceV_inv _ _ _ H).
+    - assert (x : X) by admit. symmetry in H.
+      contradiction (sbisim_vis_ChoiceV_inv _ _ _ _ x H).
+    - pose proof (sbisim_ChoiceV_ChoiceV_inv _ _ _ _ H).
+      do 2 rewrite rewrite_schedule'. unfold schedule'_match.
+      rewrite Hv1, Hv2.
+      intros l s Ht. apply trans_ChoiceV_inv in Ht. destruct Ht as [i' [Hs ?]]; subst.
+      destruct (H0 i').
+      eexists. econstructor; eauto. rewrite Hs; auto. apply CIH.
+      apply replace_vec_vec_relation; auto. intro. eauto.
+    - (* ChoiceI *) admit.
+    (* ChoiceI *)
+    - admit.
+    - admit.
+    - admit.
+    - do 2 rewrite rewrite_schedule'. unfold schedule'_match.
+      rewrite Hv1, Hv2.
+      repeat intro.
+      remember (ChoiceI n0 _) in H0. revert Heqc0.
+      induction H0; auto.
+      + intros. subst.
   (*   - clear H1 H2. destruct y. destruct n; cbn in *; auto. *)
   (*     destruct n; cbn; auto. constructor. intros. apply CIH. *)
   (*     apply remove_vec_vec_relation; auto. *)

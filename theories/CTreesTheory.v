@@ -627,6 +627,74 @@ Proof.
   repeat red; intros; eapply wbisim_clo_bind; eauto.
 Qed.
 
+(** Inversion principles *)
+
+Lemma sbisim_ret_ret_inv {E R} (r1 r2 : R) :
+  (Ret r1 : ctree E R) ~ Ret r2 -> r1 = r2.
+Proof.
+  intro. step in H. destruct H as [Hf Hb]. cbn in *.
+  edestruct Hf; [apply trans_ret |]. inv_trans.
+Qed.
+
+Lemma sbisim_ret_vis_inv {E R X} (r : R) (e : E X) k :
+  Ret r ~ Vis e k -> False.
+Proof.
+  intro. step in H. destruct H as [Hf Hb]. cbn in *.
+  edestruct Hf as [x Ht Hs]; [apply trans_ret |]. inv Ht.
+Qed.
+
+Lemma sbisim_ret_ChoiceV_inv {E R} (r : R) n (k : fin n -> ctree E R) :
+  Ret r ~ ChoiceV n k -> False.
+Proof.
+  intro. step in H. destruct H as [Hf Hb]. cbn in *.
+  edestruct Hf as [x Ht Hs]; [apply trans_ret |]. inv_trans.
+Qed.
+
+(** For the next few lemmas, we need to know that [X] is inhabited in order to
+    take a step *)
+Lemma sbisim_vis_vis_inv_type {E R X1 X2}
+      (e1 : E X1) (e2 : E X2) (k1 : X1 -> ctree E R) (k2 : X2 -> ctree E R) (x : X1):
+  Vis e1 k1 ~ Vis e2 k2 ->
+  X1 = X2.
+Proof.
+  intros. step in H. destruct H as [Hf Hb]. cbn in *.
+  edestruct Hf as [t Ht Hs]; [apply (@trans_vis _ _ _ _ x _) |].
+  inv Ht. reflexivity.
+Qed.
+
+Lemma sbisim_vis_vis_inv {E R X} (e1 e2 : E X) (k1 k2 : X -> ctree E R) (x : X) :
+  Vis e1 k1 ~ Vis e2 k2 ->
+  e1 = e2 /\ forall x, k1 x ~ k2 x.
+Proof.
+  intros. step in H. destruct H as [Hf Hb]. cbn in *. split.
+  - edestruct Hb as [t Ht Hs]; [apply (@trans_vis _ _ _ _ x _) |].
+    inv Ht. apply inj_pair2 in H1, H2, H3, H4. subst. reflexivity.
+  - intros x'. edestruct Hb as [t Ht Hs]; [apply (@trans_vis _ _ _ _ x' _) |].
+    inv Ht. apply inj_pair2 in H1, H2, H3, H4. subst.
+    rewrite H0. rewrite ctree_eta. rewrite H5. rewrite <- ctree_eta. auto.
+Qed.
+
+Lemma sbisim_vis_ChoiceV_inv {E R X}
+      (e : E X) (k1 : X -> ctree E R) n (k2 : fin n -> ctree E R) (x : X) :
+  Vis e k1 ~ ChoiceV n k2 -> False.
+Proof.
+  intro. step in H. destruct H as [Hf Hb]. cbn in *.
+  edestruct Hf as [x' Ht Hs]; [apply (@trans_vis _ _ _ _ x _) |]. inv_trans.
+Qed.
+
+Lemma sbisim_ChoiceV_ChoiceV_inv {E R}
+      n1 n2 (k1 : fin n1 -> ctree E R) (k2 : fin n2 -> ctree E R) :
+  ChoiceV n1 k1 ~ ChoiceV n2 k2 ->
+  (forall i1, exists i2, k1 i1 ~ k2 i2).
+Proof.
+  intros H i1.
+  step in H. destruct H as [Hf Hb]. cbn in *.
+  edestruct Hf as [x' Ht Hs]; [apply (@trans_ChoiceV _ _ n1 _ i1) |].
+  apply trans_ChoiceV_inv in Ht. destruct Ht as [i2 [Heq _]].
+  exists i2. rewrite <- Heq. auto.
+Qed.
+
+
 (*|
 Sanity checks
 =============
