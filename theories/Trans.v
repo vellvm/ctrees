@@ -179,7 +179,7 @@ library.
 	Definition trans l : srel SS SS := {| hrel_of := transR l : hrel SS SS |}.
 
 (*|
-Extention of [trans] with its reflexive closure, labelled by [tau].
+Extension of [trans] with its reflexive closure, labelled by [tau].
 |*)
   Definition etrans (l : label) : srel SS SS :=
 	  match l with

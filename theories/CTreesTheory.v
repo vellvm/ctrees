@@ -878,6 +878,33 @@ Proof.
       inv_trans_one.
 Qed.
 
+
+Lemma map_map {E R S T}: forall (f : R -> S) (g : S -> T) (t : ctree E R),
+    map g (map f t) ≅ map (fun x => g (f x)) t.
+Proof.
+  unfold map. intros. rewrite bind_bind. setoid_rewrite bind_ret_l. reflexivity.
+Qed.
+
+Lemma bind_map {E R S T}: forall (f : R -> S) (k: S -> ctree E T) (t : ctree E R),
+    bind (map f t) k ≅ bind t (fun x => k (f x)).
+Proof.
+  unfold map. intros. rewrite bind_bind. setoid_rewrite bind_ret_l. reflexivity.
+Qed.
+
+Lemma map_bind {E X Y Z} (t: ctree E X) (k: X -> ctree E Y) (f: Y -> Z) :
+  (map f (bind t k)) ≅ bind t (fun x => map f (k x)).
+Proof.
+  intros. unfold map. apply bind_bind.
+Qed.
+
+Lemma map_ret {E A B} (f : A -> B) (a : A) :
+    @map E _ _ f (Ret a) ≅ Ret (f a).
+Proof.
+  intros. unfold map.
+  rewrite bind_ret_l; reflexivity.
+Qed.
+
+
 (*
 Lemma choiceI2_commut {E X} : forall (t u : ctree E X),
 	  choiceI2 t u ~ choiceI2 u t.

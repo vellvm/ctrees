@@ -236,8 +236,8 @@ Definition trigger {E : Type -> Type} : E ~> ctree E :=
 Atomic itrees with choice over a finite arity.
 |*)
 
-Definition choice {E : Type -> Type} : forall n, ctree E (fin n) :=
-  fun n => ChoiceV n (fun x => Ret x).
+Definition choice {E : Type -> Type} : forall b n, ctree E (fin n) :=
+  fun b n => Choice b n (fun x => Ret x).
 
 (*|
 Silent failure: contrary to an event-based failure, this
@@ -284,7 +284,7 @@ Ltac fold_monad :=
   repeat (change (@CTree.map ?E) with (@Functor.fmap (ctree E) _)).
 
 End CTree.
-Arguments CTree.choice {E} n.
+Arguments CTree.choice {E} b n.
 
 (*|
 =========

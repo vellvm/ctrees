@@ -9,7 +9,7 @@ From ITree Require Export Basics.Basics.
 (*   trigger : forall {E: Type -> Type}, E ~> M E. *)
 
 Polymorphic Class MonadChoice (M : Type -> Type) : Type :=
-  choice : forall (n: nat), M (Fin.t n).
+  choice : forall (b : bool) (n: nat), M (Fin.t n).
 
 Notation rel X Y := (X -> Y -> Prop).
 
