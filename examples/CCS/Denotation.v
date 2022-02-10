@@ -58,7 +58,7 @@ unary visible choice nodes.
 Variant ActionE : Type -> Type :=
 	| Act (a : action) : ActionE unit.
 
-Definition ccsE : Type -> Type := ActionE.
+Notation ccsE := ActionE.
 
 Definition ccsT' T := ctree' ccsE T.
 Definition ccsT := ctree ccsE.
@@ -121,7 +121,7 @@ Section Combinators.
          | _, _ => stuckI
          end).
 
-  (*|
+(*|
 We would like to define [bang] directly as in the following.
 Unfortunately, it is not syntactically guarded and convincing Coq
 seems challenging.
@@ -132,8 +132,8 @@ The usual [bang p] is then defined as [parabang p p].
   Fail Definition bang : ccs -> ccs :=
     cofix bang (p : ccs ) : ccs := para (bang p) p.
 
-  Definition parabang : ccs ->ccs -> ccs :=
-    cofix pB (p : ccs ) (q:ccs) : ccs :=
+  Definition parabang : ccs -> ccs -> ccs :=
+    cofix pB (p : ccs) (q:ccs) : ccs :=
 
       choiceI4
 
@@ -300,15 +300,179 @@ Definition can_comm (c : chan) (a : @label ccsE) : bool :=
   | _ => true
   end.
 
-Lemma trans_new_inv : forall l c p p',
-    trans l (new c p) p' ->
-    exists q, can_comm c l = true /\ trans l p q /\ p' ≅ new c q.
+Lemma trans_trigger_inv' : forall {E X} (e : E X) l u,
+		trans l (trigger e) u ->
+    exists x, u ≅ Ret x /\ l = obs e x.
+Proof.
+  intros * TR.
+  unfold trigger in TR.
+  now apply trans_vis_inv in TR.
+Qed.
+
+Lemma trans_hnew_inv : forall a l c p,
+    trans l (h_new c (Act a)) p ->
+    l = obs (Act a) tt /\ can_comm c l /\ p ≅ Ret tt.
 Proof.
   intros * tr.
-  unfold new in tr.
-  (* TODO, theory for interp *)
+  cbn in *; destruct a; cbn in *; destruct (c =? c0) eqn:comm; cbn in *.
+  all: try (exfalso; eapply stuckI_is_stuck, tr).
+  all: unfold can_comm; apply trans_trigger_inv' in tr as ([] & ? & ?); subst; rewrite comm; eauto.
+Qed.
+
+Lemma trans_vis' {E R X} : forall (e : E X) x (k : X -> ctree E R) u,
+    u ≅ k x ->
+		trans (obs e x) (Vis e k) u.
+Proof.
+	intros * eq; rewrite eq; apply trans_vis.
+Qed.
+
+Lemma new_tau : forall c t, new c (TauI t) ≅ TauI (TauI (new c t)).
+Proof.
+  intros; unfold new; now rewrite interp_tau.
+Qed.
+
+Ltac eq2bisim H :=
+  match type of H with
+  | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ~ t) by (subst; reflexivity); clear H
+  end.
+
+#[global] Instance interp_equ {E F R} (h : E ~> ctree F) :
+  Proper (equ eq ==> equ eq) (interp h (T := R)).
+Proof.
+  unfold Proper, respectful.
+  coinduction ? CIH.
+  intros t u eq.
+  step in eq; inv eq; auto.
+  - rewrite 2 unfold_interp, <-H0, <-H; auto.
+  - rewrite 2 unfold_interp.
+    (* Can we make the up-to bind here nicer to use? *)
+    rewrite <- H0, <-H.
+    simpl Monad.bind.
+    eapply (fbt_bt (bind_ctx_equ_t eq _)).
+    apply in_bind_ctx.
+    reflexivity.
+    intros ? ? <-.
+    constructor; intros ?.
+    auto.
+  - rewrite 2 unfold_interp, <-H0, <-H. cbn.
+    constructor; intros ?.
+    eapply (bt_t (fequ eq)).
+    cbn; constructor; intros ?.
+    auto.
+Qed.
+
+Lemma trans_new : forall l c p p',
+    trans l p p' ->
+    can_comm c l = true ->
+    exists q, trans l (new c p) q /\ q ~ new c p'.
+Proof.
+  intros * tr comm.
+  do 3 red in tr.
+  genobs p obsp; genobs p' op'.
+  revert p p' Heqobsp Heqop'.
+  induction tr; intros.
+  - edestruct IHtr as (q & tr' & eq); eauto.
+    exists q; split; auto.
+    unfold new; rewrite unfold_interp, <- Heqobsp.
+    cbn; unfold Utils.choice, MonadChoice_ctree, choice.
+    eapply trans_bind_r with x.
+    eapply trans_ChoiceI; [|reflexivity].
+    apply trans_ret.
+    apply trans_TauI.
+    apply tr'.
+  - eexists; split.
+    unfold new; rewrite unfold_interp, <- Heqobsp.
+    cbn; unfold Utils.choice, MonadChoice_ctree, choice.
+    eapply trans_bind_l.
+    intros abs; inv abs.
+    apply trans_ChoiceV with (x0 := x).
+    rewrite bind_ret_l, TauI_sb.
+    rewrite H.
+    unfold new; rewrite 2 unfold_interp, Heqop'.
+    reflexivity.
+  - destruct e, a.
+    all: cbn in *; destruct (c =? c0) eqn:comm'; inv comm.
+    + eexists; split.
+      unfold new; rewrite unfold_interp, <- Heqobsp.
+      cbn; unfold Utils.choice, MonadChoice_ctree, choice.
+      eapply trans_bind_l.
+      intros abs; inv abs.
+      rewrite comm'.
+      unfold trigger.
+      eapply trans_vis'.
+      reflexivity.
+      rewrite bind_ret_l, TauI_sb, H.
+      unfold new; rewrite 2 unfold_interp, Heqop'.
+      reflexivity.
+    + eexists; split.
+      unfold new; rewrite unfold_interp, <- Heqobsp.
+      cbn; unfold Utils.choice, MonadChoice_ctree, choice.
+      eapply trans_bind_l.
+      intros abs; inv abs.
+      rewrite comm'.
+      unfold trigger.
+      eapply trans_vis'.
+      reflexivity.
+      rewrite bind_ret_l, TauI_sb, H.
+      unfold new; rewrite 2 unfold_interp, Heqop'.
+      reflexivity.
+  - tauto.
+Qed.
+
+(* Proof to fix *)
+Lemma trans_new_inv : forall l c p p',
+    trans l (new c p) p' ->
+    exists q, can_comm c l = true /\ trans l p q /\ p' ~ new c q.
+Proof.
+  intros * tr.
+  remember (new c p) as q.
+  eq2bisim Heqq.
+  rewrite ctree_eta in EQ.
+  setoid_rewrite (ctree_eta p').
+  revert p EQ.
+  induction tr; intros.
+  -
+
+  (* unfold new,ccsE in tr. *)
+  (* rewrite unfold_interp in tr; cbn in tr. *)
+  (* match type of tr with *)
+  (* | context [@observe ?E ?R ?y] => destruct (@observe E R y) eqn:EQ *)
+  (* end. *)
+  (* - tauto. *)
+  (* - apply trans_bind_inv in tr as [(nv & ? & tr & EQ') | (nv & tr & EQ')]. *)
+  (*   2: destruct e; apply trans_hnew_inv in tr as (? & ?& abs); step in abs; inv abs. *)
+  (*   destruct e; apply trans_hnew_inv in tr as (? & ? & ?). *)
+  (*   rewrite H1, bind_ret_l in EQ'. *)
+  (*   exists (k tt); repeat split; eauto. *)
+  (*   cbn; unfold transR; unfold ccsE; rewrite EQ. *)
+  (*   subst; eapply trans_vis. *)
+  (*   now rewrite EQ', TauI_sb. *)
+  (* - apply trans_bind_inv in tr as [(nv & ? & tr & EQ') | (nv & tr & EQ')]. *)
+  (*   + unfold Utils.choice, MonadChoice_ctree, choice in tr. *)
+  (*     destruct vis. *)
+  (*     2:{ *)
+  (*       apply trans_ChoiceI_inv in tr as (? & tr). *)
+  (*       apply trans_ret_inv in tr as [-> ?]; exfalso; eapply nv; constructor. *)
+  (*     } *)
+  (*     apply trans_ChoiceV_inv in tr as (? & EQ'' & ->). *)
+  (*     rewrite EQ'' in EQ'. *)
+  (*     eexists; repeat split; eauto. *)
+  (*     rewrite ctree_eta. *)
+  (*     unfold ccsE; rewrite EQ. *)
+  (*     apply trans_ChoiceV with (x1 := x0). *)
+  (*     rewrite EQ', bind_ret_l, TauI_sb. *)
+  (*     reflexivity. *)
+  (*   + unfold Utils.choice, MonadChoice_ctree, choice in tr. *)
+  (*     destruct vis. *)
+  (*     * apply trans_ChoiceV_inv in tr as (? & ? & abs); inv abs. *)
+  (*     * apply trans_ChoiceI_inv in tr as (? & tr). *)
+  (*       apply trans_ret_inv in tr as (eq & _). *)
+  (*       apply val_eq_inv in eq; subst. *)
+  (*       apply trans_TauI_inv in EQ'. *)
+  (*       eexists; repeat split. *)
 Admitted.
 
+(* Does not hold, replaced by the previous one up-to sb: need to fix subsequent proofs *)
 Lemma trans_new : forall l c p p',
     trans l p p' ->
     can_comm c l = true ->
@@ -862,13 +1026,6 @@ Proof.
     rewrite EQp, H,H0; reflexivity.
 Qed.
 
-Lemma trans_vis' {E R X} : forall (e : E X) x (k : X -> ctree E R) u,
-    u ≅ k x ->
-		trans (obs e x) (Vis e k) u.
-Proof.
-	intros * eq; rewrite eq; apply trans_vis.
-Qed.
-
 Lemma trans_parabangL : forall p l p' q,
     trans l p p' ->
     trans l (parabang p q) (parabang p' q).
@@ -1318,4 +1475,3 @@ Module DenNotations.
 End DenNotations.
 
 Import DenNotations.
-
