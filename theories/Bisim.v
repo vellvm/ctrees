@@ -171,6 +171,15 @@ Thus bisimilarity and [t R] are always equivalence relations.
 	#[global] Instance Equivalence_sbt R: Equivalence (sbt R).
 	Proof. apply rel.Equivalence_bt. apply refl_st. apply square_st. apply converse_st. Qed.
 
+    #[global] Instance equ_ss_closed {r} : Proper (equ eq ==> equ eq ==> iff) (ss r).
+    Proof.
+      intros t t' tt' u u' uu'; split; cbn; intros.
+      - rewrite <- tt' in H0. apply H in H0 as [? ? ?].
+        eexists; eauto. rewrite <- uu'. eauto.
+      - rewrite tt' in H0. apply H in H0 as [? ? ?].
+        eexists; eauto. rewrite uu'. eauto.
+    Qed.
+
 (*|
 [sbism] is closed under [equ]
 This proof should be shorter if actually using some braincells I think.
@@ -182,16 +191,15 @@ This proof should be shorter if actually using some braincells I think.
         coinduction ? CIH.
         intros * eqt equ eqtu.
         step in eqtu.
-        destruct eqtu as [ftu btu].
         split.
         + cbn; intros.
           rewrite <- eqt in H.
-          apply ftu in H as [?u' T eq].
+          apply eqtu in H as [?u' T eq].
           eexists. rewrite <- equ. apply T.
-          eapply CIH; try reflexivity; auto.
+          eapply CIH; try reflexivity. auto.
         + cbn; intros.
           rewrite <- equ in H.
-          apply btu in H as [?t' T eq].
+          apply eqtu in H as [?t' T eq].
           eexists. rewrite <- eqt. apply T.
           eapply CIH; try reflexivity; auto.
       - revert t t' u u' tt' uu'.

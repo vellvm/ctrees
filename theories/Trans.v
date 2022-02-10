@@ -6,18 +6,18 @@ Transition relations over concurrent trees
 Trees represent the dynamics of non-deterministic procesess.
 In order to capture their behavioral equivalence, we follow the
 process-algebra tradition and define bisimulation atop of labelled
-transition system.
+transition systems.
 
 A node is said to be _observable_ if it is a visible event, a return
 node, or an internal choice tagged as visible.
 The first transition relation we introduce is [trans]: a tree can
 finitely descend through unobservable choices until it reaches an
 observable node. At this point, it steps following the simple rules:
-- [Ret v] steps to a silently blocked state by emmiting a value
+- [Ret v] steps to a silently blocked state by emitting a value
 label of [v]
-- [Vis e k] can step to any [k x] by emmiting an event label tagged
+- [Vis e k] can step to any [k x] by emitting an event label tagged
 with both [e] and [x]
-- [ChoiceV k] can step to any [k x] by emmiting a tau label
+- [ChoiceV k] can step to any [k x] by emitting a tau label
 
 This transition system will define a notion of strong bisimulation
 in the process algebra tradition.
@@ -390,14 +390,14 @@ Forward reasoning for [trans]
 	Proof.
 		intros * TR.
 		cbn in *.
-    unfold transR in *.
+        unfold transR in *.
 		cbn in TR |- *.
 		match goal with
 		| h: trans_ _ ?x ?y |- _ =>
 			  remember x as ox; remember y as oy
 		end.
 		revert n k u Heqox Heqoy.
-		induction TR; intros; dependent induction Heqox; eauto.
+		induction TR; intros; inv Heqox; eauto.
 	Qed.
 
 	Lemma trans_TauI_inv : forall l t t',
@@ -414,8 +414,8 @@ Forward reasoning for [trans]
 		intros * TR.
 		cbn in *; red in TR; cbn in TR.
 		dependent induction TR.
-    eexists; split; auto.
-		rewrite H, ctree_eta, (ctree_eta t), x; reflexivity.
+        eexists; split; auto.
+	    rewrite H, ctree_eta, (ctree_eta t), x; reflexivity.
 	Qed.
 
 	Lemma trans_TauV_inv : forall l t t',
@@ -1060,4 +1060,3 @@ Proof.
   - apply trans_vis_inv in TR.
     destruct TR as (? & ? & abs); inv abs.
 Qed.
-
