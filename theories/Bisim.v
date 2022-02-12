@@ -168,8 +168,11 @@ Thus bisimilarity and [t R] are always equivalence relations.
     Corollary Equivalence_bisim: Equivalence sbisim.
     Proof. apply Equivalence_st. Qed.
 
-	#[global] Instance Equivalence_sbt R: Equivalence (sbt R).
-	Proof. apply rel.Equivalence_bt. apply refl_st. apply square_st. apply converse_st. Qed.
+	  #[global] Instance Equivalence_sbt R: Equivalence (sbt R).
+	  Proof. apply rel.Equivalence_bt. apply refl_st. apply square_st. apply converse_st. Qed.
+
+    #[global] Instance Equivalence_sT f R: Equivalence ((T sb) f R).
+    Proof. apply rel.Equivalence_T. apply refl_st. apply square_st. apply converse_st. Qed.
 
     #[global] Instance equ_ss_closed {r} : Proper (equ eq ==> equ eq ==> iff) (ss r).
     Proof.
@@ -228,6 +231,7 @@ This proof should be shorter if actually using some braincells I think.
       etransitivity; [| etransitivity]; [ | apply H1 | ]; apply H2.
       rewrite H; auto. rewrite H0; auto.
     Qed.
+
 (*|
 Hence [equ eq] is a included in [sbisim]
 |*)

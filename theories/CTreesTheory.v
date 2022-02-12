@@ -463,7 +463,6 @@ and with the argument (pointwise) on the continuation.
       apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
     Qed.
 
-
 (*|
 Sufficient condition to exploit symmetry
 |*)
@@ -972,63 +971,3 @@ Proof.
   rewrite bind_ret_l; reflexivity.
 Qed.
 
-
-(*
-Lemma choiceI2_commut {E X} : forall (t u : ctree E X),
-	  choiceI2 t u ~ choiceI2 u t.
-Proof.
-(*|
-Note: could use a symmetry argument here as follows to only play one direction of the game.
-[coinduction ? _; symmetric.]
-but automation just handles it...
-|*)
-  intros.
-  steps; inv_trans; reach.
-Qed.
-
-Lemma choiceI_merge {E X} : forall (t u v : ctree E X),
-	  choiceI2 (choiceI2 t u) v ~ choiceI3 t u v.
-Proof.
-  intros.
-  steps; inv_trans; reach.
-Qed.
-
-
-
-Lemma choice2_spin : forall {E X} (t : ctree E X),
-	  choiceV2 t spin ≈ t.
-Proof.
-  intros. unfold bisim. step. constructor.
-  - intros. exists u'. split.
-    2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-    inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn; auto.
-    exfalso. eapply schedule_spin; eauto.
-  - intros. exists t'. split.
-    2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-    apply SchedChoice with (x:=Fin.F1); auto.
-Qed.
-
-  Lemma choice2_equ : forall {E X} (t u : ctree E X),
-	  t ≅ u ->
-	  choiceV2 t u ≈ t.
-  Proof.
-    intros. unfold bisim. step. constructor.
-    - intros. exists u'. split.
-      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      inv H0. apply inj_pair2 in H4. subst. remember 2. destruct x; inv Heqn; auto.
-      (* We should be able to use something like equ_schedule for
-         this, but we need a version with schedule_ *)
-      admit.
-    - intros. exists t'. split.
-      2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
-      apply SchedChoice with (x:=Fin.F1); auto.
-  Abort.
-
-  Lemma choice0_spin : forall {E X},
-    ChoiceV 0 (fun x:fin 0 => match x with end) ≈ @spin E X.
-  Proof.
-    intros; unfold bisim; step; constructor; intros * SCHED.
-    inv SCHED; inv x.
-    exfalso; eapply schedule_spin; eauto.
-  Qed.
- *)

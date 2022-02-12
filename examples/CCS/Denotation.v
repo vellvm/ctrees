@@ -531,6 +531,13 @@ Proof.
   apply (fT_T equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption.
 Qed.
 
+(* #[global] Instance sb_clos_sT_proper {E R} RR f : Proper (gfp sb ==> gfp sb ==> iff) (T (sb : mon (rel (ctree E R) (ctree E R))) f RR). *)
+(* Proof. *)
+(*   intros ? ? eq1 ? ? eq2; split; intros H. *)
+(*   apply (fT_T equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption. *)
+(*   apply (fT_T equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption. *)
+(* Qed. *)
+
 (** ** name restriction *)
 Lemma ctx_new_st a: unary_ctx (new a) <= st.
 Proof.
@@ -538,22 +545,16 @@ Proof.
   intro R. apply (leq_unary_ctx (new a)). intros p q Hpq l p0 Hp0.
   apply trans_new_inv in Hp0 as (? & comm & tr & EQ).
   destruct (proj1 Hpq _ _ tr) as [???].
-  eexists.
-  apply trans_new; eauto.
+  eapply trans_new in H as (q' & tr' & eq'); eauto.
+  exists q'; eauto.
   rewrite EQ.
-  now apply unary_proper_Tctx, (id_T sb).
+  rewrite eq'.
+  rewrite TauI_sb.
+  apply unary_proper_Tctx, (id_T sb).
+  auto.
 Qed.
 
-(** ** name restriction *)
-Lemma ctx_new_tequ a: unary_ctx (new a) <= t_equ eq.
-Proof.
-  apply Coinduction.
-  intro R. apply (leq_unary_ctx (new a)). intros p q Hpq.
-Admitted.
-
 #[global] Instance new_st a: forall R, Proper (st R ==> st R) (new a) := unary_proper_t (@ctx_new_st a).
-
-#[global] Instance new_tequ a: forall R, Proper (t_equ eq R ==> t_equ eq R) (new a) := unary_proper_t (@ctx_new_tequ a).
 
 Lemma trans_plus_inv : forall l p q r,
     trans l (p + q) r ->
