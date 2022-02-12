@@ -118,8 +118,8 @@ Section Denote1.
 
   #[global] Instance MonadChoice_stateT {M S} {MM : Monad M} {AM : Utils.MonadChoice M}
     : Utils.MonadChoice (Monads.stateT S M) :=
-    fun n s =>
-      f <- choice n;;
+    fun b n s =>
+      f <- choice b n;;
       ret (s, f).
 
   Definition handler : forall X, (stateE value +' spawnE) X -> Monads.stateT value (ctree (parE value)) X :=
@@ -137,7 +137,5 @@ Section Denote1.
 
   Definition schedule_denot (t : stmt) : completed :=
     schedule (interp_state (denote_imp t)) [].
-
-
 
 End Denote1.
