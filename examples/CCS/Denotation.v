@@ -361,6 +361,12 @@ Proof.
     auto.
 Qed.
 
+#[global] Instance new_equ c :
+  Proper (equ eq ==> equ eq) (new c).
+Proof.
+  apply interp_equ.
+Qed.
+
 Lemma trans_new : forall l c p p',
     trans l p p' ->
     can_comm c l = true ->
@@ -420,67 +426,103 @@ Proof.
 Qed.
 
 (* Proof to fix *)
+Lemma trans_new_inv_aux : forall l T U,
+    trans_ l T U ->
+    forall c p q,
+      (go T ≅ new c p \/ go T ≅ TauI (new c p)) ->
+      go U ≅ q ->
+      exists q', can_comm c l = true /\ trans l p q' /\ q ≅ TauI (new c q').
+Proof.
+  intros * tr c.
+  induction tr; intros * EQ1 EQ2.
+  - destruct EQ1 as [EQ1 | EQ1].
+    + unfold new in EQ1; rewrite unfold_interp in EQ1.
+      unfold trans, transR.
+      cbn.
+      desobs p; try now step in EQ1; inv EQ1.
+      * destruct e,a; cbn in *.
+        ** destruct (c =? c0); cbn in *.
+           *** step in EQ1; dependent induction EQ1; inv x0.
+           *** step in EQ1; inv EQ1.
+        ** destruct (c =? c0); cbn in *.
+           *** step in EQ1; dependent induction EQ1; inv x0.
+           *** step in EQ1; inv EQ1.
+      * cbn in EQ1.
+        destruct vis; try now step in EQ1; inv EQ1.
+        unfold Utils.choice, MonadChoice_ctree, choice in EQ1.
+        cbn in * |-.
+        rewrite unfold_bind in EQ1; cbn in EQ1.
+        epose proof equ_choice_invT _ _ EQ1 as [<- _].
+        epose proof equ_choice_invE _ _ EQ1 x as eqx.
+        cbn in * |-; rewrite bind_ret_l in eqx.
+        setoid_rewrite <- ctree_eta in IHtr.
+        setoid_rewrite eqx in IHtr.
+        edestruct (IHtr (k0 x)) as (q' & comm & tr' & EQ); [right; reflexivity | reflexivity |].
+        exists q'; repeat split; auto.
+        eapply trans_ChoiceI with (x0 := x).
+        eauto.
+        reflexivity.
+        rewrite <- EQ, EQ2; auto.
+    + epose proof equ_choice_invT _ _ EQ1 as [? _]; subst.
+      epose proof equ_choice_invE _ _ EQ1 x as eqx.
+      clear EQ1.
+      edestruct IHtr as (q' & comm & tr' & EQ); [| eassumption |].
+      left; rewrite eqx, <- ctree_eta; reflexivity.
+      exists q'; repeat split; auto.
+  - destruct EQ1 as [EQ1 | EQ1]; [ | step in EQ1; inv EQ1].
+    unfold new in EQ1; rewrite unfold_interp in EQ1.
+    unfold trans,transR; cbn.
+    desobs p; try now step in EQ1; inv EQ1.
+    + cbn in *.
+      destruct e,a; cbn in *; destruct (c =? c0) eqn:EQ; now step in EQ1; inv EQ1.
+    + cbn in *.
+      unfold Utils.choice, MonadChoice_ctree, choice in EQ1.
+      destruct vis; try now step in EQ1; inv EQ1.
+      rewrite unfold_bind in EQ1; cbn in EQ1.
+      epose proof equ_choice_invT _ _ EQ1 as [<- _].
+      epose proof equ_choice_invE _ _ EQ1 x as eqx; clear EQ1.
+      rewrite bind_ret_l in eqx.
+      rewrite H in eqx.
+      rewrite <- ctree_eta in EQ2.
+      rewrite EQ2 in eqx.
+      clear k t EQ2 H.
+      exists (k0 x); repeat split.
+      apply trans_ChoiceV.
+      auto.
+  - destruct EQ1 as [EQ1 | EQ1]; [ | step in EQ1; inv EQ1].
+    unfold new in EQ1; rewrite unfold_interp in EQ1.
+    unfold trans,transR; cbn.
+    desobs p; try now step in EQ1; inv EQ1.
+    cbn in *.
+    destruct e0,a; cbn in *; destruct (c =? c0) eqn:EQ; try now step in EQ1; inv EQ1.
+    all:unfold trigger in EQ1; rewrite unfold_bind in EQ1; cbn in EQ1; setoid_rewrite bind_ret_l in EQ1.
+    all:epose proof equ_vis_invT _ _ _ _ EQ1; subst.
+    all:epose proof equ_vis_invE _ _ _ _ EQ1 as [-> eqx]; clear EQ1.
+    all:rewrite EQ.
+    all:specialize (eqx x).
+    all:rewrite H in eqx; rewrite <- ctree_eta in EQ2; rewrite EQ2 in eqx.
+    all: exists (k0 x); repeat split; auto.
+    all: apply trans_vis.
+  - tauto.
+Qed.
+
 Lemma trans_new_inv : forall l c p p',
+    trans l (new c p) p' ->
+    exists q, can_comm c l = true /\ trans l p q /\ p' ≅ TauI (new c q).
+Proof.
+  intros; eapply trans_new_inv_aux; eauto.
+  eapply trans_ChoiceI with (x := Fin.F1); eauto.
+  symmetry; apply ctree_eta.
+Qed.
+
+Lemma trans_new_inv' : forall l c p p',
     trans l (new c p) p' ->
     exists q, can_comm c l = true /\ trans l p q /\ p' ~ new c q.
 Proof.
-  intros * tr.
-  remember (new c p) as q.
-  eq2bisim Heqq.
-  rewrite ctree_eta in EQ.
-  setoid_rewrite (ctree_eta p').
-  revert p EQ.
-  induction tr; intros.
-  -
-
-  (* unfold new,ccsE in tr. *)
-  (* rewrite unfold_interp in tr; cbn in tr. *)
-  (* match type of tr with *)
-  (* | context [@observe ?E ?R ?y] => destruct (@observe E R y) eqn:EQ *)
-  (* end. *)
-  (* - tauto. *)
-  (* - apply trans_bind_inv in tr as [(nv & ? & tr & EQ') | (nv & tr & EQ')]. *)
-  (*   2: destruct e; apply trans_hnew_inv in tr as (? & ?& abs); step in abs; inv abs. *)
-  (*   destruct e; apply trans_hnew_inv in tr as (? & ? & ?). *)
-  (*   rewrite H1, bind_ret_l in EQ'. *)
-  (*   exists (k tt); repeat split; eauto. *)
-  (*   cbn; unfold transR; unfold ccsE; rewrite EQ. *)
-  (*   subst; eapply trans_vis. *)
-  (*   now rewrite EQ', TauI_sb. *)
-  (* - apply trans_bind_inv in tr as [(nv & ? & tr & EQ') | (nv & tr & EQ')]. *)
-  (*   + unfold Utils.choice, MonadChoice_ctree, choice in tr. *)
-  (*     destruct vis. *)
-  (*     2:{ *)
-  (*       apply trans_ChoiceI_inv in tr as (? & tr). *)
-  (*       apply trans_ret_inv in tr as [-> ?]; exfalso; eapply nv; constructor. *)
-  (*     } *)
-  (*     apply trans_ChoiceV_inv in tr as (? & EQ'' & ->). *)
-  (*     rewrite EQ'' in EQ'. *)
-  (*     eexists; repeat split; eauto. *)
-  (*     rewrite ctree_eta. *)
-  (*     unfold ccsE; rewrite EQ. *)
-  (*     apply trans_ChoiceV with (x1 := x0). *)
-  (*     rewrite EQ', bind_ret_l, TauI_sb. *)
-  (*     reflexivity. *)
-  (*   + unfold Utils.choice, MonadChoice_ctree, choice in tr. *)
-  (*     destruct vis. *)
-  (*     * apply trans_ChoiceV_inv in tr as (? & ? & abs); inv abs. *)
-  (*     * apply trans_ChoiceI_inv in tr as (? & tr). *)
-  (*       apply trans_ret_inv in tr as (eq & _). *)
-  (*       apply val_eq_inv in eq; subst. *)
-  (*       apply trans_TauI_inv in EQ'. *)
-  (*       eexists; repeat split. *)
-Admitted.
-
-(* Does not hold, replaced by the previous one up-to sb: need to fix subsequent proofs *)
-Lemma trans_new : forall l c p p',
-    trans l p p' ->
-    can_comm c l = true ->
-    trans l (new c p) (new c p').
-Proof.
-  intros * tr.
-  (* TODO, theory for interp *)
-Admitted.
+  intros; edestruct trans_new_inv as (? & ? & ? & ?); eauto.
+  eexists; repeat split; eauto.
+  rewrite H2, TauI_sb; reflexivity.
+Qed.
 
 #[global] Instance equ_clos_sT_proper {E R} RR f : Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (T sb f RR).
 Proof.

@@ -212,6 +212,23 @@ Proof.
 	auto.
 Qed.
 
+Lemma equ_choice_invT {E S b b' n m} (k1 : _ -> ctree E S) k2 :
+  Choice b n k1 ≅ Choice b' m k2 ->
+  n = m /\ b = b'.
+Proof.
+  intros EQ; step in EQ.
+	dependent destruction EQ; auto.
+Qed.
+
+Lemma equ_choice_invE {E S b n} (k1 : _ -> ctree E S) k2 :
+  Choice b n k1 ≅ Choice b n k2 ->
+  forall x, k1 x ≅ k2 x.
+Proof.
+  intros EQ; step in EQ.
+	inv EQ.
+	dependent destruction H; auto.
+Qed.
+
 Lemma equF_vis_invT {E X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E S) k2 :
   equF eq (equ eq) (VisF e1 k1) (VisF e2 k2) ->
   X = Y.
