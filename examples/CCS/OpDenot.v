@@ -245,5 +245,10 @@ Proof.
   exists bisim_model; auto using correct,complete.
 Qed.
 
-(* bisim_sem ⟦u⟧ ⟦v⟧ <-> bisim_op u v *)
+(* We depend currently on
+   - [Eqdep.Eq_rect_eq.eq_rect_eq]
+   - [JMeq_eq]
+ *)
+Print Assumptions is_bisim.
 
+(* bisim_sem ⟦u⟧ ⟦v⟧ <-> bisim_op u v *)

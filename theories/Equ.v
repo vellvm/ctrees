@@ -188,6 +188,34 @@ Proof. apply Equivalence_et. typeclasses eauto. Qed.
 #[global] Hint Constructors equF : core.
 Arguments equ_ {E R1 R2} RR eq t1 t2/.
 
+#[global] Instance equ_eq_equ {E X} {R : rel X X} :
+  Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E X _ eq)) ==> flip impl) (equ R).
+Proof.
+  unfold Proper, respectful, flip, impl; cbn.
+  coinduction ? IH.
+  intros t t' EQt u u' EQu EQ.
+  step in EQt.
+  step in EQu.
+  step in EQ.
+  inv EQt; rewrite <- H in EQ.
+  - inv EQ.
+    rewrite <- H3 in EQu.
+    inv EQu.
+    cbn; rewrite <- H0, <- H2; auto.
+  - dependent destruction EQ.
+    cbn.
+    rewrite <- x in EQu.
+    dependent destruction EQu.
+    rewrite <- H0, <- x.
+    eauto.
+  - dependent destruction EQ.
+    cbn.
+    rewrite <- x in EQu.
+    dependent destruction EQu.
+    rewrite <- H0, <- x.
+    eauto.
+Qed.
+
 (*|
 Dependent inversion of [equ] and [equF] equations
 -------------------------------------------------
@@ -336,6 +364,17 @@ Proof.
 	etransitivity; [|etransitivity]; [|apply H1 |].
 	apply H2; assumption.
 	apply H2; symmetry; assumption.
+Qed.
+
+#[global] Instance Equivalence_bt_equ_gen {E X R S} `{Equivalence _ R}:
+  Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E X _ eq)) ==> flip impl) (bt_equ R S).
+Proof.
+	unfold Proper, respectful, flip, impl.
+	intros.
+	pose proof (gfp_bt (fequ R) S).
+	etransitivity; [|etransitivity]; [| eassumption |].
+	apply H3; rewrite H0; reflexivity.
+	apply H3; rewrite H1; reflexivity.
 Qed.
 
 (*|
@@ -616,4 +655,3 @@ Proof.
   step.
   constructor; intros abs; inv abs.
 Qed.
-

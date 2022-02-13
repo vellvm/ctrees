@@ -317,7 +317,7 @@ well-behaved w.r.t. to [equ] as usual: rewriting [equ eq] leads to [equ eq_head]
 computations, where [eq_head] propagates [equ] to the computations contained in the
 heads.
 |*)
-Inductive eq_head {E R} : @head E R -> head -> Prop :=
+Variant eq_head {E R} : @head E R -> head -> Prop :=
 | eq_head_ret : forall r, eq_head (HRet r) (HRet r)
 | eq_head_choice : forall n (k1 k2 : fin n -> _),
     (forall i, k1 i ≅ k2 i) ->
@@ -326,12 +326,19 @@ Inductive eq_head {E R} : @head E R -> head -> Prop :=
     (forall x, k1 x ≅ k2 x) ->
     eq_head (HVis e k1) (HVis e k2).
 
-(*|
-TOOD: Generalization of [Equivalence_bt_equ]
-|*)
-#[global] Instance Equivalence_bt_equ_gen {E X Y R S}:
-  Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E Y _ eq)) ==> iff) (bt_equ R S).
-Admitted.
+#[global] Instance eq_head_equiv {E R} : Equivalence (@eq_head E R).
+Proof.
+  split.
+  - intros []; constructor; auto.
+  - intros x y xy.
+    dependent destruction xy; constructor; intros; symmetry; auto.
+  - intros x y z xy yz.
+    dependent destruction xy;
+      dependent destruction yz.
+    constructor.
+    constructor; intros; rewrite H; auto.
+    constructor; intros; rewrite H; auto.
+Qed.
 
 #[global] Instance get_head_equ {E X} :
   Proper (equ eq ==> equ (eq_head)) (@get_head E X).
