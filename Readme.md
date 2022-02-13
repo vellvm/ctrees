@@ -35,7 +35,7 @@ git clone git@github.com:damien-pous/coinduction.git
 opam pin coinduction
 git clone git@github.com:damien-pous/relation-algebra.git
 cd relation-algebra
-git checkout 8.14
+git checkout v8.14
 cd ..
 opam pin relation-algebra
 ```
