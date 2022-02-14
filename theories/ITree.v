@@ -1,5 +1,5 @@
 From CTree Require Import
-	CTrees Trans Equ Bisim CTreesTheory.
+	CTrees Trans Equ Bisim CTreesTheory Internalize.
 
 From ITree Require Import
 	ITree Eq.
@@ -14,10 +14,16 @@ From Coinduction Require Import
 
 Open Scope ctree.
 
-(* I'm stupid and this is the proper definition of the embedding *)
+Set Implicit Arguments.
+Set Contextual Implicit.
+
+
 Definition h_embed {E} : E ~> ctree E :=
   fun _ e => CTree.trigger e.
 Definition embed' {E} : itree E ~> ctree E := interp h_embed.
+
+Definition embed_and_internalize {E} : itree (ExtChoice +' E) ~> ctree E :=
+  fun _ t => internalize (embed' t).
 
 Definition embed {E X} : itree E X -> ctree E X :=
 	cofix _embed t :=
