@@ -1,5 +1,5 @@
 From CTree Require Import
-	CTrees Trans Equ Bisim.
+	CTrees Trans Equ Bisim CTreesTheory.
 
 From ITree Require Import
 	ITree Eq.
@@ -10,9 +10,14 @@ From Coq Require Import
 From Paco Require Import paco.
 
 From Coinduction Require Import
-	coinduction rel tactics.
+	   lattice coinduction rel tactics.
 
 Open Scope ctree.
+
+(* I'm stupid and this is the proper definition of the embedding *)
+Definition h_embed {E} : E ~> ctree E :=
+  fun _ e => CTree.trigger e.
+Definition embed' {E} : itree E ~> ctree E := interp h_embed.
 
 Definition embed {E X} : itree E X -> ctree E X :=
 	cofix _embed t :=
@@ -89,6 +94,7 @@ From Coq Require Import Datatypes.
    - If we use TauV, then [eutt] certainly does not map against sbisim --- actually, it maps
    against [equ] as well in this case. However, I think it should map against [wbisim], but
    that remains to be proved.
+
  *)
 
 Lemma embed_eutt {E X}:
@@ -108,9 +114,26 @@ Proof.
     + eexists; [rewrite unfold_embed, <- Heqoy; subst; apply TR | reflexivity].
     + pclearbot.
       apply CIH in REL.
-      eexists; [rewrite unfold_embed, <- Heqoy |].
-      apply trans_TauI.
+      (* This almost certainly does not hold, it essentially relies on
+         `t b <= b (t b)` which I don't think is valid.
+         Question for Damien: how to unfold the companion in an hypothesis at another point that Bot? 
+       *)
+      assert (sbt R (embed m1) (embed m2)) by admit.
+      destruct H as [F _].
       apply trans_TauI_inv in TR.
+      apply F in TR as [? ? ?].
+      eexists.
+      rewrite unfold_embed, <- Heqoy.
+      apply trans_TauI.
+      apply H.
+      auto.
+    + pclearbot.
+      apply trans_vis_inv in TR as (u' & EQ & ->).
+      eexists; [rewrite unfold_embed, <- Heqoy; apply trans_vis |].
+      rewrite EQ.
+      apply CIH, REL.
+    + apply trans_TauI_inv in TR.
+
 Admitted.
 
 (* Maybe simpler to just write a coinductive relation *)
