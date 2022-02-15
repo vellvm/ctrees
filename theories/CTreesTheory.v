@@ -690,7 +690,24 @@ Proof.
   step in H. destruct H as [Hf Hb]. cbn in *.
   edestruct Hf as [x' Ht Hs]; [apply (@trans_ChoiceV _ _ n1 _ i1) |].
   apply trans_ChoiceV_inv in Ht. destruct Ht as [i2 [Heq _]].
-  exists i2. rewrite <- Heq. auto.
+  exists i2. rewrite <- Heq. assumption.
+Qed.
+
+Lemma sbisim_ret_ChoiceI_inv {E R} (r : R) n (k : fin n -> ctree E R) :
+  Ret r ~ ChoiceI n k ->
+  exists i, Ret r ~ k i.
+Proof.
+  intro. step in H. destruct H as [Hf Hb]. cbn in *.
+  edestruct Hf as [x Ht Hs]; [apply trans_ret |].
+  apply trans_ChoiceI_inv in Ht.
+  destruct Ht as [i Ht]. exists i.
+  step. split.
+  - repeat intro. inv H. exists x; auto. rewrite <- Hs.
+    rewrite ctree_eta. rewrite <- H3. rewrite choiceI0_always_stuck. auto.
+  - repeat intro. eapply trans_ChoiceI in H; eauto. specialize (Hb _ _ H).
+    destruct Hb. inv H0. exists stuckI. constructor.
+    cbn. rewrite <- H1. symmetry. rewrite ctree_eta .
+    rewrite <- H5. rewrite choiceI0_always_stuck. auto.
 Qed.
 
 
@@ -970,4 +987,3 @@ Proof.
   intros. unfold map.
   rewrite bind_ret_l; reflexivity.
 Qed.
-
