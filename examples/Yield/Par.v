@@ -215,12 +215,33 @@ Section parallel.
   Definition replace_vec {n : nat} (v : vec n) (i : fin n) (t : thread) : vec n :=
     fun i' => if Fin.eqb i i' then t else v i'.
 
+  Lemma remove_vec_replace_vec_eq {n} (v : vec (S n)) i t :
+    remove_vec v i = remove_vec (replace_vec v i t) i.
+  Proof.
+  Admitted.
+
   Lemma replace_vec_vec_relation n P (v1 v2 : vec n) i t1 t2 :
     vec_relation P v1 v2 ->
     (forall x, P (t1 x) (t2 x)) ->
     vec_relation P (replace_vec v1 i t1) (replace_vec v2 i t2).
   Proof.
     unfold replace_vec. repeat intro. destruct (Fin.eqb i i0); auto.
+  Qed.
+
+  (* Lemma replace_vec_sb n (v : vec n) i t : *)
+
+  (*   (replace_vec v i t) i = t. *)
+  (* Proof. *)
+  (*   unfold replace_vec. *)
+  (*   assert (i = i) by reflexivity. apply Fin.eqb_eq in H. rewrite H. *)
+  (*   reflexivity. *)
+  (* Qed. *)
+
+  Lemma replace_vec_twice n (v : vec n) i t1 t2 :
+    replace_vec (replace_vec v i t1) i t2 = replace_vec v i t2.
+  Proof.
+    unfold replace_vec. apply functional_extensionality. intro.
+    destruct (Fin.eqb i x) eqn:?; auto.
   Qed.
 
   Lemma replace_vec_eq n (v : vec n) i t :
@@ -348,13 +369,198 @@ Section parallel.
       apply replace_vec_vec_relation; auto.
   Qed.
 
+  Lemma ChoiceI_schedule'_inv n1 k n2 (v : vec n2) i c :
+    ChoiceI n1 k ≅ {| _observe := observe (schedule' n2 v i c) |} ->
+    exists k', v i c ≅ ChoiceI n1 k' /\
+            forall i', k i' ≅ schedule' n2 (replace_vec v i (fun _ => k' i')) i c.
+  Proof.
+    intros Hequ.
+    rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ. cbn in Hequ.
+    destruct (observe (v i c)) eqn:?.
+    - destruct r, n2; [inv i |]. destruct n2; step in Hequ; inv Hequ.
+    - destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
+    - destruct vis; [step in Hequ; inv Hequ |].
+      destruct (equ_choice_invT _ _ Hequ); subst. clear H0.
+      epose proof (equ_choice_invE _ _ Hequ). clear Hequ. cbn in H.
+      exists k0. split; auto.
+      rewrite ctree_eta. rewrite Heqc0. reflexivity.
+  Qed.
+
+  Lemma foo'' l T U :
+    trans_ l T U ->
+    forall n v i c,
+      go T ≅ v i c ->
+      exists u' l', trans l' (schedule' n v i c) u'.
+  Admitted.
+
+  Lemma trans_schedule'_val {X} n v i c (x : X) t :
+    trans (val x) (schedule' n v i c) t ->
+    trans (val x) (v i c) CTree.stuckI.
+  Proof.
+    intro. cbn in H. red in H.
+    remember (observe (schedule' n v i c)).
+    pose proof (ctree_eta (go (observe (schedule' n v i c)))).
+    rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
+    remember (observe t). remember (val x).
+    revert t n v i c x Heql Heqc1 H0.
+    induction H; intros t' n' v i c c' Heql Heq Hequ; try inv Heql; subst.
+    - apply ChoiceI_schedule'_inv in Hequ. destruct Hequ as (k' & Hequ & Hk).
+      setoid_rewrite Hk in IHtrans_.
+      rewrite Hequ.
+      econstructor.
+      specialize (IHtrans_ _ _ (replace_vec v i (fun _ : config => k' x)) i c _ eq_refl eq_refl).
+      rewrite replace_vec_eq in IHtrans_. apply IHtrans_. reflexivity.
+    - apply inj_pair2 in H1. subst.
+      rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ.
+      destruct (observe (v i c)) eqn:Hv.
+      + destruct n'; [inv i |]. destruct n'; [| destruct r; step in Hequ; inv Hequ].
+        cbn. red. rewrite Hv. destruct r, u.
+        step in Hequ. inv Hequ. constructor.
+      + destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
+      + step in Hequ; inv Hequ.
+  Qed.
+
+
+  Lemma trans_schedule'_obs {X} n v i c (e : parE config X) (x : X) t :
+    trans (obs e x) (schedule' n v i c) t ->
+    False.
+  Proof.
+    intro. cbn in H. red in H.
+    remember (observe (schedule' n v i c)).
+    pose proof (ctree_eta (go (observe (schedule' n v i c)))).
+    rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
+    remember (observe t). remember (obs _ _).
+    revert t n v i c e x Heql Heqc1 H0.
+    induction H; intros t' n' v i c e' x' Heql Heq Hequ; try inv Heql; subst.
+    - apply ChoiceI_schedule'_inv in Hequ. destruct Hequ as (k' & Hequ & Hk).
+      setoid_rewrite Hk in IHtrans_.
+      eapply IHtrans_; eauto.
+    - apply inj_pair2 in H2, H3. subst.
+      rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ.
+      destruct (observe (v i c)) eqn:Hv.
+      + destruct n'. inv i. destruct r. destruct n'; step in Hequ; inv Hequ.
+      + destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
+      + step in Hequ; inv Hequ.
+  Qed.
+
+  Lemma trans_schedule'_tau n v i c t:
+    trans tau (schedule' n v i c) t ->
+    exists t', trans tau (v i c) t'.
+  Proof.
+    intro. cbn in H. red in H.
+    remember (observe (schedule' n v i c)).
+    pose proof (ctree_eta (go (observe (schedule' n v i c)))).
+    rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
+    remember (observe t).
+    revert t n v i c Heqc1 H0.
+    induction H; intros t' n' v i c Heq Hequ; subst.
+    - apply ChoiceI_schedule'_inv in Hequ. destruct Hequ as (k' & Hequ & Hk).
+      setoid_rewrite Hk in IHtrans_.
+  Abort.
+
+
+
+  Lemma trans_schedule'_val'_1 {X} v i c (x : X) t :
+    trans (val x) (v i c) t ->
+    trans (val x) (schedule' 1 v i c) CTree.stuckI.
+  Proof.
+    intro. cbn in H. red in H.
+    remember (observe (v i c)).
+    pose proof (ctree_eta (go (observe (v i c)))).
+    rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
+    remember (observe t). remember (val x).
+    revert t v i c x Heql Heqc1 H0.
+    induction H; intros t' v i c x' Heql Heq Hequ; try inv Heql.
+    - (* is there a better way to do this *)
+      step in Hequ. inv Hequ. apply inj_pair2 in H3; subst.
+      rewrite rewrite_schedule'. unfold schedule'_match. rewrite <- H4.
+      econstructor. eapply IHtrans_; try reflexivity. rewrite REL.
+      rewrite replace_vec_eq. reflexivity.
+    - apply inj_pair2 in H1. subst.
+      step in Hequ. inv Hequ.
+      rewrite rewrite_schedule'. unfold schedule'_match. rewrite <- H.
+      destruct y, u. econstructor.
+  Qed.
+
+  Lemma trans_schedule'_val'_SS n v i c (c' : config) t :
+    trans (val (c', ())) (v i c) t ->
+    forall i', trans tau (schedule' (S (S n)) v i c) (schedule' (S n) (remove_vec v i) i' c').
+  Proof.
+    intro. cbn in H. red in H.
+    remember (observe (v i c)).
+    pose proof (ctree_eta (go (observe (v i c)))).
+    rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
+    remember (observe t). remember (val (c', ())).
+    revert t v i c c' Heql Heqc1 H0.
+    induction H; intros t' v i c x' Heql Heq Hequ i'; try inv Heql.
+    - (* is there a better way to do this *)
+      step in Hequ. inv Hequ. apply inj_pair2 in H3; subst.
+      setoid_rewrite rewrite_schedule' at 1. unfold schedule'_match. rewrite <- H4.
+      epose proof (IHtrans_ t' (replace_vec v i (fun _ => k2 x)) i c x' eq_refl eq_refl _ i').
+      Unshelve. 2: { rewrite REL. rewrite replace_vec_eq. reflexivity. }
+      econstructor.
+      erewrite <- remove_vec_replace_vec_eq in H0. apply H0.
+    - apply inj_pair2 in H0. subst. step in Hequ. inv Hequ.
+      setoid_rewrite rewrite_schedule' at 1. unfold schedule'_match. rewrite <- H.
+      econstructor. reflexivity.
+  Qed.
+
+  Lemma foo l t n v i c :
+    trans l (schedule' n v i c) t ->
+    exists u' l', trans l' (v i c) u'.
+  Proof.
+    intro. cbn in H. red in H.
+    remember (observe (schedule' n v i c)).
+    pose proof (ctree_eta (go (observe (schedule' n v i c)))).
+    rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0. remember (observe t).
+    revert t n v i c Heqc1 H0.
+    induction H; intros t' n' v i c Heq Hequ.
+    - clear H.
+      rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ.
+      destruct (observe (v i c)) eqn:Hv.
+      + destruct r, n'; [inv i |].
+        destruct n'; step in Hequ; inv Hequ.
+      + destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
+      + destruct vis; [step in Hequ; inv Hequ |].
+        destruct (equ_choice_invT _ _ Hequ); subst. clear H0.
+        pose proof (equ_choice_invE _ _ Hequ x).
+        setoid_rewrite H in IHtrans_.
+        edestruct IHtrans_. reflexivity.
+        step. reflexivity.
+        rewrite replace_vec_eq in H0. destruct H0.
+        do 2 eexists. cbn. red. rewrite Hv. econstructor. apply H0.
+    - clear H.
+      rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ.
+      destruct (observe (v i c)) eqn:Hv.
+      + clear Hequ. exists CTree.stuckI. eexists. cbn. red. rewrite Hv. econstructor.
+      + destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
+        * apply inj_pair2 in H2, H4; subst.
+          do 2 eexists. cbn. red. rewrite Hv. constructor 3 with (x := c). reflexivity.
+        * apply inj_pair2 in H2, H4; subst.
+          do 2 eexists. cbn. red. rewrite Hv. constructor 3 with (x := true). reflexivity.
+      + destruct vis; [| step in Hequ; inv Hequ].
+        destruct (equ_choice_invT _ _ Hequ); subst. clear H0.
+        do 2 eexists. cbn. red. rewrite Hv. constructor 2 with (x := x). reflexivity.
+    - clear H.
+      rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ.
+      destruct (observe (v i c)) eqn:Hv.
+      + destruct n'. inv i. destruct r. destruct n'; step in Hequ; inv Hequ.
+      + destruct e0; [destruct y | destruct s]; step in Hequ; inv Hequ.
+      + step in Hequ; inv Hequ.
+    - rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ.
+      destruct (observe (v i c)) eqn:Hv.
+      + clear Hequ. exists CTree.stuckI. eexists. cbn. red. rewrite Hv. econstructor.
+      + destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
+      + step in Hequ; inv Hequ.
+  Qed.
+
   (* not actually useful, just for testing *)
   (* if schedule is a ret, then so is (v i s).
      if it's a choiceI, then so is (v i s).
      if it's a choiceV, then (v i s) could be any of ret, vis, or choiceV.
      it's impossible for it to be a vis.
    *)
-  Lemma foo l T U :
+  Lemma foo_old l T U :
     trans_ l T U ->
     forall n v i c,
       go T ≅ schedule' n v i c ->
@@ -400,22 +606,65 @@ Section parallel.
       + step in H; inv H.
   Qed.
 
-  Lemma ChoiceI_schedule'_inv n1 k n2 (v : vec n2) i c :
-    ChoiceI n1 k ≅ {| _observe := observe (schedule' n2 v i c) |} ->
-    exists k', v i c ≅ ChoiceI n1 k' /\
-            forall i', k i' ≅ schedule' n2 (replace_vec v i (fun _ => k' i')) i c.
+  Lemma foo' {E R} l T U :
+    trans_ l T U ->
+    forall n k (i : fin n) r,
+      go T ≅ k i ->
+      ChoiceI n k ~ (Ret r : ctree E R) ->
+      (* k i ~ Ret r *)
+
+        l = val r.
   Proof.
-    intros Hequ.
-    rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ. cbn in Hequ.
-    destruct (observe (v i c)) eqn:?.
-    - destruct r, n2; [inv i |]. destruct n2; step in Hequ; inv Hequ.
-    - destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
-    - destruct vis; [step in Hequ; inv Hequ |].
-      destruct (equ_choice_invT _ _ Hequ); subst. clear H0.
-      epose proof (equ_choice_invE _ _ Hequ). clear Hequ. cbn in H.
-      exists k0. split; auto.
-      rewrite ctree_eta. rewrite Heqc0. reflexivity.
+    induction 1.
+    - intros n' k' i r Hequ Hsb.
+      eapply IHtrans_. rewrite <- ctree_eta. reflexivity. clear IHtrans_.
+      step in Hsb. destruct Hsb as [Hf _].
+      step. split; intros l' t' Ht.
+      + edestruct Hf.
+        econstructor. rewrite <- Hequ. apply Ht.
+        eexists; eauto.
+      + edestruct @trans_ret_inv; eauto; subst.
+        exists CTree.stuckI.
+        2: { cbn. rewrite H1. reflexivity. }
+        assert (l = val r).
+        {
+          edestruct Hf with (t':=go t) (l:=l).
+          cbn. red. cbn. econstructor. rewrite <- Hequ. econstructor. apply H.
+          inv H0. reflexivity.
+        } subst.
+        econstructor.
+        pose proof (trans__val_inv H). rewrite <- H0. cbn. apply H.
+    - intros. step in H1. destruct H1 as [Hf _].
+      edestruct Hf. econstructor. rewrite <- H0. econstructor; eauto.
+      inv H1.
+    - intros. step in H1. destruct H1 as [Hf _].
+      edestruct Hf. econstructor. rewrite <- H0. econstructor; eauto.
+      inv H1.
+    - intros. step in H0. destruct H0 as [Hf _].
+      destruct (Hf (val r) CTree.stuckI). econstructor. rewrite <- H. econstructor; eauto.
+      inv H0. apply inj_pair2 in H3. subst. reflexivity.
   Qed.
+
+  (* Lemma foo' l T U : *)
+  (*   trans_ l T U -> *)
+  (*   forall n1 n2 v k (i1 : fin n1) (i2 : fin n2) c r, *)
+  (*     go T ≅ schedule' n1 (replace_vec v i1 (fun _ => k i2)) i1 c -> *)
+  (*     ChoiceI n2 k ~ Ret r -> *)
+  (*     l = val r. *)
+  (* Proof. *)
+  (*   induction 1. *)
+  (*   - intros. *)
+
+  (*     (* edestruct ChoiceI_schedule'_inv as (k' & ? & ?). *) *)
+  (*     (* { rewrite H0. rewrite <- ctree_eta. reflexivity. } *) *)
+  (*     (* setoid_rewrite replace_vec_twice in H3. *) *)
+
+  (*     (* eapply IHtrans_. rewrite H3. rewrite <- ctree_eta. *) *)
+  (*     (* reflexivity. *) *)
+
+
+  (* Admitted. *)
+
 
   #[global] Instance equ_schedule' n :
     Proper ((vec_relation sbisim) ==> vec_relation sbisim) (schedule' n).
@@ -423,198 +672,28 @@ Section parallel.
     repeat intro. revert H. revert n x y i c.
     coinduction r CIH.
     symmetric using intuition.
-    intros n v1 v2 i c Hv.
-    pose proof (Hv i c) as H12.
-    (* step in H12. destruct H12 as [H12 _]. *) cbn.
-    intros l t' Ht. red in Ht.
-    remember (observe (schedule' n v1 i c)).
-    pose proof (ctree_eta (go c0)). rewrite Heqc0 in H at 2. cbn in H. clear Heqc0.
-    rename H into Heqc0.
-    remember (observe t').
-    revert n v1 v2 i c t' Hv H12 Heqc0 Heqc1.
-    induction Ht; intros; subst; eauto.
-    - destruct (ChoiceI_schedule'_inv _ _ _ _ _ _ Heqc0) as (k' & Hv1 & Hk).
-      rewrite Hv1 in H12.
-      (* need something ~ to k' x *)
-      edestruct IHHt with (v2:=(replace_vec v2 i (fun _ => k' x))); clear IHHt.
-      3: { rewrite Hk. reflexivity. }
-      3: reflexivity.
-      { apply replace_vec_vec_relation; eauto. }
-      { do 2 rewrite replace_vec_eq. repeat intro; eauto. }
-      eexists. admit. admit.
-      (* 2: { etransitivity. apply H0. admit. } *)
-      (* rewrite replace_vec_same in H0. apply H0. *)
-    - rewrite rewrite_schedule' in Heqc0. unfold schedule'_match in Heqc0. cbn in Heqc0.
-      admit.
-      (* destruct (observe (v1 i c)) eqn:?. *)
-      (* + destruct r0, n0; [inv i |]. destruct n0; step in Heqc0; inv Heqc0. *)
-      (*   apply inj_pair2 in H3, H5. subst. *)
-      (*   pose proof (ctree_eta (v1 i c)). rewrite Heqc2 in H0. rewrite H0 in H12. clear H0. *)
-
-    - (* schedule cannot result in a Vis *)
-      rewrite rewrite_schedule' in Heqc0. unfold schedule'_match in Heqc0. cbn in Heqc0.
-      destruct (observe (v1 i c)) eqn:Hv1.
-      + destruct n. inv i. destruct r0. destruct n; step in Heqc0; inv Heqc0.
-      + destruct e0; [destruct y | destruct s]; step in Heqc0; inv Heqc0.
-      + step in Heqc0; inv Heqc0.
-    - rewrite rewrite_schedule' in Heqc0. unfold schedule'_match in Heqc0.
-      destruct (observe (v1 i c)) eqn:Hv1.
-      + destruct n. inv i. destruct r1, u.
-        destruct n; [| step in Heqc0; inv Heqc0].
-        step in Heqc0. inv Heqc0.
-        (* another induction? *)
-        admit.
-      + destruct e; [destruct y | destruct s]; step in Heqc0; inv Heqc0.
-      + step in Heqc0; inv Heqc0.
+    intros n v1 v2 i c Hv l t Ht.
+    destruct l.
+    - admit.
+    - apply trans_schedule'_obs in Ht. contradiction.
+    - Fail epose proof (trans_val_inv Ht).
+      assert (t ≅ CTree.stuckI) by admit.
+      specialize (Hv i c). step in Hv. destruct Hv as [Hf Hb].
+      pose proof (trans_schedule'_val _ _ _ _ _ _ Ht) as Hv1.
+      edestruct Hf; eauto.
+      destruct n; [inv i | destruct n].
+      + apply trans_schedule'_val'_1 in H0. eexists; eauto. rewrite H. reflexivity.
+      + rewrite rewrite_schedule' in Ht. unfold schedule'_match in Ht.
+        destruct (observe (v1 i c)) eqn:?.
+        * destruct r0. inv Ht.
+        * destruct e; [destruct y | destruct s]; inv Ht.
+    (*     * inv Ht. *)
+    (* edestruct foo as (u & l' & Hu). apply Ht. *)
+    (* rewrite <- ctree_eta. reflexivity. *)
+    (* specialize (Hv i c). step in Hv. destruct Hv as [Hf Hb]. *)
+    (* specialize (Hf _ _ Hu). destruct Hf. *)
+    (* edestruct foo'' as (u' & l'' & Hu'). apply H. rewrite <- ctree_eta. reflexivity. *)
+    (* eexists. apply Hu'. *)
   Abort.
-  (*
-    destruct (observe (v1 i c)) eqn:Hv1; [destruct r0, u | | destruct vis];
-      (destruct (observe (v2 i c)) eqn:Hv2; [destruct r0, u | | destruct vis]);
-      rewrite ctree_eta, (ctree_eta (v2 i c)) in H; rewrite Hv1, Hv2 in H.
-    (* Ret *)
-    - pose proof (sbisim_ret_ret_inv _ _ H). inv H0.
-      do 2 rewrite rewrite_schedule'. unfold schedule'_match.
-      rewrite Hv1, Hv2. destruct n. inv i.
-      destruct n; repeat intro.
-      + apply trans_ret_inv in H0. destruct H0; subst.
-        eexists; eauto. rewrite H1. constructor.
-      + apply trans_ChoiceV_inv in H0. destruct H0 as [? [? ?]]. subst.
-        eexists. econstructor; eauto.
-        rewrite H0. apply CIH. apply remove_vec_vec_relation; eauto.
-    - contradiction (sbisim_ret_vis_inv _ _ _ H).
-    - contradiction (sbisim_ret_ChoiceV_inv _ _ _ H).
-    - (* ChoiceI *)
-      do 2 rewrite rewrite_schedule'. unfold schedule'_match.
-      rewrite Hv1, Hv2. destruct n; [inv i |].
-      destruct n.
-      {
-        clear Hv1 Hv2.
-        pose proof H as Hs.
-        step in H. destruct H as [H _].
-        cbn in H. specialize (H _ _ (trans_ret _)).
-        destruct H. red in H. cbn in H.
-        remember (ChoiceF false n0 k); remember (val _); remember (observe x).
-        (* clear Heqc1. *)
-        revert n0 x k H0 Heqc1 Heqc2 Heql Hs.
-        (* induction H. *)
-        dependent induction H; intros; subst; try solve [inv Heql]; eauto.
-        eapply IHtrans_; eauto. rewrite <- ctree_eta. clear IHtrans_.
-        step. admit.
-        (* - repeat intro. inv H1. eexists. *)
-        (* apply sbisim_ret_ChoiceI_inv in Hs. destruct Hs. *)
-        inv Heql.
 
-        apply sbisim_ret_ChoiceI_inv in H. destruct H as [i' H].
-        repeat intro. exists t'; auto.
-        eapply trans_ChoiceI with (x:=i'). 2: reflexivity.
-        rewrite rewrite_schedule'. unfold schedule'_match.
-        rewrite replace_vec_eq.
-        (* need to do induction first... *)
-
-
-
-      clear Hv1 Hv2.
-      apply sbisim_ret_ChoiceI_inv in H. destruct H as [i' H].
-
-      step in H. destruct H as [H _].
-      cbn in H. specialize (H _ _ (trans_ret _)).
-      destruct H.
-      red in H. cbn in H.
-      remember (observe (k i')); remember (val _); remember (observe x).
-      revert i' x k H0 Heqc1 Heqc2 Heql.
-
-
-      dependent induction H; auto.
-      (* + intros. subst. *)
-      (*   eapply IHtrans_; eauto. *)
-
-      (*     inv Heqc1. apply inj_pair2 in H3. subst. eapply IHtrans_; eauto. admit. admit. *)
-      + intros. subst. eapply IHtrans_; eauto. admit.
-        (* inv Heqc1. apply inj_pair2 in H3. subst. eapply IHtrans_; eauto. *)
-      + intros; inv Heql.
-      + intros; inv Heql.
-      + intros; subst. inv Heql. apply inj_pair2 in H1. subst.
-        destruct n; auto. admit.
-        inv Heqc1.
-        do 2 rewrite rewrite_schedule'. unfold schedule'_match.
-        rewrite Hv1, Hv2; (destruct n; [inv i |]).
-        inv Heql. apply inj_pair2 in H1. subst.
-
-      (* do 2 rewrite rewrite_schedule'. unfold schedule'_match. *)
-      (* rewrite Hv1, Hv2. destruct r0, u. destruct n. inv i. *)
-      (* destruct n. *)
-      (* + repeat intro. apply trans_ret_inv in H. destruct H. subst. *)
-      (*   assert (exists i', k i' ~ Ret (c0, ())) by admit. destruct H0. *)
-      (*   eexists. *)
-      (*   2: { rewrite H1. reflexivity. } *)
-      (*   apply (Stepchoice x). *)
-
-      (*   (* eapply (trans_ChoiceI _ _); eauto. *) *)
-      (*   rewrite rewrite_schedule'. unfold schedule'_match. *)
-      (*   rewrite replace_vec_eq. *)
-        admit.
-      (* + repeat intro. *)
-      (*   apply trans_ChoiceV_inv in H0. destruct H0 as [? [? ?]]. subst. *)
-      (*   eexists. *)
-      (*   2: { rewrite H0. apply CIH. apply remove_vec_vec_relation; eauto. } *)
-      (*   econstructor; eauto. *)
-    (* Vis *)
-    - symmetry in H. contradiction (sbisim_ret_vis_inv _ _ _ H).
-    - assert (x : X).
-      { destruct e. destruct y; auto. destruct s; auto. apply false. }
-      pose proof (sbisim_vis_vis_inv_type _ _ _ _ x H). subst.
-      pose proof (sbisim_vis_vis_inv _ _ _ _ x H). destruct H0 as [? Hk]; subst.
-      clear x. rename e0 into e.
-      do 2 rewrite rewrite_schedule'. unfold schedule'_match.
-      rewrite Hv1, Hv2. destruct e; [destruct y | destruct s].
-      + intros l s Ht. apply trans_ChoiceV_inv in Ht.
-        destruct Ht as [i' [Hs ?]]; subst.
-        eexists. econstructor; eauto. rewrite Hs.
-        apply CIH; auto. apply replace_vec_vec_relation; auto.
-      + intros l s Ht. apply trans_TauV_inv in Ht.
-        destruct Ht as [Hs ?]; subst.
-        eexists. econstructor; eauto. apply Fin.F1. rewrite Hs.
-        apply CIH; auto.
-        apply cons_vec_vec_relation; auto.
-        apply replace_vec_vec_relation; auto.
-    - assert (x : X) by admit.
-      contradiction (sbisim_vis_ChoiceV_inv _ _ _ _ x H).
-    - admit.
-    (* ChoiceV *)
-    - symmetry in H.
-      contradiction (sbisim_ret_ChoiceV_inv _ _ _ H).
-    - assert (x : X) by admit. symmetry in H.
-      contradiction (sbisim_vis_ChoiceV_inv _ _ _ _ x H).
-    - pose proof (sbisim_ChoiceV_ChoiceV_inv _ _ _ _ H).
-      do 2 rewrite rewrite_schedule'. unfold schedule'_match.
-      rewrite Hv1, Hv2.
-      intros l s Ht. apply trans_ChoiceV_inv in Ht. destruct Ht as [i' [Hs ?]]; subst.
-      destruct (H0 i').
-      eexists. econstructor; eauto. rewrite Hs; auto. apply CIH.
-      apply replace_vec_vec_relation; auto. intro. eauto.
-    - (* ChoiceI *) admit.
-    (* ChoiceI *)
-    - admit.
-    - admit.
-    - admit.
-    - do 2 rewrite rewrite_schedule'. unfold schedule'_match.
-      rewrite Hv1, Hv2.
-      repeat intro.
-      remember (ChoiceI n0 _) in H0. revert Heqc0.
-      induction H0; auto.
-      + intros. subst.
-  (*   - clear H1 H2. destruct y. destruct n; cbn in *; auto. *)
-  (*     destruct n; cbn; auto. constructor. intros. apply CIH. *)
-  (*     apply remove_vec_vec_relation; auto. *)
-  (*   - clear H1 H2. destruct y. cbn. *)
-  (*     constructor. intros. eapply CIH. *)
-  (*     apply replace_vec_vec_relation; auto. *)
-  (*   - destruct s. constructor. intros. eapply CIH. *)
-  (*     apply cons_vec_vec_relation; auto. *)
-  (*     apply replace_vec_vec_relation; auto. *)
-  (*   - cbn. constructor. intros. apply CIH. *)
-  (*     apply replace_vec_vec_relation; auto. *)
-  (* Qed. *)
-  Abort.
-   *)
 End parallel.

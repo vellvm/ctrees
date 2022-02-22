@@ -433,15 +433,25 @@ only steps through the non-observable internal choice.
 I'll skip them for now and introduce them if they turn out to be
 useful.
 |*)
-  Lemma trans_val_inv :
-    forall (t u : ctree E R) (v : R),
-      trans (val v) t u ->
-      u ≅ stuckI.
+
+  Lemma trans__val_inv :
+    forall (T U : ctree' E R) (v : R),
+      trans_ (val v) T U ->
+      go U ≅ stuckI.
   Proof.
     intros * TR.
     remember (val v) as ov.
     rewrite ctree_eta; induction TR; intros; auto; try now inv Heqov.
     step; econstructor; intros abs; inv abs.
+  Qed.
+
+  Lemma trans_val_inv :
+    forall (t u : ctree E R) (v : R),
+      trans (val v) t u ->
+      u ≅ stuckI.
+  Proof.
+    intros * TR. cbn in TR. red in TR.
+    apply trans__val_inv in TR. rewrite ctree_eta. apply TR.
   Qed.
 
   Lemma wtrans_val_inv : forall (x : R) (u : ctree E R),
