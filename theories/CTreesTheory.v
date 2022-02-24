@@ -710,7 +710,6 @@ Proof.
     rewrite <- H5. rewrite choiceI0_always_stuck. auto.
 Qed.
 
-
 (*|
 Sanity checks
 =============

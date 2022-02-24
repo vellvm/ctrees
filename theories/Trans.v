@@ -434,20 +434,20 @@ I'll skip them for now and introduce them if they turn out to be
 useful.
 |*)
 
-  Lemma trans__val_inv :
-    forall (T U : ctree' E R) (v : R),
-      trans_ (val v) T U ->
+  Lemma trans__val_inv {X} :
+    forall (T U : ctree' E R) (x : X),
+      trans_ (val x) T U ->
       go U ≅ stuckI.
   Proof.
     intros * TR.
-    remember (val v) as ov.
-    rewrite ctree_eta; induction TR; intros; auto; try now inv Heqov.
+    remember (val x) as ox.
+    rewrite ctree_eta; induction TR; intros; auto; try now inv Heqox.
     step; econstructor; intros abs; inv abs.
   Qed.
 
-  Lemma trans_val_inv :
-    forall (t u : ctree E R) (v : R),
-      trans (val v) t u ->
+  Lemma trans_val_inv {X} :
+    forall (t u : ctree E R) (x : X),
+      trans (val x) t u ->
       u ≅ stuckI.
   Proof.
     intros * TR. cbn in TR. red in TR.
