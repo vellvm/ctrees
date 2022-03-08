@@ -867,20 +867,35 @@ Section parallel.
       + step in Hequ; inv Hequ.
   Qed.
 
+  Require Import Coq.Logic.IndefiniteDescription.
+
   Lemma construct n (v1 v2 : vec n) i c c' k :
     (forall c'' : config, trans (obs (inl1 (Yield config c')) c'') (v1 i c) (k c'')) ->
     (forall (l : label) (t' : ctree (parE config) (config * ())),
         trans l (v1 i c) t' ->
-        {u' : ctree (parE config) (config * ()) & trans l (v2 i c) u' & t' ~ u'}) ->
-    {k' : thread & (forall c'', trans (obs (inl1 (Yield config c')) c'') (v2 i c) (k' c'') /\ k c'' ~ k' c'')}.
+        exists2 u' : ctree (parE config) (config * ()), trans l (v2 i c) u' & t' ~ u') ->
+    {k' : thread | (forall c'', trans (obs (inl1 (Yield config c')) c'') (v2 i c) (k' c'') /\ k c'' ~ k' c'')}.
   Proof.
-    intros Ht Hf. eexists.
+    intros Ht Hf.
+    assert
+         (forall (l : label) (t' : ctree (parE config) (config * ())),
+             trans l (v1 i c) t' ->
+             {u' : ctree (parE config) (config * ()) | trans l (v2 i c) u' /\ t' ~ u'}).
+    {
+      intros. apply constructive_indefinite_description.
+      edestruct Hf; eauto.
+    } clear Hf. rename X into Hf.
+
+    eexists.
     Unshelve.
     2: {
-      intros c''. destruct (Hf _ _ (Ht c'')). apply x.
+      intros c''. destruct (Hf _ _ (Ht c'')).
+      apply x.
     }
     intro c''.
-    split; edestruct Hf; auto.
+    split; cbn.
+    - edestruct Hf. destruct a. apply H.
+    - edestruct Hf. destruct a. apply H0.
   Qed.
 
   #[global] Instance sbisim_schedule' n :
@@ -908,12 +923,8 @@ Section parallel.
       + destruct H as (c' & k & Ht & i' & Hequ).
         pose proof (Hv i c) as Hsb. step in Hsb. destruct Hsb as [Hf Hb].
         simpl in Hf.
-        assert (forall (l : label) (t' : ctree (parE config) (config * ())),
-                   transR l (v1 i c) t' ->
-                   { u' : ctree (parE config) (config * ()) & transR l (v2 i c) u' & t' ~ u'}) by admit.
-        clear Hf. rename X into Hf.
         destruct (construct _ _ _ _ _ _ _ Ht Hf) as (k' & ?).
-        eexists (schedule' n (replace_vec v2 i k') i' c').
+        exists (schedule' n (replace_vec v2 i k') i' c').
         2: { rewrite Hequ. apply CIH; auto. apply replace_vec_vec_relation; auto.
              intros.
              apply a.
