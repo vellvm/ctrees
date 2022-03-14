@@ -76,6 +76,34 @@ Section Trans.
 	  | obs {X : Type} (e : E X) (v : X)
 	  | val {X : Type} (v : X).
 
+    Inductive visible_ : hrel S' S' :=
+    | VisibleI {n} (x : Fin.t n) k t :
+      visible_ (observe (k x)) t ->
+      visible_ (ChoiceF false n k) t
+
+    | VisibleV {n} (x : Fin.t n) k :
+      visible_ (ChoiceF true n k) (ChoiceF true n k)
+
+    | VisibleVis {X} (e : E X) k :
+      visible_ (VisF e k) (VisF e k)
+
+	| VisibleRet r :
+      visible_ (RetF r) (RetF r)
+    .
+    Hint Constructors visible_ : core.
+
+	Definition visibleR : hrel S S :=
+	  fun u v => visible_ (observe u) (observe v).
+
+	#[global] Instance visible_equ :
+		Proper (equ eq ==> equ eq ==> iff) visibleR.
+	Proof.
+		intros ? ? eqt ? ? equ; unfold visibleR.
+        Admitted.
+
+	Definition visible : srel SS SS := {| hrel_of := visibleR : hrel SS SS |}.
+
+
 (*|
 The transition relation over [ctree]s.
 It can either:

@@ -490,7 +490,8 @@ Section parallel.
       (exists t', trans tau (v i c) t' /\
                t ≅ schedule' n (replace_vec v i (fun _ => t')) i c) \/
       (exists c' k, (forall c'', trans (obs (inl1 (Yield _ c')) c'') (v i c) (k c'')) /\
-                     exists i', t ≅ schedule' n (replace_vec v i k) i' c') \/
+                 visible (v i c) (Vis (inl1 (Yield _ c')) k) /\
+                 exists i', t ≅ schedule' n (replace_vec v i k) i' c') \/
       (exists k, (forall b, trans (obs (inr1 (Spawn)) b) (v i c) (k b)) /\
                 t ≅ schedule'
                   (S n)
@@ -518,10 +519,11 @@ Section parallel.
         exists t''. split.
         * rewrite Hequ. econstructor. apply Ht.
         * rewrite replace_vec_twice in Ht'. apply Ht'.
-      + right. right. left. destruct H0 as (c' & k'' & Ht & i' & Ht').
-        rewrite replace_vec_eq in Ht.
-        exists c', k''. split.
+      + right. right. left. destruct H0 as (c' & k'' & Ht & Hvis & i' & Ht').
+        rewrite replace_vec_eq in Ht, Hvis.
+        exists c', k''. split; [| split].
         * intro. rewrite Hequ. econstructor. apply Ht.
+        * rewrite Hequ. econstructor. apply Hvis.
         * exists i'. setoid_rewrite replace_vec_twice in Ht'. apply Ht'.
       + right. right. right. destruct H0 as (kb & Ht & Ht').
         rewrite replace_vec_eq in Ht.
@@ -541,8 +543,9 @@ Section parallel.
         * exists eq_refl.
           rewrite <- Heq. rewrite <- H. rewrite Hk. reflexivity.
       + right. right. left. destruct y. cbn in Hequ.
-        exists c0, k0. split.
+        exists c0, k0. split; [| split].
         * intro. cbn. red. rewrite Hv. econstructor. reflexivity.
+        * cbn. red. rewrite Hv. constructor.
         * pose proof (ctree_eta t). rewrite Heq in H0. rewrite <- ctree_eta in H0.
           setoid_rewrite <- H0. setoid_rewrite <- H.
           destruct (equ_choice_invT _ _ Hequ); subst. clear H2.
@@ -658,7 +661,6 @@ Section parallel.
     remember (observe (v i c)).
     pose proof (ctree_eta (go (observe (v i c)))).
     rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
-    (* remember true as b. clear Heqb.  *)
     remember (obs _ b) as l.
     remember (observe (k b)) as k'.
     revert b k n v i c H0 Heql Heqk'.
@@ -751,6 +753,7 @@ Section parallel.
     rewrite ctree_eta. rewrite H9. rewrite <- ctree_eta. reflexivity.
   Qed.
 
+  (* Not true, since [v i c] can be something like [choice2 (if true => kc true else nonsense) (if false => kc false else nonsense)], and since [schedule'] behaves syntactically, it will never give us the desired result *)
   Lemma trans_thread_schedule'_yield (c' c'' : config) n v i i' c kc :
     (forall c'', trans (obs (inl1 (Yield _ c')) c'') (v i c) (kc c'')) ->
     trans tau (schedule' n v i c) (schedule' n (replace_vec v i kc) i' c').
@@ -773,6 +776,8 @@ Section parallel.
       2: { rewrite replace_vec_eq. rewrite REL. reflexivity. }
       intros c'''. rewrite replace_vec_eq. specialize (Htrans c''').
       cbn in Htrans. red in Htrans. rewrite <- H in Htrans.
+      inv Htrans. apply inj_pair2 in H4. subst.
+      (* apply H5. *)
 (*       eapply Htrans.
 
 
@@ -898,6 +903,20 @@ Section parallel.
     - edestruct Hf. destruct a. apply H0.
   Qed.
 
+  Lemma sbism_visible {E R X} (t1 t2 : ctree E R) (e : E X) k1 :
+    t1 ~ t2 ->
+    visible t1 (Vis e k1) ->
+    exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ~ k2 x).
+  Proof.
+    intros. cbn in *. red in H0. remember (observe t1). remember (observe (Vis e k1)).
+    revert X t1 e k1 t2 H Heqc Heqc0.
+    induction H0; intros; auto.
+    - eapply IHvisible_. 2: reflexivity. 2: auto. admit.
+    - inv Heqc0.
+    - inv Heqc0. apply inj_pair2 in H2, H3. subst. admit.
+    - inv Heqc0.
+  Abort.
+
   #[global] Instance sbisim_schedule' n :
     Proper ((vec_relation sbisim) ==> vec_relation sbisim) (schedule' n).
   Proof.
@@ -913,14 +932,13 @@ Section parallel.
         edestruct Hf as [? ? ?]; eauto.
         eapply trans_thread_schedule'_val_SS in H.
         eexists. apply H. rewrite Hequ. apply CIH.
-        cbn. apply remove_vec_vec_relation; auto.
-      + destruct H0 as (t' & Ht & Hequ).
+        cbn. apply remove_vec_vec_relation; auto.      + destruct H0 as (t' & Ht & Hequ).
         pose proof (Hv i c) as Hsb. step in Hsb. destruct Hsb as [Hf Hb].
         edestruct Hf as [? ? ?]; eauto.
         apply trans_thread_schedule'_tau in H.
         eexists; eauto. rewrite Hequ. apply CIH.
         apply replace_vec_vec_relation; auto.
-      + destruct H as (c' & k & Ht & i' & Hequ).
+      + destruct H as (c' & k & Ht & Hvis & i' & Hequ).
         pose proof (Hv i c) as Hsb. step in Hsb. destruct Hsb as [Hf Hb].
         simpl in Hf.
         destruct (construct _ _ _ _ _ _ _ Ht Hf) as (k' & ?).
