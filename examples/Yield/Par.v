@@ -353,6 +353,51 @@ Section parallel.
 
   CoFixpoint schedule' := schedule'_match schedule'.
 
+  (* Alternate definition: factoring out the yielding effect *)
+  Definition schedule''_match
+             (schedule' : forall (n : nat), vec n -> option (fin n) -> thread)
+             (n : nat)
+             (v: vec n)
+    : option (fin n) -> thread.
+    refine
+      (fun (oi : option (fin n)) c =>
+         match oi with
+         | None   => match n with
+                    | O => Ret (c,tt)
+                    | _ => ChoiceV n (fun i' => schedule' n v (Some i') c)
+                    end
+         | Some i =>
+             match (observe (v i c)) with
+             | RetF (c', _) =>
+                 match n as m return n = m -> _ with
+                 | 0 => _
+                 | S n' => fun H1 => TauI (schedule' n' (remove_vec_helper n n' v i _) None c')
+                 end (eq_refl n)
+             | ChoiceF b n' k => Choice b n' (fun i' => schedule' n (replace_vec v i (fun _ => k i')) (Some i) c)
+             | VisF (inl1 e) k =>
+                 match e in yieldE _ R return (R -> ctree (parE config) (config * unit)) -> _ with
+                 | Yield _ s' =>
+                     fun k => TauI (schedule' n (replace_vec v i k) None s')
+                 end k
+             | VisF (inr1 e) k =>
+                 match e in spawnE R return (R -> ctree (parE config) (config * unit)) -> _ with
+                 | Spawn =>
+                     fun k =>
+                       TauV (schedule'
+                               (S n)
+                               (cons_vec (fun _ => k true) (replace_vec v i (fun _ => k false)))
+                               (* The [i] here means that we don't yield at a spawn *)
+                               (Some (Fin.L_R 1 i)) (* view [i] as a [fin (n + 1)] *)
+                               c) (* this [c] doesn't matter, since the running thread won't use it *)
+                 end k
+             end
+         end).
+    - intro. subst. inv i.
+    - subst. reflexivity.
+  Defined.
+
+  CoFixpoint schedule'' := schedule''_match schedule''.
+
   Lemma rewrite_schedule' n v i c : schedule' n v i c ≅ schedule'_match schedule' n v i c.
   Proof.
     step. eauto.
