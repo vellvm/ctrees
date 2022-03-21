@@ -109,10 +109,11 @@ Section Denote1.
       | Put _ s' => Ret (s', tt)
       end.
 
+  (* The effects take place, then yields *)
   Definition h_state_yield {E} `{yieldE value -< E} : forall X, stateE value X -> Monads.stateT value (ctree E) X :=
     fun _ e s =>
       match e with
-      | Get _ => s' <- trigger (Yield _ s);; Ret (s', s')
+      | Get _ => s' <- trigger (Yield _ s);; Ret (s', s)
       | Put _ s' => s'' <- trigger (Yield _ s');; Ret (s'', tt)
       end.
 

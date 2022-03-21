@@ -520,7 +520,7 @@ useful.
 Stuck processes
 ---------------
 A process is said to be stuck if it cannot step. The [stuck] process used
-to reduce pure computations if course stuck, but so is [spinI], while [spinV]
+to reduce pure computations is of course stuck, but so is [spinI], while [spinV]
 is not.
 |*)
 
