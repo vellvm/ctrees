@@ -710,6 +710,27 @@ Proof.
     rewrite <- H5. rewrite choiceI0_always_stuck. auto.
 Qed.
 
+Lemma sbisim_ChoiceI_1_inv {E R} (k : fin 1 -> ctree E R) t x :
+  ChoiceI 1 k ~ t ->
+  k x ~ t.
+Proof.
+  intro. step in H. step. destruct H. cbn in *. split; repeat intro.
+  - apply H. econstructor; apply H1.
+  - edestruct H0. apply H1. exists x0; auto.
+    inv H2. apply inj_pair2 in H7. subst.
+    assert (x = x1).
+    {
+      clear H H0 H1 H3 H8 l t' x0 t k E R.
+      remember 1%nat.
+      destruct x.
+      - dependent destruction x1; auto.
+        inv Heqn. inv x1.
+      - inv Heqn. inv x.
+    }
+    subst. auto.
+Qed.
+
+
 (*|
 Sanity checks
 =============
