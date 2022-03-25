@@ -17,9 +17,16 @@ From Coinduction Require Import
 	coinduction rel tactics.
 
 (* A smarter version of this should be part of the [coinduction] library *)
+Ltac step :=
+  match goal with
+  | |- gfp _ _ _ => tactics.step
+  | |- _ => red; tactics.step
+  end.
+
 Ltac step_in H :=
 match type of H with
 | gfp ?b ?x ?y => apply (gfp_fp b x y) in H
+| _ => red in H; step_in H
 end;
 simpl body in H.
 Tactic Notation "step" "in" ident(H) := step_in H.

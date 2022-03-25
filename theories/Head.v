@@ -13,6 +13,13 @@ We develop in this file the [get_head] function to compute this prefix.
 .. coq:: none
 |*)
 
+From RelationAlgebra Require Import
+     rel
+     srel.
+
+From Coinduction Require Import
+	coinduction rel tactics.
+
 From CTree Require Import
 	Utils
 	CTrees
@@ -21,13 +28,6 @@ From CTree Require Import
 	Equ
 	Bisim
   CTreesTheory.
-
-From RelationAlgebra Require Import
-     rel
-     srel.
-
-From Coinduction Require Import
-	coinduction rel tactics.
 
 Import CTree.
 Import CTreeNotations.
@@ -242,7 +242,7 @@ Proof.
     step in EQ; inv EQ. inv REL; constructor.
     destruct vis.
     + step in EQ. inv EQ. inv REL.
-    + step in EQ; inv EQ. 
+    + step in EQ; inv EQ.
 Qed.
 
 Lemma trans_HChoice :
@@ -275,7 +275,7 @@ Proof.
     + step in EQ; inv EQ.
       dependent induction REL.
       apply trans_ChoiceV.
-    + step in EQ; inv EQ. 
+    + step in EQ; inv EQ.
 Qed.
 
 Lemma trans_HVis :
@@ -344,7 +344,7 @@ Qed.
   Proper (equ eq ==> equ (eq_head)) (@get_head E X).
 Proof.
   unfold Proper, respectful.
-  coinduction S CIH.
+  unfold equ; coinduction S CIH.
   intros.
   rewrite 2 unfold_get_head.
   step in H.
@@ -355,4 +355,3 @@ Proof.
     + do 2 constructor; auto.
     + constructor; intros ?; auto.
 Qed.
-

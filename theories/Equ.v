@@ -85,8 +85,9 @@ up-to reasoning: any function [f] proved to be below the companion,
 denoted [t], is accessible during a proof by coinduction.
 
 |*)
-Notation equ R := (gfp (fequ R)).
+Definition equ {E R1 R2} R := (gfp (@fequ E R1 R2 R)).
 Infix "≅" := (equ eq) (at level 70).
+#[global] Hint Unfold equ: core.
 
 (*|
 The associated companions:
@@ -182,17 +183,17 @@ of the tree.
 
 End equ_equiv.
 
-#[global] Instance Equivalence_equ {E R}: Equivalence (gfp (@fequ E R _ eq)).
+#[global] Instance Equivalence_equ {E R}: Equivalence (@equ E R R eq).
 Proof. apply Equivalence_et. typeclasses eauto. Qed.
 
 #[global] Hint Constructors equF : core.
 Arguments equ_ {E R1 R2} RR eq t1 t2/.
 
 #[global] Instance equ_eq_equ {E X} {R : rel X X} :
-  Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E X _ eq)) ==> flip impl) (equ R).
+  Proper (equ eq ==> equ eq ==> flip impl) (@equ E X X R).
 Proof.
   unfold Proper, respectful, flip, impl; cbn.
-  coinduction ? IH.
+  unfold equ; coinduction ? IH.
   intros t t' EQt u u' EQu EQ.
   step in EQt.
   step in EQu.
@@ -217,10 +218,10 @@ Proof.
 Qed.
 
 #[global] Instance equ_eq_equ' {E X Y} {R : rel X Y} :
-  Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E Y _ eq)) ==> flip impl) (equ R).
+  Proper (equ eq ==> equ eq ==> flip impl) (@equ E X Y R).
 Proof.
   unfold Proper, respectful, flip, impl; cbn.
-  coinduction ? IH.
+  unfold equ; coinduction ? IH.
   intros t t' EQt u u' EQu EQ.
   step in EQt.
   step in EQu.
@@ -243,7 +244,6 @@ Proof.
     rewrite <- H0, <- x.
     eauto.
 Qed.
-
 
 (*|
 Dependent inversion of [equ] and [equF] equations
@@ -337,7 +337,8 @@ equ ==> equ ==> flip impl)       bt_equ eq r
 #[global] Instance equ_observe {E R} :
   Proper (equ eq ==> going (equ eq)) (@observe E R).
 Proof.
-  constructor. step in H. now step.
+  constructor. red in H; step in H.
+  now step.
 Qed.
 
 #[global] Instance equ_ChoiceF {E R} b n :
@@ -364,7 +365,7 @@ Qed.
 	     (@equF E R R eq (t_equ eq r)).
 Proof.
   unfold Proper, respectful, flip, impl. intros. subst.
-  inv H. step in H0. inv H0; inv H1; auto.
+  inv H. red in H0; step in H0. inv H0; inv H1; auto.
   - invert.
     subst. constructor. intros. rewrite REL. auto.
   - invert.
@@ -649,7 +650,7 @@ Qed.
 Lemma bind_ret_r {E X} : forall (t : ctree E X),
     x <- t;; Ret x ≅ t.
 Proof.
-  coinduction S CIH.
+  unfold equ; coinduction S CIH.
   intros t.
   rewrite unfold_bind.
   cbn; desobs t; constructor; auto.
@@ -658,7 +659,7 @@ Qed.
 Lemma bind_bind {E X Y Z} : forall (t : ctree E X) (k : X -> ctree E Y) (l : Y -> ctree E Z),
     (t >>= k) >>= l ≅ t >>= (fun x => k x >>= l).
 Proof.
-  coinduction S CIH; intros.
+  unfold equ; coinduction S CIH; intros.
   rewrite (ctree_eta t). cbn.
   desobs t; cbn.
   - reflexivity.
