@@ -96,6 +96,8 @@ Definition bisim := exists R, forward R /\ backward R.
 
 Definition bisim_model := fun P q => ⟦P⟧ ~ q.
 
+
+
 Lemma complete : forward bisim_model.
 Proof.
   unfold bisim_model; red.

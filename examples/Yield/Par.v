@@ -351,6 +351,21 @@ Section parallel.
     - subst. reflexivity.
   Defined.
 
+
+
+  (* Definition k1 : bool -> ctree fooE nat := fun b : bool => (if b then Ret 0%nat else Ret 1%nat). *)
+  (* Definition k2 : bool -> ctree fooE nat := fun b : bool => (if b then Ret 2%nat else Ret 3%nat). *)
+  (* Definition t1 : ctree fooE nat := choiceI2 (Vis Foo k1) (Vis Foo k2). *)
+  (* Definition t2 : ctree fooE nat := *)
+  (*   choiceI2 (Vis Foo (fun b: bool => if b then Ret 0%nat else Ret 3%nat)) *)
+  (*            (Vis Foo (fun b: bool => if b then Ret 2%nat else Ret 1%nat)). *)
+
+  (* sched [Ret tt; t] 0 c ~  sched [t] 0 c *)
+
+  (* sched [t1] ~~ ChoiceI2 (sched [Spawn 0 1]) (sched [Spawn 2 3]) ~~ChoiceI2 (TauV ( *)
+  (* sched [t2] ~~ ChoiceI2 (Spawn 0 3) (Spawn 2 1) *)
+
+
   CoFixpoint schedule' := schedule'_match schedule'.
 
   (* Alternate definition: factoring out the yielding effect *)
@@ -948,18 +963,154 @@ Section parallel.
     - edestruct Hf. destruct a. apply H0.
   Qed.
 
+
+
+  Variant fooE: Type -> Type := | Foo : fooE bool.
+  Definition k1 : bool -> ctree fooE nat := fun b : bool => (if b then Ret 0%nat else Ret 1%nat).
+  Definition k2 : bool -> ctree fooE nat := fun b : bool => (if b then Ret 2%nat else Ret 3%nat).
+  Definition t1 : ctree fooE nat := choiceI2 (Vis Foo k1) (Vis Foo k2).
+
+  Definition u1 : ctree fooE nat :=
+    choiceI2 (Vis Foo (fun b: bool => if b then Ret 0%nat else Ret 3%nat))
+             (Vis Foo (fun b: bool => if b then Ret 2%nat else Ret 1%nat)).
+
+  Fact are_bisim: t1 ~ u1.
+  step.
+  split.
+  - intros ? ? TR.
+    unfold t1 in TR.
+    remember 3%nat as x3.
+    remember 2%nat as x2.
+    remember 1%nat as x1.
+    remember 0%nat as x0.
+    inv_trans; subst.
+    + apply trans_vis_inv in TR as (b & ? & ->).
+      unfold u1.
+      destruct b.
+      * eexists.
+        apply trans_choiceI21.
+        apply trans_vis.
+        rewrite H; reflexivity.
+      * eexists.
+        apply trans_choiceI22.
+        apply trans_vis.
+        rewrite H; reflexivity.
+    + apply trans_vis_inv in TR as (b & ? & ->).
+      unfold u1.
+      destruct b.
+      * eexists.
+        apply trans_choiceI22.
+        apply trans_vis.
+        rewrite H; reflexivity.
+      * eexists.
+        apply trans_choiceI21.
+        apply trans_vis.
+        rewrite H; reflexivity.
+  - cbn; intros ? ? TR.
+    unfold u1 in TR.
+    remember 3%nat as x3.
+    remember 2%nat as x2.
+    remember 1%nat as x1.
+    remember 0%nat as x0.
+    inv_trans; subst.
+    + apply trans_vis_inv in TR as (b & ? & ->).
+      unfold t1.
+      destruct b.
+      * eexists.
+        apply trans_choiceI21.
+        apply trans_vis.
+        rewrite H; reflexivity.
+      * eexists.
+        apply trans_choiceI22.
+        apply trans_vis.
+        rewrite H; reflexivity.
+    + apply trans_vis_inv in TR as (b & ? & ->).
+      unfold u1.
+      destruct b.
+      * eexists.
+        apply trans_choiceI22.
+        apply trans_vis.
+        rewrite H; reflexivity.
+      * eexists.
+        apply trans_choiceI21.
+        apply trans_vis.
+        rewrite H; reflexivity.
+Qed.
+
+Fact is_vis : visible t1 (Vis Foo k1).
+Proof.
+  eapply VisibleI with (x := Fin.F1); econstructor.
+Qed.
+
+Fact abs : forall k2, visible u1 (Vis Foo k2) -> exists x, ~ (k1 x ~ k2 x).
+Proof.
+  intros ? VIS.
+  red in VIS; cbn in VIS.
+  unfold u1 in VIS.
+  red in VIS.
+  cbn in VIS.
+  dependent destruction VIS.
+  dependent destruction x.
+  - dependent destruction VIS.
+    exists false.
+    cbn.
+    intros abs; apply sbisim_ret_ret_inv in abs; lia.
+  - dependent destruction VIS.
+    exists true.
+    cbn.
+    intros abs; apply sbisim_ret_ret_inv in abs; lia.
+Qed.
+
+
   Lemma sbism_visible {E R X} (t1 t2 : ctree E R) (e : E X) k1 :
     t1 ~ t2 ->
     visible t1 (Vis e k1) ->
     exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ~ k2 x).
   Proof.
-    intros. cbn in *. red in H0. remember (observe t1). remember (observe (Vis e k1)).
-    revert X t1 e k1 t2 H Heqc Heqc0.
-    induction H0; intros; auto.
-    - eapply IHvisible_. 2: reflexivity. 2: auto. admit.
-    - inv Heqc0.
-    - inv Heqc0. apply inj_pair2 in H2, H3. subst. admit.
-    - inv Heqc0.
+    intros * bis VIS. cbn in *.
+    revert t2 bis.
+    red in VIS; cbn in VIS.
+    dependent induction VIS; intros; auto.
+    - destruct (observe t1) eqn:EQ; dependent induction x.
+
+    (*
+    visible t1 (Vis e k1)
+    ->
+    (forall x, trans (obs e x) t1 (k x))
+
+
+t1 == ChoiceI2 (Vis e k1) (Vis e k1')
+t2 == choiceI2 (Vis e k2) (Vis e k2')
+
+k2 true   = k1 true
+k2 false  = k1' false
+
+k2' true  = k1' true
+k2' false = k1 false
+
+
+
+
+     ChoiceI 2
+     Vis e                  Vis e
+     false —> k1 false      false -> k2 false
+     true -> k2 true        true  -> k1 true
+
+
+k1' k1 false k2 true
+
+     *)
+
+
+  (*   - admit. *)
+  (*   - admit. *)
+  (*   red in H0. remember (observe t1). remember (observe (Vis e k1)). *)
+  (*   revert X t1 e k1 t2 H Heqc Heqc0. *)
+  (*   induction H0; intros; auto. *)
+  (*   - eapply IHvisible_. 2: reflexivity. 2: auto. admit. *)
+  (*   - inv Heqc0. *)
+  (*   - inv Heqc0. apply inj_pair2 in H2, H3. subst. admit. *)
+  (*   - inv Heqc0. *)
   Abort.
 
   #[global] Instance sbisim_schedule' n :

@@ -239,10 +239,10 @@ Proof.
     rewrite unfold_get_head in EQ.
     cbn; red.
     desobs p; try now (step in EQ; inv EQ).
-    step in EQ; inv EQ; inv REL; constructor.
+    step in EQ; inv EQ. inv REL; constructor.
     destruct vis.
-    + step in EQ; inv EQ; inv REL.
-    + step in EQ; inv EQ; inv REL.
+    + step in EQ. inv EQ. inv REL.
+    + step in EQ; inv EQ. 
 Qed.
 
 Lemma trans_HChoice :
@@ -275,7 +275,7 @@ Proof.
     + step in EQ; inv EQ.
       dependent induction REL.
       apply trans_ChoiceV.
-    + step in EQ; inv EQ; inv REL.
+    + step in EQ; inv EQ. 
 Qed.
 
 Lemma trans_HVis :

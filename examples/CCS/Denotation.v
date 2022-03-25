@@ -391,7 +391,7 @@ Proof.
     cbn; unfold Utils.choice, MonadChoice_ctree, choice.
     eapply trans_bind_l.
     intros abs; inv abs.
-    apply trans_ChoiceV with (x0 := x).
+    apply trans_ChoiceV with (x := x).
     rewrite bind_ret_l, TauI_sb.
     rewrite H.
     unfold new; rewrite 2 unfold_interp, Heqop'.
@@ -425,7 +425,6 @@ Proof.
   - tauto.
 Qed.
 
-(* Proof to fix *)
 Lemma trans_new_inv_aux : forall l T U,
     trans_ l T U ->
     forall c p q,
@@ -459,7 +458,7 @@ Proof.
         setoid_rewrite eqx in IHtr.
         edestruct (IHtr (k0 x)) as (q' & comm & tr' & EQ); [right; reflexivity | reflexivity |].
         exists q'; repeat split; auto.
-        eapply trans_ChoiceI with (x0 := x).
+        eapply trans_ChoiceI with (x := x).
         eauto.
         reflexivity.
         rewrite <- EQ, EQ2; auto.
@@ -1168,20 +1167,20 @@ Proof.
     destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
     destruct x; try easy.
     apply trans_ChoiceV_inv in TR2 as (x & EQ & ->).
-    pose proof trans_HChoice _ TR1 x.
+    pose proof trans_HChoice TR1 x.
     eauto.
     apply trans_vis_inv in TR2 as (x & EQ & ->).
-    pose proof trans_HVis _ TR1 (i := x).
+    pose proof trans_HVis TR1 (i := x).
     eauto.
   - right; left.
     apply trans_bind_inv in TR.
     destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
     destruct x; try easy.
     apply trans_ChoiceV_inv in TR2 as (x & EQ & ->).
-    pose proof trans_HChoice _ TR1 x.
+    pose proof trans_HChoice TR1 x.
     eauto.
     apply trans_vis_inv in TR2 as (x & EQ & ->).
-    pose proof trans_HVis _ TR1 (i := x).
+    pose proof trans_HVis TR1 (i := x).
     eauto.
   - right; right; left.
     apply trans_bind_inv in TR.
@@ -1191,8 +1190,8 @@ Proof.
     destruct x, x0; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
     destruct e, e0, (are_opposite a a0) eqn:?; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
     apply trans_TauV_inv in TR3 as (? & ->).
-    pose proof trans_HVis _ TR1 (i := tt).
-    pose proof trans_HVis _ TR2 (i := tt).
+    pose proof trans_HVis TR1 (i := tt).
+    pose proof trans_HVis TR2 (i := tt).
     eauto 10.
   - right; right; right.
     apply trans_bind_inv in TR.
@@ -1202,8 +1201,8 @@ Proof.
     destruct x0, x1; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
     destruct e, e0, (are_opposite a a0) eqn:?; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
     apply trans_TauV_inv in TR3 as (? & ->).
-    pose proof trans_HVis _ TR1 (i := tt).
-    pose proof trans_HVis _ TR2 (i := tt).
+    pose proof trans_HVis TR1 (i := tt).
+    pose proof trans_HVis TR2 (i := tt).
     eauto 10.
 Qed.
 

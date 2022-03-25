@@ -241,6 +241,13 @@ Hence [equ eq] is a included in [sbisim]
       rewrite H; reflexivity.
     Qed.
 
+    #[local] Instance sbisim_sbisim_closed : Proper (sbisim ==> sbisim ==> iff) sbisim.
+    repeat intro.
+    split; intros.
+    etransitivity; [symmetry; eassumption | etransitivity; eauto].
+    etransitivity; [etransitivity; eauto | symmetry; eassumption].
+    Qed.
+
   End Strong.
 
   Notation sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
@@ -467,6 +474,8 @@ on the setoid side.
 
     Lemma cnv_wt R: (wt R: hrel _ _)° ≡ wt R.
     Proof. apply RelationAlgebra.lattice.antisym; intros ???; now apply Symmetric_wt. Qed.
+    Lemma cnv_gfp: RelationAlgebra.lattice.weq ((gfp wb: hrel _ _)°) (gfp wb).
+    Proof. apply cnv_wt. Qed.
     Lemma cnv_wbisim: wbisimT° ≡ wbisimT.
     Proof. apply cnv_wt. Qed.
     Lemma cnv_wbisim': wbisim° ≡ wbisim.
@@ -496,7 +505,8 @@ Finally, the proof of transitivity
     Proof.
       assert (square wbisim <= wbisim) as H.
       apply leq_gfp. apply symmetric_pfp.
-      now rewrite converse_square, cnv_wbisim'.
+      rewrite converse_square.
+      apply square. simpl. apply cnv_gfp.
       intros x z [y xy yz] l x' xx'.
       apply (gfp_pfp wb) in xy as [xy _].
       destruct (xy _ _ xx') as [y' yy' x'y'].

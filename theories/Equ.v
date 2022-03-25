@@ -216,6 +216,35 @@ Proof.
     eauto.
 Qed.
 
+#[global] Instance equ_eq_equ' {E X Y} {R : rel X Y} :
+  Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E Y _ eq)) ==> flip impl) (equ R).
+Proof.
+  unfold Proper, respectful, flip, impl; cbn.
+  coinduction ? IH.
+  intros t t' EQt u u' EQu EQ.
+  step in EQt.
+  step in EQu.
+  step in EQ.
+  inv EQt; rewrite <- H in EQ.
+  - inv EQ.
+    rewrite <- H3 in EQu.
+    inv EQu.
+    cbn; rewrite <- H0, <- H2; auto.
+  - dependent destruction EQ.
+    cbn.
+    rewrite <- x in EQu.
+    dependent destruction EQu.
+    rewrite <- H0, <- x.
+    eauto.
+  - dependent destruction EQ.
+    cbn.
+    rewrite <- x in EQu.
+    dependent destruction EQu.
+    rewrite <- H0, <- x.
+    eauto.
+Qed.
+
+
 (*|
 Dependent inversion of [equ] and [equF] equations
 -------------------------------------------------
