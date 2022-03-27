@@ -5,17 +5,6 @@ From Coq Require Import
      micromega.Lia
      Init.Specif.
 
-From CTree Require Import
-       CTrees
-	   Utils
-	   CTrees
- 	   Interp
-	   Equ
-	   Bisim
-       Shallow
-       CTreesTheory
-       Trans.
-
 From RelationAlgebra Require Import
      monoid
      kat
@@ -32,6 +21,17 @@ From ITree Require Import
 
 From Coinduction Require Import
 	coinduction rel tactics.
+
+From CTree Require Import
+     CTrees
+	   Utils
+	   CTrees
+ 	   Interp
+	   Equ
+	   Bisim
+     Shallow
+     CTreesTheory
+     Trans.
 
 Import ListNotations.
 Import CTreeNotations.
@@ -131,12 +131,12 @@ Section parallel.
                  (y1 : config),
             pointwise_relation config (equ eq) x y ->
             list_relation (pointwise_relation config (equ eq)) x0 y0 ->
-            t_equ eq r (schedule x x0 y1) (schedule y y0 y1)) :
+            et eq r (schedule x x0 y1) (schedule y y0 y1)) :
     forall r1 r2,
     pointwise_relation config (equ eq) k1 k2 ->
     list_relation (pointwise_relation _ (equ eq)) l1 l2 ->
     list_relation (pointwise_relation _ (equ eq)) r1 r2 ->
-    equF eq (t_equ eq r)
+    equF eq (et eq r)
          (observe ('(curr', rest') <- choose' k1 l1 r1;;
                    TauI (schedule curr' rest' s)))
          (observe ('(curr', rest') <- choose' k2 l2 r2;;

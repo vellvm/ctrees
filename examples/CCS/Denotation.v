@@ -9,18 +9,9 @@ Denotation of [ccs] into [ctree]s
 From Coq Require Export
      List
      Strings.String.
+From Coq Require Import RelationClasses Program.
 
 From ITree Require Import ITree.
-
-From CTree Require Import
-	   Utils
-	   CTrees
-     Trans
- 	   Interp
-	   Equ
-	   Bisim
-     CTreesTheory
-     Head.
 
 From RelationAlgebra Require Import
      monoid
@@ -39,13 +30,23 @@ From CTreeCCS Require Import
 From Coinduction Require Import
 	   coinduction rel tactics.
 
+From CTree Require Import
+	   Utils
+	   CTrees
+     Trans
+ 	   Interp
+	   Equ
+	   Bisim
+     CTreesTheory
+     Head.
+
 Import CTree.
 
 Import CTreeNotations.
 Open Scope ctree_scope.
 
-Set Implicit Arguments.
-Set Contextual Implicit.
+(* Set Implicit Arguments. *)
+(* Set Contextual Implicit. *)
 
 (*|
 Event signature
@@ -85,6 +86,7 @@ Section Combinators.
             | Rcv c' =>
                 if (c =? c')%string then stuckI else trigger e
             end.
+  #[global] Arguments h_new c [T] _.
 
   Definition new : chan -> ccs -> ccs :=
     fun c P => interp (h_new c) P.
@@ -206,39 +208,44 @@ End CCSNotationsSem.
 Import CCSNotationsSem.
 Open Scope ccs_scope.
 
-#[global] Instance equ_clos_sb_proper {E R} RR :
-  Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (sb RR).
+#[global] Instance equ_clos_sb_goal {E R} RR :
+  Proper (equ eq ==> equ eq ==> flip impl) (@sb E R RR).
 Proof.
-  unfold Proper, respectful; intros * eq1 * eq2.
-  split; intros bis.
-  - destruct bis as [F B]; cbn in *.
-    split.
-    + intros ? ? TR.
-      rewrite <- eq1 in TR.
-      apply F in TR as [].
-      eexists.
-      rewrite <- eq2; eauto.
-      eauto.
-    + intros ? ? TR.
-      rewrite <- eq2 in TR.
-      apply B in TR as [].
-      eexists.
-      rewrite <- eq1; eauto.
-      eauto.
-  - destruct bis as [F B]; cbn in *.
-    split.
-    + intros ? ? TR.
-      rewrite eq1 in TR.
-      apply F in TR as [].
-      eexists.
-      rewrite eq2; eauto.
-      eauto.
-    + intros ? ? TR.
-      rewrite eq2 in TR.
-      apply B in TR as [].
-      eexists.
-      rewrite eq1; eauto.
-      eauto.
+  cbn; unfold Proper, respectful; intros * eq1 * eq2 bis.
+  destruct bis as [F B]; cbn in *.
+  split.
+  + intros ? ? TR.
+    rewrite eq1 in TR.
+    apply F in TR as [].
+    eexists.
+    rewrite eq2; eauto.
+    eauto.
+  + intros ? ? TR.
+    rewrite eq2 in TR.
+    apply B in TR as [].
+    eexists.
+    rewrite eq1; eauto.
+    eauto.
+Qed.
+
+#[global] Instance equ_clos_sb_ctx {E R} RR :
+  Proper (gfp (@fequ E R R eq) ==> equ eq ==> impl) (sb RR).
+Proof.
+  cbn; unfold Proper, respectful; intros * eq1 * eq2 bis.
+  destruct bis as [F B]; cbn in *.
+  split.
+  + intros ? ? TR.
+    rewrite <- eq1 in TR.
+    apply F in TR as [].
+    eexists.
+    rewrite <- eq2; eauto.
+    eauto.
+  + intros ? ? TR.
+    rewrite <- eq2 in TR.
+    apply B in TR as [].
+    eexists.
+    rewrite <- eq1; eauto.
+    eauto.
 Qed.
 
 Lemma trans_prefix_inv : forall l a p p',
@@ -270,7 +277,7 @@ Proof.
 Qed.
 
 (** ** prefix *)
-Lemma ctx_prefix_tequ a: unary_ctx (prefix a) <= (t_equ eq).
+Lemma ctx_prefix_tequ a: unary_ctx (prefix a) <= (et eq).
 Proof.
   apply Coinduction.
   intro R.
@@ -288,7 +295,7 @@ Qed.
 
 #[global] Instance prefix_st a: forall R, Proper (st R ==> st R) (prefix a) := unary_proper_t (@ctx_prefix_st a).
 
-#[global] Instance prefix_tequ a: forall R, Proper (t_equ eq R ==> t_equ eq R) (prefix a) := unary_proper_t (@ctx_prefix_tequ a).
+#[global] Instance prefix_tequ a: forall R, Proper (et eq R ==> et eq R) (prefix a) := unary_proper_t (@ctx_prefix_tequ a).
 
 Definition can_comm (c : chan) (a : @label ccsE) : bool :=
   match a with
@@ -522,20 +529,6 @@ Proof.
   eexists; repeat split; eauto.
   rewrite H2, TauI_sb; reflexivity.
 Qed.
-
-#[global] Instance equ_clos_sT_proper {E R} RR f : Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (T sb f RR).
-Proof.
-  intros ? ? eq1 ? ? eq2; split; intros H.
-  apply (fT_T equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
-  apply (fT_T equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption.
-Qed.
-
-(* #[global] Instance sb_clos_sT_proper {E R} RR f : Proper (gfp sb ==> gfp sb ==> iff) (T (sb : mon (rel (ctree E R) (ctree E R))) f RR). *)
-(* Proof. *)
-(*   intros ? ? eq1 ? ? eq2; split; intros H. *)
-(*   apply (fT_T equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption. *)
-(*   apply (fT_T equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption. *)
-(* Qed. *)
 
 (** ** name restriction *)
 Lemma ctx_new_st a: unary_ctx (new a) <= st.

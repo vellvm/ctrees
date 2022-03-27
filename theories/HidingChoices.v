@@ -64,7 +64,7 @@ Qed.
   Proper (equ eq ==> equ eq) (@hide E R).
 Proof.
   unfold Proper, respectful.
-  coinduction ? CIH.
+  unfold equ; coinduction ? CIH.
   intros * EQ.
   cbn.
   rewrite 2 unfold_hide.
@@ -231,7 +231,7 @@ Proof.
   split.
   2:{
     revert t u.
-    coinduction ? CIH.
+    unfold wbisim; coinduction ? CIH.
     symmetric using intuition.
     intros * EQ l t' TR.
     step in EQ; destruct EQ as [F _]; cbn in F.

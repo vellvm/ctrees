@@ -415,6 +415,52 @@ Proof.
   auto.
 Qed.
 
+#[global] Instance equ_clos_sT_goal {E R} RR f :
+  Proper (@equ E R R eq ==> equ eq ==> flip impl) (sT f RR).
+Proof.
+  cbn; intros ? ? eq1 ? ? eq2 H.
+  apply (fT_T equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption.
+Qed.
+
+#[global] Instance equ_clos_sT_ctx {E R} RR f :
+  Proper (@equ E R R eq ==> equ eq ==> impl) (sT f RR).
+Proof.
+  cbn; intros ? ? eq1 ? ? eq2 H.
+  apply (fT_T equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
+Qed.
+
+#[global] Instance sbisim_clos_sT_goal {E R} RR f :
+  Proper (@sbisim E R ==> sbisim ==> flip impl) (sT f RR).
+Proof.
+  cbn; intros ? ? eq1 ? ? eq2 H.
+  rewrite eq1, eq2.
+  auto.
+Qed.
+
+#[global] Instance sbisim_clos_sT_ctx {E R} RR f :
+  Proper (@sbisim E R ==> sbisim ==> impl) (sT f RR).
+Proof.
+  cbn; intros ? ? eq1 ? ? eq2 H.
+  rewrite <- eq1, <- eq2.
+  auto.
+Qed.
+
+#[global] Instance equ_clos_eT_goal {E R} RR f :
+  Proper (@equ E R R eq ==> equ eq ==> flip impl) (eT eq f RR).
+Proof.
+  cbn; intros ? ? eq1 ? ? eq2 H.
+  rewrite eq1, eq2.
+  auto.
+Qed.
+
+#[global] Instance equ_clos_eT_ctx {E R} RR f :
+  Proper (@equ E R R eq ==> equ eq ==> impl) (eT eq f RR).
+Proof.
+  cbn; intros ? ? eq1 ? ? eq2 H.
+  rewrite <- eq1, <- eq2.
+  auto.
+Qed.
+
 (*|
 Weak bisimulation up-to [equ] is valid
 |*)
@@ -437,7 +483,7 @@ Qed.
 We can therefore rewrite [equ] in the middle of bisimulation proofs
 |*)
 #[global] Instance equ_clos_st_proper_goal {E R} RR :
-  Proper (gfp (@fequ E R R eq) ==> equ eq ==> flip impl) (st RR).
+  Proper (@equ E R R eq ==> equ eq ==> flip impl) (st RR).
 Proof.
   cbn; unfold Proper, respectful; intros.
   apply (ft_t equ_clos_st).
@@ -445,7 +491,7 @@ Proof.
 Qed.
 
 #[global] Instance equ_clos_wt_proper_ctx {E R} RR :
-  Proper (gfp (@fequ E R R eq) ==> equ eq ==> impl) (wt RR).
+  Proper (@equ E R R eq ==> equ eq ==> impl) (wt RR).
 Proof.
   cbn; unfold Proper, respectful; intros.
   apply (ft_t equ_clos_wt).

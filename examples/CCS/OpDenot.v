@@ -1,10 +1,13 @@
+From Coinduction Require Import
+	   coinduction rel tactics.
+
 From CTree Require Import
-	Utils
-	CTrees
-	Interp
-	Equ
-	Bisim
-  Trans.
+	   Utils
+	   CTrees
+	   Interp
+	   Equ
+	   Bisim
+     Trans.
 
 From RelationAlgebra Require Import
      monoid
@@ -157,7 +160,8 @@ Proof.
     rewrite <- EQ',EQ; auto.
   - apply trans_prefix_inv in TR' as [EQ ->].
     eexists; split; [constructor |].
-    rewrite <- EQ',EQ; auto.
+    rewrite <- EQ', EQ.
+    auto.
   - trans_para_invT TR'.
     + edestruct IHP1 as (P' & STEP & EQ''); [reflexivity | apply TRp |].
       eexists; split.
@@ -249,7 +253,6 @@ Qed.
 
 (* We depend currently on
    - [Eqdep.Eq_rect_eq.eq_rect_eq]
-   - [JMeq_eq]
  *)
 Print Assumptions is_bisim.
 

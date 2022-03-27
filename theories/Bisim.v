@@ -234,7 +234,7 @@ This proof should be shorter if actually using some braincells I think.
     Qed.
 
     #[global] Instance equ_sbt_closed {r} :
-      Proper (gfp (fequ eq) ==> equ eq ==> flip impl)
+      Proper (equ eq ==> equ eq ==> flip impl)
              (sbt r).
     Proof.
       repeat intro. pose proof (gfp_bt sb r).
@@ -678,7 +678,9 @@ End Bisim.
 (* Notation sbisim := (gfp sb : hrel _ _). *)
 Notation "t ~ u" := (sbisim t u) (at level 70).
 Notation st := (t sb).
+Notation sT := (T sb).
 Notation sbt := (bt sb).
+Notation sbT := (bT sb).
 (** notations  for easing readability in proofs by enhanced coinduction *)
 Notation "t [~] u" := (st  _ t u) (at level 79).
 Notation "t {~} u" := (sbt _ t u) (at level 79).
@@ -696,4 +698,27 @@ Notation wbT := (coinduction.bT wb).
 Notation "x [≈] y" := (wt _ x y) (at level 80).
 Notation "x {≈} y" := (wbt _ x y) (at level 80).
 
+Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
+  match goal with
+  | |- context [@equ ?E ?R1 ?R2 ?RR _ _] =>
+      unfold equ;
+      apply_coinduction;
+      fold (@equ E R1 R2 RR);
+      intros R H
+  | |- context [@sbisim ?E ?X _ _] =>
+      unfold sbisim;
+      apply_coinduction;
+      fold (@sbisim E X);
+      intros R H
+  | |- context [@wbisim ?E ?X _ _] =>
+      unfold wbisim;
+      apply_coinduction;
+      fold (@wbisim E X);
+      intros R H
+  | |- _ =>
+      apply_coinduction;
+      intros R H
+  end.
+
 #[global] Opaque wtrans.
+

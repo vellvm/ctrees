@@ -439,10 +439,10 @@ Lemma schedule_vis_inv :
     schedule (Vis e k) t -> t ≅ Vis e k.
 Proof.
   intros * SCHED. inversion SCHED. apply inj_pair2 in H1, H2. subst.
-  step. rewrite <- H3. constructor. intros.
+  step. fold (@equ E Y _ eq).
+  rewrite <- H3. constructor. intros.
   symmetry; auto.
 Qed.
-
 
 (* TODO : [equ] is a subrelation of [bisim] *)
 Lemma equ_bisim : forall {E X Y} {RR: X -> Y -> Prop},
