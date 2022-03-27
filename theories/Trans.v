@@ -81,11 +81,13 @@ Section Trans.
     visible_ (observe (k x)) t ->
     visible_ (ChoiceF false n k) t
 
-  | VisibleV {n} (x : Fin.t n) k :
-    visible_ (ChoiceF true n k) (ChoiceF true n k)
+  | VisibleV {n} (x : Fin.t n) k1 k2 :
+    (forall x, k1 x ≅ k2 x) ->
+    visible_ (ChoiceF true n k1) (ChoiceF true n k2)
 
-  | VisibleVis {X} (e : E X) k :
-    visible_ (VisF e k) (VisF e k)
+  | VisibleVis {X} (e : E X) k1 k2 :
+    (forall x, k1 x ≅ k2 x) ->
+    visible_ (VisF e k1) (VisF e k2)
 
 	| VisibleRet r :
     visible_ (RetF r) (RetF r)
@@ -98,8 +100,8 @@ Section Trans.
 	#[global] Instance visible_equ :
 		Proper (equ eq ==> equ eq ==> iff) visibleR.
 	Proof.
-		intros ? ? eqt ? ? equ; unfold visibleR.
-  Admitted.
+	  intros ? ? eqt ? ? equ; unfold visibleR.
+    Admitted.
 
 	Definition visible : srel SS SS := {| hrel_of := visibleR : hrel SS SS |}.
 
@@ -520,7 +522,7 @@ useful.
 Stuck processes
 ---------------
 A process is said to be stuck if it cannot step. The [stuck] process used
-to reduce pure computations if course stuck, but so is [spinI], while [spinV]
+to reduce pure computations is of course stuck, but so is [spinI], while [spinV]
 is not.
 |*)
 
