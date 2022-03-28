@@ -958,42 +958,46 @@ Section parallel.
 
   Require Import Coq.Logic.IndefiniteDescription.
 
-  Lemma construct n (v1 v2 : vec n) i c c' k :
-    (forall c'' : config, trans (obs (inl1 (Yield config c')) c'') (v1 i c) (k c'')) ->
-    (forall (l : label) (t' : ctree (parE config) (config * ())),
-        trans l (v1 i c) t' ->
-        exists2 u' : ctree (parE config) (config * ()), trans l (v2 i c) u' & t' ~ u') ->
-    {k' : thread | (forall c'', trans (obs (inl1 (Yield config c')) c'') (v2 i c) (k' c'') /\ k c'' ~ k' c'')}.
-  Proof.
-    intros Ht Hf.
-    assert
-         (forall (l : label) (t' : ctree (parE config) (config * ())),
-             trans l (v1 i c) t' ->
-             {u' : ctree (parE config) (config * ()) | trans l (v2 i c) u' /\ t' ~ u'}).
-    {
-      intros. apply constructive_indefinite_description.
-      edestruct Hf; eauto.
-    } clear Hf. rename X into Hf.
+  (* Lemma construct n (v1 v2 : vec n) i c c' k : *)
+  (*   (forall c'' : config, trans (obs (inl1 (Yield config c')) c'') (v1 i c) (k c'')) -> *)
+  (*   (forall (l : label) (t' : ctree (parE config) (config * ())), *)
+  (*       trans l (v1 i c) t' -> *)
+  (*       exists2 u' : ctree (parE config) (config * ()), trans l (v2 i c) u' & t' ~ u') -> *)
+  (*   {k' : thread | (forall c'', trans (obs (inl1 (Yield config c')) c'') (v2 i c) (k' c'') /\ k c'' ~ k' c'')}. *)
+  (* Proof. *)
+  (*   intros Ht Hf. *)
+  (*   assert *)
+  (*        (forall (l : label) (t' : ctree (parE config) (config * ())), *)
+  (*            trans l (v1 i c) t' -> *)
+  (*            {u' : ctree (parE config) (config * ()) | trans l (v2 i c) u' /\ t' ~ u'}). *)
+  (*   { *)
+  (*     intros. apply constructive_indefinite_description. *)
+  (*     edestruct Hf; eauto. *)
+  (*   } clear Hf. rename X into Hf. *)
 
-    eexists.
-    Unshelve.
-    2: {
-      intros c''. destruct (Hf _ _ (Ht c'')).
-      apply x.
-    }
-    intro c''.
-    split; cbn.
-    - edestruct Hf. destruct a. apply H.
-    - edestruct Hf. destruct a. apply H0.
-  Qed.
+  (*   eexists. *)
+  (*   Unshelve. *)
+  (*   2: { *)
+  (*     intros c''. destruct (Hf _ _ (Ht c'')). *)
+  (*     apply x. *)
+  (*   } *)
+  (*   intro c''. *)
+  (*   split; cbn. *)
+  (*   - edestruct Hf. destruct a. apply H. *)
+  (*   - edestruct Hf. destruct a. apply H0. *)
+  (* Qed. *)
 
-  Lemma sbisim_vis_visible {E R X} (t1 t2 : ctree E R) (e : E X) k1 (Hin: inhabited X) :
+  (* Lemma sbisim_vis_cases {E R X} (t : ctree E R) (e : E X) k : *)
+  (*   Vis e k ~ t -> *)
+  (*   (exists k', t ≅ Vis e k' /\ forall x, k x ~ k' x). *)
+
+  Lemma sbisim_vis_visible {E R X} (t2 : ctree E R) (e : E X) k1 (Hin: inhabited X) :
     Vis e k1 ~ t2 ->
     exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ~ k2 x).
   Proof.
     intros.
-    step in H. destruct H as [Hf _].
-    cbn in Hf. unfold transR in Hf.
+    step in H. destruct H as [Hf Hb].
+    cbn in *. unfold transR in Hf.
     assert
       (forall (l : label) (t' : ctree E R),
           trans_ l (VisF e k1) (observe t') ->
@@ -1002,23 +1006,30 @@ Section parallel.
       intros. apply constructive_indefinite_description.
       edestruct Hf; eauto.
     } clear Hf. rename X0 into Hf.
-    eexists. Unshelve.
-    2: {
-      intros x'. edestruct Hf. constructor. reflexivity.
-      Unshelve.
-      apply x. apply x'.
-    }
     destruct Hin as [x].
-    edestruct (Hf (obs e x)) as (t & ? & ?). constructor. reflexivity.
-    split.
-    2: {
-      intros. cbn. destruct Hf as (? & ? & ?). auto.
-    }
-    cbn. red. cbn.
+    edestruct (Hf (obs e x)). constructor. reflexivity.
+    destruct a. clear H0 Hb.
     dependent induction H.
-    2: {
-      rewrite <- x1 at 1. econstructor.
-      intros. destruct Hf.
+    - assert (n = 1%nat) by admit. subst.
+      edestruct IHtrans_; try reflexivity.
+      intros. rewrite <- x in Hf. edestruct Hf. eauto.
+      destruct a.
+      exists x3. split. inv H1. apply inj_pair2 in H6. subst.
+      assert (x1 = x4).
+      admit.
+      subst. auto. auto.
+      exists x3. split; auto. red. cbn. rewrite <- x. econstructor. apply H0. apply H0.
+    - rewrite <- x2 in Hf.
+      eexists. Unshelve.
+      2: {
+        intros x'. edestruct Hf. constructor. reflexivity.
+        Unshelve. apply x3. apply x'.
+      }
+      split.
+      + red. cbn. rewrite <- x2. constructor. intros. destruct Hf. destruct a.
+        inv H0. apply inj_pair2 in H4, H5, H6, H7. subst.
+        rewrite (ctree_eta t0) in H3. rewrite H8 in H3. rewrite <- ctree_eta in H3. auto.
+      + intros. destruct Hf. destruct a. cbn. auto.
   Admitted.
 
   Lemma sbisim_visible {E R X} (t1 t2 : ctree E R) (e : E X) k1 (Hin: inhabited X) :
@@ -1045,6 +1056,19 @@ Section parallel.
     visible (v i c) (Vis (inl1 (Yield config c')) k) ->
     trans tau (schedule' n v i c) (schedule' n (replace_vec v i k) i' c').
   Proof.
+    intros. cbn in *. red in H |- *.
+    remember (observe (v i c)). remember (observe (Vis _ k)).
+    revert v i c i' c' k Heqc0 Heqc1.
+    induction H; intros; subst; try inv Heqc1.
+    - assert (n0 = 1%nat) by admit. subst.
+      rewrite rewrite_schedule' at 1. unfold schedule'_match.
+      rewrite <- Heqc0. constructor 1 with (x:=x).
+      rewrite <- (replace_vec_twice _ v i (fun _ => k x) k0).
+      eapply IHvisible_; auto. rewrite replace_vec_eq. auto.
+    - apply inj_pair2 in H2, H3. subst.
+      rewrite rewrite_schedule' at 1. unfold schedule'_match.
+      rewrite <- Heqc0. econstructor. apply equ_schedule'.
+      apply replace_vec_vec_relation; repeat intro; auto.
   Admitted.
 
   Lemma visible_spawn_trans_schedule' n v i c k :
@@ -1056,6 +1080,20 @@ Section parallel.
                      (Fin.L_R 1 i)
                      c).
   Proof.
+    intros. cbn in *. red in H |- *.
+    remember (observe (v i c)). remember (observe (Vis _ k)).
+    revert v i c k Heqc0 Heqc1.
+    induction H; intros; subst; try inv Heqc1.
+    - assert (n0 = 1%nat) by admit. subst.
+      rewrite rewrite_schedule' at 1. unfold schedule'_match.
+      rewrite <- Heqc0. constructor 1 with (x:=x).
+      rewrite <- (replace_vec_twice _ v i (fun _ => k x) (fun _ => k0 false)).
+      eapply IHvisible_; auto. rewrite replace_vec_eq. auto.
+    - apply inj_pair2 in H2, H3. subst.
+      rewrite rewrite_schedule' at 1. unfold schedule'_match.
+      rewrite <- Heqc0. econstructor. apply Fin.F1. apply equ_schedule'.
+      apply cons_vec_vec_relation; auto.
+      apply replace_vec_vec_relation; repeat intro; auto.
   Admitted.
 
   #[global] Instance sbisim_schedule' n :
