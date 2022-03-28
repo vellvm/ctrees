@@ -49,18 +49,32 @@ Automation for bisimulation proofs
 
 Ltac steps := step; split; cbn; intros ? ? ?TR.
 
+(* Ltac stepF H := *)
+(*   match goal with *)
+(*   | h : gfp wb _ _ |- _ => *)
+(*       step in h; destruct h as [?F _]; cbn in F; *)
+(*       edestruct F as [? ?TR ?BIS]; [now apply H | clear F] *)
+(*   end. *)
+
+(* Ltac stepB H := *)
+(*   match goal with *)
+(*   | h : gfp wb _ _ |- _ => *)
+(*       step in h; destruct h as [_ ?B]; cbn in B; *)
+(*       edestruct B as [? ?TR ?BIS]; [now apply H | clear B] *)
+(*   end. *)
+
 Ltac stepF H :=
   match goal with
-  | h : gfp wb _ _ |- _ =>
+  | h : @wbisim ?E ?X _ _ |- _ =>
       step in h; destruct h as [?F _]; cbn in F;
-      edestruct F as [? ?TR ?BIS]; [now apply H | clear F]
+      edestruct F as [? ?TR ?BIS]; [now apply H | clear F; fold (@wbisim E X) in BIS]
   end.
 
 Ltac stepB H :=
   match goal with
-  | h : gfp wb _ _ |- _ =>
+  | h : @wbisim ?E ?X _ _ |- _ =>
       step in h; destruct h as [_ ?B]; cbn in B;
-      edestruct B as [? ?TR ?BIS]; [now apply H | clear B]
+      edestruct B as [? ?TR ?BIS]; [now apply H | clear B; fold (@wbisim E X) in BIS]
   end.
 
 Ltac solve_abs :=
@@ -282,7 +296,6 @@ Proof.
   eapply trans_ChoiceI with (x := Fin.FS (Fin.FS (Fin.FS Fin.F1))); eauto.
 Qed.
 
-
 Lemma wtrans_case {E X} (t u : ctree E X) l:
   wtrans l t u ->
     match l with
@@ -309,6 +322,19 @@ Proof.
     all:exists n; eauto.
 Qed.
 
+Ltac wcase :=
+  match goal with
+    [ h   : hrel_of (wtrans ?l) _ _,
+      bis : wbisim _ _
+      |- _] =>
+      let EQ := fresh "EQ" in
+      match l with
+      | tau => apply wtrans_case in h as [EQ|(? & ?TR & ?WTR)];
+              [rewrite <- EQ in bis; clear EQ |]
+      | _   => apply wtrans_case in h as [(? & ?TR & ?WTR)|(? & ?TR & ?WTR)]
+      end
+  end.
+
 Lemma wtrans_stuckI_inv {E R} :
   forall (t : ctree E R) l,
     wtrans l stuckI t ->
@@ -320,18 +346,18 @@ Proof.
   symmetry; auto.
 Qed.
 
-Ltac wcase :=
-  match goal with
-    [ h   : hrel_of (wtrans ?l) _ _,
-      bis : gfp wb _ _
-      |- _] =>
-      let EQ := fresh "EQ" in
-      match l with
-      | tau => apply wtrans_case in h as [EQ|(? & ?TR & ?WTR)];
-              [rewrite <- EQ in bis; clear EQ |]
-      | _   => apply wtrans_case in h as [(? & ?TR & ?WTR)|(? & ?TR & ?WTR)]
-      end
-  end.
+(* Ltac wcase := *)
+(*   match goal with *)
+(*     [ h   : hrel_of (wtrans ?l) _ _, *)
+(*       bis : gfp wb _ _ *)
+(*       |- _] => *)
+(*       let EQ := fresh "EQ" in *)
+(*       match l with *)
+(*       | tau => apply wtrans_case in h as [EQ|(? & ?TR & ?WTR)]; *)
+(*               [rewrite <- EQ in bis; clear EQ |] *)
+(*       | _   => apply wtrans_case in h as [(? & ?TR & ?WTR)|(? & ?TR & ?WTR)] *)
+(*       end *)
+(*   end. *)
 
 (*|
 Up-to [equ eq] bisimulations
@@ -389,10 +415,52 @@ Proof.
   auto.
 Qed.
 
-(*|
-TODO: Can we afford to make [wtrans] opaque? If so, where?
-|*)
-Opaque wtrans.
+#[global] Instance equ_clos_sT_goal {E R} RR f :
+  Proper (@equ E R R eq ==> equ eq ==> flip impl) (sT f RR).
+Proof.
+  cbn; intros ? ? eq1 ? ? eq2 H.
+  apply (fT_T equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption.
+Qed.
+
+#[global] Instance equ_clos_sT_ctx {E R} RR f :
+  Proper (@equ E R R eq ==> equ eq ==> impl) (sT f RR).
+Proof.
+  cbn; intros ? ? eq1 ? ? eq2 H.
+  apply (fT_T equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
+Qed.
+
+#[global] Instance sbisim_clos_sT_goal {E R} RR f :
+  Proper (@sbisim E R ==> sbisim ==> flip impl) (sT f RR).
+Proof.
+  cbn; intros ? ? eq1 ? ? eq2 H.
+  rewrite eq1, eq2.
+  auto.
+Qed.
+
+#[global] Instance sbisim_clos_sT_ctx {E R} RR f :
+  Proper (@sbisim E R ==> sbisim ==> impl) (sT f RR).
+Proof.
+  cbn; intros ? ? eq1 ? ? eq2 H.
+  rewrite <- eq1, <- eq2.
+  auto.
+Qed.
+
+#[global] Instance equ_clos_eT_goal {E R} RR f :
+  Proper (@equ E R R eq ==> equ eq ==> flip impl) (eT eq f RR).
+Proof.
+  cbn; intros ? ? eq1 ? ? eq2 H.
+  rewrite eq1, eq2.
+  auto.
+Qed.
+
+#[global] Instance equ_clos_eT_ctx {E R} RR f :
+  Proper (@equ E R R eq ==> equ eq ==> impl) (eT eq f RR).
+Proof.
+  cbn; intros ? ? eq1 ? ? eq2 H.
+  rewrite <- eq1, <- eq2.
+  auto.
+Qed.
+
 (*|
 Weak bisimulation up-to [equ] is valid
 |*)
@@ -414,24 +482,20 @@ Qed.
 (*|
 We can therefore rewrite [equ] in the middle of bisimulation proofs
 |*)
-#[global] Instance equ_clos_st_proper {E R} RR : Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (st RR).
+#[global] Instance equ_clos_st_proper_goal {E R} RR :
+  Proper (@equ E R R eq ==> equ eq ==> flip impl) (st RR).
 Proof.
-  unfold Proper, respectful; intros.
-  split; intros.
-  - apply (ft_t equ_clos_st).
-    econstructor; [symmetry; eauto | | eauto]; auto.
-  - apply (ft_t equ_clos_st).
-    econstructor; [eauto | | symmetry; eauto]; auto.
+  cbn; unfold Proper, respectful; intros.
+  apply (ft_t equ_clos_st).
+  econstructor; [eauto | | symmetry; eauto]; auto.
 Qed.
 
-#[global] Instance equ_clos_wt_proper {E R} RR : Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (wt RR).
+#[global] Instance equ_clos_wt_proper_ctx {E R} RR :
+  Proper (@equ E R R eq ==> equ eq ==> impl) (wt RR).
 Proof.
-  unfold Proper, respectful; intros.
-  split; intros.
-  - apply (ft_t equ_clos_wt).
-    econstructor; [symmetry; eauto | | eauto]; auto.
-  - apply (ft_t equ_clos_wt).
-    econstructor; [eauto | | symmetry; eauto]; auto.
+  cbn; unfold Proper, respectful; intros.
+  apply (ft_t equ_clos_wt).
+  econstructor; [symmetry; eauto | | eauto]; auto.
 Qed.
 
 (*|
@@ -753,7 +817,7 @@ produce any challenge for the other.
 Lemma spinV_nary_n_m : forall {E R} n m, n>0 -> m>0 -> @spinV_nary E R n ~ spinV_nary m.
 Proof.
   intros E R.
-  coinduction S CIH; symmetric.
+  unfold sbisim; coinduction S CIH; symmetric.
   intros * ? ? l p' TR.
   destruct m as [|m]; [lia |].
   rewrite ctree_eta in TR; cbn in TR.
@@ -774,7 +838,7 @@ Qed.
 Lemma spinI_nary_n_m : forall {E R} n m, @spinI_nary E R n ~ spinI_nary m.
 Proof.
   intros E R.
-  coinduction S _; symmetric.
+  unfold sbisim; coinduction S _; symmetric.
   cbn; intros * TR.
   exfalso; eapply spinI_nary_is_stuck, TR.
 Qed.
@@ -897,8 +961,10 @@ Lemma choiceV2_not_assoc :
 	~ (choiceV2 (choiceV2 (Ret 0 : ctree Sum.void1 nat) (Ret 1)) (Ret 2) ≈ choiceV2 (Ret 0) (choiceV2 (Ret 1) (Ret 2)))%nat.
 Proof.
   intros abs.
+
   (* init: 012 || 012 *)
   stepF trans_choiceV21.
+
   (* PL  : 01  || 012 *)
   wcase.
   - (* AR:  01  || 012 *)
@@ -981,7 +1047,6 @@ Proof.
       inv_trans_one.
       inv_trans_one.
 Qed.
-
 
 Lemma map_map {E R S T}: forall (f : R -> S) (g : S -> T) (t : ctree E R),
     map g (map f t) ≅ map (fun x => g (f x)) t.

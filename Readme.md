@@ -10,10 +10,11 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
   - Yannick Zakowski
   - Steve Zdancewic
 - License: MIT License
-- Compatible Coq versions: 8.14
+- Compatible Coq versions: 8.15
 - Additional dependencies:
   - dune
   - [InteractionTrees](https://github.com/DeepSpec/InteractionTrees)
+  - [Equations](https://github.com/mattam82/Coq-Equations)
   - [Coinduction](https://github.com/damien-pous/coinduction)
   - [RelationAlgebra](https://github.com/damien-pous/relation-algebra)
   - [alectryon](https://github.com/cpitclaudel/alectryon) 
@@ -27,17 +28,17 @@ Installing the opam dependencies
 ```shell
 opam install dune
 opam install coq-itree
+opam install coq-relation-algebra
+opam install coq-equations
 ```
 
-Installing the required branches from [coinduction] and [relation-algebra]:
+Installing the required branches from [coinduction] (support for 8.15 is not yet on Opam):
 ```shell
 git clone git@github.com:damien-pous/coinduction.git
-opam pin coinduction
-git clone git@github.com:damien-pous/relation-algebra.git
-cd relation-algebra
-git checkout v8.14
+cd coinduction
+git checkout v8.15
 cd ..
-opam pin relation-algebra
+opam pin coinduction
 ```
 ### Obtaining the project
 

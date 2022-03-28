@@ -1,17 +1,16 @@
-From CTree Require Import
-	CTrees Trans Equ Bisim CTreesTheory Internalize.
-
-From ITree Require Import
-	ITree Eq.
-
-From Coq Require Import
-	Morphisms Program.
-
 From Paco Require Import paco.
 
 From Coinduction Require Import
 	   lattice coinduction rel tactics.
 
+From CTree Require Import
+	   Utils CTrees Trans Equ Bisim CTreesTheory Internalize.
+
+From ITree Require Import
+	   ITree Eq Interp.
+
+From Coq Require Import
+	   Morphisms Program.
 Open Scope ctree.
 
 Set Implicit Arguments.
@@ -111,31 +110,34 @@ Proof.
   symmetric using idtac.
   - intros * HR * EQ.
     apply HR; symmetry; assumption.
-  - intros * EUTT.
+  - intros t u EUTT.
     cbn; intros * TR.
     rewrite unfold_embed in TR.
     punfold EUTT; red in EUTT.
-    remember (iobserve y) as oy.
+    remember (iobserve u) as ou.
     induction EUTT.
-    + eexists; [rewrite unfold_embed, <- Heqoy; subst; apply TR | reflexivity].
+    + eexists; [rewrite unfold_embed, <- Heqou; subst; apply TR | reflexivity].
     + pclearbot.
+      apply trans_TauI_inv in TR.
       apply CIH in REL.
-      (* This almost certainly does not hold, it essentially relies on
+      (* TR implies some structure on m1 *)
+
+     (* This almost certainly does not hold, it essentially relies on
          `t b <= b (t b)` which I don't think is valid.
          Question for Damien: how to unfold the companion in an hypothesis at another point that Bot? 
        *)
       assert (sbt R (embed m1) (embed m2)) by admit.
       destruct H as [F _].
-      apply trans_TauI_inv in TR.
+      (* apply trans_TauI_inv in TR. *)
       apply F in TR as [? ? ?].
       eexists.
-      rewrite unfold_embed, <- Heqoy.
+      rewrite unfold_embed, <- Heqou.
       apply trans_TauI.
       apply H.
       auto.
     + pclearbot.
       apply trans_vis_inv in TR as (u' & EQ & ->).
-      eexists; [rewrite unfold_embed, <- Heqoy; apply trans_vis |].
+      eexists; [rewrite unfold_embed, <- Heqou; apply trans_vis |].
       rewrite EQ.
       apply CIH, REL.
     + apply trans_TauI_inv in TR.

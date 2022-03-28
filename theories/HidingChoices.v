@@ -64,7 +64,7 @@ Qed.
   Proper (equ eq ==> equ eq) (@hide E R).
 Proof.
   unfold Proper, respectful.
-  coinduction ? CIH.
+  unfold equ; coinduction ? CIH.
   intros * EQ.
   cbn.
   rewrite 2 unfold_hide.
@@ -163,23 +163,89 @@ Proof.
   split_wtr WTR.
 Abort.
 
+Ltac eq2R R H :=
+  match type of H with
+  | ?u = ?t =>
+      let eq := fresh "EQ" in
+      assert (eq : R u t) by (subst; reflexivity); clear H
+  end.
+
+Ltac eq2equ H :=
+  match type of H with
+  | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≅ t) by (subst; reflexivity); clear H
+  end.
+
+Lemma ChoiceI_wtrans {E R} :
+  forall l n (t u : ctree E R) k x,
+    wtrans l t u ->
+    t ≅ k x ->
+    wtrans l (ChoiceI n k) u.
+Proof.
+  intros * WTR EQ.
+  destruct WTR as [v [w [[|?] ?] ?] ?].
+  cbn in H.
+  (* Woops, not true... *)
+Abort.
+
+(* Lemma hide_trans {E R}: *)
+(*   forall l (t u : ctree E R), *)
+(*     trans l (hide t) u -> *)
+(*   exists t', wtrans l t t' /\ u ≅ hide t'. *)
+(* Proof. *)
+(*   intros * TR. *)
+(*   remember (hide t) as ht. *)
+(*   eq2equ Heqht. *)
+(*   cbn in TR; unfold transR in TR. *)
+(*   rewrite (ctree_eta ht) in EQ. *)
+(*   genobs ht oht; clear ht Heqoht. *)
+(*   genobs u ou. *)
+(*   revert t u Heqou EQ. *)
+(*   induction TR; intros. *)
+(*   - setoid_rewrite (ctree_eta t0); *)
+(*       rewrite unfold_hide in EQ; destruct (observe t0); try now step in EQ; inv EQ. *)
+(*     step in EQ; destruct (equF_choice_invT _ _ EQ) as [-> _]. *)
+(*     pose proof (equF_choice_invE _ _ EQ x) as EQ'; clear EQ. *)
+(*     edestruct IHTR as (t' & WTR & EQ). *)
+(*     eauto. *)
+(*     rewrite <- ctree_eta; apply EQ'. *)
+(*     destruct vis. *)
+(*     + eexists t'; split; auto. *)
+(*       eapply wcons. *)
+(*       apply trans_ChoiceV. *)
+(*       eassumption. *)
+(*     + eexists t'; split; auto. *)
+
+
 Arguments wtrans : simpl never.
+(*
+let t = choiceV2 (Ret 0) (Ret 1)
+let u = hide t = choiceI2 (Ret 0) (Ret 1)
+not (t ≈ u)
+but trivially (hide(t) ~ hide(u))
+*)
+
 Lemma wbisim_is_hidden_sbisim :
   forall {E R} (t u : ctree E R),
     t ≈ u <-> hide t ~ hide u.
 Proof.
   split.
+  2:{
+    revert t u.
+    unfold wbisim; coinduction ? CIH.
+    symmetric using intuition.
+    intros * EQ l t' TR.
+    step in EQ; destruct EQ as [F _]; cbn in F.
+
+(*
   - revert t u.
     coinduction ? CIH.
-    (* Why does symmetric loop? *)
-    intros * EQ.
-    split.
-    + intros l t' TR.
-      rewrite unfold_hide in TR.
-      step in EQ; destruct EQ as [F _].
-      cbn in F.
-      unfold transR in F.
-      desobs t.
-      * specialize (F (val r) stuckI); destruct F; [constructor|].
-
+    symmetric using intuition.
+    intros * EQ l t' TR.
+    rewrite unfold_hide in TR.
+    step in EQ; destruct EQ as [F _].
+    cbn in F.
+    unfold transR in F.
+    desobs t.
+    * specialize (F (val r) stuckI); destruct F; [constructor|].
+*)
 Admitted.

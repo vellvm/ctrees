@@ -8,15 +8,6 @@ From Coq Require Export
 
 From ITree Require Import ITree.
 
-From CTree Require Import
-	Utils
-	CTrees
-  Trans
- 	Interp
-	Equ
-	Bisim
-  CTreesTheory.
-
 From RelationAlgebra Require Import
      monoid
      kat
@@ -33,6 +24,15 @@ From CTreeCCS Require Import
 
 From Coinduction Require Import
 	coinduction rel tactics.
+
+From CTree Require Import
+	Utils
+	CTrees
+  Trans
+ 	Interp
+	Equ
+	Bisim
+  CTreesTheory.
 
 (* Import CTree. *)
 

@@ -363,12 +363,12 @@ Module Sanity.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
       inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
       + apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
-      + apply SchedChoice with (x0:=Fin.F1); auto.
+      + apply SchedChoice with (x:=Fin.F1); auto.
     - intros. exists t'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
       inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
       + apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
-      + apply SchedChoice with (x0:=Fin.F1); auto.
+      + apply SchedChoice with (x:=Fin.F1); auto.
   Qed.
 
   (* To generalize to any arity *)
@@ -382,8 +382,8 @@ Module Sanity.
       inv H. apply inj_pair2 in H3. subst. remember 2. destruct x; inv Heqn.
       + inv H4. apply inj_pair2 in H2. subst. remember 2. destruct x; inv Heqn.
         * apply SchedChoice with (x:=Fin.F1); auto.
-        * apply SchedChoice with (x0:=Fin.FS Fin.F1); auto.
-      + apply SchedChoice with (x0:=Fin.FS (Fin.FS Fin.F1)); auto.
+        * apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
+      + apply SchedChoice with (x:=Fin.FS (Fin.FS Fin.F1)); auto.
     - intros. exists t'. split.
       2: { apply matching_active_refl; auto. eapply scheduled_active_; eauto. }
       inv H. apply inj_pair2 in H3. subst. remember 3. destruct x; inv Heqn.
@@ -392,7 +392,7 @@ Module Sanity.
       + remember 2. destruct x; inv Heqn.
         * apply SchedChoice with (x:=Fin.F1).
           apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
-        * apply SchedChoice with (x0:=Fin.FS Fin.F1); auto.
+        * apply SchedChoice with (x:=Fin.FS Fin.F1); auto.
   Qed.
 
   Lemma choice2_spinI : forall {E X} (t : ctree E X),
@@ -439,10 +439,10 @@ Lemma schedule_vis_inv :
     schedule (Vis e k) t -> t ≅ Vis e k.
 Proof.
   intros * SCHED. inversion SCHED. apply inj_pair2 in H1, H2. subst.
-  step. rewrite <- H3. constructor. intros.
+  step. fold (@equ E Y _ eq).
+  rewrite <- H3. constructor. intros.
   symmetry; auto.
 Qed.
-
 
 (* TODO : [equ] is a subrelation of [bisim] *)
 Lemma equ_bisim : forall {E X Y} {RR: X -> Y -> Prop},

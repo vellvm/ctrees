@@ -9,18 +9,9 @@ Denotation of [ccs] into [ctree]s
 From Coq Require Export
      List
      Strings.String.
+From Coq Require Import RelationClasses Program.
 
 From ITree Require Import ITree.
-
-From CTree Require Import
-	   Utils
-	   CTrees
-     Trans
- 	   Interp
-	   Equ
-	   Bisim
-     CTreesTheory
-     Head.
 
 From RelationAlgebra Require Import
      monoid
@@ -39,13 +30,23 @@ From CTreeCCS Require Import
 From Coinduction Require Import
 	   coinduction rel tactics.
 
+From CTree Require Import
+	   Utils
+	   CTrees
+     Trans
+ 	   Interp
+	   Equ
+	   Bisim
+     CTreesTheory
+     Head.
+
 Import CTree.
 
 Import CTreeNotations.
 Open Scope ctree_scope.
 
-Set Implicit Arguments.
-Set Contextual Implicit.
+(* Set Implicit Arguments. *)
+(* Set Contextual Implicit. *)
 
 (*|
 Event signature
@@ -85,6 +86,7 @@ Section Combinators.
             | Rcv c' =>
                 if (c =? c')%string then stuckI else trigger e
             end.
+  #[global] Arguments h_new c [T] _.
 
   Definition new : chan -> ccs -> ccs :=
     fun c P => interp (h_new c) P.
@@ -206,39 +208,44 @@ End CCSNotationsSem.
 Import CCSNotationsSem.
 Open Scope ccs_scope.
 
-#[global] Instance equ_clos_sb_proper {E R} RR :
-  Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (sb RR).
+#[global] Instance equ_clos_sb_goal {E R} RR :
+  Proper (equ eq ==> equ eq ==> flip impl) (@sb E R RR).
 Proof.
-  unfold Proper, respectful; intros * eq1 * eq2.
-  split; intros bis.
-  - destruct bis as [F B]; cbn in *.
-    split.
-    + intros ? ? TR.
-      rewrite <- eq1 in TR.
-      apply F in TR as [].
-      eexists.
-      rewrite <- eq2; eauto.
-      eauto.
-    + intros ? ? TR.
-      rewrite <- eq2 in TR.
-      apply B in TR as [].
-      eexists.
-      rewrite <- eq1; eauto.
-      eauto.
-  - destruct bis as [F B]; cbn in *.
-    split.
-    + intros ? ? TR.
-      rewrite eq1 in TR.
-      apply F in TR as [].
-      eexists.
-      rewrite eq2; eauto.
-      eauto.
-    + intros ? ? TR.
-      rewrite eq2 in TR.
-      apply B in TR as [].
-      eexists.
-      rewrite eq1; eauto.
-      eauto.
+  cbn; unfold Proper, respectful; intros * eq1 * eq2 bis.
+  destruct bis as [F B]; cbn in *.
+  split.
+  + intros ? ? TR.
+    rewrite eq1 in TR.
+    apply F in TR as [].
+    eexists.
+    rewrite eq2; eauto.
+    eauto.
+  + intros ? ? TR.
+    rewrite eq2 in TR.
+    apply B in TR as [].
+    eexists.
+    rewrite eq1; eauto.
+    eauto.
+Qed.
+
+#[global] Instance equ_clos_sb_ctx {E R} RR :
+  Proper (gfp (@fequ E R R eq) ==> equ eq ==> impl) (sb RR).
+Proof.
+  cbn; unfold Proper, respectful; intros * eq1 * eq2 bis.
+  destruct bis as [F B]; cbn in *.
+  split.
+  + intros ? ? TR.
+    rewrite <- eq1 in TR.
+    apply F in TR as [].
+    eexists.
+    rewrite <- eq2; eauto.
+    eauto.
+  + intros ? ? TR.
+    rewrite <- eq2 in TR.
+    apply B in TR as [].
+    eexists.
+    rewrite <- eq1; eauto.
+    eauto.
 Qed.
 
 Lemma trans_prefix_inv : forall l a p p',
@@ -270,7 +277,7 @@ Proof.
 Qed.
 
 (** ** prefix *)
-Lemma ctx_prefix_tequ a: unary_ctx (prefix a) <= (t_equ eq).
+Lemma ctx_prefix_tequ a: unary_ctx (prefix a) <= (et eq).
 Proof.
   apply Coinduction.
   intro R.
@@ -288,7 +295,7 @@ Qed.
 
 #[global] Instance prefix_st a: forall R, Proper (st R ==> st R) (prefix a) := unary_proper_t (@ctx_prefix_st a).
 
-#[global] Instance prefix_tequ a: forall R, Proper (t_equ eq R ==> t_equ eq R) (prefix a) := unary_proper_t (@ctx_prefix_tequ a).
+#[global] Instance prefix_tequ a: forall R, Proper (et eq R ==> et eq R) (prefix a) := unary_proper_t (@ctx_prefix_tequ a).
 
 Definition can_comm (c : chan) (a : @label ccsE) : bool :=
   match a with
@@ -391,7 +398,7 @@ Proof.
     cbn; unfold Utils.choice, MonadChoice_ctree, choice.
     eapply trans_bind_l.
     intros abs; inv abs.
-    apply trans_ChoiceV with (x0 := x).
+    apply trans_ChoiceV with (x := x).
     rewrite bind_ret_l, TauI_sb.
     rewrite H.
     unfold new; rewrite 2 unfold_interp, Heqop'.
@@ -425,7 +432,6 @@ Proof.
   - tauto.
 Qed.
 
-(* Proof to fix *)
 Lemma trans_new_inv_aux : forall l T U,
     trans_ l T U ->
     forall c p q,
@@ -459,7 +465,7 @@ Proof.
         setoid_rewrite eqx in IHtr.
         edestruct (IHtr (k0 x)) as (q' & comm & tr' & EQ); [right; reflexivity | reflexivity |].
         exists q'; repeat split; auto.
-        eapply trans_ChoiceI with (x0 := x).
+        eapply trans_ChoiceI with (x := x).
         eauto.
         reflexivity.
         rewrite <- EQ, EQ2; auto.
@@ -523,20 +529,6 @@ Proof.
   eexists; repeat split; eauto.
   rewrite H2, TauI_sb; reflexivity.
 Qed.
-
-#[global] Instance equ_clos_sT_proper {E R} RR f : Proper (gfp (@fequ E R R eq) ==> equ eq ==> iff) (T sb f RR).
-Proof.
-  intros ? ? eq1 ? ? eq2; split; intros H.
-  apply (fT_T equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
-  apply (fT_T equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption.
-Qed.
-
-(* #[global] Instance sb_clos_sT_proper {E R} RR f : Proper (gfp sb ==> gfp sb ==> iff) (T (sb : mon (rel (ctree E R) (ctree E R))) f RR). *)
-(* Proof. *)
-(*   intros ? ? eq1 ? ? eq2; split; intros H. *)
-(*   apply (fT_T equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption. *)
-(*   apply (fT_T equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption. *)
-(* Qed. *)
 
 (** ** name restriction *)
 Lemma ctx_new_st a: unary_ctx (new a) <= st.
@@ -1168,20 +1160,20 @@ Proof.
     destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
     destruct x; try easy.
     apply trans_ChoiceV_inv in TR2 as (x & EQ & ->).
-    pose proof trans_HChoice _ TR1 x.
+    pose proof trans_HChoice TR1 x.
     eauto.
     apply trans_vis_inv in TR2 as (x & EQ & ->).
-    pose proof trans_HVis _ TR1 (i := x).
+    pose proof trans_HVis TR1 (i := x).
     eauto.
   - right; left.
     apply trans_bind_inv in TR.
     destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_get_head_inv in TR; easy|].
     destruct x; try easy.
     apply trans_ChoiceV_inv in TR2 as (x & EQ & ->).
-    pose proof trans_HChoice _ TR1 x.
+    pose proof trans_HChoice TR1 x.
     eauto.
     apply trans_vis_inv in TR2 as (x & EQ & ->).
-    pose proof trans_HVis _ TR1 (i := x).
+    pose proof trans_HVis TR1 (i := x).
     eauto.
   - right; right; left.
     apply trans_bind_inv in TR.
@@ -1191,8 +1183,8 @@ Proof.
     destruct x, x0; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
     destruct e, e0, (are_opposite a a0) eqn:?; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
     apply trans_TauV_inv in TR3 as (? & ->).
-    pose proof trans_HVis _ TR1 (i := tt).
-    pose proof trans_HVis _ TR2 (i := tt).
+    pose proof trans_HVis TR1 (i := tt).
+    pose proof trans_HVis TR2 (i := tt).
     eauto 10.
   - right; right; right.
     apply trans_bind_inv in TR.
@@ -1202,8 +1194,8 @@ Proof.
     destruct x0, x1; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
     destruct e, e0, (are_opposite a a0) eqn:?; try easy; try now (exfalso; eapply stuckI_is_stuck; eauto).
     apply trans_TauV_inv in TR3 as (? & ->).
-    pose proof trans_HVis _ TR1 (i := tt).
-    pose proof trans_HVis _ TR2 (i := tt).
+    pose proof trans_HVis TR1 (i := tt).
+    pose proof trans_HVis TR2 (i := tt).
     eauto 10.
 Qed.
 

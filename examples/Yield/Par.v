@@ -3,18 +3,8 @@ From Coq Require Import
      List
      Logic.FunctionalExtensionality
      micromega.Lia
-     Init.Specif.
-
-From CTree Require Import
-       CTrees
-	   Utils
-	   CTrees
- 	   Interp
-	   Equ
-	   Bisim
-       Shallow
-       CTreesTheory
-       Trans.
+     Init.Specif
+     Fin.
 
 From RelationAlgebra Require Import
      monoid
@@ -27,11 +17,26 @@ From RelationAlgebra Require Import
      rewriting
      normalisation.
 
+From Equations Require Import Equations.
+
 From ITree Require Import
      Sum.
 
 From Coinduction Require Import
 	coinduction rel tactics.
+
+From CTree Require Import
+     CTrees
+	   Utils
+	   CTrees
+ 	   Interp
+	   Equ
+	   Bisim
+     Shallow
+     CTreesTheory
+     Trans.
+
+Require Import Coq.Logic.IndefiniteDescription.
 
 Import ListNotations.
 Import CTreeNotations.
@@ -63,7 +68,7 @@ Section parallel.
   Proof. repeat intro. auto. Qed.
 
   Definition remove_front_vec {n : nat} (v : vec (S n)) : vec n :=
-    fun i => v (Fin.FS i).
+    fun i => v (FS i).
 
   Lemma remove_front_vec_vec_relation n P (v1 v2 : vec (S n)) :
     vec_relation P v1 v2 ->
@@ -72,27 +77,20 @@ Section parallel.
     repeat intro. apply H.
   Qed.
 
-  Program Fixpoint remove_vec {n : nat} (v : vec (S n)) (i : fin (S n)) : vec n :=
-    match i with
-    (* this is the one we're removing *)
-    | Fin.F1 => remove_front_vec v
-    (* not yet at the index we want to ignore *)
-    | Fin.FS j => fun i' =>
-                   match i' with
-                   (* before the index we're removing *)
-                   | Fin.F1 => v Fin.F1
-                   (* after the index we're removing, so look at the rest of the vector, minus the first element, which we don't care about *)
-                   | Fin.FS j' => remove_vec (remove_front_vec v) j j'
-                   end
-    end.
+  Equations remove_vec {n : nat} (v : vec (S n)) (i : fin (S n)) : vec n :=
+    remove_vec v F1     i'      := remove_front_vec v i';
+    remove_vec v (FS i) F1      := v F1;
+    remove_vec v (FS i) (FS i') := remove_vec (remove_front_vec v) i i'.
+  Transparent remove_vec.
 
   Lemma remove_vec_vec_relation n P (v1 v2 : vec (S n)) i :
     vec_relation P v1 v2 ->
     vec_relation P (remove_vec v1 i) (remove_vec v2 i).
   Proof.
-    intros. unfold remove_vec.
-    dependent induction i; [apply remove_front_vec_vec_relation; auto |].
-    repeat intro. destruct i0; auto. apply IHi; auto. cbn.
+    intros.
+    depind i; [apply remove_front_vec_vec_relation; auto |].
+    repeat intro. destruct i0; cbn; auto.
+    apply IHi; auto.
     repeat intro. apply remove_front_vec_vec_relation; auto.
   Qed.
 
@@ -156,19 +154,19 @@ Section parallel.
     apply Fin.eqb_eq in Heqb. subst. auto.
   Qed.
 
-  Program Definition cons_vec {n : nat} (t : thread) (v : vec n) : vec (S n) :=
-    fun i => match i with
-          | Fin.F1 => t
-          | Fin.FS i' => v i'
-          end.
+  Equations cons_vec {n : nat} (t : thread) (v : vec n) : vec (S n) :=
+    cons_vec t v F1      := t;
+    cons_vec t v (FS i)  := v i.
+  Transparent cons_vec.
 
   Lemma cons_vec_vec_relation n P (v1 v2 : vec n) t1 t2 :
     vec_relation P v1 v2 ->
     (forall x, P (t1 x) (t2 x)) ->
     vec_relation P (cons_vec t1 v1) (cons_vec t2 v2).
   Proof.
-    unfold cons_vec. repeat intro. dependent destruction i; auto.
+    unfold cons_vec. repeat intro. depind i; cbn; auto.
   Qed.
+
 
   (* Program Definition append_vec {n : nat} (v : vec n) (t : thread) : vec (S n) := *)
   (*   fun i => let i' := Fin.to_nat i in *)
@@ -196,47 +194,44 @@ Section parallel.
   (* Qed. *)
 
   (* Alternate definition: factoring out the yielding effect *)
-  Definition schedule_match
+  Equations schedule_match
              (schedule : forall (n : nat), vec n -> option (fin n) -> thread)
              (n : nat)
              (v: vec n)
-    : option (fin n) -> thread.
-    refine
-      (fun (oi : option (fin n)) c =>
-         match oi with
-         | None   => match n with
-                    | O => Ret (c, tt)
-                    | _ => ChoiceV n (fun i' => schedule n v (Some i') c)
-                    end
-         | Some i =>
-             match (observe (v i c)) with
-             | RetF (c', _) =>
-                 match n as m return n = m -> _ with
-                 | 0 => _
-                 | S n' => fun H1 => TauI (schedule n' (remove_vec_helper n n' v i H1) None c')
-                 end (eq_refl n)
-             | ChoiceF b n' k => Choice b n' (fun i' => schedule n (replace_vec v i (fun _ => k i')) (Some i) c)
-             | VisF (inl1 e) k =>
-                 match e in yieldE _ R return (R -> ctree (parE config) (config * unit)) -> _ with
-                 | Yield _ s' =>
-                     fun k => TauI (schedule n (replace_vec v i k) None s')
-                 end k
-             | VisF (inr1 e) k =>
-                 match e in spawnE R return (R -> ctree (parE config) (config * unit)) -> _ with
-                 | Spawn =>
-                     fun k =>
-                       TauV (schedule
-                               (S n)
-                               (cons_vec (fun _ => k true) (replace_vec v i (fun _ => k false)))
-                               (* The [i] here means that we don't yield at a spawn *)
-                               (Some (Fin.L_R 1 i)) (* view [i] as a [fin (n + 1)] *)
-                               c) (* this [c] doesn't matter, since the running thread won't use it *)
-                 end k
-             end
-         end).
-    - intro. subst. inv i.
-  Defined.
+    : option (fin n) -> thread :=
+    (* If no thread is focused, and there are none left in the pool, we are done *)
+    schedule_match schedule 0     v None     c    :=
+      Ret (c,tt);
 
+    (* If no thread is focused, but there are some left in the pool, we pick one *)
+    schedule_match schedule (S n) v None     c    :=
+      ChoiceV (S n) (fun i' => schedule (S n) v (Some i') c);
+
+    (* If a thread is focused on, we analyze its head constructor *)
+    schedule_match schedule (S n) v (Some i) c with observe (v i c) =>
+      {
+        (* If it's a [Ret], we simply remove it from the pool and focus *)
+        schedule_match _ _ _ _ _ (RetF (c',_)) :=
+          TauI (schedule n (remove_vec v i) None c');
+
+        (* If it's a [Choice], we propagate the choice and update the thread *)
+        schedule_match _ _ _ _ _ (ChoiceF b n' k) :=
+          Choice b n' (fun i' => schedule (S n) (replace_vec v i (fun _ => k i')) (Some i) c);
+
+        (* If it's a [Yield], we remove the focus *)
+        schedule_match _ _ _ _ _ (VisF (inl1 (Yield _ s')) k) :=
+          TauI (schedule (S n) (replace_vec v i k) None s');
+
+        (* If it's a [Spawn], we extend the pool *)
+        schedule_match _ _ _ _ _ (VisF (inr1 Spawn) k) :=
+          TauV (schedule
+                  (S (S n))
+                  (cons_vec (fun _ => k true) (replace_vec v i (fun _ => k false)))
+                  (* The [i] here means that we don't yield at a spawn *)
+                  (Some (Fin.L_R 1 i)) (* view [i] as a [fin (n + 1)] *)
+                  c)
+      }.
+  (* Transparent schedule_match. *)
   CoFixpoint schedule := schedule_match schedule.
 
   Lemma rewrite_schedule n v i c : schedule n v i c ≅ schedule_match schedule n v i c.
@@ -249,11 +244,14 @@ Section parallel.
   Proof.
     intros x y H ? i ? c. subst. revert n x y i c H.
     coinduction r CIH. intros n v1 v2 i c Hv.
-    do 2 rewrite rewrite_schedule. unfold schedule_match. cbn.
+    do 2 rewrite rewrite_schedule.
     destruct i as [i |].
     2: { destruct n; auto. cbn. constructor. intros. apply CIH; auto. }
-    pose proof (Hv i c). step in H. inv H; eauto. 2: destruct e.
-    - clear H1 H2. destruct y. destruct n; cbn in *; auto.
+    destruct n as [| n]; auto.
+    rewrite 2 schedule_match_equation_3.
+    pose proof (Hv i c).
+    step in H. cbn. inv H; eauto. 2: destruct e.
+    - clear H1 H2. destruct y; cbn in *; auto.
       constructor. intros. apply CIH.
       apply remove_vec_vec_relation; auto.
     - clear H1 H2. destruct y. cbn.
@@ -280,13 +278,16 @@ Section parallel.
                       forall i', k i' ≅ schedule n2' (remove_vec_helper n2 n2' v i H1) None c').
   Proof.
     intros Hequ.
-    rewrite rewrite_schedule in Hequ. unfold schedule_match in Hequ. cbn in Hequ.
-    destruct (observe (v i c)) eqn:?.
-    - destruct r, u, n2; [inv i |].
+    rewrite rewrite_schedule in Hequ.
+    destruct n2 as [| n2]; [inv i |].
+    rewrite schedule_match_equation_3 in Hequ; cbn in Hequ.
+    destruct (observe (v i c)) eqn:?; cbn in Hequ.
+    - destruct r, u.
       right. right.
       step in Hequ. pose proof (equF_choice_invT _ _ Hequ) as [? _]. subst.
       pose proof (equF_choice_invE _ _ Hequ).
-      do 3 eexists. split; auto.
+      eexists; exists n2, eq_refl.
+      split; auto.
       step. rewrite Heqc0. reflexivity.
     - destruct e; [destruct y | destruct s]. 2: step in Hequ; inv Hequ.
       step in Hequ. pose proof (equF_choice_invT _ _ Hequ) as [? _]. subst.
@@ -320,17 +321,18 @@ Section parallel.
         eapply IHtrans_; eauto.
         rewrite Hk. auto.
       + destruct H0 as (c'' & k' & Hvic & Hn & Hk). subst.
-        rewrite Hk in H. rewrite rewrite_schedule in H. unfold schedule_match in H.
+        rewrite Hk in H. rewrite rewrite_schedule in H.
         destruct n; [inv i | inv H].
       + destruct H0 as (c'' & n' & Hn2' & Hvic & Hn & Hk).
         (* assert (n2' = O). { clear Hk. inv Hn2'. reflexivity. } subst. *)
-        rewrite Hk in H. rewrite rewrite_schedule in H. unfold schedule_match in H.
+        rewrite Hk in H. rewrite rewrite_schedule in H.
         destruct n'; auto. inv H.
     - apply inj_pair2 in H1. subst.
-      rewrite rewrite_schedule in Hequ. unfold schedule_match in Hequ.
+      rewrite rewrite_schedule in Hequ.
+      destruct n; [inv i |].
+      rewrite schedule_match_equation_3 in Hequ; cbn in Hequ.
       destruct (observe (v i c)) eqn:Hv.
       + destruct r, u; step in Hequ; inv Hequ.
-        destruct n; [inv i | inv H].
       + destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
       + step in Hequ; inv Hequ.
   Qed.
@@ -355,15 +357,16 @@ Section parallel.
         specialize (IHtrans_ _ (replace_vec v i (fun _ : config => k' x)) i c _ eq_refl eq_refl).
         rewrite replace_vec_eq in IHtrans_. apply IHtrans_. reflexivity.
       + destruct H0 as (c'' & k' & Hvic & Hn & Hk). subst.
-        rewrite Hk in H. rewrite rewrite_schedule in H. unfold schedule_match in H.
+        rewrite Hk in H. rewrite rewrite_schedule in H.
         inv H.
       + destruct H0 as (c'' & n2' & Hn2' & Hvic & Hn & Hk).
         assert (n2' = O). { clear Hk. inv Hn2'. reflexivity. } subst.
-        rewrite Hk in H. rewrite rewrite_schedule in H. unfold schedule_match in H.
+        rewrite Hk in H. rewrite rewrite_schedule in H.
         apply trans_ret_inv in H. destruct H. inv H. apply inj_pair2 in H3. subst.
         rewrite Hvic. constructor.
     - apply inj_pair2 in H1. subst.
-      rewrite rewrite_schedule in Hequ. unfold schedule_match in Hequ.
+      rewrite rewrite_schedule in Hequ.
+      rewrite schedule_match_equation_3 in Hequ; cbn in Hequ.
       destruct (observe (v i c)) eqn:Hv.
       + destruct r, u. step in Hequ. inv Hequ.
       + destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
@@ -383,14 +386,14 @@ Section parallel.
     induction H; intros t' v i c x' Heql Heq Hequ; try inv Heql.
     - (* is there a better way to do this *)
       step in Hequ. inv Hequ. apply inj_pair2 in H3; subst.
-      rewrite rewrite_schedule. unfold schedule_match. rewrite <- H4.
+      rewrite rewrite_schedule. rewrite schedule_match_equation_3. rewrite <- H4.
       econstructor. eapply IHtrans_; try reflexivity. rewrite REL.
       rewrite replace_vec_eq. reflexivity.
     - apply inj_pair2 in H1. subst.
       step in Hequ. inv Hequ.
-      rewrite rewrite_schedule. unfold schedule_match. rewrite <- H.
+      rewrite rewrite_schedule. rewrite schedule_match_equation_3. rewrite <- H.
       destruct y, u. econstructor; eauto.
-      rewrite rewrite_schedule. unfold schedule_match. constructor.
+      rewrite rewrite_schedule. constructor.
   Qed.
 
   (** [schedule] cannot transition with an [obs] *)
@@ -400,7 +403,7 @@ Section parallel.
   Proof.
     intro. destruct o as [i |].
     2: {
-      rewrite rewrite_schedule in H. unfold schedule_match in H. destruct n; inv H.
+      rewrite rewrite_schedule in H.  destruct n; inv H.
     }
     cbn in H. red in H.
     remember (observe (schedule n v (Some i) c)).
@@ -416,14 +419,16 @@ Section parallel.
         eapply IHtrans_; eauto.
       + destruct H0 as (c' & k' & Hvic & ? & Hk). subst.
         setoid_rewrite Hk in H.
-        rewrite rewrite_schedule in H. unfold schedule_match in H. destruct n'; inv H.
+        rewrite rewrite_schedule in H. destruct n'; inv H.
       + destruct H0 as (c' & n'' & ? & Hvic & ? & Hk). subst.
         setoid_rewrite Hk in H.
-        rewrite rewrite_schedule in H. unfold schedule_match in H. destruct n''; inv H.
+        rewrite rewrite_schedule in H. destruct n''; inv H.
     - apply inj_pair2 in H2, H3. subst.
-      rewrite rewrite_schedule in Hequ. unfold schedule_match in Hequ.
+      rewrite rewrite_schedule in Hequ.
+      destruct n'; [inv i |].
+      rewrite schedule_match_equation_3 in Hequ.
       destruct (observe (v i c)) eqn:Hv.
-      + destruct r, n'. inv i. destruct n'; step in Hequ; inv Hequ.
+      + destruct r. destruct n'; step in Hequ; inv Hequ.
       + destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
       + step in Hequ; inv Hequ.
   Qed.
@@ -445,54 +450,62 @@ Section parallel.
         pose proof (trans_schedule_thread_val _ _ _ _ _ Ht) as Hv1.
         edestruct Hf; eauto.
         apply trans_thread_schedule_val_1 in H0. eexists; eauto. rewrite H. reflexivity.
-      + rewrite rewrite_schedule in Ht. unfold schedule_match in Ht.
+      + rewrite rewrite_schedule in Ht.
         destruct n; [| inv Ht].
         destruct (trans_ret_inv Ht). inv H. apply inj_pair2 in H3. subst.
         exists CTree.stuckI.
-        * rewrite rewrite_schedule. unfold schedule_match. constructor.
+        * rewrite rewrite_schedule. constructor.
         * rewrite H0. reflexivity.
   Admitted.
 
-  Definition schedule'_match
-          (schedule' : forall (n : nat), vec n -> vec n)
-          (n : nat)
-          (v: vec n)
-    : vec n.
-    refine
-      (fun (i : fin n) c =>
-         match (observe (v i c)) with
-         | RetF (c', _) =>
-           match n as m return n = m -> _ with
-           | 0 => _
-           | S n' => match n' as m return n' = m -> _ with
-                   | 0 => fun H1 H2 => Ret (c', tt)
-                   | S n'' => fun H1 H2 => ChoiceV
-                                       n'
-                                       (fun i' => schedule' n' (remove_vec_helper n n' v i H2) i' c')
-                   end (eq_refl n')
-           end (eq_refl n)
-         | ChoiceF b n' k => Choice b n' (fun i' => schedule' n (replace_vec v i (fun _ => k i')) i c)
-         | VisF (inl1 e) k =>
-           match e in yieldE _ R return (R -> ctree (parE config) (config * unit)) -> _ with
-           | Yield _ s' =>
-             fun k => ChoiceV
-                     n
-                     (fun i' => schedule' n (replace_vec v i k) i' s')
-           end k
-         | VisF (inr1 e) k =>
-           match e in spawnE R return (R -> ctree (parE config) (config * unit)) -> _ with
-           | Spawn =>
-             fun k =>
-               TauV (schedule'
-                       (S n)
-                       (cons_vec (fun _ => k true) (replace_vec v i (fun _ => k false)))
-                       (* The [i] here means that we don't yield at a spawn *)
-                       (Fin.L_R 1 i) (* view [i] as a [fin (n + 1)] *)
-                       c) (* this [c] doesn't matter, since the running thread won't use it *)
-           end k
-         end).
-    - intro. subst. inv i.
-  Defined.
+
+  Equations schedule'_match
+            (schedule' : forall (n : nat), vec n -> vec n)
+            (n : nat)
+            (v: vec n)
+    : vec n :=
+    (* We start by observing the head constructor of the focused thread *)
+    schedule'_match schedule' n v i c with observe (v i c) => {
+
+        (* If the computation is over, we check whether there remains someone in the pool *)
+        schedule'_match _ _ _ _ _ (RetF (c', _)) with n => {
+          (* If not, we are done *)
+          schedule'_match _ _ _ _ _ _ (S O)      := Ret (c',tt);
+          (* If yes, we pick a new focus *)
+          schedule'_match _ _ _ _ _ _ (S n') := ChoiceV n' (fun i' => schedule' n' (remove_vec v i) i' c')
+        };
+
+        (* If there's a choice, we propagate it *)
+        schedule'_match _ _ _ _ _ (ChoiceF b n' k) :=
+          Choice b n' (fun i' => schedule' n (replace_vec v i (fun _ => k i')) i c);
+
+        (* If it's a yield, we pick a new focus and update the state *)
+        schedule'_match _ _ _ _ _ (VisF (inl1 (Yield _ s')) k) :=
+        ChoiceV n (fun i' => schedule' n (replace_vec v i k) i' s');
+
+        schedule'_match _ _ _ _ _ (VisF (inr1 Spawn) k) :=
+          TauV (schedule'
+                  (S n)
+                  (cons_vec (fun _ => k true) (replace_vec v i (fun _ => k false)))
+                  (* The [i] here means that we don't yield at a spawn *)
+                  (Fin.L_R 1 i) (* view [i] as a [fin (n + 1)] *)
+                  c) (* this [c] doesn't matter, since the running thread won't use it *)
+
+      }.
+
+
+  (* Definition k1 : bool -> ctree fooE nat := fun b : bool => (if b then Ret 0%nat else Ret 1%nat). *)
+  (* Definition k2 : bool -> ctree fooE nat := fun b : bool => (if b then Ret 2%nat else Ret 3%nat). *)
+  (* Definition t1 : ctree fooE nat := choiceI2 (Vis Foo k1) (Vis Foo k2). *)
+  (* Definition t2 : ctree fooE nat := *)
+  (*   choiceI2 (Vis Foo (fun b: bool => if b then Ret 0%nat else Ret 3%nat)) *)
+  (*            (Vis Foo (fun b: bool => if b then Ret 2%nat else Ret 1%nat)). *)
+
+  (* sched [Ret tt; t] 0 c ~  sched [t] 0 c *)
+
+  (* sched [t1] ~~ ChoiceI2 (sched [Spawn 0 1]) (sched [Spawn 2 3]) ~~ChoiceI2 (TauV ( *)
+  (* sched [t2] ~~ ChoiceI2 (Spawn 0 3) (Spawn 2 1) *)
+
 
   CoFixpoint schedule' := schedule'_match schedule'.
 
@@ -506,10 +519,11 @@ Section parallel.
   Proof.
     repeat intro. revert H. revert x y i c. revert n.
     coinduction r CIH. intros n v1 v2 i c Hv.
-    do 2 rewrite rewrite_schedule'. unfold schedule'_match. cbn.
+    destruct n as [|n]; [inv i|].
+    do 2 rewrite rewrite_schedule'. simp schedule'_match. cbn.
     pose proof (Hv i c). step in H. inv H; eauto. 2: destruct e.
     - clear H1 H2. destruct y. destruct n; cbn in *; auto.
-      destruct n; cbn; auto. constructor. intros. apply CIH.
+      constructor. intros. apply CIH.
       apply remove_vec_vec_relation; auto.
     - clear H1 H2. destruct y. cbn.
       constructor. intros. eapply CIH.
@@ -527,7 +541,7 @@ Section parallel.
             forall i', k i' ≅ schedule' n2 (replace_vec v i (fun _ => k' i')) i c.
   Proof.
     intros Hequ.
-    rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ. cbn in Hequ.
+    rewrite rewrite_schedule' in Hequ. simp schedule'_match in Hequ.
     destruct (observe (v i c)) eqn:?.
     - destruct r, n2; [inv i |]. destruct n2; step in Hequ; inv Hequ.
     - destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
@@ -544,12 +558,11 @@ Section parallel.
     k i' ≅ schedule' n2 (replace_vec v i (fun _ => k' i')) i c.
   Proof.
     intros Hequ Heq.
-    rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ. cbn in Hequ.
+    rewrite rewrite_schedule' in Hequ. rewrite schedule'_match_equation_1 in Hequ.
     rewrite Heq in Hequ.
     pose proof (equ_choice_invE _ _ Hequ). cbn in H.
     rewrite H. reflexivity.
   Qed.
-
 
   Lemma trans_schedule'_val_1 {X} n v i c (x : X) t :
     trans (val x) (schedule' n v i c) t ->
@@ -567,7 +580,7 @@ Section parallel.
       setoid_rewrite Hk in IHtrans_.
       eapply IHtrans_; eauto.
     - apply inj_pair2 in H1. subst.
-      rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ.
+      rewrite rewrite_schedule' in Hequ. rewrite schedule'_match_equation_1 in Hequ.
       destruct (observe (v i c)) eqn:Hv.
       + destruct n'; [inv i |]. destruct n'; [| destruct r; step in Hequ; inv Hequ]; auto.
       + destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
@@ -593,7 +606,7 @@ Section parallel.
       specialize (IHtrans_ _ (replace_vec v i (fun _ : config => k' x)) i c _ eq_refl eq_refl).
       rewrite replace_vec_eq in IHtrans_. apply IHtrans_. reflexivity.
     - apply inj_pair2 in H1. subst.
-      rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ.
+      rewrite rewrite_schedule' in Hequ. rewrite schedule'_match_equation_1 in Hequ.
       destruct (observe (v i c)) eqn:Hv.
       + cbn. red. rewrite Hv. destruct r, u.
         step in Hequ. inv Hequ. constructor.
@@ -617,7 +630,7 @@ Section parallel.
       setoid_rewrite Hk in IHtrans_.
       eapply IHtrans_; eauto.
     - apply inj_pair2 in H2, H3. subst.
-      rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ.
+      rewrite rewrite_schedule' in Hequ. rewrite schedule'_match_equation_1 in Hequ.
       destruct (observe (v i c)) eqn:Hv.
       + destruct n'. inv i. destruct r. destruct n'; step in Hequ; inv Hequ.
       + destruct e; [destruct y | destruct s]; step in Hequ; inv Hequ.
@@ -671,9 +684,10 @@ Section parallel.
         exists kb. split.
         * rewrite Hequ. econstructor. apply Hvis.
         * rewrite replace_vec_twice in Ht'. apply Ht'.
-    - rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ.
+    - rewrite rewrite_schedule' in Hequ. rewrite schedule'_match_equation_1 in Hequ.
       destruct (observe (v i c)) eqn:Hv; [| destruct e |].
-      + destruct r, u, n'; [inv i |]; destruct n'; [step in Hequ; inv Hequ |].
+      + destruct r, u, n'; [inv i |].
+        destruct n'; [step in Hequ; inv Hequ; inv x |].
         left.
         pose proof (ctree_eta t). rewrite Heq in H0. rewrite <- ctree_eta in H0.
         clear Heq. rename H0 into Heq. cbn in *.
@@ -707,7 +721,7 @@ Section parallel.
           pose proof (ctree_eta t). rewrite Heq in H1. rewrite <- ctree_eta in H1.
           rewrite <- H1. rewrite <- H. rewrite H0. reflexivity.
     - clear H.
-      rewrite rewrite_schedule' in Hequ. unfold schedule'_match in Hequ.
+      rewrite rewrite_schedule' in Hequ. rewrite schedule'_match_equation_1 in Hequ.
       destruct (observe (v i c)) eqn:Hv.
       + destruct n'. inv i. destruct r. destruct n'; step in Hequ; inv Hequ.
       + destruct e0; [destruct y | destruct s]; step in Hequ; inv Hequ.
@@ -728,13 +742,13 @@ Section parallel.
     induction H; intros t' v i c x' Heql Heq Hequ; try inv Heql.
     - (* is there a better way to do this *)
       step in Hequ. inv Hequ. apply inj_pair2 in H3; subst.
-      rewrite rewrite_schedule'. unfold schedule'_match. rewrite <- H4.
+      rewrite rewrite_schedule'. rewrite schedule'_match_equation_1; rewrite <- H4.
       econstructor. eapply IHtrans_; try reflexivity. rewrite REL.
       rewrite replace_vec_eq. reflexivity.
     - apply inj_pair2 in H1. subst.
       step in Hequ. inv Hequ.
-      rewrite rewrite_schedule'. unfold schedule'_match. rewrite <- H.
-      destruct y, u. econstructor.
+      rewrite rewrite_schedule'. rewrite schedule'_match_equation_1, <- H.
+      cbn. destruct y, u. econstructor.
   Qed.
 
   Lemma trans_thread_schedule'_val_SS n v i c (c' : config) t :
@@ -750,13 +764,13 @@ Section parallel.
     induction H; intros t' v i c x' Heql Heq Hequ i'; try inv Heql.
     - (* is there a better way to do this *)
       step in Hequ. inv Hequ. apply inj_pair2 in H3; subst.
-      setoid_rewrite rewrite_schedule' at 1. unfold schedule'_match. rewrite <- H4.
+      setoid_rewrite rewrite_schedule' at 1. rewrite schedule'_match_equation_1. rewrite <- H4.
       epose proof (IHtrans_ t' (replace_vec v i (fun _ => k2 x)) i c x' eq_refl eq_refl _ i').
       Unshelve. 2: { rewrite REL. rewrite replace_vec_eq. reflexivity. }
       econstructor.
       erewrite <- remove_vec_replace_vec_eq in H0. apply H0.
     - apply inj_pair2 in H0. subst. step in Hequ. inv Hequ.
-      setoid_rewrite rewrite_schedule' at 1. unfold schedule'_match. rewrite <- H.
+      setoid_rewrite rewrite_schedule' at 1. rewrite schedule'_match_equation_1. rewrite <- H.
       econstructor. reflexivity.
   Qed.
 
@@ -772,13 +786,13 @@ Section parallel.
     revert t v i c Heql Heqc1 H0.
     induction H; intros t' v i c Heql Heq Hequ; try inv Heql.
     - step in Hequ. inv Hequ. apply inj_pair2 in H3; subst.
-      rewrite rewrite_schedule'. unfold schedule'_match. rewrite <- H4.
+      rewrite rewrite_schedule'. rewrite schedule'_match_equation_1. rewrite <- H4.
       constructor 1 with (x:=x).
       erewrite <- (replace_vec_twice n v i (fun _ => k2 x) (fun _ => t')).
       apply IHtrans_; auto.
       rewrite replace_vec_eq. rewrite REL. reflexivity.
     - step in Hequ. inv Hequ. apply inj_pair2 in H3; subst.
-      rewrite rewrite_schedule'. unfold schedule'_match. rewrite <- H4.
+      rewrite rewrite_schedule'. rewrite schedule'_match_equation_1. rewrite <- H4.
       constructor 2 with (x:=x).
       pose proof (ctree_eta t).
       rewrite Heq in H0. clear Heq. rename H0 into Heq. rewrite <- ctree_eta in Heq.
@@ -805,12 +819,12 @@ Section parallel.
     revert b k n v i c H0 Heql Heqk'.
     induction H; intros; subst; try inv Heql.
     - step in H0. inv H0. apply inj_pair2 in H4. subst.
-      rewrite rewrite_schedule'. unfold schedule'_match. rewrite <- H5.
+      rewrite rewrite_schedule'. rewrite schedule'_match_equation_1. rewrite <- H5.
       constructor 1 with (x:=x).
       rewrite <- (replace_vec_twice n0 v i (fun _ => k3 x) (fun _ => k0 false)).
       eapply IHtrans_; eauto. rewrite REL. rewrite replace_vec_eq. reflexivity.
     - step in H0. inv H0. apply inj_pair2 in H3, H4, H5, H6. subst.
-      rewrite rewrite_schedule'. unfold schedule'_match. rewrite <- H7.
+      rewrite rewrite_schedule'. rewrite schedule'_match_equation_1. rewrite <- H7.
       constructor 2 with (x:=Fin.F1).
   Abort.
 
@@ -880,7 +894,7 @@ Section parallel.
     (forall c'', trans (obs (inl1 (Yield _ c')) c'') (v i c) (k c'')) ->
     trans tau (schedule' n v i c) (schedule' n (replace_vec v i k) i' c').
   Proof.
-    intros. rewrite rewrite_schedule'. unfold schedule'_match. rewrite H.
+    intros. rewrite rewrite_schedule'. rewrite schedule'_match_equation_1. rewrite H.
     (* destruct e. *)
     pose proof (H0 c). cbn in H1. red in H1.
     rewrite H in H1. inv H1. apply inj_pair2 in H4, H5, H6, H7. subst.
@@ -909,7 +923,7 @@ Section parallel.
     induction H0; intros kc v i i' c c' c'' Heql Htrans Hequ1 Hequ2;
       try solve [inv Heql].
     - step in Hequ1. inv Hequ1. apply inj_pair2 in H3. subst.
-      rewrite rewrite_schedule'. unfold schedule'_match. rewrite <- H.
+      rewrite rewrite_schedule'. rewrite schedule'_match_equation_1. rewrite <- H.
       constructor 1 with (x:=x). rewrite <- (replace_vec_twice n v i (fun _ => k2 x) kc).
       eapply IHtrans_; auto.
       2: { rewrite replace_vec_eq. rewrite REL. reflexivity. }
@@ -955,8 +969,6 @@ Section parallel.
       (* 2: { rewrite REL. rewrite replace_vec_eq. reflexivity. } *)
 
   Abort.
-
-  Require Import Coq.Logic.IndefiniteDescription.
 
   (* Lemma construct n (v1 v2 : vec n) i c c' k : *)
   (*   (forall c'' : config, trans (obs (inl1 (Yield config c')) c'') (v1 i c) (k c'')) -> *)
@@ -1061,12 +1073,12 @@ Section parallel.
     revert v i c i' c' k Heqc0 Heqc1.
     induction H; intros; subst; try inv Heqc1.
     - assert (n0 = 1%nat) by admit. subst.
-      rewrite rewrite_schedule' at 1. unfold schedule'_match.
+      rewrite rewrite_schedule' at 1. rewrite schedule'_match_equation_1.
       rewrite <- Heqc0. constructor 1 with (x:=x).
       rewrite <- (replace_vec_twice _ v i (fun _ => k x) k0).
       eapply IHvisible_; auto. rewrite replace_vec_eq. auto.
     - apply inj_pair2 in H2, H3. subst.
-      rewrite rewrite_schedule' at 1. unfold schedule'_match.
+      rewrite rewrite_schedule' at 1. rewrite schedule'_match_equation_1.
       rewrite <- Heqc0. econstructor. apply equ_schedule'.
       apply replace_vec_vec_relation; repeat intro; auto.
   Admitted.
@@ -1085,12 +1097,12 @@ Section parallel.
     revert v i c k Heqc0 Heqc1.
     induction H; intros; subst; try inv Heqc1.
     - assert (n0 = 1%nat) by admit. subst.
-      rewrite rewrite_schedule' at 1. unfold schedule'_match.
+      rewrite rewrite_schedule' at 1. rewrite schedule'_match_equation_1.
       rewrite <- Heqc0. constructor 1 with (x:=x).
       rewrite <- (replace_vec_twice _ v i (fun _ => k x) (fun _ => k0 false)).
       eapply IHvisible_; auto. rewrite replace_vec_eq. auto.
     - apply inj_pair2 in H2, H3. subst.
-      rewrite rewrite_schedule' at 1. unfold schedule'_match.
+      rewrite rewrite_schedule' at 1. rewrite schedule'_match_equation_1.
       rewrite <- Heqc0. econstructor. apply Fin.F1. apply equ_schedule'.
       apply cons_vec_vec_relation; auto.
       apply replace_vec_vec_relation; repeat intro; auto.

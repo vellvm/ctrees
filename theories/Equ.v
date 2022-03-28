@@ -85,24 +85,26 @@ up-to reasoning: any function [f] proved to be below the companion,
 denoted [t], is accessible during a proof by coinduction.
 
 |*)
-Notation equ R := (gfp (fequ R)).
+Definition equ {E R1 R2} R := (gfp (@fequ E R1 R2 R)).
 Infix "≅" := (equ eq) (at level 70).
+#[global] Hint Unfold equ: core.
 
 (*|
 The associated companions:
 |*)
-Notation T_equ RR  := (T (fequ RR)).
-Notation t_equ RR  := (t (fequ RR)).
-Notation bt_equ RR := (bt (fequ RR)).
+Notation et RR  := (t (fequ RR)).
+Notation eT RR  := (T (fequ RR)).
+Notation ebt RR := (bt (fequ RR)).
+Notation ebT RR := (bT (fequ RR)).
 Arguments equ_ _ _ _ _/.
 #[global] Hint Constructors equF: core.
 
 Section equ_equiv.
 
 	Variable (E : Type -> Type) (R : Type) (RR : R -> R -> Prop).
-  Notation T  := (coinduction.T (fequ (E := E) RR)).
-  Notation t  := (coinduction.t (fequ (E := E) RR)).
-  Notation bt := (coinduction.bt (fequ (E := E) RR)).
+  Notation eT  := (coinduction.T (fequ (E := E) RR)).
+  Notation et  := (coinduction.t (fequ (E := E) RR)).
+  Notation ebt := (coinduction.bt (fequ (E := E) RR)).
 (*|
 This is just a hack suggested by Damien Pous to avoid a
 universe inconsistency when using both the relational algebra
@@ -121,7 +123,7 @@ a coinductive proof.
 Here concretely, bisimulation candidates don't ever need
 to be closed by reflexivity in effect: the companion is always reflexive.
 |*)
-	Lemma refl_t {RRR: Reflexive RR}: const seq <= t_equ RR.
+	Lemma refl_t {RRR: Reflexive RR}: const seq <= et.
 	Proof.
 		apply leq_t. intro.
 		change (@eq (ctree E R)  <= equ_ RR eq).
@@ -131,7 +133,7 @@ to be closed by reflexivity in effect: the companion is always reflexive.
 (*|
 [converse] is compatible: up-to symmetry is valid
 |*)
-	Lemma converse_t {RRS: Symmetric RR}: converse <= t.
+	Lemma converse_t {RRS: Symmetric RR}: converse <= et.
 	Proof.
 		apply leq_t. intros S x y H; cbn. destruct H; auto.
 	Qed.
@@ -139,7 +141,7 @@ to be closed by reflexivity in effect: the companion is always reflexive.
 (*|
 [squaring] is compatible: up-to transitivity is valid
 |*)
-	Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= t.
+	Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= et.
 	Proof.
 		apply leq_t.
 		intros S x z [y xy yz]; cbn.
@@ -161,11 +163,11 @@ that the companion, at all point, is reflexive, symmetric, transitive.
 The companion library directly provide these results for bisimilarity, [t R], [b (t R)]
 and [T f R].
 |*)
-	#[global] Instance Equivalence_et `{Equivalence _ RR} S: Equivalence (t S).
+	#[global] Instance Equivalence_et `{Equivalence _ RR} S: Equivalence (et S).
 	Proof. apply Equivalence_t. apply refl_t. apply square_t. apply converse_t. Qed.
-	#[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (T f S).
+	#[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (eT f S).
 	Proof. apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
-	#[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (bt S).
+	#[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (ebt S).
 	Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.
 
 (*|
@@ -182,17 +184,45 @@ of the tree.
 
 End equ_equiv.
 
-#[global] Instance Equivalence_equ {E R}: Equivalence (gfp (@fequ E R _ eq)).
+#[global] Instance Equivalence_equ {E R}: Equivalence (@equ E R R eq).
 Proof. apply Equivalence_et. typeclasses eauto. Qed.
 
 #[global] Hint Constructors equF : core.
 Arguments equ_ {E R1 R2} RR eq t1 t2/.
 
 #[global] Instance equ_eq_equ {E X} {R : rel X X} :
-  Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E X _ eq)) ==> flip impl) (equ R).
+  Proper (equ eq ==> equ eq ==> flip impl) (@equ E X X R).
 Proof.
   unfold Proper, respectful, flip, impl; cbn.
-  coinduction ? IH.
+  unfold equ; coinduction ? IH.
+  intros t t' EQt u u' EQu EQ.
+  step in EQt.
+  step in EQu.
+  step in EQ.
+  inv EQt; rewrite <- H in EQ.
+  - inv EQ.
+    rewrite <- H3 in EQu.
+    inv EQu.
+    cbn; rewrite <- H0, <- H2; auto.
+  - dependent destruction EQ.
+    cbn.
+    rewrite <- x in EQu.
+    dependent destruction EQu.
+    rewrite <- H0, <- x.
+    eauto.
+  - dependent destruction EQ.
+    cbn.
+    rewrite <- x in EQu.
+    dependent destruction EQu.
+    rewrite <- H0, <- x.
+    eauto.
+Qed.
+
+#[global] Instance equ_eq_equ' {E X Y} {R : rel X Y} :
+  Proper (equ eq ==> equ eq ==> flip impl) (@equ E X Y R).
+Proof.
+  unfold Proper, respectful, flip, impl; cbn.
+  unfold equ; coinduction ? IH.
   intros t t' EQt u u' EQu EQ.
   step in EQt.
   step in EQu.
@@ -308,7 +338,8 @@ equ ==> equ ==> flip impl)       bt_equ eq r
 #[global] Instance equ_observe {E R} :
   Proper (equ eq ==> going (equ eq)) (@observe E R).
 Proof.
-  constructor. step in H. now step.
+  constructor. red in H; step in H.
+  now step.
 Qed.
 
 #[global] Instance equ_ChoiceF {E R} b n :
@@ -332,10 +363,10 @@ Qed.
 
 #[global] Instance equ_eq_equF {E R r} :
   Proper (going (equ eq) ==> eq ==> flip impl)
-	     (@equF E R R eq (t_equ eq r)).
+	     (@equF E R R eq (et eq r)).
 Proof.
   unfold Proper, respectful, flip, impl. intros. subst.
-  inv H. step in H0. inv H0; inv H1; auto.
+  inv H. red in H0; step in H0. inv H0; inv H1; auto.
   - invert.
     subst. constructor. intros. rewrite REL. auto.
   - invert.
@@ -344,7 +375,7 @@ Qed.
 
 #[global] Instance eq_equ_equF {E R r} :
   Proper (eq ==> going (equ eq) ==> flip impl)
-	     (@equF E R R eq (t_equ eq r)).
+	     (@equF E R R eq (et eq r)).
 Proof.
   unfold Proper, respectful, flip, impl. intros. subst.
   inv H0. step in H. inv H; inv H1; auto.
@@ -356,7 +387,7 @@ Qed.
 
 #[global] Instance gfp_bt_equ {E R r} :
 	 Proper (gfp (@fequ E R R eq) ==> equ eq ==> flip impl)
-	  (bt_equ eq r).
+	  (ebt eq r).
 Proof.
 	unfold Proper, respectful, flip, impl.
 	intros.
@@ -367,7 +398,7 @@ Proof.
 Qed.
 
 #[global] Instance Equivalence_bt_equ_gen {E X R S} `{Equivalence _ R}:
-  Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E X _ eq)) ==> flip impl) (bt_equ R S).
+  Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E X _ eq)) ==> flip impl) (ebt R S).
 Proof.
 	unfold Proper, respectful, flip, impl.
 	intros.
@@ -554,7 +585,7 @@ and with the argument (pointwise) on the continuation.
 (*|
 The resulting enhancing function gives a valid up-to technique
 |*)
-    Lemma bind_ctx_equ_t (SS : rel X1 X2) (RR : rel Y1 Y2): bind_ctx_equ SS <= t_equ RR.
+    Lemma bind_ctx_equ_t (SS : rel X1 X2) (RR : rel Y1 Y2): bind_ctx_equ SS <= et RR.
     Proof.
       apply Coinduction. intros R. apply (leq_bind_ctx _).
       intros x x' xx' k k' kk'.
@@ -584,8 +615,8 @@ Lemma equ_clo_bind (E: Type -> Type) (X1 X2 Y1 Y2 : Type) :
 	forall (t1 : ctree E X1) (t2 : ctree E X2) (k1 : X1 -> ctree E Y1) (k2 : X2 -> ctree E Y2)
     (S : rel X1 X2) (R : rel Y1 Y2) RR,
 		equ S t1 t2 ->
-    (forall x1 x2, S x1 x2 -> (t_equ R RR) (k1 x1) (k2 x2)) ->
-    t_equ R RR (bind t1 k1) (bind t2 k2)
+    (forall x1 x2, S x1 x2 -> (et R RR) (k1 x1) (k2 x2)) ->
+    et R RR (bind t1 k1) (bind t2 k2)
 .
 Proof.
   intros.
@@ -599,7 +630,7 @@ to the left of a [bind].
 |*)
 #[global] Instance bind_equ_cong :
  forall (E : Type -> Type) (X Y : Type) (R : rel Y Y) RR,
-   Proper (equ (@eq X) ==> pointwise_relation X (t_equ R RR) ==> t_equ R RR) (@bind E X Y).
+   Proper (equ (@eq X) ==> pointwise_relation X (et R RR) ==> et R RR) (@bind E X Y).
 Proof.
   repeat red; intros; eapply equ_clo_bind; eauto.
   intros ? ? <-; auto.
@@ -620,7 +651,7 @@ Qed.
 Lemma bind_ret_r {E X} : forall (t : ctree E X),
     x <- t;; Ret x ≅ t.
 Proof.
-  coinduction S CIH.
+  unfold equ; coinduction S CIH.
   intros t.
   rewrite unfold_bind.
   cbn; desobs t; constructor; auto.
@@ -629,7 +660,7 @@ Qed.
 Lemma bind_bind {E X Y Z} : forall (t : ctree E X) (k : X -> ctree E Y) (l : Y -> ctree E Z),
     (t >>= k) >>= l ≅ t >>= (fun x => k x >>= l).
 Proof.
-  coinduction S CIH; intros.
+  unfold equ; coinduction S CIH; intros.
   rewrite (ctree_eta t). cbn.
   desobs t; cbn.
   - reflexivity.

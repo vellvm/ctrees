@@ -95,10 +95,10 @@ i.e. fun R => converse (ss (converse R))
 i.e. comp converse (comp ss converse)
 The bisimulation is then obtained by intersecting both relations.
 |*)
-    Notation sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
+    Definition sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
 
-    Notation sbisim := (gfp sb : hrel _ _).
-    Notation "t ~ u" := (gfp sb t u) (at level 70).
+    Definition sbisim := (gfp sb : hrel _ _).
+    Notation "t ~ u" := (sbisim t u) (at level 70).
     Notation st := (t sb).
     Notation sbt := (bt sb).
 (*|
@@ -150,7 +150,7 @@ i.e. validity of up-to symmetry
        *)
       - intros R x z [y xy yz].
         now exists y.
-      - rewrite cap_l at 1.
+      - unfold sb; rewrite cap_l at 1.
         intros R x z [y xy yz] l x' xx'.
         destruct (xy _ _ xx') as [y' yy' x'y'].
         destruct (yz _ _ yy') as [z' zz' y'z'].
@@ -174,57 +174,67 @@ Thus bisimilarity and [t R] are always equivalence relations.
     #[global] Instance Equivalence_sT f R: Equivalence ((T sb) f R).
     Proof. apply rel.Equivalence_T. apply refl_st. apply square_st. apply converse_st. Qed.
 
-    #[global] Instance equ_ss_closed {r} : Proper (equ eq ==> equ eq ==> iff) (ss r).
+    #[global] Instance equ_ss_closed_goal {r} : Proper (equ eq ==> equ eq ==> flip impl) (ss r).
     Proof.
-      intros t t' tt' u u' uu'; split; cbn; intros.
-      - rewrite <- tt' in H0. apply H in H0 as [? ? ?].
-        eexists; eauto. rewrite <- uu'. eauto.
-      - rewrite tt' in H0. apply H in H0 as [? ? ?].
-        eexists; eauto. rewrite uu'. eauto.
+      intros t t' tt' u u' uu'; cbn; intros.
+      rewrite tt' in H0. apply H in H0 as [? ? ?].
+      eexists; eauto. rewrite uu'. eauto.
+    Qed.
+
+    #[global] Instance equ_ss_closed_ctx {r} : Proper (equ eq ==> equ eq ==> impl) (ss r).
+    Proof.
+      intros t t' tt' u u' uu'; cbn; intros.
+      rewrite <- tt' in H0. apply H in H0 as [? ? ?].
+      eexists; eauto. rewrite <- uu'. eauto.
     Qed.
 
 (*|
 [sbism] is closed under [equ]
 This proof should be shorter if actually using some braincells I think.
 |*)
-    #[global] Instance equ_sbisim_closed : Proper (equ eq ==> equ eq ==> iff) sbisim.
+    #[global] Instance equ_sbisim_closed_goal : Proper (equ eq ==> equ eq ==> flip impl) sbisim.
     Proof.
-      intros t t' tt' u u' uu'; split.
-      - revert t t' u u' tt' uu'.
-        coinduction ? CIH.
-        intros * eqt equ eqtu.
-        step in eqtu.
-        split.
-        + cbn; intros.
-          rewrite <- eqt in H.
-          apply eqtu in H as [?u' T eq].
-          eexists. rewrite <- equ. apply T.
-          eapply CIH; try reflexivity. auto.
-        + cbn; intros.
-          rewrite <- equ in H.
-          apply eqtu in H as [?t' T eq].
-          eexists. rewrite <- eqt. apply T.
-          eapply CIH; try reflexivity; auto.
-      - revert t t' u u' tt' uu'.
-        coinduction ? CIH.
-        intros * eqt equ eqtu.
-        step in eqtu.
-        destruct eqtu as [ftu btu].
-        split.
-        + cbn; intros.
-          rewrite eqt in H.
-          apply ftu in H as [?u' T eq].
-          eexists. rewrite equ. apply T.
-          eapply CIH; try reflexivity; auto.
-        + cbn; intros.
-          rewrite equ in H.
-          apply btu in H as [?t' T eq].
-          eexists. rewrite eqt. apply T.
-          eapply CIH; try reflexivity; auto.
+      intros t t' tt' u u' uu'; cbn.
+      revert t t' u u' tt' uu'.
+      unfold sbisim; coinduction ? CIH; fold sbisim in *.
+      intros * eqt equ eqtu.
+      step in eqtu.
+      destruct eqtu as [ftu btu].
+      split.
+      + cbn; intros.
+        rewrite eqt in H.
+        apply ftu in H as [?u' T eq].
+        eexists. rewrite equ. apply T.
+        eapply CIH; try reflexivity; auto.
+      + cbn; intros.
+        rewrite equ in H.
+        apply btu in H as [?t' T eq].
+        eexists. rewrite eqt. apply T.
+        eapply CIH; try reflexivity; auto.
+    Qed.
+
+    #[global] Instance equ_sbisim_closed_ctx : Proper (equ eq ==> equ eq ==> impl) sbisim.
+    Proof.
+      intros t t' tt' u u' uu'; cbn.
+      revert t t' u u' tt' uu'.
+      unfold sbisim; coinduction ? CIH; fold sbisim in *.
+      intros * eqt equ eqtu.
+      step in eqtu.
+      split.
+      + cbn; intros.
+        rewrite <- eqt in H.
+        apply eqtu in H as [?u' T eq].
+        eexists. rewrite <- equ. apply T.
+        eapply CIH; try reflexivity. auto.
+      + cbn; intros.
+        rewrite <- equ in H.
+        apply eqtu in H as [?t' T eq].
+        eexists. rewrite <- eqt. apply T.
+        eapply CIH; try reflexivity; auto.
     Qed.
 
     #[global] Instance equ_sbt_closed {r} :
-      Proper (gfp (fequ eq) ==> equ eq ==> flip impl)
+      Proper (equ eq ==> equ eq ==> flip impl)
              (sbt r).
     Proof.
       repeat intro. pose proof (gfp_bt sb r).
@@ -241,11 +251,23 @@ Hence [equ eq] is a included in [sbisim]
       rewrite H; reflexivity.
     Qed.
 
+    #[global] Instance sbisim_sbisim_closed_goal : Proper (sbisim ==> sbisim ==> flip impl) sbisim.
+    Proof.
+      repeat intro.
+      etransitivity; [etransitivity; eauto | symmetry; eassumption].
+    Qed.
+
+    #[global] Instance sbisim_sbisim_closed_ctx : Proper (sbisim ==> sbisim ==> impl) sbisim.
+    Proof.
+      repeat intro.
+      etransitivity; [symmetry; eassumption | etransitivity; eauto].
+    Qed.
+
   End Strong.
 
-  Notation sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
-  Notation sbisim := (gfp sb : hrel _ _).
-  Notation "t ~ u" := (gfp sb t u) (at level 70).
+  (* Notation sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))). *)
+  (* Notation sbisim := (gfp sb : hrel _ _). *)
+  Notation "t ~ u" := (sbisim t u) (at level 70).
   Notation st := (t sb).
   Notation sbt := (bt sb).
   (** notations  for easing readability in proofs by enhanced coinduction *)
@@ -277,10 +299,10 @@ is once again obtained by expliciting the symmetric aspect of the definition.
 (*|
 The bisimulation is obtained by intersecting [ws] with its symmetrized version.
 |*)
-    Notation wb := (Coinduction.lattice.cap ws (comp converse (comp ws converse))).
+    Definition wb := (Coinduction.lattice.cap ws (comp converse (comp ws converse))).
 
-    Notation wbisim := (gfp wb: hrel _ _).
-    Notation "p ≈ q" := (gfp wb p q) (at level 70).
+    Definition wbisim := (gfp wb: hrel _ _).
+    Notation "p ≈ q" := (wbisim p q) (at level 70).
     Notation wt := (coinduction.t wb).
     Notation wT := (coinduction.T wb).
     Notation wbt := (coinduction.bt wb).
@@ -363,41 +385,46 @@ Hence [wt R] is always symmetric
 (*|
 [wbism] is closed under [equ]
 |*)
-    #[global] Instance equ_wbisim_compat : Proper (equ eq ==> equ eq ==> iff) wbisim.
+    #[global] Instance equ_wbisim_compat_goal : Proper (equ eq ==> equ eq ==> flip impl) wbisim.
     Proof.
-      intros t t' eqt u u' equ; split.
-      - revert t t' u u' eqt equ.
-        coinduction ? CIH.
-        intros * eqt equ eqtu.
-        step in eqtu.
-        destruct eqtu as [ftu btu].
-        split.
-        + intros ? ? ?.
-          rewrite <- eqt in H.
-          apply ftu in H as [?u' T eq].
-          eexists. rewrite <- equ. apply T.
-          eapply CIH; try reflexivity; auto.
-        + intros ? ? ?.
-          rewrite <- equ in H.
-          apply btu in H as [?t' T eq].
-          eexists. rewrite <- eqt. apply T.
-          eapply CIH; try reflexivity; auto.
-      - revert t t' u u' eqt equ.
-        coinduction ? CIH.
-        intros * eqt equ eqtu.
-        step in eqtu.
-        destruct eqtu as [ftu btu].
-        split.
-        + intros ? ? ?.
-          rewrite eqt in H.
-          apply ftu in H as [?u' T eq].
-          eexists. rewrite equ. apply T.
-          eapply CIH; try reflexivity; auto.
-        + intros ? ? ?.
-          rewrite equ in H.
-          apply btu in H as [?t' T eq].
-          eexists. rewrite eqt. apply T.
-          eapply CIH; try reflexivity; auto.
+      intros t t' eqt u u' equ; cbn.
+      revert t t' u u' eqt equ.
+      unfold wbisim; coinduction ? CIH; fold wbisim in *.
+      intros * eqt equ eqtu.
+      step in eqtu.
+      destruct eqtu as [ftu btu].
+      split.
+      + intros ? ? ?.
+        rewrite eqt in H.
+        apply ftu in H as [?u' T eq].
+        eexists. rewrite equ. apply T.
+        eapply CIH; try reflexivity; auto.
+      + intros ? ? ?.
+        rewrite equ in H.
+        apply btu in H as [?t' T eq].
+        eexists. rewrite eqt. apply T.
+        eapply CIH; try reflexivity; auto.
+    Qed.
+
+    #[global] Instance equ_wbisim_compat_ctx : Proper (equ eq ==> equ eq ==> impl) wbisim.
+    Proof.
+      intros t t' eqt u u' equ; cbn.
+      revert t t' u u' eqt equ.
+      unfold wbisim; coinduction ? CIH; fold wbisim in *.
+      intros * eqt equ eqtu.
+      step in eqtu.
+      destruct eqtu as [ftu btu].
+      split.
+      + intros ? ? ?.
+        rewrite <- eqt in H.
+        apply ftu in H as [?u' T eq].
+        eexists. rewrite <- equ. apply T.
+        eapply CIH; try reflexivity; auto.
+      + intros ? ? ?.
+        rewrite <- equ in H.
+        apply btu in H as [?t' T eq].
+        eexists. rewrite <- eqt. apply T.
+        eapply CIH; try reflexivity; auto.
     Qed.
 
 (*|
@@ -408,7 +435,6 @@ Hence [equ eq] is a included in [wbisim]
       red; intros.
       rewrite H; reflexivity.
     Qed.
-
 
 (*|
 Transitivity
@@ -426,6 +452,13 @@ and transitions are completely different.
 Moving to the [srel] world once again to establish algebaric laws based
 on operators from the relation algebra library.
 |*)
+    #[local] Instance equ_wbisim_compat : Proper (equ eq ==> equ eq ==> iff) wbisim.
+    Proof.
+      split; intros.
+      now rewrite <- H, <- H0.
+      now rewrite H, H0.
+    Qed.
+
     Definition wbisimT : srel SS SS :=
       {| hrel_of := wbisim : hrel SS SS |}.
 
@@ -467,6 +500,8 @@ on the setoid side.
 
     Lemma cnv_wt R: (wt R: hrel _ _)° ≡ wt R.
     Proof. apply RelationAlgebra.lattice.antisym; intros ???; now apply Symmetric_wt. Qed.
+    Lemma cnv_gfp: RelationAlgebra.lattice.weq ((gfp wb: hrel _ _)°) (gfp wb).
+    Proof. apply cnv_wt. Qed.
     Lemma cnv_wbisim: wbisimT° ≡ wbisimT.
     Proof. apply cnv_wt. Qed.
     Lemma cnv_wbisim': wbisim° ≡ wbisim.
@@ -496,7 +531,8 @@ Finally, the proof of transitivity
     Proof.
       assert (square wbisim <= wbisim) as H.
       apply leq_gfp. apply symmetric_pfp.
-      now rewrite converse_square, cnv_wbisim'.
+      rewrite converse_square.
+      apply square. simpl. apply cnv_gfp.
       intros x z [y xy yz] l x' xx'.
       apply (gfp_pfp wb) in xy as [xy _].
       destruct (xy _ _ xx') as [y' yy' x'y'].
@@ -513,11 +549,28 @@ Finally, the proof of transitivity
 (*|
 We can now easily derive that [wbisim] is closed under [sbisim]
 |*)
-    #[global] Instance sbisim_wbisim_closed : Proper (sbisim ==> sbisim ==> iff) wbisim.
+    #[global] Instance sbisim_wbisim_closed_goal : Proper (sbisim ==> sbisim ==> flip impl) wbisim.
     Proof.
-      split; intros.
-      now rewrite <- H, <- H0.
+      repeat intro.
       now rewrite H, H0.
+    Qed.
+
+    #[global] Instance sbisim_wbisim_closed_ctx : Proper (sbisim ==> sbisim ==> impl) wbisim.
+    Proof.
+      repeat intro.
+      now rewrite <- H, <- H0.
+    Qed.
+
+    #[global] Instance sbisim_st_goal {R} : Proper (sbisim ==> sbisim ==> flip impl) (st R).
+    Proof.
+      repeat intro.
+      now rewrite H, H0. (* This instance is meant to precisely speed up this kind of subsequent rewrites *)
+    Qed.
+
+    #[global] Instance sbisim_st_ctx {R} : Proper (sbisim ==> sbisim ==> impl) (st R).
+    Proof.
+      repeat intro.
+      now rewrite <- H, <- H0.
     Qed.
 
 (*|
@@ -575,7 +628,7 @@ Disproving the transitivity of [wt R]
         apply wtrans_ret_inv in step as [[abs' ?] | [abs' ?]]; inv abs'.
       - rewrite <- TauV_wb.
         rewrite <- (TauV_wb (Ret x)).
-        coinduction ? CIH.
+        unfold wbisim; coinduction ? CIH; fold wbisim in *.
         split.
         + intros l t' tt'.
           apply trans_TauV_inv in tt' as [EQ ->].
@@ -620,21 +673,23 @@ Remarks and TODOs:
 
 End Bisim.
 
-Notation sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
+(* Notation sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))). *)
 
-Notation sbisim := (gfp sb : hrel _ _).
-Notation "t ~ u" := (gfp sb t u) (at level 70).
+(* Notation sbisim := (gfp sb : hrel _ _). *)
+Notation "t ~ u" := (sbisim t u) (at level 70).
 Notation st := (t sb).
+Notation sT := (T sb).
 Notation sbt := (bt sb).
+Notation sbT := (bT sb).
 (** notations  for easing readability in proofs by enhanced coinduction *)
 Notation "t [~] u" := (st  _ t u) (at level 79).
 Notation "t {~} u" := (sbt _ t u) (at level 79).
 
 (** the symmetrised version, defining weak bisimulations and bisimilarity *)
-Notation wb := (Coinduction.lattice.cap ws (comp converse (comp ws converse))).
+(* Notation wb := (Coinduction.lattice.cap ws (comp converse (comp ws converse))). *)
 
-Notation wbisim := (gfp wb: hrel _ _).
-Notation "p ≈ q" := (gfp wb p q) (at level 70).
+(* Notation wbisim := (gfp wb: hrel _ _). *)
+Notation "p ≈ q" := (wbisim p q) (at level 70).
 Notation wt := (coinduction.t wb).
 Notation wT := (coinduction.T wb).
 Notation wbt := (coinduction.bt wb).
@@ -642,3 +697,28 @@ Notation wbT := (coinduction.bT wb).
 (** notations  for easing readability in proofs by enhanced coinduction *)
 Notation "x [≈] y" := (wt _ x y) (at level 80).
 Notation "x {≈} y" := (wbt _ x y) (at level 80).
+
+Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
+  match goal with
+  | |- context [@equ ?E ?R1 ?R2 ?RR _ _] =>
+      unfold equ;
+      apply_coinduction;
+      fold (@equ E R1 R2 RR);
+      intros R H
+  | |- context [@sbisim ?E ?X _ _] =>
+      unfold sbisim;
+      apply_coinduction;
+      fold (@sbisim E X);
+      intros R H
+  | |- context [@wbisim ?E ?X _ _] =>
+      unfold wbisim;
+      apply_coinduction;
+      fold (@wbisim E X);
+      intros R H
+  | |- _ =>
+      apply_coinduction;
+      intros R H
+  end.
+
+#[global] Opaque wtrans.
+

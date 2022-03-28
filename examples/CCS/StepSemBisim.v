@@ -7,7 +7,7 @@ From CTree Require Import
 	Equ
 	Bisim.
 
-From CTreeCCS Require Import 
+From CTreeCCS Require Import
 	Syntax
 	Denotation.
 
@@ -50,10 +50,10 @@ step. constructor.
 	  inv H3; dependent induction H1; cbn in *.
 	  inv H2; dependent induction H3; cbn in *.
 		specialize (H4 tt).
-		
+
 *)
 
-(* 
+(*
 Definition weak : term -> term -> Prop :=
 	fun P Q => interp h ⟦P⟧ ≈ interp h ⟦Q⟧. *)
 
@@ -71,15 +71,15 @@ bisim_bisim corresponds strong operational bisimulation
 
 (*
 Definition forward (R : term -> term -> Prop) : Prop :=
-	forall P a P' Q, 
+	forall P a P' Q,
 		R P Q ->
-		P ⊢ a →sem P' -> 
+		P ⊢ a →sem P' ->
 	exists Q', Q ⊢ a →sem Q' /\ R P' Q'.
 
 Definition backward (R : term -> term -> Prop) : Prop :=
-	forall P a Q Q', 
+	forall P a Q Q',
 		R P Q ->
-		Q ⊢ a →sem Q' -> 
+		Q ⊢ a →sem Q' ->
 	exists P', P ⊢ a →sem P' /\ R P' Q'.
 
 Definition bisim_step : term -> term -> Prop :=
@@ -89,7 +89,7 @@ Theorem bisim_equiv : forall P Q, strongc P Q <-> bisim_step P Q.
 Proof.
 	(* split.
 	- admit.
-	- intros (R & FOR & BACK & HR). 
+	- intros (R & FOR & BACK & HR).
 		unfold bisim_bisim, bisim.
 		coinduction S IH.
 		cbn.
@@ -99,4 +99,3 @@ Proof.
  *)
 Admitted.
  *)
-

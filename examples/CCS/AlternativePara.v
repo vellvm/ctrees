@@ -3,16 +3,6 @@ From Coq Require Export
 
 From ITree Require Import ITree.
 
-From CTree Require Import
-	   Utils
-	   CTrees
-     Trans
- 	   Interp
-	   Equ
-	   Bisim
-     CTreesTheory
-     Head.
-
 From RelationAlgebra Require Import
      monoid
      kat
@@ -24,13 +14,22 @@ From RelationAlgebra Require Import
      rewriting
      normalisation.
 
-From CTreeCCS Require Import
-	   Syntax
-     Denotation.
-
 From Coinduction Require Import
 	   coinduction rel tactics.
 
+From CTree Require Import
+	   Utils
+	   CTrees
+     Trans
+ 	   Interp
+	   Equ
+	   Bisim
+     CTreesTheory
+     Head.
+
+From CTreeCCS Require Import
+	   Syntax
+     Denotation.
 Import CTree.
 Import CTreeNotations.
 Open Scope ctree_scope.
