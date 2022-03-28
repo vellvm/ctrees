@@ -36,6 +36,8 @@ From CTree Require Import
      CTreesTheory
      Trans.
 
+Require Import Coq.Logic.IndefiniteDescription.
+
 Import ListNotations.
 Import CTreeNotations.
 
@@ -968,8 +970,6 @@ Section parallel.
 
   Abort.
 
-  Require Import Coq.Logic.IndefiniteDescription.
-
   (* Lemma construct n (v1 v2 : vec n) i c c' k : *)
   (*   (forall c'' : config, trans (obs (inl1 (Yield config c')) c'') (v1 i c) (k c'')) -> *)
   (*   (forall (l : label) (t' : ctree (parE config) (config * ())), *)
@@ -1073,12 +1073,12 @@ Section parallel.
     revert v i c i' c' k Heqc0 Heqc1.
     induction H; intros; subst; try inv Heqc1.
     - assert (n0 = 1%nat) by admit. subst.
-      rewrite rewrite_schedule' at 1. unfold schedule'_match.
+      rewrite rewrite_schedule' at 1. rewrite schedule'_match_equation_1.
       rewrite <- Heqc0. constructor 1 with (x:=x).
       rewrite <- (replace_vec_twice _ v i (fun _ => k x) k0).
       eapply IHvisible_; auto. rewrite replace_vec_eq. auto.
     - apply inj_pair2 in H2, H3. subst.
-      rewrite rewrite_schedule' at 1. unfold schedule'_match.
+      rewrite rewrite_schedule' at 1. rewrite schedule'_match_equation_1.
       rewrite <- Heqc0. econstructor. apply equ_schedule'.
       apply replace_vec_vec_relation; repeat intro; auto.
   Admitted.
@@ -1097,12 +1097,12 @@ Section parallel.
     revert v i c k Heqc0 Heqc1.
     induction H; intros; subst; try inv Heqc1.
     - assert (n0 = 1%nat) by admit. subst.
-      rewrite rewrite_schedule' at 1. unfold schedule'_match.
+      rewrite rewrite_schedule' at 1. rewrite schedule'_match_equation_1.
       rewrite <- Heqc0. constructor 1 with (x:=x).
       rewrite <- (replace_vec_twice _ v i (fun _ => k x) (fun _ => k0 false)).
       eapply IHvisible_; auto. rewrite replace_vec_eq. auto.
     - apply inj_pair2 in H2, H3. subst.
-      rewrite rewrite_schedule' at 1. unfold schedule'_match.
+      rewrite rewrite_schedule' at 1. rewrite schedule'_match_equation_1.
       rewrite <- Heqc0. econstructor. apply Fin.F1. apply equ_schedule'.
       apply cons_vec_vec_relation; auto.
       apply replace_vec_vec_relation; repeat intro; auto.
