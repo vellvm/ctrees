@@ -3,18 +3,19 @@ From Coq Require Import
      List
      Logic.FunctionalExtensionality
      micromega.Lia
-     Init.Specif.
+     Init.Specif
+     Fin.
 
 From CTree Require Import
-       CTrees
+     CTrees
 	   Utils
 	   CTrees
  	   Interp
 	   Equ
 	   Bisim
-       Shallow
-       CTreesTheory
-       Trans.
+     Shallow
+     CTreesTheory
+     Trans.
 
 From RelationAlgebra Require Import
      monoid
@@ -26,6 +27,8 @@ From RelationAlgebra Require Import
      comparisons
      rewriting
      normalisation.
+
+From Equations Require Import Equations.
 
 From ITree Require Import
      Sum.
@@ -63,7 +66,7 @@ Section parallel.
   Proof. repeat intro. auto. Qed.
 
   Definition remove_front_vec {n : nat} (v : vec (S n)) : vec n :=
-    fun i => v (Fin.FS i).
+    fun i => v (FS i).
 
   Lemma remove_front_vec_vec_relation n P (v1 v2 : vec (S n)) :
     vec_relation P v1 v2 ->
@@ -72,27 +75,23 @@ Section parallel.
     repeat intro. apply H.
   Qed.
 
-  Program Fixpoint remove_vec {n : nat} (v : vec (S n)) (i : fin (S n)) : vec n :=
-    match i with
-    (* this is the one we're removing *)
-    | Fin.F1 => remove_front_vec v
-    (* not yet at the index we want to ignore *)
-    | Fin.FS j => fun i' =>
-                   match i' with
-                   (* before the index we're removing *)
-                   | Fin.F1 => v Fin.F1
-                   (* after the index we're removing, so look at the rest of the vector, minus the first element, which we don't care about *)
-                   | Fin.FS j' => remove_vec (remove_front_vec v) j j'
-                   end
-    end.
+  Equations remove_vec {n : nat} (v : vec (S n)) (i : fin (S n)) : vec n :=
+    remove_vec v F1     i'      := remove_front_vec v i';
+    remove_vec v (FS i) F1      := v F1;
+    remove_vec v (FS i) (FS i') := remove_vec (remove_front_vec v) i i'.
+  Transparent remove_vec.
+
+  Derive Signature for Fin.t.
+  Derive NoConfusion NoConfusionHom for Fin.t.
 
   Lemma remove_vec_vec_relation n P (v1 v2 : vec (S n)) i :
     vec_relation P v1 v2 ->
     vec_relation P (remove_vec v1 i) (remove_vec v2 i).
   Proof.
-    intros. unfold remove_vec.
-    dependent induction i; [apply remove_front_vec_vec_relation; auto |].
-    repeat intro. destruct i0; auto. apply IHi; auto. cbn.
+    intros.
+    depind i; [apply remove_front_vec_vec_relation; auto |].
+    repeat intro. destruct i0; cbn; auto.
+    apply IHi; auto. 
     repeat intro. apply remove_front_vec_vec_relation; auto.
   Qed.
 
@@ -196,6 +195,53 @@ Section parallel.
   (* Qed. *)
 
   (* Alternate definition: factoring out the yielding effect *)
+  Equations schedule_match
+             (schedule : forall (n : nat), vec n -> option (fin n) -> thread)
+             (n : nat)
+             (v: vec n)
+    : option (fin n) -> thread :=
+    schedule_match schedule 0 v None     := Ret (c,tt);
+    schedule_match schedule n v None     := ChoiceV n (fun i' => schedule n v (Some i') c);
+    schedule_match schedule n v (Some i) := _
+  .
+
+    refine
+      (fun (oi : option (fin n)) c =>
+         match oi with
+         | None   => match n with
+                    | O => Ret (c, tt)
+                    | _ => ChoiceV n (fun i' => schedule n v (Some i') c)
+                    end
+         | Some i =>
+             match (observe (v i c)) with
+             | RetF (c', _) =>
+                 match n as m return n = m -> _ with
+                 | 0 => _
+                 | S n' => fun H1 => TauI (schedule n' (remove_vec_helper n n' v i H1) None c')
+                 end (eq_refl n)
+             | ChoiceF b n' k => Choice b n' (fun i' => schedule n (replace_vec v i (fun _ => k i')) (Some i) c)
+             | VisF (inl1 e) k =>
+                 match e in yieldE _ R return (R -> ctree (parE config) (config * unit)) -> _ with
+                 | Yield _ s' =>
+                     fun k => TauI (schedule n (replace_vec v i k) None s')
+                 end k
+             | VisF (inr1 e) k =>
+                 match e in spawnE R return (R -> ctree (parE config) (config * unit)) -> _ with
+                 | Spawn =>
+                     fun k =>
+                       TauV (schedule
+                               (S n)
+                               (cons_vec (fun _ => k true) (replace_vec v i (fun _ => k false)))
+                               (* The [i] here means that we don't yield at a spawn *)
+                               (Some (Fin.L_R 1 i)) (* view [i] as a [fin (n + 1)] *)
+                               c) (* this [c] doesn't matter, since the running thread won't use it *)
+                 end k
+             end
+         end).
+    - intro. subst. inv i.
+  Defined.
+
+
   Definition schedule_match
              (schedule : forall (n : nat), vec n -> option (fin n) -> thread)
              (n : nat)
