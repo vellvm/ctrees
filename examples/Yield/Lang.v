@@ -26,10 +26,15 @@ From ITree Require Import
 
 From CTree Require Import
      CTrees
-     Utils.
+     Utils
+     Bisim
+     CTreesTheory.
 
 From CTreeYield Require Import
      Par.
+
+From Coinduction Require Import
+	coinduction rel tactics.
 
 Import ListNotations.
 Import MonadNotation.
@@ -92,11 +97,11 @@ Section Denote1.
              else ret (inr tt))
 
     | Spawn t =>
-        vis Par.Spawn
-            (fun b : bool =>
-               if b
-               then (denote_imp t;; ChoiceI 0 (fun _ => ret tt)) (* force the thread to halt here *)
-               else ret tt)
+        b <- trigger Par.Spawn;;
+        match b with
+        | true => denote_imp t;; ChoiceI 0 (fun _ => ret tt) (* force the thread to halt here *)
+        | false => ret tt
+        end
     | Skip => ret tt
 
     (* | Atomic t => translate ... (denote_imp t) *)
@@ -136,7 +141,7 @@ Section Denote1.
   Definition interp_state (t : ctree (stateE value +' spawnE) unit) : thread :=
     Interp.interp handler t.
 
-  Definition schedule_denot (t : stmt) : completed :=
-    schedule (interp_state (denote_imp t)) [].
+  Definition schedule_denot (t : stmt) : thread :=
+    schedule' 1 (fun _ => (interp_state (denote_imp t))) Fin.F1.
 
 End Denote1.
