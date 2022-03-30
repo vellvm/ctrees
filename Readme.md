@@ -29,17 +29,10 @@ Installing the opam dependencies
 opam install dune
 opam install coq-itree
 opam install coq-relation-algebra
+opam install coq-coinduction
 opam install coq-equations
 ```
 
-Installing the required branches from [coinduction] (support for 8.15 is not yet on Opam):
-```shell
-git clone git@github.com:damien-pous/coinduction.git
-cd coinduction
-git checkout v8.15
-cd ..
-opam pin coinduction
-```
 ### Obtaining the project
 
 ```shell
