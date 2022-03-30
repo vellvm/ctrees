@@ -36,8 +36,8 @@ Section State.
   | Get : stateE S
   | Put : S -> stateE unit.
 
-  Definition get {E} `{stateE -< E} : itree E S := embed Get.
-  Definition put {E} `{stateE -< E} : S -> itree E unit := embed Put.
+  Definition get {E} `{stateE -< E} : ctree E S := trigger Get.
+  Definition put {E} `{stateE -< E} : S -> ctree E unit := fun s => trigger (Put s).
 
   Definition h_state {E} : stateE ~> stateT S (ctree E) :=
     fun _ e s =>
