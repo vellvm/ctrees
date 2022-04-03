@@ -20,16 +20,6 @@ Open Scope ctree.
 Set Implicit Arguments.
 Set Contextual Implicit.
 
-Ltac upto_bind_ SS :=
-  match goal with
-    |- body (bt (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
-      apply (fbt_bt (@bind_ctx_equ_t E T1 T2 R1 R2 SS RR)), in_bind_ctx
-  end.
-
-Tactic Notation "upto_bind" uconstr(eq) := upto_bind_ eq.
-Ltac upto_bind_eq :=
-  upto_bind eq; [reflexivity | intros ? ? <-].
-
 Definition h_embed {E} : E ~> ctree E :=
   fun _ e => CTree.trigger e.
 Definition embed' {E} : itree E ~> ctree E := interp h_embed.
