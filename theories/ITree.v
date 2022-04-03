@@ -6,8 +6,12 @@ From Coinduction Require Import
 From CTree Require Import
 	   Utils CTrees Trans Equ Bisim CTreesTheory Internalize.
 
+(* Universe issue, TO FIX *)
+Unset Universe Checking.
+Unset Auto Template Polymorphism.
+
 From ITree Require Import
-	   ITree Eq Interp.
+	   ITree Eq.Eq Interp InterpFacts.
 
 From Coq Require Import
 	   Morphisms Program.
@@ -16,34 +20,43 @@ Open Scope ctree.
 Set Implicit Arguments.
 Set Contextual Implicit.
 
+Ltac upto_bind_ SS :=
+  match goal with
+    |- body (bt (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+      apply (fbt_bt (@bind_ctx_equ_t E T1 T2 R1 R2 SS RR)), in_bind_ctx
+  end.
+
+Tactic Notation "upto_bind" uconstr(eq) := upto_bind_ eq.
+Ltac upto_bind_eq :=
+  upto_bind eq; [reflexivity | intros ? ? <-].
 
 Definition h_embed {E} : E ~> ctree E :=
   fun _ e => CTree.trigger e.
 Definition embed' {E} : itree E ~> ctree E := interp h_embed.
 
-Definition embed_and_internalize {E} : itree (ExtChoice +' E) ~> ctree E :=
+Definition embed {E} : itree (ExtChoice +' E) ~> ctree E :=
   fun _ t => internalize (embed' t).
 
-Definition embed {E X} : itree E X -> ctree E X :=
-	cofix _embed t :=
-	 match observe t with
-	| RetF x => CTrees.Ret x
-	| TauF t => CTrees.TauI (_embed t)
-	| VisF e k => CTrees.Vis e (fun x => _embed (k x))
-	 end.
+(* Definition embed {E X} : itree E X -> ctree E X := *)
+(* 	cofix _embed t := *)
+(* 	 match observe t with *)
+(* 	| RetF x => CTrees.Ret x *)
+(* 	| TauF t => CTrees.TauI (_embed t) *)
+(* 	| VisF e k => CTrees.Vis e (fun x => _embed (k x)) *)
+(* 	 end. *)
 
-Notation "'_embed' ot" :=
-	(match ot with
-	| RetF x => CTrees.Ret x
-	| TauF t => CTrees.TauI (embed t)
-	| VisF e k => CTrees.Vis e (fun x => embed (k x))
- end) (at level 50, only parsing).
+(* Notation "'_embed' ot" := *)
+(* 	(match ot with *)
+(* 	| RetF x => CTrees.Ret x *)
+(* 	| TauF t => CTrees.TauI (embed t) *)
+(* 	| VisF e k => CTrees.Vis e (fun x => embed (k x)) *)
+(*  end) (at level 50, only parsing). *)
 
-Lemma unfold_embed {E X} (t : itree E X) :
-	equ eq (embed t) (_embed (observe t)).
-Proof.
-  now step.
-Qed.
+(* Lemma unfold_embed {E X} (t : itree E X) : *)
+(* 	equ eq (embed t) (_embed (observe t)). *)
+(* Proof. *)
+(*   now step. *)
+(* Qed. *)
 
 #[local] Notation iobserve  := observe.
 #[local] Notation _iobserve := _observe.
@@ -56,19 +69,65 @@ Qed.
 #[local] Notation cTauI t   := (CTrees.TauI t).
 #[local] Notation cVis e k  := (CTrees.Vis e k).
 
+(** Unfolding of [interp]. *)
+Definition _interp {E F R} (f : E ~> ctree F) (ot : itreeF E R _)
+  : ctree F R :=
+  match ot with
+  | RetF r => CTrees.Ret r
+  | TauF t => cTauI (interp f t)
+  | VisF e k => CTree.bind (f _ e) (fun x => cTauI (interp f (k x)))
+  end.
+
+Lemma unfold_interp_ctree {E F X} (h: E ~> ctree F) (t : itree E X):
+  (interp h t ≅ _interp h (iobserve t))%ctree.
+Proof.
+  revert t.
+  coinduction R CIH.
+  intros; cbn.
+  Opaque CTree.bind.
+  unfold cobserve; cbn.
+  desobs t ot; try now cbn; auto.
+  match goal with
+    |- equF _ _ (_cobserve ?t) (_cobserve ?u) =>
+      fold (cobserve t);
+      fold (cobserve u)
+  end.
+  Transparent CTree.bind.
+  cbn.
+  rewrite CTreesTheory.bind_map.
+  apply (fbt_bt (@bind_ctx_equ_t F X0 X0 X X eq eq) R), in_bind_ctx.
+  reflexivity.
+  intros ? ? <-.
+  constructor; intros ?.
+  reflexivity.
+Qed.
+
 Lemma embed_eq {E X}:
 	Proper (eq_itree eq ==> equ eq) (@embed E X).
 Proof.
 	unfold Proper, respectful.
 	coinduction r CIH.
-	intros t u bisim.
-	rewrite 2 unfold_embed.
+	intros t u bisim. unfold embed, embed', internalize.
+  rewrite 2 unfold_interp_ctree.
+  rewrite 2 Interp.unfold_interp.
 	punfold bisim.
 	inv bisim; pclearbot; try easy.
-	- constructor; intros _.
-		apply CIH, REL.
-	- constructor; intros.
-		apply CIH, REL.
+	- cbn.
+    constructor; intros ?.
+    step.
+    cbn.
+    constructor; intros ?.
+    now apply CIH.
+	- cbn -[ebt].
+    upto_bind_eq.
+    constructor; intros ?.
+    rewrite 2 Interp.unfold_interp.
+    cbn -[ebt].
+    step; cbn.
+    constructor; intros ?.
+    step; cbn.
+    constructor; intros ?.
+    apply CIH, REL.
 Qed.
 
 From RelationAlgebra Require Import
@@ -102,47 +161,196 @@ From Coq Require Import Datatypes.
 
  *)
 
-Lemma embed_eutt {E X}:
-  Proper (eutt eq ==> sbisim) (@embed E X).
+Notation embed_ t :=
+  match iobserve t with
+  | RetF r => cRet r
+  | TauF t => cTauI (cTauI (embed t))
+  | VisF (inl1 e) k =>
+      match e,k with
+      | ext_chose n, k => ChoiceV n (fun x => cTauI (cTauI (cTauI (embed (k x)))))
+      end
+  | VisF (inr1 e) k => CTrees.vis e (fun x => cTauI (cTauI (cTauI (embed (k x)))))
+  end.
+
+Lemma unfold_embed {E X} (t : itree (_ +' E) X) : (embed t ≅ embed_ t)%ctree.
 Proof.
-  unfold Proper,respectful.
-  coinduction ? CIH.
-  symmetric using idtac.
-  - intros * HR * EQ.
-    apply HR; symmetry; assumption.
-  - intros t u EUTT.
-    cbn; intros * TR.
-    rewrite unfold_embed in TR.
-    punfold EUTT; red in EUTT.
-    remember (iobserve u) as ou.
-    induction EUTT.
-    + eexists; [rewrite unfold_embed, <- Heqou; subst; apply TR | reflexivity].
-    + pclearbot.
-      apply trans_TauI_inv in TR.
-      apply CIH in REL.
-      (* TR implies some structure on m1 *)
-
-     (* This almost certainly does not hold, it essentially relies on
-         `t b <= b (t b)` which I don't think is valid.
-         Question for Damien: how to unfold the companion in an hypothesis at another point that Bot? 
-       *)
-      assert (sbt R (embed m1) (embed m2)) by admit.
-      destruct H as [F _].
-      (* apply trans_TauI_inv in TR. *)
-      apply F in TR as [? ? ?].
-      eexists.
-      rewrite unfold_embed, <- Heqou.
-      apply trans_TauI.
-      apply H.
+  unfold embed, embed', internalize at 1.
+  rewrite unfold_interp_ctree, Interp.unfold_interp.
+  cbn.
+  destruct (iobserve t) eqn:EQ; cbn; auto.
+  - step; cbn.
+    constructor; intros ?.
+    step; cbn.
+    reflexivity.
+  - destruct e.
+    + destruct e.
+      cbn.
+      rewrite Equ.unfold_bind at 1.
+      cbn.
+      step; cbn; constructor; intros ?.
+      rewrite Equ.bind_ret_l.
+      step; cbn; constructor; intros ?.
+      rewrite Interp.unfold_interp; cbn.
+      rewrite Equ.unfold_bind at 1.
+      step; cbn; constructor; intros ?.
+      rewrite Equ.bind_ret_l.
+      step; cbn; constructor; intros ?.
       auto.
-    + pclearbot.
-      apply trans_vis_inv in TR as (u' & EQ & ->).
-      eexists; [rewrite unfold_embed, <- Heqou; apply trans_vis |].
-      rewrite EQ.
-      apply CIH, REL.
-    + apply trans_TauI_inv in TR.
+    + cbn.
+      rewrite Equ.unfold_bind at 1.
+      cbn.
+      step; cbn; constructor; intros ?.
+      rewrite Equ.bind_ret_l.
+      step; cbn; constructor; intros ?.
+      rewrite Interp.unfold_interp; cbn.
+      rewrite Equ.unfold_bind at 1.
+      step; cbn; constructor; intros ?.
+      rewrite Equ.bind_ret_l.
+      step; cbn; constructor; intros ?.
+      auto.
+Qed.
 
+(*
+Lemma foo {E X} : forall (t1 : itree (ExtChoice +' E) X) l t2',
+    trans l (embed t1) t2' ->
+    exists t2,
+        (t2' ≅ embed t2)%ctree.
+Proof.
+  intros * TR.
+  cbn in TR; red in TR.
+  remember (embed t1) as et1.
+  eq2equ Heqet1.
+  revert t1 EQ.
+  dependent induction TR.
+  - intros.
+    rewrite unfold_embed in EQ.
+    step in EQ.
+    rewrite <- x in EQ.
+    destruct (iobserve t1) eqn:EQ1; try now inv EQ.
+    + dependent induction EQ.
+      destruct (cobserve et1) eqn:EQ1'; try now inv x.
+      dependent induction x.
+      specialize (IHTR _ _ eq_refl eq_refl).
+      specialize (REL x0).
+
+    + destruct e.
+      * destruct e; inv EQ.
+      * inv EQ.
+  -
+    edestruct IHTR; [reflexivity | reflexivity | |].
+    rewrite unfold_embed.
+    destruct (iobserve t1) eqn:EQ1; try now inv EQ.
+    dependent induction EQ.
+
+  remember (embed t1) as et1.
+  eq2equ Heqet1.
+  rewrite ctree_eta in EQ.
+  setoid_rewrite (ctree_eta t2').
+  revert t1 EQ u1.
+  induction TR.
+  - intros * EQ * EUTT.
+    admit.
+  - intros * EQ * EUTT.
+    punfold EUTT.
+    red in EUTT; cbn in EUTT.
+    rewrite unfold_embed in EQ.
+    destruct (iobserve t1) eqn:EQt1; try now step in EQ; inv EQ.
+    destruct (iobserve u1) eqn:EQu1; try now inv EUTT.
+
+ *)
+
+Lemma foo {E X} : forall (t1 u1 : itree (ExtChoice +' E) X) l t2',
+    trans l (embed t1) t2' ->
+    t1 ≈ u1 ->
+    exists t2 u2,
+      trans l (embed u1) (embed u2) /\
+        (t2' ≅ embed t2)%ctree /\
+        t2 ≈ u2.
+Proof.
+  intros * TR.
+  cbn in TR; red in TR.
+  remember (embed t1) as et1.
+  eq2equ Heqet1.
+  rewrite ctree_eta in EQ.
+  setoid_rewrite (ctree_eta t2').
+  revert t1 EQ u1.
+  induction TR.
+  - intros * EQ * EUTT.
+    admit.
+  - intros * EQ * EUTT.
+    punfold EUTT.
+    red in EUTT; cbn in EUTT.
+    rewrite unfold_embed in EQ.
+    destruct (iobserve t1) eqn:EQt1; try now step in EQ; inv EQ.
+    destruct (iobserve u1) eqn:EQu1; try now inv EUTT.
 Admitted.
+
+
+  Lemma embed_eutt {E X}:
+    Proper (eutt eq ==> sbisim) (@embed E X).
+  Proof.
+    unfold Proper,respectful.
+    coinduction ? CIH.
+    symmetric using idtac.
+    - intros * HR * EQ.
+      apply HR; symmetry; assumption.
+    - intros t u EUTT.
+      cbn; intros * TR.
+      rewrite unfold_embed in TR.
+      punfold EUTT; red in EUTT.
+      remember (iobserve u) as ou.
+      revert u Heqou.
+      induction EUTT.
+      + subst.
+        eexists; [| reflexivity].
+        rewrite unfold_embed, <- Heqou; apply TR.
+
+      + pclearbot.
+        intros.
+        apply trans_TauI_inv, trans_TauI_inv in TR.
+
+        edestruct @foo as (t2 & u2 & TR2 & EQ2 & EUTT2); eauto.
+        eexists.
+        rewrite unfold_embed, <- Heqou.
+        apply trans_TauI, trans_TauI.
+        eauto.
+        rewrite EQ2.
+        apply CIH, EUTT2.
+
+      + pclearbot.
+        destruct e.
+        * destruct e.
+          apply trans_ChoiceV_inv in TR as (u' & EQ & ->).
+          eexists.
+          rewrite unfold_embed, <- Heqou.
+          apply trans_ChoiceV.
+          rewrite EQ.
+          rewrite !TauI_sb.
+          auto.
+        * apply trans_vis_inv in TR as (u' & EQ & ->).
+          eexists.
+          rewrite unfold_embed, <- Heqou.
+          apply trans_vis.
+          rewrite EQ.
+          rewrite !TauI_sb.
+          auto.
+
+      + intros.
+        apply trans_TauI_inv, trans_TauI_inv in TR.
+        rewrite unfold_embed in TR.
+        eapply IHEUTT in TR; eauto.
+
+      + intros.
+        destruct (iobserve u) eqn:EQ; inv Heqou.
+        specialize (IHEUTT TR t0 eq_refl).
+        destruct IHEUTT as [? ? ?].
+        eexists; eauto.
+        rewrite unfold_embed, EQ.
+        apply trans_TauI, trans_TauI.
+        eauto.
+
+Qed.
+
 
 (* Maybe simpler to just write a coinductive relation *)
 Definition partial_inject {E X} : ctree E X -> itree E (option X) :=

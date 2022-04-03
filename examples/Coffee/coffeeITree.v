@@ -68,6 +68,8 @@ Proof.
       revert u Heqou.
       induction eq; intros; subst; auto.
       * exfalso.
+        rewrite itree_eta in H0.
+        cbn in H0.
         punfold H0. 2: apply interp_PropT__mono.
         red in H0. cbn in H0. dependent induction H0.
         cbn in *.

@@ -177,11 +177,6 @@ Qed.
 (*|
 The only transitions that the head-tree can take are value ones.
 |*)
-Ltac eq2equ H :=
-  match type of H with
-  | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≅ t) by (subst; reflexivity); clear H
-  end.
-
 Lemma trans_get_head_inv {E X} : forall (P : ctree E X) l u,
     trans l (get_head P) u ->
     is_val l.

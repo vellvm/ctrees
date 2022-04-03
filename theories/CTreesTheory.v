@@ -838,7 +838,7 @@ Qed.
 Lemma spinI_nary_n_m : forall {E R} n m, @spinI_nary E R n ~ spinI_nary m.
 Proof.
   intros E R.
-  unfold sbisim; coinduction S _; symmetric.
+  coinduction S _; symmetric.
   cbn; intros * TR.
   exfalso; eapply spinI_nary_is_stuck, TR.
 Qed.

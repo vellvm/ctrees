@@ -10,7 +10,7 @@ From ITree Require Import
 	Basics.Basics.
 
 From CTree Require Import
-		 Utils CTrees Equ Bisim CTreesTheory.
+		 Utils CTrees CTreesTheory Equ Bisim.
 
 Import CTreeNotations.
 Open Scope ctree_scope.
@@ -91,9 +91,68 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma interp_vis {E F R} {f : E ~> ctree F} U (e: E U) (k: U -> ctree E R) :
+Lemma interp_vis {E F R S} {f : E ~> ctree F} (e: E R) (k: R -> ctree E S) :
   interp f (Vis e k) ≅ x <- f _ e;; TauI (interp f (k x)).
 Proof. now rewrite unfold_interp. Qed.
+
+Lemma interp_choice {E F R} {f : E ~> ctree F} b n (k: _ -> ctree E R) :
+  interp f (Choice b n k) ≅ x <- choice b n;; TauI (interp f (k x)).
+Proof. now rewrite unfold_interp. Qed.
+
+Ltac upto_bind_ SS :=
+  match goal with
+    |- body (bt (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+      apply (fbt_bt (@bind_ctx_equ_t E T1 T2 R1 R2 SS RR)), in_bind_ctx
+  end.
+
+Tactic Notation "upto_bind" uconstr(eq) := upto_bind_ eq.
+Ltac upto_bind_eq :=
+  upto_bind eq; [reflexivity | intros ? ? <-].
+
+#[global] Instance interp_equ {E F R} (h : E ~> ctree F) :
+  Proper (equ eq ==> equ eq) (interp h (T := R)).
+Proof.
+  cbn.
+  coinduction ? CIH.
+  intros * EQ; step in EQ.
+  rewrite 2 unfold_interp.
+  inv EQ; auto.
+  - cbn -[ebt].
+    upto_bind_eq.
+    constructor; intros ?; auto.
+  - cbn -[ebt].
+    upto_bind_eq.
+    constructor; intros ?; auto.
+Qed.
+
+(* TODO [step] should refold  *)
+Lemma bind_choice {E R S} b n (k : _ -> ctree E R) (h : _ -> ctree E S):
+      (Choice b n k) >>= h ≅ Choice b n (fun x => k x >>= h).
+Proof.
+  step; cbn; constructor; intros ?.
+  reflexivity.
+Qed.
+
+(* Note: this is specialized to [ctree F] as target monad. *)
+(* TODO: Incorporate Irene's work to generalize *)
+Lemma interp_bind {E F R S} (h : E ~> ctree F) (t : ctree E R) (k : R -> ctree _ S) :
+  interp h (t >>= k) ≅ interp h t >>= (fun x => interp h (k x)).
+Proof.
+  revert t.
+  coinduction R' CIH.
+  intros t.
+  rewrite unfold_bind, (unfold_interp t).
+  desobs t; cbn -[ebt].
+  - now rewrite bind_ret_l.
+  - rewrite interp_vis, bind_bind.
+    upto_bind_eq.
+    rewrite bind_choice.
+    now constructor; intros.
+  - rewrite interp_choice, bind_bind.
+    upto_bind_eq.
+    rewrite bind_choice.
+    now constructor; intros.
+Qed.
 
 (*
 Lemma interp_trigger {E F : Type -> Type} {R : Type}
@@ -106,5 +165,5 @@ Proof.
   setoid_rewrite tau_euttge. rewrite bind_ret_r.
   reflexivity.
 Qed.
-
 *)
+

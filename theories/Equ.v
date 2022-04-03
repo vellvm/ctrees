@@ -98,6 +98,8 @@ Notation ebt RR := (bt (fequ RR)).
 Notation ebT RR := (bT (fequ RR)).
 Arguments equ_ _ _ _ _/.
 #[global] Hint Constructors equF: core.
+Notation "t [≅] u" := (et eq _ t u) (at level 79).
+Notation "t {≅} u" := (ebt eq _ t u) (at level 79).
 
 Section equ_equiv.
 

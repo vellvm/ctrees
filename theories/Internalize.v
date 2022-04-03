@@ -1,10 +1,12 @@
 From ITree Require Import ITree.
 
 From CTree Require Import
-     Utils CTrees Interp.
+     Utils CTrees Interp Equ.
 
 Set Implicit Arguments.
 Set Contextual Implicit.
+
+Import CTreeNotations.
 
 Section Internalize.
   Variable E : Type -> Type.
@@ -25,5 +27,21 @@ Section Internalize.
   Definition internalize : ctree (ExtChoice +' E) ~> ctree E :=
     interp internalize_h'.
 
+  Lemma internalize_ret {R} (r : R) : internalize (Ret r) ≅ Ret r.
+  Proof.
+    unfold internalize.
+    rewrite interp_ret. (* Why is it slow? *)
+    reflexivity.
+  Qed.
+
+  Lemma internalize_bind {R S} (t : ctree _ R) (k : R -> ctree _ S) :
+    internalize (t >>= k) ≅ internalize t >>= (fun x => internalize (k x)).
+  Proof.
+    unfold internalize.
+    rewrite interp_bind. (* Why is it slow? *)
+    reflexivity.
+  Qed.
+
 End Internalize.
+Arguments ext_chose n : clear implicits.
 
