@@ -27,6 +27,14 @@ Definition embed' {E} : itree E ~> ctree E := interp h_embed.
 Definition embed {E} : itree (ExtChoice +' E) ~> ctree E :=
   fun _ t => internalize (embed' t).
 
+Notation "t '-' l '→' u" := (trans l t u)
+                              (at level 50, only printing,
+                                format "t  '-' l '→'  u").
+
+Notation "t '-' l '→' u" := (transR l t u)
+                              (at level 50, only printing,
+                                format "t  '-' l '→'  u").
+
 (* Definition embed {E X} : itree E X -> ctree E X := *)
 (* 	cofix _embed t := *)
 (* 	 match observe t with *)
@@ -200,112 +208,249 @@ Proof.
       auto.
 Qed.
 
-(*
-Lemma foo {E X} : forall (t1 : itree (ExtChoice +' E) X) l t2',
+Lemma foo E X : forall (t1 : itree (ExtChoice +' E) X) l t2',
     trans l (embed t1) t2' ->
-    exists t2,
-        (t2' ≅ embed t2)%ctree.
+    (exists r : X, (t2' ≅ CTree.stuckI)%ctree /\ l = val r) \/ exists t2, (t2' ~ embed t2)%ctree.
 Proof.
   intros * TR.
   cbn in TR; red in TR.
   remember (embed t1) as et1.
-  eq2equ Heqet1.
-  revert t1 EQ.
+  cut (
+      ((et1 ≅ embed t1)%ctree \/ (et1 ≅ cTauI (embed t1))%ctree) ->
+      (exists r : X, (t2' ≅ CTree.stuckI)%ctree /\ l = val r) \/ exists t2 : itree (ExtChoice +' E) X, t2' ~ embed t2).
+  intros H; eapply H; eauto; left; subst; auto.
+  clear Heqet1.
+  revert t1.
   dependent induction TR.
-  - intros.
-    rewrite unfold_embed in EQ.
-    step in EQ.
-    rewrite <- x in EQ.
-    destruct (iobserve t1) eqn:EQ1; try now inv EQ.
-    + dependent induction EQ.
-      destruct (cobserve et1) eqn:EQ1'; try now inv x.
-      dependent induction x.
-      specialize (IHTR _ _ eq_refl eq_refl).
+  - intros ? EQ.
+    destruct EQ as [EQ | EQ].
+    + rewrite unfold_embed in EQ.
+      step in EQ.
+      rewrite <- x in EQ.
+      destruct (iobserve t1) eqn:EQ1; try now inv EQ.
+      * dependent induction EQ.
+        specialize (REL x0).
+        specialize (IHTR _ _ eq_refl eq_refl t).
+        edestruct IHTR; eauto.
+      * destruct e.
+        destruct e; inv EQ.
+        inv EQ.
+    + step in EQ.
+      rewrite <- x in EQ.
+      clear x et1.
+      dependent induction EQ.
       specialize (REL x0).
+      specialize (IHTR _ _ eq_refl eq_refl t1).
+      edestruct IHTR; auto.
+  - intros * EQ.
+    assert (t2' ≅ t)%ctree by (step; now rewrite x).
+    setoid_rewrite H0.
+    clear t2' x H0.
+    setoid_rewrite <- H.
+    clear t H.
+    destruct EQ as [EQ | EQ].
+    + rewrite (ctree_eta et1), <- x1 in EQ;
+        clear et1 x1.
+      rewrite unfold_embed in EQ.
+      destruct (iobserve t1) eqn:EQ1; try now step in EQ; inv EQ.
+      destruct e; [| step in EQ; inv EQ].
+      destruct e.
+      step in EQ; dependent induction EQ.
+      setoid_rewrite (REL x0).
+      right.
+      eexists; rewrite !TauI_sb.
+      reflexivity.
+    + rewrite (ctree_eta et1), <- x1 in EQ;
+        clear et1 x1.
+      step in EQ; inv EQ.
 
-    + destruct e.
-      * destruct e; inv EQ.
-      * inv EQ.
-  -
-    edestruct IHTR; [reflexivity | reflexivity | |].
-    rewrite unfold_embed.
-    destruct (iobserve t1) eqn:EQ1; try now inv EQ.
-    dependent induction EQ.
+  - intros * EQ.
+    assert (t2' ≅ t)%ctree by (step; now rewrite x).
+    setoid_rewrite H0.
+    clear t2' x H0.
+    setoid_rewrite <- H.
+    clear t H.
+    destruct EQ as [EQ | EQ].
+    + rewrite (ctree_eta et1), <- x1 in EQ;
+        clear et1 x1.
+      rewrite unfold_embed in EQ.
+      destruct (iobserve t1) eqn:EQ1; try now step in EQ; inv EQ.
+      destruct e0.
+      destruct e0.
+      step in EQ; inv EQ.
+      step in EQ; dependent induction EQ.
+      setoid_rewrite (REL x0).
+      right; eexists.
+      rewrite !TauI_sb.
+      reflexivity.
+    + rewrite (ctree_eta et1), <- x1 in EQ;
+        clear et1 x1.
+      step in EQ; inv EQ.
 
-  remember (embed t1) as et1.
-  eq2equ Heqet1.
-  rewrite ctree_eta in EQ.
-  setoid_rewrite (ctree_eta t2').
-  revert t1 EQ u1.
-  induction TR.
-  - intros * EQ * EUTT.
-    admit.
-  - intros * EQ * EUTT.
-    punfold EUTT.
-    red in EUTT; cbn in EUTT.
-    rewrite unfold_embed in EQ.
-    destruct (iobserve t1) eqn:EQt1; try now step in EQ; inv EQ.
-    destruct (iobserve u1) eqn:EQu1; try now inv EUTT.
+  - intros * EQ.
+    assert (t2' ≅ Choice false 0 k)%ctree by (step; now rewrite x).
+    setoid_rewrite H.
+    clear t2' x H.
+    destruct EQ as [EQ | EQ].
+    + rewrite (ctree_eta et1), <- x0 in EQ.
+      clear et1 x0.
+      rewrite unfold_embed in EQ.
+      destruct (iobserve t1) eqn:EQ1; try now step in EQ; inv EQ.
+      * dependent induction EQ.
+        left; eexists; split; eauto.
+        rewrite choiceI0_always_stuck; reflexivity.
+      * destruct e; [destruct e |]; step in EQ; inv EQ.
+    + step in EQ; rewrite <- x0 in EQ; inv EQ.
+Qed.
 
- *)
-
-Lemma foo {E X} : forall (t1 u1 : itree (ExtChoice +' E) X) l t2',
+Lemma bar E X : forall (t1 u1 : itree (ExtChoice +' E) X) l t2',
     trans l (embed t1) t2' ->
     t1 ≈ u1 ->
-    exists t2 u2,
-      trans l (embed u1) (embed u2) /\
-        (t2' ≅ embed t2)%ctree /\
-        t2 ≈ u2.
+    (exists t2 u2,
+        trans l (embed u1) (embed u2) /\
+          (t2' ~ embed t2)%ctree /\
+          t2 ≈ u2) \/
+      ((t2' ≅ CTree.stuckI)%ctree /\
+         trans l (embed u1) CTree.stuckI).
 Proof.
-  intros * TR.
-  cbn in TR; red in TR.
-  remember (embed t1) as et1.
-  eq2equ Heqet1.
-  rewrite ctree_eta in EQ.
-  setoid_rewrite (ctree_eta t2').
-  revert t1 EQ u1.
-  induction TR.
-  - intros * EQ * EUTT.
-    admit.
-  - intros * EQ * EUTT.
-    punfold EUTT.
-    red in EUTT; cbn in EUTT.
-    rewrite unfold_embed in EQ.
-    destruct (iobserve t1) eqn:EQt1; try now step in EQ; inv EQ.
-    destruct (iobserve u1) eqn:EQu1; try now inv EUTT.
+  (* intros * TR. *)
+  (* edestruct foo as [(r & STUCK & EQ) | (t2 & EQ)]; eauto. *)
+  (* - subst l. rewrite STUCK in TR. *)
+  (*   right; split; auto. *)
+  (*   clear t2' STUCK. *)
+
+  (*   revert u1 H. *)
+  (*   cbn in TR; red in TR. *)
+  (*   remember (embed t1) as et1. *)
+  (*   intros u1 EUTT. *)
+  (*     (* match type of Heqot1 with *) *)
+  (*     (* | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ~ t) by (subst; reflexivity); clear Heqot1 *) *)
+  (*     (* end. *) *)
+  (*   cut ( *)
+  (*       ((et1 ≅ embed t1)%ctree \/ (et1 ≅ cTauI (embed t1))%ctree) -> *)
+  (*       trans (val r) (embed u1) CTree.stuckI *)
+  (*     ). *)
+  (*   intros H; apply H; left; subst; auto. *)
+  (*   clear Heqet1. *)
+  (*       (* eq2equ Heqot1. *) *)
+  (*   revert u1 t1 EUTT. *)
+  (*   dependent induction TR; intros * EUTT EQ. *)
+  (*   + specialize (IHTR _ _ eq_refl eq_refl eq_refl). *)
+  (*     destruct EQ as [EQ | EQ]. *)
+  (*     * rewrite ctree_eta, <- x, unfold_embed in EQ. *)
+  (*       eapply IHTR. *)
+  (*       reflexivity. *)
+  (*       destruct (iobserve t1) eqn:EQ'; try now step in EQ; inv EQ. *)
+  (*       ** step in EQ; dependent induction EQ. *)
+  (*          specialize (REL x0). *)
+  (*          right; rewrite REL. *)
+  (*          step. *)
+  (*          constructor. *)
+  (*          intros ?. *)
+  (*          admit. *)
+  (*     * step in EQ; dependent induction EQ. *)
+  (*       rewrite itree_eta, EQ', tau_eutt in EUTT. *)
+  (*       eapply IHTR. *)
+  (*       auto. *)
+  (*       reflexivity. *)
+  (*       auto. *)
+  (*       specialize (REL x0). *)
+
+  (*       apply REL. *)
+  (*       rewrite unfold_embed in TR. *)
+  (*       cbn in TR; red in TR. *)
+  (*       dependent induction TR; intros * EQ. *)
+  (*   + destruct (iobserve t1) eqn:EQ'; try now inv x. *)
+  (*     dependent induction EQ. *)
+  (*     rewrite unfold_embed. *)
+  (*     inv EQ. *)
+  (*     * apply trans_ret. *)
+
+
+
+  (*   revert TR. *)
+  (*   punfold H. *)
+  (*   cbn in H; red in H. *)
+  (*   dependent induction H. *)
+  (*   + rewrite 2 unfold_embed, <- x, <- x0. *)
+  (*     intros TRANS. *)
+  (*     apply trans_ret_inv in TRANS as [EQ _]. *)
+  (*     apply val_eq_inv in EQ; subst. *)
+  (*     apply trans_ret. *)
+  (*   + rewrite 2 unfold_embed, <- x, <- x0. *)
+  (*     intros TRANS. *)
+  (*     apply *)
+  (*     apply trans_ret_inv in TRANS as [EQ _]. *)
+  (*     apply val_eq_inv in EQ; subst. *)
+  (*     apply trans_ret. *)
+
+
+  (*   punfold H; red in H; cbn in H. *)
+  (*   revert u1 H. *)
+  (*   rewrite unfold_embed in TR. *)
+  (*   cbn in TR; red in TR. *)
+  (*   dependent induction TR; intros * EQ. *)
+  (*   + destruct (iobserve t1) eqn:EQ'; try now inv x. *)
+  (*     dependent induction EQ. *)
+  (*     rewrite unfold_embed. *)
+  (*     inv EQ. *)
+  (*     * apply trans_ret. *)
+
+  (* cbn in TR; red in TR. *)
+  (* remember (embed t1) as et1. *)
+  (* eq2equ Heqet1. *)
+  (* rewrite ctree_eta in EQ. *)
+  (* setoid_rewrite (ctree_eta t2'). *)
+  (* revert t1 EQ u1. *)
+  (* induction TR. *)
+  (* - intros * EQ * EUTT. *)
+  (*   admit. *)
+  (* - intros * EQ * EUTT. *)
+  (*   punfold EUTT. *)
+  (*   red in EUTT; cbn in EUTT. *)
+  (*   rewrite unfold_embed in EQ. *)
+  (*   destruct (iobserve t1) eqn:EQt1; try now step in EQ; inv EQ. *)
+  (*   destruct (iobserve u1) eqn:EQu1; try now inv EUTT. *)
+  (*   + destruct e. *)
 Admitted.
 
+Lemma embed_eutt {E X}:
+  Proper (eutt eq ==> sbisim) (@embed E X).
+Proof.
+  unfold Proper,respectful.
+  coinduction ? CIH.
+  symmetric using idtac.
+  - intros * HR * EQ.
+    apply HR; symmetry; assumption.
+  - intros t u EUTT.
+    cbn; intros * TR.
+    rewrite unfold_embed in TR.
+    punfold EUTT; red in EUTT.
+    remember (iobserve u) as ou.
+    revert u Heqou.
+    induction EUTT.
+    + subst.
+      eexists; [| reflexivity].
+      rewrite unfold_embed, <- Heqou; apply TR.
 
-  Lemma embed_eutt {E X}:
-    Proper (eutt eq ==> sbisim) (@embed E X).
-  Proof.
-    unfold Proper,respectful.
-    coinduction ? CIH.
-    symmetric using idtac.
-    - intros * HR * EQ.
-      apply HR; symmetry; assumption.
-    - intros t u EUTT.
-      cbn; intros * TR.
-      rewrite unfold_embed in TR.
-      punfold EUTT; red in EUTT.
-      remember (iobserve u) as ou.
-      revert u Heqou.
-      induction EUTT.
-      + subst.
-        eexists; [| reflexivity].
-        rewrite unfold_embed, <- Heqou; apply TR.
+    + pclearbot.
+      intros.
+      apply trans_TauI_inv, trans_TauI_inv in TR.
+      fold (eqit eq true true m1 m2) in REL.
+      fold (eutt eq m1 m2) in REL.
 
-      + pclearbot.
-        intros.
-        apply trans_TauI_inv, trans_TauI_inv in TR.
-
-        edestruct @foo as (t2 & u2 & TR2 & EQ2 & EUTT2); eauto.
-        eexists.
+      destruct (bar TR REL) as [(t2 & u2 & TR' & EQ2 & EUTT2) | (EQ2 & TR2)].
+      * eexists.
         rewrite unfold_embed, <- Heqou.
         apply trans_TauI, trans_TauI.
         eauto.
         rewrite EQ2.
         apply CIH, EUTT2.
+      * exists CTree.stuckI.
+        2:setoid_rewrite EQ2; reflexivity.
+        rewrite unfold_embed, <- Heqou.
+        apply trans_TauI, trans_TauI.
+        auto.
 
       + pclearbot.
         destruct e.
