@@ -1,3 +1,4 @@
+From Coq Require Import Program.Tactics Morphisms.
 From ExtLib Require Import
      Structures.Functor
      Structures.Monad.
@@ -6,6 +7,8 @@ From ITree Require Import
      Subevent
      CategoryOps
      Indexed.Sum.
+
+From Coinduction Require Import coinduction rel tactics.
 
 Import ITree.Basics.Basics.Monads.
 
@@ -20,7 +23,8 @@ Import MonadNotation.
 Open Scope monad_scope.
 
 Set Implicit Arguments.
-Set Strict Implicit.
+(** LEF: Typeclass resolution super slow when looking for Equivalence (lattice.body (et ?R) ?RR)) *)
+Typeclasses Opaque lattice.body.
 
 (* Stateful handlers [E ~> stateT S (itree F)] and morphisms
    [E ~> state S] define stateful itree morphisms
@@ -71,18 +75,42 @@ Section State.
   | VisF e k => f _ e s >>= (fun sx => TauI (interp_state f (k (snd sx)) (fst sx)))
   end.
 
-                          Lemma unfold_interp_state {E F R} (h : E ~> Monads.stateT S (ctree F))
+  Lemma unfold_interp_state {E F R} (h : E ~> Monads.stateT S (ctree F))
         (t : ctree E R) s :
     interp_state h t s ≅ _interp_state h (observe t) s.
   Proof.
     unfold interp_state, interp, Basics.iter, MonadIter_stateT0, Basics.iter, MonadIter_ctree; cbn.
     rewrite unfold_iter; cbn.
     destruct observe; cbn.
-    - rewrite 2 bind_ret_l. reflexivity.
-    - rewrite bind_map, bind_bind; cbn. setoid_rewrite bind_ret_l.
-      cbn. apply eqit_bind; reflexivity.
-  Qed.
+    - time rewrite 2 bind_ret_l; reflexivity. (** LEF: This is now 1000x faster ^_^ *)
+    - rewrite bind_map, bind_bind; cbn; setoid_rewrite bind_ret_l.
+      apply bind_equ_cong; reflexivity.
+    - rewrite bind_bind.
+      rewrite bind_bind. cbn. do 2 setoid_rewrite bind_ret_l.
+      cbn.
+      rewrite bind_bind.
+      setoid_rewrite bind_ret_l.
+      cbn.
+      (** LEF: There must be a `bind_choice` lemma... *)
+  Admitted.
 
+  #[global]
+   Instance eq_itree_interp_state {E F R} (h : E ~> Monads.stateT S (ctree F)) :
+    Proper (equ eq ==> eq ==> equ eq)
+           (@interp_state _ _ _ _ _ _ h R).
+  Proof.
+    revert_until R.
+    (** ???? *)
+    ginit. pcofix CIH. intros h x y H0 x2 _ [].
+    rewrite !unfold_interp_state.
+    punfold H0; repeat red in H0.
+    destruct H0; subst; pclearbot; try discriminate; cbn.
+    - gstep; constructor; auto.
+    - gstep; constructor; auto with paco.
+    - guclo eqit_clo_bind. econstructor.
+      + reflexivity.
+      + intros [] _ []. gstep; constructor; auto with paco itree.
+  Qed.
 End State.
 
 Arguments get {S E _}.
@@ -91,22 +119,6 @@ Arguments run_state {S E} [_] _ _.
 Arguments interp_state {S E M FM MM IM MC} h [T].
 
 
-#[global]
-Instance eq_itree_interp_state {E F S R} (h : E ~> Monads.stateT S (itree F)) :
-q  Proper (eq_itree eq ==> eq ==> eq_itree eq)
-         (@interp_state _ _ _ _ _ _ h R).
-Proof.
-  revert_until R.
-  ginit. pcofix CIH. intros h x y H0 x2 _ [].
-  rewrite !unfold_interp_state.
-  punfold H0; repeat red in H0.
-  destruct H0; subst; pclearbot; try discriminate; cbn.
-  - gstep; constructor; auto.
-  - gstep; constructor; auto with paco.
-  - guclo eqit_clo_bind. econstructor.
-    + reflexivity.
-    + intros [] _ []. gstep; constructor; auto with paco itree.
-Qed.
 
 Lemma interp_state_ret {E F : Type -> Type} {R S : Type}
       (f : forall T, E T -> S -> itree F (S * T)%type)
