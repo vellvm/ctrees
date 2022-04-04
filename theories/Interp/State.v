@@ -63,7 +63,7 @@ Section State.
   Definition run_state {E}
     : ctree (stateE +' E) ~> stateT S (ctree E)
     := interp_state (case_ h_state pure_state).
-  
+
   (** Facts about state (equational theory) *)
   Definition _interp_state {E F R}
            (f : E ~> stateT S (ctree F)) (ot : ctreeF E R _)
@@ -93,7 +93,7 @@ Section State.
       cbn.
       (** LEF: There must be a `bind_choice` lemma... *)
   Admitted.
-
+(*
   #[global]
    Instance eq_itree_interp_state {E F R} (h : E ~> Monads.stateT S (ctree F)) :
     Proper (equ eq ==> eq ==> equ eq)
@@ -110,7 +110,7 @@ Section State.
     - guclo eqit_clo_bind. econstructor.
       + reflexivity.
       + intros [] _ []. gstep; constructor; auto with paco itree.
-  Qed.
+  Qed. *)
 End State.
 
 Arguments get {S E _}.
@@ -119,7 +119,7 @@ Arguments run_state {S E} [_] _ _.
 Arguments interp_state {S E M FM MM IM MC} h [T].
 
 
-
+(**
 Lemma interp_state_ret {E F : Type -> Type} {R S : Type}
       (f : forall T, E T -> S -> itree F (S * T)%type)
       (s : S) (r : R) :
@@ -342,4 +342,4 @@ Proof.
   intros i.
   red. reflexivity.
 Qed.
-
+*)
