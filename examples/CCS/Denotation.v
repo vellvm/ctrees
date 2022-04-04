@@ -355,15 +355,12 @@ Proof.
     (* Can we make the up-to bind here nicer to use? *)
     rewrite <- H0, <-H.
     simpl Monad.bind.
-    eapply (fbt_bt (bind_ctx_equ_t eq _)).
-    apply in_bind_ctx.
-    reflexivity.
-    intros ? ? <-.
+    upto_bind_eq.
     constructor; intros ?.
     auto.
   - rewrite 2 unfold_interp, <-H0, <-H. cbn.
     constructor; intros ?.
-    eapply (bt_t (fequ eq)).
+    step.
     cbn; constructor; intros ?.
     auto.
 Qed.
@@ -648,20 +645,16 @@ Proof.
   constructor.
   intros i.
   destruct i; [| destruct i].
-  - eapply (ft_t (bind_ctx_equ_t _ _)).
-    apply in_bind_ctx; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
+  - eupto_bind; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
     inv eqp; auto.
     step; constructor; auto.
     step; constructor; auto.
-  - eapply (ft_t (bind_ctx_equ_t _ _)).
-    apply in_bind_ctx; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
+  - eupto_bind; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
     inv eqp; auto.
     step; constructor; auto.
     step; constructor; auto.
-  - eapply (ft_t (bind_ctx_equ_t _ _)).
-    apply in_bind_ctx; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
-    eapply (ft_t (bind_ctx_equ_t _ _)).
-    apply in_bind_ctx; [apply get_head_equ; auto | intros hdq1 hdq2 eqq].
+  - eupto_bind; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
+    eupto_bind; [apply get_head_equ; auto | intros hdq1 hdq2 eqq].
     inv eqp; auto.
     inv eqq; auto.
     destruct e, e0, (are_opposite a a0); auto.
@@ -1027,32 +1020,26 @@ Proof.
   constructor.
   intros i.
   destruct i; [| destruct i; [| destruct i]].
-  - eapply (ft_t (bind_ctx_equ_t _ _)).
-    apply in_bind_ctx; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
+  - eupto_bind; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
     inv eqp; auto.
     step; constructor; auto.
     step; constructor; auto.
-  - eapply (ft_t (bind_ctx_equ_t _ _)).
-    apply in_bind_ctx; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
+  - eupto_bind; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
     inv eqp; auto.
     step; constructor; intros ?.
     apply CIH; auto; rewrite EQp, H; reflexivity.
     step; constructor; intros ?.
     apply CIH; auto; rewrite EQp, H; reflexivity.
-  - eapply (ft_t (bind_ctx_equ_t _ _)).
-    apply in_bind_ctx; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
-    eapply (ft_t (bind_ctx_equ_t _ _)).
-    apply in_bind_ctx; [apply get_head_equ; auto | intros hdq1 hdq2 eqq].
+  - eupto_bind; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
+    eupto_bind; [apply get_head_equ; auto | intros hdq1 hdq2 eqq].
     inv eqp; auto.
     inv eqq; auto.
     destruct e, e0, (are_opposite a a0); auto.
     step; constructor; intros ?.
     apply CIH; auto.
     rewrite H,H0; reflexivity.
-  - eapply (ft_t (bind_ctx_equ_t _ _)).
-    apply in_bind_ctx; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
-    eapply (ft_t (bind_ctx_equ_t _ _)).
-    apply in_bind_ctx; [apply get_head_equ; auto | intros hdq1 hdq2 eqq].
+  - eupto_bind; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
+    eupto_bind; [apply get_head_equ; auto | intros hdq1 hdq2 eqq].
     inv eqp; auto.
     inv eqq; auto.
     destruct e, e0, (are_opposite a a0); auto.
