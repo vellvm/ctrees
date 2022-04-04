@@ -28,6 +28,8 @@ Ltac step_in H :=
 match type of H with
 | gfp ?b ?x ?y => apply (gfp_fp b x y) in H
 | body (t ?b) ?R ?x ?y => apply (bt_t b R x y) in H
+| gfp ?b ?x => apply (gfp_fp b x) in H
+| body (t ?b) ?R ?x => apply (bt_t b R x) in H
 | _ => red in H; step_in H
 end;
 simpl body in H.
@@ -41,4 +43,3 @@ Ltac invert :=
 Ltac copy h :=
   let foo := fresh "cpy" in
   assert (foo := h).
-
