@@ -84,7 +84,7 @@ Proof.
   intros; cbn.
   Opaque CTree.bind.
   unfold cobserve; cbn.
-  desobs t ot; try now cbn; auto.
+  destruct (iobserve t) eqn:ot; try now cbn; auto.
   match goal with
     |- equF _ _ (_cobserve ?t) (_cobserve ?u) =>
       fold (cobserve t);

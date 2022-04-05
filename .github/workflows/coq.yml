@@ -1,30 +1,33 @@
-# This is a basic workflow to help you get started with Actions
+name: Docker CI
 
-name: CI
-
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the master branch
   push:
-    branches: [ master ]
+    branches:
+      - master
   pull_request:
-    branches: [ master ]
+    branches:
+      - '**'
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
-    runs-on: debian-bookworm-20220328
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        coq_version:
+          - '8.15.1'
+        ocaml_version:
+          - '4.13.1-flambda'
+      max-parallel: 4
+      fail-fast: false
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
+      - uses: coq-community/docker-coq-action@v1
+        with:
+          opam_file: 'coq-ctree.opam'
+          coq_version: ${{ matrix.coq_version }}
+          ocaml_version: ${{ matrix.ocaml_version }}
+          export: 'OPAMWITHTEST'
+        env:
+          OPAMWITHTEST: 'true'
 
-      # Coq community container
-      - name: Docker-Coq Action
-        uses: coq-community/docker-coq-action@v1.2.4
