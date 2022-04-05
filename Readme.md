@@ -1,5 +1,5 @@
 # Concurrent Interaction Trees
-[![Docker CI](https://github.com/elefthei/ctrees/workflows/Docker%20CI/badge.svg?branch=master)](https://github.com/elefthei/ctrees/actions?query=workflow:"Docker%20CI")
+[![Docker CI](https://github.com/vellvm/ctrees/workflows/Docker%20CI/badge.svg?branch=master)](https://github.com/vellvm/ctrees/actions?query=workflow:"Docker%20CI")
 
 We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support for internal non-determinism.
 
