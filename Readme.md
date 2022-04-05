@@ -1,4 +1,5 @@
 # Concurrent Interaction Trees
+[![Docker CI](https://github.com/elefthei/ctrees/workflows/Docker%20CI/badge.svg?branch=master)](https://github.com/elefthei/ctrees/actions?query=workflow:"Docker%20CI")
 
 We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support for internal non-determinism.
 
@@ -17,7 +18,7 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
   - [Equations](https://github.com/mattam82/Coq-Equations)
   - [Coinduction](https://github.com/damien-pous/coinduction)
   - [RelationAlgebra](https://github.com/damien-pous/relation-algebra)
-  - [alectryon](https://github.com/cpitclaudel/alectryon) 
+  - [alectryon](https://github.com/cpitclaudel/alectryon)
 - Coq namespace: `CTree`
 
 ## Building instructions
