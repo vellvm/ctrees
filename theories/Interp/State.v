@@ -17,14 +17,13 @@ From CTree Require Import
      CTreesTheory
      Utils
      Interp
+     Bisim
      Equ.
 
 Import MonadNotation.
 Open Scope monad_scope.
 
 Set Implicit Arguments.
-(** LEF: Typeclass resolution super slow when looking for Equivalence (lattice.body (et ?R) ?RR)) *)
-Typeclasses Opaque lattice.body.
 
 (* Stateful handlers [E ~> stateT S (itree F)] and morphisms
    [E ~> state S] define stateful itree morphisms
@@ -75,6 +74,8 @@ Section State.
   | VisF e k => f _ e s >>= (fun sx => TauI (interp_state f (k (snd sx)) (fst sx)))
   end.
 
+  Typeclasses eauto := debug 6.
+  
   Lemma unfold_interp_state {E F R} (h : E ~> Monads.stateT S (ctree F))
         (t : ctree E R) s :
     interp_state h t s ≅ _interp_state h (observe t) s.
@@ -82,24 +83,30 @@ Section State.
     unfold interp_state, interp, Basics.iter, MonadIter_stateT0, Basics.iter, MonadIter_ctree; cbn.
     rewrite unfold_iter; cbn.
     destruct observe; cbn.
-    - time rewrite 2 bind_ret_l; reflexivity. (** LEF: This is now 1000x faster ^_^ *)
+    - rewrite 2 bind_ret_l; reflexivity.
     - rewrite bind_map, bind_bind; cbn; setoid_rewrite bind_ret_l.
       apply bind_equ_cong; reflexivity.
-    - rewrite bind_bind.
-      rewrite bind_bind. cbn. do 2 setoid_rewrite bind_ret_l.
-      cbn.
+    - do 2 rewrite bind_bind; cbn; do 2 setoid_rewrite bind_ret_l; cbn.
       rewrite bind_bind.
+      setoid_rewrite bind_ret_l; cbn.
+      setoid_rewrite bind_choice.
       setoid_rewrite bind_ret_l.
-      cbn.
-      (** LEF: There must be a `bind_choice` lemma... *)
+      rewrite equ_ChoiceF; try reflexivity.
+      (** Hm weird *)
+      cbn; intros; unfold interp_state.
   Admitted.
-(*
+
   #[global]
    Instance eq_itree_interp_state {E F R} (h : E ~> Monads.stateT S (ctree F)) :
     Proper (equ eq ==> eq ==> equ eq)
            (@interp_state _ _ _ _ _ _ h R).
   Proof.
-    revert_until R.
+    repeat red; intros; subst.
+    
+    rewrite !unfold_interp_state.
+    destruct observe eqn:Hobs; cbn.
+    
+  (**
     (** ???? *)
     ginit. pcofix CIH. intros h x y H0 x2 _ [].
     rewrite !unfold_interp_state.
@@ -111,6 +118,58 @@ Section State.
       + reflexivity.
       + intros [] _ []. gstep; constructor; auto with paco itree.
   Qed. *)
+  Admitted.
+
+
+  Lemma interp_state_ret {E F : Type -> Type} {R: Type}
+        (f : forall T, E T -> S -> ctree F (S * T)%type)
+        (s : S) (r : R) :
+    (interp_state f (Ret r) s) ≅ (Ret (s, r)).
+  Proof.
+    rewrite ctree_eta. reflexivity.
+  Qed.
+
+  Lemma interp_state_vis {E F : Type -> Type} {T U : Type}
+        (e : E T) (k : T -> ctree E U) (h : E ~> Monads.stateT S (ctree F)) (s : S)
+    : interp_state h (Vis e k) s
+                   ≅ h T e s >>= fun sx => TauI (interp_state h (k (snd sx)) (fst sx)).
+  Proof.
+    rewrite unfold_interp_state; reflexivity.
+  Qed.
+  Lemma interp_state_tau {E F : Type -> Type} {T : Type}
+        (t : ctree E T) (h : E ~> Monads.stateT S (ctree F)) (s : S)
+    : interp_state h (TauI t) s ≅ TauI (interp_state h t s).
+  Proof.
+    rewrite unfold_interp_state; reflexivity.
+  Qed.
+
+  Lemma interp_state_trigger_eqit {E F : Type -> Type} {R: Type}
+        (e : E R) (f : E ~> Monads.stateT S (ctree F)) (s : S)
+    : (interp_state f (CTree.trigger e) s) ≅ (f _ e s >>= fun x => TauI (Ret x)).
+  Proof.
+    unfold CTree.trigger. rewrite interp_state_vis.
+    eapply bind_equ_cong; try reflexivity.
+    intros []. setoid_rewrite interp_state_ret. reflexivity.
+  Qed.
+
+  Typeclasses eauto := debug 4.
+  Lemma interp_state_trigger {E F : Type -> Type} {R: Type}
+        (e : E R) (f : E ~> Monads.stateT S (ctree F)) (s : S)
+    : interp_state f (CTree.trigger e) s ≈ f _ e s.
+  Proof.
+    unfold CTree.trigger. rewrite interp_state_vis.
+    match goal with
+      |- ?y ≈ ?x => remember y; rewrite <- (bind_ret_r x); subst
+    end.
+    eapply bind_wbisim_cong; try reflexivity.
+    (** Must provide a relation here? *)
+    admit.
+    intros []. setoid_rewrite interp_state_ret.
+    cbn.
+    (** This is obviously true (diff by TauI) why does reflexivity not solve it? *)
+    admit.
+  Admitted.
+
 End State.
 
 Arguments get {S E _}.
@@ -118,53 +177,7 @@ Arguments put {S E _}.
 Arguments run_state {S E} [_] _ _.
 Arguments interp_state {S E M FM MM IM MC} h [T].
 
-
 (**
-Lemma interp_state_ret {E F : Type -> Type} {R S : Type}
-      (f : forall T, E T -> S -> itree F (S * T)%type)
-      (s : S) (r : R) :
-  (interp_state f (Ret r) s) ≅ (Ret (s, r)).
-Proof.
-  rewrite itree_eta. reflexivity.
-Qed.
-
-Lemma interp_state_vis {E F : Type -> Type} {S T U : Type}
-      (e : E T) (k : T -> itree E U) (h : E ~> Monads.stateT S (itree F)) (s : S)
-  : interp_state h (Vis e k) s
-  ≅ h T e s >>= fun sx => Tau (interp_state h (k (snd sx)) (fst sx)).
-Proof.
-  rewrite unfold_interp_state; reflexivity.
-Qed.
-
-Lemma interp_state_tau {E F : Type -> Type} S {T : Type}
-      (t : itree E T) (h : E ~> Monads.stateT S (itree F)) (s : S)
-  : interp_state h (Tau t) s ≅ Tau (interp_state h t s).
-Proof.
-  rewrite unfold_interp_state; reflexivity.
-Qed.
-
-Lemma interp_state_trigger_eqit {E F : Type -> Type} {R S : Type}
-      (e : E R) (f : E ~> Monads.stateT S (itree F)) (s : S)
-  : (interp_state f (ITree.trigger e) s) ≅ (f _ e s >>= fun x => Tau (Ret x)).
-Proof.
-  unfold ITree.trigger. rewrite interp_state_vis.
-  eapply eqit_bind; try reflexivity.
-  intros []. rewrite interp_state_ret. reflexivity.
-Qed.
-
-Lemma interp_state_trigger {E F : Type -> Type} {R S : Type}
-      (e : E R) (f : E ~> Monads.stateT S (itree F)) (s : S)
-  : interp_state f (ITree.trigger e) s ≈ f _ e s.
-Proof.
-  unfold ITree.trigger. rewrite interp_state_vis.
-  match goal with
-    |- ?y ≈ ?x => remember y; rewrite <- (bind_ret_r x); subst
-  end.
-  eapply eqit_bind; try reflexivity.
-  intros []; rewrite interp_state_ret,tau_eutt.
-  reflexivity.
-Qed.
-
 Lemma interp_state_bind {E F : Type -> Type} {A B S : Type}
       (f : forall T, E T -> S -> itree F (S * T)%type)
       (t : itree E A) (k : A -> itree E B)
