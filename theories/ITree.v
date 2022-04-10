@@ -1,10 +1,7 @@
 From Paco Require Import paco.
 
-From Coinduction Require Import
-	   lattice coinduction rel tactics.
-
 From CTree Require Import
-	   Utils CTrees Trans Equ Bisim CTreesTheory Internalize.
+	   CTree Eq Interp.Internalize.
 
 (* Universe issue, TO FIX *)
 Unset Universe Checking.
@@ -58,20 +55,20 @@ Notation "t '-' l '→' u" := (transR l t u)
 
 #[local] Notation iobserve  := observe.
 #[local] Notation _iobserve := _observe.
-#[local] Notation cobserve  := CTrees.observe.
-#[local] Notation _cobserve := CTrees._observe.
+#[local] Notation cobserve  := CTreeDefinitions.observe.
+#[local] Notation _cobserve := CTreeDefinitions._observe.
 #[local] Notation iRet x    := (Ret x).
 #[local] Notation iVis e k  := (Vis e k).
 #[local] Notation iTau t    := (Tau t).
-#[local] Notation cRet x    := (CTrees.Ret x).
-#[local] Notation cTauI t   := (CTrees.TauI t).
-#[local] Notation cVis e k  := (CTrees.Vis e k).
+#[local] Notation cRet x    := (CTreeDefinitions.Ret x).
+#[local] Notation cTauI t   := (CTreeDefinitions.TauI t).
+#[local] Notation cVis e k  := (CTreeDefinitions.Vis e k).
 
 (** Unfolding of [interp]. *)
 Definition _interp {E F R} (f : E ~> ctree F) (ot : itreeF E R _)
   : ctree F R :=
   match ot with
-  | RetF r => CTrees.Ret r
+  | RetF r => CTreeDefinitions.Ret r
   | TauF t => cTauI (interp f t)
   | VisF e k => CTree.bind (f _ e) (fun x => cTauI (interp f (k x)))
   end.
@@ -86,13 +83,13 @@ Proof.
   unfold cobserve; cbn.
   destruct (iobserve t) eqn:ot; try now cbn; auto.
   match goal with
-    |- equF _ _ (_cobserve ?t) (_cobserve ?u) =>
+    |- equb _ _ (_cobserve ?t) (_cobserve ?u) =>
       fold (cobserve t);
       fold (cobserve u)
   end.
   Transparent CTree.bind.
   cbn.
-  rewrite CTreesTheory.bind_map.
+  rewrite Equ.bind_map.
   apply (fbt_bt (@bind_ctx_equ_t F X0 X0 X X eq eq) R), in_bind_ctx.
   reflexivity.
   intros ? ? <-.
@@ -167,7 +164,7 @@ Notation embed_ t :=
       match e,k with
       | ext_chose n, k => ChoiceV n (fun x => cTauI (cTauI (cTauI (embed (k x)))))
       end
-  | VisF (inr1 e) k => CTrees.vis e (fun x => cTauI (cTauI (cTauI (embed (k x)))))
+  | VisF (inr1 e) k => CTreeDefinitions.vis e (fun x => cTauI (cTauI (cTauI (embed (k x)))))
   end.
 
 Lemma unfold_embed {E X} (t : itree (_ +' E) X) : (embed t ≅ embed_ t)%ctree.

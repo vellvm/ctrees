@@ -1,18 +1,12 @@
 (* begin hide *)
-From Coinduction Require Import
-     coinduction rel tactics.
+
+From CTree Require Import
+     CTree Eq.
 
 From ExtLib Require Import
      Structures.Functor
      Structures.Monad.
 
-From ITree Require Import
-	Basics.Basics.
-
-From CTree Require Import
-		 Utils CTrees CTreesTheory Equ Bisim.
-
-Import CTreeNotations.
 Open Scope ctree_scope.
 
 (* end hide *)

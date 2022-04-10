@@ -20,9 +20,8 @@ From Coinduction Require Import
 	coinduction rel tactics.
 
 From CTree Require Import
-	   Utils
-     CTrees
-     Shallow.
+     CTree
+     Eq.Shallow.
 
 Import CTree.
 

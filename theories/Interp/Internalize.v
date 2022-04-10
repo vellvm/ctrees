@@ -1,12 +1,10 @@
-From ITree Require Import ITree.
-
 From CTree Require Import
-     Utils CTrees Interp Equ.
+     CTree Eq Interp.Interp.
 
 Set Implicit Arguments.
 Set Contextual Implicit.
 
-Import CTreeNotations.
+(* Import CTreeNotations. *)
 
 Section Internalize.
   Variable E : Type -> Type.

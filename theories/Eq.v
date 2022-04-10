@@ -1,8 +1,9 @@
 From Coinduction Require Export
      coinduction rel tactics.
 
-From CTree Require Import CTrees.
+From CTree Require Import CTree.
 From CTree.Eq Require Export
+     Shallow
      Equ
      Trans
      SBisim.

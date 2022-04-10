@@ -23,14 +23,14 @@ choice.
 .. coq:: none
 |*)
 
-From ITree Require Import Core.Subevent.
+From ITree Require Import Basics.Basics Core.Subevent.
 
 From CTree Require Import
-	Utils.
+	   Core.Utils.
 
 From ExtLib Require Import
-	Structures.Functor
-	Structures.Monads.
+	   Structures.Functor
+	   Structures.Monads.
 
 Set Implicit Arguments.
 Set Contextual Implicit.

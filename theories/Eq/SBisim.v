@@ -46,7 +46,10 @@ From Coinduction Require Import
      coinduction rel tactics.
 
 From CTree Require Import
-     Utils CTrees Eq.Equ Shallow Trans.
+     CTree
+     Eq.Equ
+     Eq.Shallow
+     Eq.Trans.
 
 From RelationAlgebra Require Import
      monoid
