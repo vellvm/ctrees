@@ -209,6 +209,7 @@ Lemma foo E X : forall (t1 : itree (ExtChoice +' E) X) l t2',
     trans l (embed t1) t2' ->
     (exists r : X, (t2' ≅ CTree.stuckI)%ctree /\ l = val r) \/ exists t2, (t2' ~ embed t2)%ctree.
 Proof.
+  unfold trans.
   intros * TR.
   cbn in TR; red in TR.
   remember (embed t1) as et1.
@@ -255,7 +256,7 @@ Proof.
       step in EQ; dependent induction EQ.
       setoid_rewrite (REL x0).
       right.
-      eexists; rewrite !TauI_sb.
+      eexists; rewrite !sb_tauI.
       reflexivity.
     + rewrite (ctree_eta et1), <- x1 in EQ;
         clear et1 x1.
@@ -278,7 +279,7 @@ Proof.
       step in EQ; dependent induction EQ.
       setoid_rewrite (REL x0).
       right; eexists.
-      rewrite !TauI_sb.
+      rewrite !sb_tauI.
       reflexivity.
     + rewrite (ctree_eta et1), <- x1 in EQ;
         clear et1 x1.
@@ -432,43 +433,43 @@ Proof.
 
     + pclearbot.
       intros.
-      apply trans_TauI_inv, trans_TauI_inv in TR.
+      apply trans_tauI_inv, trans_tauI_inv in TR.
       fold (eqit eq true true m1 m2) in REL.
       fold (eutt eq m1 m2) in REL.
 
       destruct (bar TR REL) as [(t2 & u2 & TR' & EQ2 & EUTT2) | (EQ2 & TR2)].
       * eexists.
         rewrite unfold_embed, <- Heqou.
-        apply trans_TauI, trans_TauI.
+        apply trans_tauI, trans_tauI.
         eauto.
         rewrite EQ2.
         apply CIH, EUTT2.
       * exists CTree.stuckI.
         2:setoid_rewrite EQ2; reflexivity.
         rewrite unfold_embed, <- Heqou.
-        apply trans_TauI, trans_TauI.
+        apply trans_tauI, trans_tauI.
         auto.
 
       + pclearbot.
         destruct e.
         * destruct e.
-          apply trans_ChoiceV_inv in TR as (u' & EQ & ->).
+          apply trans_choiceV_inv in TR as (u' & EQ & ->).
           eexists.
           rewrite unfold_embed, <- Heqou.
-          apply trans_ChoiceV.
+          apply trans_choiceV.
           rewrite EQ.
-          rewrite !TauI_sb.
+          rewrite !sb_tauI.
           auto.
         * apply trans_vis_inv in TR as (u' & EQ & ->).
           eexists.
           rewrite unfold_embed, <- Heqou.
           apply trans_vis.
           rewrite EQ.
-          rewrite !TauI_sb.
+          rewrite !sb_tauI.
           auto.
 
       + intros.
-        apply trans_TauI_inv, trans_TauI_inv in TR.
+        apply trans_tauI_inv, trans_tauI_inv in TR.
         rewrite unfold_embed in TR.
         eapply IHEUTT in TR; eauto.
 
@@ -478,7 +479,7 @@ Proof.
         destruct IHEUTT as [? ? ?].
         eexists; eauto.
         rewrite unfold_embed, EQ.
-        apply trans_TauI, trans_TauI.
+        apply trans_tauI, trans_tauI.
         eauto.
 
 Qed.
@@ -487,8 +488,8 @@ Qed.
 (* Maybe simpler to just write a coinductive relation *)
 Definition partial_inject {E X} : ctree E X -> itree E (option X) :=
 	cofix _inject t :=
-	 match CTrees.observe t with
-	| CTrees.RetF x => Ret (Some x)
+	 match CTreeDefinitions.observe t with
+	| CTreeDefinitions.RetF x => Ret (Some x)
 	| @ChoiceF _ _ _ _ n t =>
 		(match n as x return n = x -> itree E (option X) with
 					 | O => fun _ => Ret None
@@ -498,7 +499,7 @@ Definition partial_inject {E X} : ctree E X -> itree E (option X) :=
 	 													pf t
 					 | _ => fun _ => Ret None
 		 end eq_refl)
-	| CTrees.VisF e k => Vis e (fun x => _inject (k x))
+	| CTreeDefinitions.VisF e k => Vis e (fun x => _inject (k x))
 	 end.
 
 Definition option_rel {A B : Type} (R : A -> B -> Prop) : option A -> option B -> Prop :=
@@ -512,18 +513,14 @@ Lemma partial_inject_eq {E X} :
 	Proper (equ eq ==> eq_itree (option_rel eq)) (@partial_inject E X).
 Admitted.
 
-Lemma partial_inject_eutt {E X} :
-	Proper (wbisim ==> eutt (option_rel eq)) (@partial_inject E X).
-Admitted.
-
 Variant is_detF {E X} (is_det : ctree E X -> Prop) : ctree E X -> Prop :=
-| Ret_det : forall x, is_detF is_det (CTrees.Ret x)
+| Ret_det : forall x, is_detF is_det (CTreeDefinitions.Ret x)
 | Vis_det : forall {Y} (e : E Y) k,
 	(forall y, is_det (k y)) ->
-	is_detF is_det (CTrees.Vis e k)
+	is_detF is_det (CTreeDefinitions.Vis e k)
 | Tau_det : forall t,
 	(is_det t) ->
-	is_detF is_det (CTrees.TauI t)
+	is_detF is_det (CTreeDefinitions.TauI t)
 .
 
 Definition is_det {E X} := paco1 (@is_detF E X) bot1.
