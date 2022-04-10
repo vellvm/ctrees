@@ -22,7 +22,7 @@ From Coinduction Require Import
 (*   | |- gfp _ _ _ => tactics.step *)
 (*   | |- _ => red; tactics.step *)
 (*   end. *)
-Ltac step := first [tactics.step | red; tactics.step].
+(* Ltac step := first [tactics.step | red; tactics.step]. *)
 
 Ltac step_in H :=
 match type of H with
@@ -43,3 +43,11 @@ Ltac invert :=
 Ltac copy h :=
   let foo := fresh "cpy" in
   assert (foo := h).
+
+Ltac break :=
+  repeat match goal with
+         | h : _ \/ _  |- _ => destruct h
+         | h : _ /\ _  |- _ => destruct h
+         | h : exists x, _ |- _ => destruct h
+         end.
+
