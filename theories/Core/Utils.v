@@ -3,8 +3,9 @@ From Coq Require Export Program.Equality.
 
 Notation fin := t.
 
+(* TODO: move *)
 Polymorphic Class MonadTrigger (E : Type -> Type) (M : Type -> Type) : Type :=
-  trigger : forall X, E X -> M X.
+  mtrigger : forall X, E X -> M X.
 
 Polymorphic Class MonadChoice (M : Type -> Type) : Type :=
   choice : forall (b : bool) (n: nat), M (Fin.t n).

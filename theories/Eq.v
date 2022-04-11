@@ -51,6 +51,7 @@ or backward (playR) challenge --- the e-versions looks for the hypothesis
 The upto [Vis] context principle for [sbisim]
 |*)
 #[global] Tactic Notation "upto_vis" := __upto_vis_sbisim.
+(* TODO: rule that goes from [sbt] to [st] when stripping the vis (it's not a upto) *)
 
 (*|
 The upto [bind] context principle for [equ] and [sbisim] ---
@@ -85,3 +86,4 @@ Ltac eq2sb H :=
   end.
 
 #[global] Opaque wtrans.
+
