@@ -25,16 +25,11 @@ From ITree Require Import
      Events.StateFacts.
 
 From CTree Require Import
-     CTrees
-     Utils
-     Bisim
-     CTreesTheory.
+     CTree
+     Eq.
 
 From CTreeYield Require Import
      Par.
-
-From Coinduction Require Import
-	coinduction rel tactics.
 
 Import ListNotations.
 Import MonadNotation.

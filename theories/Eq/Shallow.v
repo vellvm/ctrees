@@ -12,7 +12,7 @@
 
 (* begin hide *)
 From CTree Require Import
-     CTrees.
+     CTree.
 
 From Coq Require Import
      Classes.RelationClasses

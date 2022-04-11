@@ -23,14 +23,14 @@ choice.
 .. coq:: none
 |*)
 
-From ITree Require Import Core.Subevent.
+From ITree Require Import Basics.Basics Core.Subevent.
 
 From CTree Require Import
-	Utils.
+	   Core.Utils.
 
 From ExtLib Require Import
-	Structures.Functor
-	Structures.Monads.
+	   Structures.Functor
+	   Structures.Monads.
 
 Set Implicit Arguments.
 Set Contextual Implicit.
@@ -307,7 +307,7 @@ Notation "t1 ;; t2" := (CTree.bind t1 (fun _ => t2))
 Notation "' p <- t1 ;; t2" :=
   (CTree.bind t1 (fun x_ => match x_ with p => t2 end))
   (at level 62, t1 at next level, p pattern, right associativity) : ctree_scope.
-Infix ">=>" := CTree.cat (at level 62, right associativity) : ctree_scope.
+(* Infix ">=>" := CTree.cat (at level 62, right associativity) : ctree_scope. *)
 End CTreeNotations.
 
 (*|

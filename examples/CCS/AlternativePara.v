@@ -1,8 +1,6 @@
 From Coq Require Export
      Strings.String.
 
-From ITree Require Import ITree.
-
 From RelationAlgebra Require Import
      monoid
      kat
@@ -14,17 +12,10 @@ From RelationAlgebra Require Import
      rewriting
      normalisation.
 
-From Coinduction Require Import
-	   coinduction rel tactics.
-
 From CTree Require Import
-	   Utils
-	   CTrees
-     Trans
- 	   Interp
-	   Equ
-	   Bisim
-     CTreesTheory
+	   CTree
+     Eq
+ 	   Interp.Interp
      Head.
 
 From CTreeCCS Require Import
@@ -192,9 +183,9 @@ Proof.
   eapply trans_bind_r; [apply TRP |].
   eapply trans_bind_r; [apply TRQ |].
   cbn; rewrite OP.
-  eapply trans_ChoiceI with (x := Fin.F1); [| reflexivity].
+  eapply trans_choiceI with (x := Fin.F1); [| reflexivity].
   rewrite EQP, EQQ.
-  apply trans_TauV.
+  apply trans_tauV.
 Qed.
 
 Lemma trans_communicatingL :
@@ -214,9 +205,9 @@ Proof.
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
-    eapply (trans_ChoiceI Fin.F1); [| reflexivity].
+    eapply (trans_choiceI _ Fin.F1); [| reflexivity].
     rewrite EQP.
-    pose proof (@trans_ChoiceV _ _ x (fun i : fin x => communicating (x0 i) Q) x1); auto.
+    pose proof (@trans_choiceV _ _ x (fun i : fin x => communicating (x0 i) Q) x1); auto.
   - apply trans_get_head in TRP.
     apply trans_get_head in TRQ.
     destruct TRP as (? & ? & ? & TRP & EQP).
@@ -224,9 +215,9 @@ Proof.
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
-    eapply (trans_ChoiceI Fin.F1); [| reflexivity].
+    eapply (trans_choiceI _ Fin.F1); [| reflexivity].
     rewrite EQP.
-    pose proof (@trans_ChoiceV _ _ x (fun i : fin x => communicating (x0 i) Q) x1); auto.
+    pose proof (@trans_choiceV _ _ x (fun i : fin x => communicating (x0 i) Q) x1); auto.
   - apply trans_get_head in TRP.
     apply trans_get_head in TRQ.
     destruct TRP as (? & TRP & EQP).
@@ -234,7 +225,7 @@ Proof.
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
-    eapply (trans_ChoiceI Fin.F1); [| reflexivity].
+    eapply (trans_choiceI _ Fin.F1); [| reflexivity].
     constructor.
     rewrite EQP; auto.
   - apply trans_get_head in TRP.
@@ -246,11 +237,11 @@ Proof.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
     destruct e, e0.
     destruct (are_opposite a a0).
-    + eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
+    + eapply (trans_choiceI _ (Fin.FS Fin.F1)); [| reflexivity].
       rewrite EQP.
       destruct v.
       eapply trans_trigger'.
-    + eapply (trans_ChoiceI Fin.F1); [| reflexivity].
+    + eapply (trans_choiceI _ Fin.F1); [| reflexivity].
       rewrite EQP.
       repeat match goal with | h : unit |- _ => destruct h end.
       eapply trans_trigger'.
@@ -273,9 +264,9 @@ Proof.
     cbn in *.
     rewrite unfold_communicating.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
-    eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
+    eapply (trans_choiceI _ (Fin.FS Fin.F1)); [| reflexivity].
     rewrite EQQ.
-    pose proof (@trans_ChoiceV _ _ x2 (fun i : fin x2 => communicating P (x3 i)) x4); auto.
+    pose proof (@trans_choiceV _ _ x2 (fun i : fin x2 => communicating P (x3 i)) x4); auto.
   - apply trans_get_head in TRP.
     apply trans_get_head in TRQ.
     destruct TRP as (? & ? & ? & TRP & EQP).
@@ -283,14 +274,14 @@ Proof.
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
-    eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
+    eapply (trans_choiceI _ (Fin.FS Fin.F1)); [| reflexivity].
     constructor; rewrite EQQ; auto.
   - destruct (trans_get_head TRP) as (? & TRP' & EQP).
     destruct (trans_get_head TRQ) as (? & ? & ? & TRQ' & EQQ).
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
-    eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
+    eapply (trans_choiceI _ (Fin.FS Fin.F1)); [| reflexivity].
     rewrite EQQ; econstructor; auto.
   - destruct (trans_get_head TRP) as (? & TRP' & EQP).
     destruct (trans_get_head TRQ) as (? & TRQ' & EQQ).
@@ -299,11 +290,11 @@ Proof.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
     destruct e, e0.
     destruct (are_opposite a a0).
-    + eapply (trans_ChoiceI (Fin.FS (Fin.FS Fin.F1))); [| reflexivity].
+    + eapply (trans_choiceI _ (Fin.FS (Fin.FS Fin.F1))); [| reflexivity].
       rewrite EQQ.
       destruct v,v0.
       eapply trans_trigger'.
-    + eapply (trans_ChoiceI (Fin.FS Fin.F1)); [| reflexivity].
+    + eapply (trans_choiceI _ (Fin.FS Fin.F1)); [| reflexivity].
       rewrite EQQ.
       repeat match goal with | h : unit |- _ => destruct h end.
       eapply trans_trigger'.

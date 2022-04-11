@@ -3,10 +3,10 @@ From ExtLib Require Import
      Structures.Monad.
 
 From ITree Require Import
-	ITree.
+	   Basics.CategoryOps.
 
 From CTree Require Import
-     Utils CTrees Interp.
+     CTree Interp.Interp.
 
 Import ITree.Basics.Basics.Monads.
 Import MonadNotation.

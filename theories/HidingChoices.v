@@ -5,9 +5,6 @@ Hiding all choices
 
 .. coq::none
 |*)
-From Coinduction Require Import
-	   coinduction rel tactics.
-
 From RelationAlgebra Require Import
      monoid
      kat
@@ -20,7 +17,7 @@ From RelationAlgebra Require Import
      normalisation.
 
 From CTree Require Import
-	   Utils CTrees Shallow Trans Equ Bisim CTreesTheory.
+	   CTree Eq.
 
 Obligation Tactic := idtac.
 
@@ -88,12 +85,12 @@ Lemma trans_hide {E R} :
     trans l (hide t) (hide u).
 Proof.
   intros * INEQ TR.
-  cbn in *; unfold transR in *.
+  unfold trans in *; cbn in *; unfold transR in *.
   genobs t ot; genobs u ou.
   revert t u Heqot Heqou.
   induction TR; intros; try easy.
   - rewrite unfold_hide, <- Heqot.
-    eapply (trans_ChoiceI x); eauto.
+    eapply (trans_choiceI _ x); eauto.
     apply IHTR; auto.
   - rewrite unfold_hide, <- Heqot.
     constructor.
@@ -112,14 +109,14 @@ Lemma trans_tau_hide {E R} :
 Proof.
   intros * TR1 TR2.
   remember tau as l'.
-  cbn in TR1; unfold transR in TR1.
+  unfold trans in *; cbn in TR1; unfold transR in TR1.
   genobs t ot; genobs u ou.
   revert t Heqot.
   induction TR1; try easy; intros.
   - rewrite unfold_hide, <- Heqot;
-      eapply trans_ChoiceI; [|reflexivity]; eauto.
+      eapply trans_choiceI; [|reflexivity]; eauto.
   - rewrite unfold_hide, <- Heqot.
-    eapply (trans_ChoiceI x).
+    eapply (trans_choiceI _ x).
     eauto.
     rewrite H.
     apply eq_observe_equ in Heqou; rewrite Heqou; auto.
@@ -224,28 +221,28 @@ not (t ≈ u)
 but trivially (hide(t) ~ hide(u))
 *)
 
-Lemma wbisim_is_hidden_sbisim :
-  forall {E R} (t u : ctree E R),
-    t ≈ u <-> hide t ~ hide u.
-Proof.
-  split.
-  2:{
-    revert t u.
-    unfold wbisim; coinduction ? CIH.
-    symmetric using intuition.
-    intros * EQ l t' TR.
-    step in EQ; destruct EQ as [F _]; cbn in F.
+(* Lemma wbisim_is_hidden_sbisim : *)
+(*   forall {E R} (t u : ctree E R), *)
+(*     t ≈ u <-> hide t ~ hide u. *)
+(* Proof. *)
+(*   split. *)
+(*   2:{ *)
+(*     revert t u. *)
+(*     unfold wbisim; coinduction ? CIH. *)
+(*     symmetric using intuition. *)
+(*     intros * EQ l t' TR. *)
+(*     step in EQ; destruct EQ as [F _]; cbn in F. *)
 
-(*
-  - revert t u.
-    coinduction ? CIH.
-    symmetric using intuition.
-    intros * EQ l t' TR.
-    rewrite unfold_hide in TR.
-    step in EQ; destruct EQ as [F _].
-    cbn in F.
-    unfold transR in F.
-    desobs t.
-    * specialize (F (val r) stuckI); destruct F; [constructor|].
-*)
-Admitted.
+(* (* *)
+(*   - revert t u. *)
+(*     coinduction ? CIH. *)
+(*     symmetric using intuition. *)
+(*     intros * EQ l t' TR. *)
+(*     rewrite unfold_hide in TR. *)
+(*     step in EQ; destruct EQ as [F _]. *)
+(*     cbn in F. *)
+(*     unfold transR in F. *)
+(*     desobs t. *)
+(*     * specialize (F (val r) stuckI); destruct F; [constructor|]. *)
+(* *) *)
+(* Admitted. *)

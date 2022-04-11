@@ -17,17 +17,8 @@ From RelationAlgebra Require Import
      rel
      srel.
 
-From Coinduction Require Import
-	coinduction rel tactics.
-
 From CTree Require Import
-	Utils
-	CTrees
-  Trans
- 	Interp
-	Equ
-	Bisim
-  CTreesTheory.
+	CTree Eq.
 
 Import CTree.
 Import CTreeNotations.
@@ -100,7 +91,7 @@ Proof.
     exists kf; split; [| exact EQ].
     rename x into y.
     rewrite <- unfold_get_head in IHTR.
-    eapply trans_ChoiceI with (x := y).
+    eapply trans_choiceI with (x := y).
     apply IHTR.
     reflexivity.
   - dependent induction Heqob.
@@ -125,7 +116,7 @@ Proof.
     exists m, kf, z; split; [| exact EQ].
     rename x into y.
     rewrite <- unfold_get_head in IHTR.
-    eapply trans_ChoiceI with (x := y).
+    eapply trans_choiceI with (x := y).
     apply IHTR.
     reflexivity.
   - exists n,k,x; split.
@@ -148,7 +139,7 @@ Proof.
     split; [| exact EQ].
     rewrite <- unfold_get_head in IHTR.
     rename x into y.
-    eapply trans_ChoiceI with (x := y).
+    eapply trans_choiceI with (x := y).
     apply IHTR.
     reflexivity.
   - dependent induction Heqob.
@@ -191,8 +182,8 @@ Proof.
     desobs P; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-    + step in EQ; destruct (equF_choice_invT _ _ EQ) as [-> _].
-      eapply equF_choice_invE in EQ.
+    + step in EQ; destruct (equb_choice_invT _ _ EQ) as [-> _].
+      eapply equb_choice_invE in EQ.
       setoid_rewrite <- ctree_eta in IHTR.
       eapply IHTR; eauto.
   - exfalso.
@@ -200,7 +191,7 @@ Proof.
     desobs P; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-    + step in EQ; apply equF_choice_invT in EQ as [_ abs]; inv abs.
+    + step in EQ; apply equb_choice_invT in EQ as [_ abs]; inv abs.
   - exfalso.
     rewrite unfold_get_head in EQ.
     desobs P; try now (step in EQ; inv EQ).
@@ -221,16 +212,18 @@ Proof.
   revert p EQ r Heql.
   induction TR; intros; subst; try now inv Heql.
   - rewrite unfold_get_head in EQ.
+    unfold trans.
     cbn; red.
     desobs p; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-    + step in EQ; destruct (equF_choice_invT _ _ EQ) as [-> _].
-      eapply equF_choice_invE in EQ.
+    + step in EQ; destruct (equb_choice_invT _ _ EQ) as [-> _].
+      eapply equb_choice_invE in EQ.
       setoid_rewrite <- ctree_eta in IHTR.
       econstructor.
       apply IHTR; eauto.
-  - apply val_eq_inv in Heql; inv Heql.
+  - unfold trans.
+    apply val_eq_inv in Heql; inv Heql.
     rewrite unfold_get_head in EQ.
     cbn; red.
     desobs p; try now (step in EQ; inv EQ).
@@ -253,23 +246,25 @@ Proof.
   revert p EQ k Heql.
   induction TR; intros; subst; try now inv Heql.
   - rewrite unfold_get_head in EQ.
+    unfold trans.
     cbn; red.
     desobs p; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-    + step in EQ; destruct (equF_choice_invT _ _ EQ) as [-> _].
-      eapply equF_choice_invE in EQ.
+    + step in EQ; destruct (equb_choice_invT _ _ EQ) as [-> _].
+      eapply equb_choice_invE in EQ.
       setoid_rewrite <- ctree_eta in IHTR.
       econstructor.
       apply IHTR; eauto.
   - apply val_eq_inv in Heql; inv Heql.
     rewrite unfold_get_head in EQ.
+    unfold trans.
     cbn; red.
     desobs p; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
       dependent induction REL.
-      apply trans_ChoiceV.
+      apply trans_choiceV.
     + step in EQ; inv EQ.
 Qed.
 
@@ -286,17 +281,19 @@ Proof.
   revert p EQ k Heql.
   induction TR; intros; subst; try now inv Heql.
   - rewrite unfold_get_head in EQ.
+    unfold trans.
     cbn; red.
     desobs p; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-    + step in EQ; destruct (equF_choice_invT _ _ EQ) as [-> _].
-      eapply equF_choice_invE in EQ.
+    + step in EQ; destruct (equb_choice_invT _ _ EQ) as [-> _].
+      eapply equb_choice_invE in EQ.
       setoid_rewrite <- ctree_eta in IHTR.
       econstructor.
       apply IHTR; eauto.
   - apply val_eq_inv in Heql; inv Heql.
     rewrite unfold_get_head in EQ.
+    unfold trans.
     cbn; red.
     desobs p; try now (step in EQ; inv EQ).
     + step in EQ; inv EQ.
