@@ -3,13 +3,8 @@ From Coq Require Export Program.Equality.
 
 Notation fin := t.
 
->>>>>>> Stashed changes:theories/Utils.v
-(* Polymorphic Class MonadTrigger (M : (Type -> Type) -> Type -> Type) : Type := *)
-(*   trigger : forall {E: Type -> Type}, E ~> M E. *)
-=======
 Polymorphic Class MonadTrigger (E : Type -> Type) (M : Type -> Type) : Type :=
-  trigger : E ~> M.
->>>>>>> Stashed changes:theories/Core/Utils.v
+  trigger : forall X, E X -> M X.
 
 Polymorphic Class MonadChoice (M : Type -> Type) : Type :=
   choice : forall (b : bool) (n: nat), M (Fin.t n).
