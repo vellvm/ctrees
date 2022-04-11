@@ -6,8 +6,6 @@ From Coq Require Export
   List
   Strings.String.
 
-From ITree Require Import ITree.
-
 From RelationAlgebra Require Import
      monoid
      kat
@@ -22,19 +20,9 @@ From RelationAlgebra Require Import
 From CTreeCCS Require Import
 	Syntax.
 
-From Coinduction Require Import
-	coinduction rel tactics.
-
 From CTree Require Import
-	Utils
-	CTrees
-  Trans
- 	Interp
-	Equ
-	Bisim
-  CTreesTheory.
-
-(* Import CTree. *)
+	CTree Eq
+ 	Interp.Interp.
 
 Import CTreeNotations.
 Open Scope term_scope.
@@ -302,26 +290,26 @@ Proof.
   induction TR; intros; subst.
   - rewrite unfold_get_hd in EQ.
     desobs P.
-    + step in EQ; apply equF_choice_invT in EQ as [-> _]; inv x.
+    + step in EQ; apply equb_choice_invT in EQ as [-> _]; inv x.
     + destruct e as [e|e]; destruct e; step in EQ; inv EQ.
     + destruct vis.
-      step in EQ; apply equF_choice_invT in EQ as [-> _]; inv x.
+      step in EQ; apply equb_choice_invT in EQ as [-> _]; inv x.
       destruct n0 as [|n0]; cbn in *.
       * step in EQ; inv EQ.
-      * step in EQ; destruct (equF_choice_invT _ _ EQ) as [-> _].
-        eapply equF_choice_invE in EQ.
+      * step in EQ; destruct (equb_choice_invT _ _ EQ) as [-> _].
+        eapply equb_choice_invE in EQ.
         setoid_rewrite <- ctree_eta in IHTR.
         eapply IHTR; eauto.
   - exfalso.
     rewrite unfold_get_hd in EQ.
     desobs P.
-    + step in EQ; apply equF_choice_invT in EQ as [-> _]; inv x.
+    + step in EQ; apply equb_choice_invT in EQ as [-> _]; inv x.
     + destruct e as [e|e]; destruct e; step in EQ; inv EQ.
     + destruct vis.
-      step in EQ; apply equF_choice_invT in EQ as [_ abs]; inv abs.
+      step in EQ; apply equb_choice_invT in EQ as [_ abs]; inv abs.
       destruct n0 as [|n0]; cbn in *.
       step in EQ; inv EQ.
-      step in EQ; apply equF_choice_invT in EQ as [_ abs]; inv abs.
+      step in EQ; apply equb_choice_invT in EQ as [_ abs]; inv abs.
   - exfalso.
     rewrite unfold_get_hd in EQ.
     desobs P.
@@ -376,7 +364,7 @@ Admitted.
 Lemma para0p : forall P, 0 ∥ P ~ P.
 Proof.
   intros ?.
-  steps.
+  play.
   - rewrite unfold_para, get_hd0, bind_ret_l in TR.
     apply trans_get_hd_bind_inv in TR as (? & ? & ?).
     destruct x.

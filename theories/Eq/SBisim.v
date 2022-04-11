@@ -912,19 +912,21 @@ Proof.
   edestruct Hf as [x' Ht Hs]; [apply (@trans_vis _ _ _ _ x _) |]. inv_trans.
 Qed.
 
-(*
+(*|
+Not fond of these two, need to give some thoughts about them
+|*)
 Lemma sbisim_ret_ChoiceI_inv {E R} (r : R) n (k : fin n -> ctree E R) :
   Ret r ~ ChoiceI n k ->
   exists i, Ret r ~ k i.
 Proof.
   intro. step in H. destruct H as [Hf Hb]. cbn in *.
   edestruct Hf as [x Ht Hs]; [apply trans_ret |].
-  apply trans_ChoiceI_inv in Ht.
+  apply trans_choiceI_inv in Ht.
   destruct Ht as [i Ht]. exists i.
   step. split.
   - repeat intro. inv H. exists x; auto. rewrite <- Hs.
     rewrite ctree_eta. rewrite <- H3. rewrite choiceI0_always_stuck. auto.
-  - repeat intro. eapply trans_ChoiceI in H; eauto. specialize (Hb _ _ H).
+  - repeat intro. eapply trans_choiceI in H; eauto. specialize (Hb _ _ H).
     destruct Hb. inv H0. exists stuckI. constructor.
     cbn. rewrite <- H1. symmetry. rewrite ctree_eta .
     rewrite <- H5. rewrite choiceI0_always_stuck. auto.
@@ -937,7 +939,7 @@ Proof.
   intro. step in H. step. destruct H. cbn in *. split; repeat intro.
   - apply H. econstructor; apply H1.
   - edestruct H0. apply H1. exists x0; auto.
-    inv H2. apply inj_pair2 in H7. subst.
+    inv H2. apply Eqdep.EqdepTheory.inj_pair2 in H7. subst.
     assert (x = x1).
     {
       clear H H0 H1 H3 H8 l t' x0 t k E R.
@@ -949,4 +951,4 @@ Proof.
     }
     subst. auto.
 Qed.
- *)
+ 

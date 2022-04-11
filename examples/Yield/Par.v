@@ -2,6 +2,7 @@ From Coq Require Import
      Program
      List
      Logic.FunctionalExtensionality
+     Logic.IndefiniteDescription
      micromega.Lia
      Init.Specif
      Fin.
@@ -22,21 +23,10 @@ From Equations Require Import Equations.
 From ITree Require Import
      Sum.
 
-From Coinduction Require Import
-	coinduction rel tactics.
-
 From CTree Require Import
-     CTrees
-	 Utils
-	 CTrees
- 	 Interp
-	 Equ
-	 Bisim
-     Shallow
-     CTreesTheory
-     Trans.
-
-Require Import Coq.Logic.IndefiniteDescription.
+     CTree
+	   Eq
+ 	   Interp.Interp.
 
 Import ListNotations.
 Import CTreeNotations.
@@ -53,9 +43,11 @@ Variant choiceI_boundF {E R} b (choiceI_bound : ctree E R -> Prop) :
                           choiceI_boundF b choiceI_bound (ChoiceF false n k)
 .
 #[global] Hint Constructors choiceI_boundF: core.
+
 Definition choiceI_bound_ {E R} b choiceI_bound : ctree E R -> Prop :=
   fun t => choiceI_boundF b choiceI_bound (observe t).
 
+Obligation Tactic := idtac.
 Program Definition fchoiceI_bound {E R} (b : nat) : mon (ctree E R -> Prop) :=
   {| body := choiceI_bound_ b |}.
 Next Obligation.
@@ -118,6 +110,7 @@ Lemma trans_choiceI_bound E R (t t' : ctree E R) :
   choiceI_bound 1 t'.
 Proof.
   intros Hbound Htrans. revert Hbound.
+  unfold trans in *.
   cbn in *. red in Htrans. dependent induction Htrans; intros.
   - eapply IHHtrans; auto.
     assert (t ≅ ChoiceI n k). { rewrite ctree_eta. rewrite <- x. reflexivity. }
@@ -405,14 +398,14 @@ Section parallel.
     destruct (observe (v i c)) eqn:?; cbn in Hequ.
     - destruct r, u.
       right. right.
-      step in Hequ. pose proof (equF_choice_invT _ _ Hequ) as [? _]. subst.
-      pose proof (equF_choice_invE _ _ Hequ).
+      step in Hequ. pose proof (equb_choice_invT _ _ Hequ) as [? _]. subst.
+      pose proof (equb_choice_invE _ _ Hequ).
       eexists; exists n2, eq_refl.
       split; auto.
       step. rewrite Heqc0. reflexivity.
     - destruct e; [destruct y | destruct s]. 2: step in Hequ; inv Hequ.
-      step in Hequ. pose proof (equF_choice_invT _ _ Hequ) as [? _]. subst.
-      pose proof (equF_choice_invE _ _ Hequ).
+      step in Hequ. pose proof (equb_choice_invT _ _ Hequ) as [? _]. subst.
+      pose proof (equb_choice_invE _ _ Hequ).
       right. left.
       do 2 eexists. split; [| split]; auto.
       step. rewrite Heqc0. reflexivity.
@@ -429,7 +422,7 @@ Section parallel.
     trans (val x) (schedule n v (Some i) c) t ->
     n = 1%nat.
   Proof.
-    intro. cbn in H. red in H.
+    intro. unfold trans in *; cbn in H. red in H.
     remember (observe (schedule n v (Some i) c)).
     pose proof (ctree_eta (go (observe (schedule n v (Some i) c)))).
     rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
@@ -462,14 +455,14 @@ Section parallel.
     trans (val x) (schedule 1 v (Some i) c) t ->
     trans (val x) (v i c) CTree.stuckI.
   Proof.
-    intro. cbn in H. red in H.
+    intro. unfold trans in *; cbn in H. red in H.
     remember (observe (schedule 1 v (Some i) c)).
     pose proof (ctree_eta (go (observe (schedule 1 v (Some i) c)))).
     rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
     remember (observe t). remember (val x).
     revert t v i c x Heql Heqc1 H0.
     induction H; intros t' v i c c' Heql Heq Hequ; try inv Heql; subst.
-    - rewrite <- ctree_eta in Hequ.
+    - rewrite <- ctree_eta in Hequ. cbn.
       apply ChoiceI_schedule_inv in Hequ. destruct Hequ as [? | [? | ?]].
       + destruct H0 as (k' & Hvic & Hk).
         setoid_rewrite Hk in IHtrans_.
@@ -483,7 +476,7 @@ Section parallel.
       + destruct H0 as (c'' & n2' & Hn2' & Hvic & Hn & Hk).
         assert (n2' = O). { clear Hk. inv Hn2'. reflexivity. } subst.
         rewrite Hk in H. rewrite rewrite_schedule in H.
-        apply trans_ret_inv in H. destruct H. inv H. apply inj_pair2 in H3. subst.
+        apply trans_ret_inv in H. destruct H. inv H0. apply inj_pair2 in H3. subst.
         rewrite Hvic. constructor.
     - apply inj_pair2 in H1. subst.
       rewrite rewrite_schedule in Hequ.
@@ -498,11 +491,11 @@ Section parallel.
     trans (val x) (v i c) t ->
     trans (val x) (schedule 1 v (Some i) c) CTree.stuckI.
   Proof.
-    intro. cbn in H. red in H.
+    intro. unfold trans in *; cbn in H. red in H.
     remember (observe (v i c)).
     pose proof (ctree_eta (go (observe (v i c)))).
     rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
-    remember (observe t). remember (val x).
+    remember (observe t). cbn. remember (val x).
     revert t v i c x Heql Heqc1 H0.
     induction H; intros t' v i c x' Heql Heq Hequ; try inv Heql.
     - (* is there a better way to do this *)
@@ -522,7 +515,7 @@ Section parallel.
     trans (obs e x) (schedule n v o c) t ->
     False.
   Proof.
-    intro. destruct o as [i |].
+    unfold trans; intro. destruct o as [i |].
     2: {
       rewrite rewrite_schedule in H.  destruct n; inv H.
     }
@@ -573,10 +566,10 @@ Section parallel.
         apply trans_thread_schedule_val_1 in H0. eexists; eauto. rewrite H. reflexivity.
       + rewrite rewrite_schedule in Ht.
         destruct n; [| inv Ht].
-        destruct (trans_ret_inv Ht). inv H. apply inj_pair2 in H3. subst.
+        destruct (trans_ret_inv Ht). inv H0. apply inj_pair2 in H3. subst.
         exists CTree.stuckI.
         * rewrite rewrite_schedule. constructor.
-        * rewrite H0. reflexivity.
+        * rewrite H. reflexivity.
   Admitted.
 
 
@@ -689,7 +682,7 @@ Section parallel.
     trans (val x) (schedule' n v i c) t ->
     n = 1%nat.
   Proof.
-    intro. cbn in H. red in H.
+    unfold trans; intro. cbn in H. red in H.
     remember (observe (schedule' n v i c)).
     pose proof (ctree_eta (go (observe (schedule' n v i c)))).
     rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
@@ -712,7 +705,7 @@ Section parallel.
     trans (val x) (schedule' 1 v i c) t ->
     trans (val x) (v i c) CTree.stuckI.
   Proof.
-    intro. cbn in H. red in H.
+    unfold trans; intro. cbn in H. red in H.
     remember (observe (schedule' 1 v i c)).
     pose proof (ctree_eta (go (observe (schedule' 1 v i c)))).
     rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
@@ -739,7 +732,7 @@ Section parallel.
     trans (obs e x) (schedule' n v i c) t ->
     False.
   Proof.
-    intro. cbn in H. red in H.
+    unfold trans; intro. cbn in H. red in H.
     remember (observe (schedule' n v i c)).
     pose proof (ctree_eta (go (observe (schedule' n v i c)))).
     rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
@@ -776,7 +769,7 @@ Section parallel.
                 (Fin.L_R 1 i)
                 c).
   Proof.
-    intro. cbn in H. red in H.
+    unfold trans; intro. cbn in H. red in H.
     remember (observe (schedule' n v i c)).
     pose proof (ctree_eta (go (observe (schedule' n v i c)))).
     rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
@@ -858,7 +851,7 @@ Section parallel.
     trans (val x) (v i c) t ->
     trans (val x) (schedule' 1 v i c) CTree.stuckI.
   Proof.
-    intro. cbn in H. red in H.
+    unfold trans; intro. cbn in H. red in H.
     remember (observe (v i c)).
     pose proof (ctree_eta (go (observe (v i c)))).
     rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
@@ -880,7 +873,7 @@ Section parallel.
     trans (val (c', ())) (v i c) t ->
     forall i', trans tau (schedule' (S (S n)) v i c) (schedule' (S n) (remove_vec v i) i' c').
   Proof.
-    intro. cbn in H. red in H.
+    unfold trans; intro. cbn in H. red in H.
     remember (observe (v i c)).
     pose proof (ctree_eta (go (observe (v i c)))).
     rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
@@ -903,7 +896,7 @@ Section parallel.
     trans tau (v i c) t ->
     trans tau (schedule' n v i c) (schedule' n (replace_vec v i (fun _ => t)) i c).
   Proof.
-    intro. cbn in H. red in H.
+    unfold trans; intro. cbn in H. red in H.
     remember (observe (v i c)).
     pose proof (ctree_eta (go (observe (v i c)))).
     rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
@@ -935,7 +928,7 @@ Section parallel.
              (Fin.L_R 1 i)
              c).
   Proof.
-    intro. cbn in H. red in H.
+    unfold trans; intro. cbn in H. red in H.
     remember (observe (v i c)).
     pose proof (ctree_eta (go (observe (v i c)))).
     rewrite <- Heqc0 in H0 at 1. cbn in H0. clear Heqc0.
@@ -969,7 +962,7 @@ Section parallel.
     (forall c'', trans (obs (inl1 (Yield _ c')) c'') (v i c) (k c'')) ->
     trans tau (schedule' n v i c) (schedule' n (replace_vec v i k) i' c').
   Proof.
-    intros. rewrite rewrite_schedule'. rewrite schedule'_match_equation_1. rewrite H.
+    unfold trans; intros. rewrite rewrite_schedule'. rewrite schedule'_match_equation_1. rewrite H.
     (* destruct e. *)
     pose proof (H0 c). cbn in H1. red in H1.
     rewrite H in H1. inv H1. apply inj_pair2 in H4, H5, H6, H7. subst.
@@ -985,7 +978,7 @@ Section parallel.
     Vis e k1 ~ t2 ->
     exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ~ k2 x).
   Proof.
-    intros.
+    unfold trans in *; intros.
     step in H. destruct H as [Hf Hb].
     cbn in *. unfold transR in Hf.
     assert
@@ -993,6 +986,7 @@ Section parallel.
           trans_ l (VisF e k1) (observe t') ->
           {u' : ctree E R | trans_ l (observe t2) (observe u') /\ t' ~ u'}).
     {
+      unfold trans in *.
       intros. apply constructive_indefinite_description.
       edestruct Hf; eauto.
     } clear Hf. rename X0 into Hf.
@@ -1039,7 +1033,7 @@ Section parallel.
     visible t1 (Vis e k1) ->
     exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ~ k2 x).
   Proof.
-    intros. cbn in *. red in H0. remember (observe t1). remember (observe (Vis e k1)).
+    unfold trans; intros. cbn in *. red in H0. remember (observe t1). remember (observe (Vis e k1)).
     revert X t1 e k1 t2 H Heqc Heqc0 Hin Hbound1 Hbound2.
     induction H0; intros; auto.
     - edestruct @choiceI_step as (? & Hbound1').

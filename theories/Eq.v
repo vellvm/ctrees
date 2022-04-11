@@ -13,13 +13,13 @@ Export EquNotations.
 Export SBisimNotations.
 
 #[global] Tactic Notation "step" :=
-  __step_equ || __step_sbisim.
+  __step_equ || __step_sbisim || step.
 
 #[global] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
   __coinduction_equ R H || __coinduction_sbisim R H.
 
 #[global] Tactic Notation "step" "in" ident(H) :=
-  __step_in_equ H || __step_in_sbisim H.
+  __step_in_equ H || __step_in_sbisim H || step_in H.
 
 #[global] Tactic Notation "upto_vis" := __upto_vis_sbisim.
 
