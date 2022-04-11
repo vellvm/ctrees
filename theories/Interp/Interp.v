@@ -8,6 +8,7 @@ From ExtLib Require Import
      Structures.Monad.
 
 Open Scope ctree_scope.
+Import CTreeNotations.
 
 (* end hide *)
 

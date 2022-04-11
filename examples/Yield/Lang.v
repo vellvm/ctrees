@@ -31,9 +31,6 @@ From CTree Require Import
 From CTreeYield Require Import
      Par.
 
-From Coinduction Require Import
-	coinduction rel tactics.
-
 Import ListNotations.
 Import MonadNotation.
 Local Open Scope monad_scope.

@@ -4,6 +4,7 @@ From CTree Require Import
 Set Implicit Arguments.
 Set Contextual Implicit.
 
+Import CTreeNotations.
 (* Import CTreeNotations. *)
 
 Section Internalize.

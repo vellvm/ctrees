@@ -8,7 +8,7 @@ From CTree.Eq Require Export
      Trans
      SBisim.
 
-Export CTreeNotations.
+(* Export CTreeNotations. *)
 Export EquNotations.
 Export SBisimNotations.
 
