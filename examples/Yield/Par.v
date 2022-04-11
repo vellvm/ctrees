@@ -61,7 +61,7 @@ Qed.
 Definition choiceI_bound {E R} b := (gfp (@fchoiceI_bound E R b)).
 #[global] Hint Unfold choiceI_bound: core.
 
-Instance equ_choiceI_bound {E R} :
+#[global] Instance equ_choiceI_bound {E R} :
   Proper (eq ==> equ eq ==> impl) (@choiceI_bound E R).
 Proof.
   unfold Proper, respectful, impl. intros ? b ?. subst. revert b.
@@ -76,7 +76,7 @@ Proof.
     constructor; auto. intros. eapply CIH. apply REL. apply H4.
 Qed.
 
-Instance equ_choiceI_bound' {E R} :
+#[global] Instance equ_choiceI_bound' {E R} :
   Proper (eq ==> equ eq ==> flip impl) (@choiceI_bound E R).
 Proof.
   unfold Proper, respectful, flip, impl. intros ? b ?. subst. revert b.
