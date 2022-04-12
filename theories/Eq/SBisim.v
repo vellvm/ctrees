@@ -939,6 +939,15 @@ Ltac sstep := sret || svis || stauv.
 
  *)
 
+Lemma choiceV_bisim: forall (E: Type -> Type) R n (k k': fin n -> ctree E R),
+    (forall t, k t ~ k' t) ->
+    ChoiceV n k ~ ChoiceV n k'.
+Proof.
+  intros E R n k k' EQ.
+  step; split; intros ? ? ?; inv_trans; subst; eexists; etrans; cbn;
+    rewrite EQ0; auto.
+Qed.
+
 (*|
 Sanity checks
 =============

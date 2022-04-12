@@ -889,6 +889,14 @@ Proof.
   constructor; intros abs; inv abs.
 Qed.
 
+Lemma choice_equ: forall (E: Type -> Type) R b n (k k': fin n -> ctree E R),
+    (forall t, k t ≅ k' t) ->
+    Choice b n k ≅ Choice b n k'.
+Proof.
+  intros E R b n k k' EQ.
+  step; econstructor; auto.
+Qed.
+
 (*|
 Very crude simulation of [subst] for [≅] equations
 |*)
