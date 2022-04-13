@@ -117,6 +117,8 @@ Notation TauV t := (go (ChoiceF true 1 (fun _ => t))).
 Notation Choice b n k := (go (ChoiceF b n k)).
 Notation ChoiceV n k := (go (ChoiceF true n k)).
 Notation ChoiceI n k := (go (ChoiceF false n k)).
+Notation ChoiceVF := (ChoiceF true).
+Notation ChoiceIF := (ChoiceF false).
 
 (*|
 Main operations on [ctree]

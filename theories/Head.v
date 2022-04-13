@@ -51,16 +51,16 @@ Definition get_head {E X} : ctree E X -> ctree E (@head E X) :=
     match observe t with
     | RetF x            => Ret (HRet x)
     | VisF e k          => Ret (HVis e k)
-    | ChoiceF true n k  => Ret (HChoice k)
-    | ChoiceF false n k => Choice false n (fun i => get_head (k i))
+    | ChoiceVF n k      => Ret (HChoice k)
+    | ChoiceIF n k      => Choice false n (fun i => get_head (k i))
     end.
 
 Notation get_head_ t :=
   match observe t with
   | RetF x            => Ret (HRet x)
   | VisF e k          => Ret (HVis e k)
-  | ChoiceF true n k  => Ret (HChoice k)
-  | ChoiceF false n k => Choice false n (fun i => get_head (k i))
+  | ChoiceVF n k      => Ret (HChoice k)
+  | ChoiceIF n k      => Choice false n (fun i => get_head (k i))
   end.
 
 Lemma unfold_get_head {E X} : forall (t : ctree E X),

@@ -839,13 +839,13 @@ Definition are_bisim_incompat {E R} (t u : ctree E R) :=
   match observe t, observe u with
   | RetF _, RetF _
   | VisF _ _, VisF _ _
-  | ChoiceF true _ _, ChoiceF true _ _
-  | ChoiceF false _ _, _
-  | _, ChoiceF false _ _ => false
-  | ChoiceF true n _, RetF _ => true
-  | RetF _,  ChoiceF true n _ => true
-  | ChoiceF true n _, VisF _ _ => negb (Nat.eqb n O)
-  | VisF _ _, ChoiceF true n _ => negb (Nat.eqb n O)
+  | ChoiceVF _ _, ChoiceVF _ _
+  | ChoiceIF _ _, _
+  | _, ChoiceIF _ _ => false
+  | ChoiceVF n _, RetF _ => true
+  | RetF _,  ChoiceVF n _ => true
+  | ChoiceVF n _, VisF _ _ => negb (Nat.eqb n O)
+  | VisF _ _, ChoiceVF n _ => negb (Nat.eqb n O)
   | _, _ => true
   end.
 
@@ -951,4 +951,3 @@ Proof.
     }
     subst. auto.
 Qed.
- 

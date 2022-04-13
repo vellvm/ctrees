@@ -55,11 +55,11 @@ Fairness? Too low level here I think? Maybe at the level of Imp.
 Prove that the original computation simulates the scheduled one?
 *)
 
-
-(* TODO: move, use globally? *)
-Notation ChoiceVF := (ChoiceF true).
-Notation ChoiceIF := (ChoiceF false).
-
+(*|
+Guarded form
+============
+TODO: move away.
+|*)
 Definition guarded_form {E X} (t : ctree E X) : ctree E X :=
 	CTree.iter (fun t =>
 				        match observe t with
