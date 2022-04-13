@@ -852,6 +852,27 @@ Invisible taus can be stripped-out w.r.t. to [sbisim], but not visible ones
     - etrans.
   Qed.
 
+  Lemma sb_tauI_l E X : forall (t u : ctree E X),
+      t ~ u ->
+      TauI t ~ u.
+  Proof.
+    intros * EQ; now rewrite sb_tauI.
+  Qed.
+
+  Lemma sb_tauI_r E X : forall (t u : ctree E X),
+      t ~ u ->
+      t ~ TauI u.
+  Proof.
+    intros * EQ; now rewrite sb_tauI.
+  Qed.
+
+  Lemma sb_tauI_lr E X : forall (t u : ctree E X),
+      t ~ u ->
+      TauI t ~ TauI u.
+  Proof.
+    intros * EQ; now rewrite !sb_tauI.
+  Qed.
+
   Lemma sb_tauV E X : forall (t u : ctree E X),
       t ~ u ->
       TauV t ~ TauV u.
