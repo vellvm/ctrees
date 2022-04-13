@@ -1465,10 +1465,10 @@ Ltac inv_trans_one :=
       | _ => idtac
       end
 
-  (* ChoiceV *)
-  | h : trans' _ (ChoiceV ?n ?k) _ |- _ =>
+  (* TauV *)
+  | h : trans' _ (TauV _) _ |- _ =>
       let EQl := fresh "EQl" in
-      apply trans_choiceV_inv in h as (?n & ?EQ & EQl);
+      apply trans_tauV_inv in h as (?EQ & EQl);
       match type of EQl with
       | tau     = tau => clear EQl
       | val _   = tau => now inv EQl
@@ -1476,10 +1476,10 @@ Ltac inv_trans_one :=
       | _ => idtac
       end
 
-  (* TauV *)
-  | h : trans' _ (TauV _) _ |- _ =>
+  (* ChoiceV *)
+  | h : trans' _ (ChoiceV ?n ?k) _ |- _ =>
       let EQl := fresh "EQl" in
-      apply trans_tauV_inv in h as (?EQ & EQl);
+      apply trans_choiceV_inv in h as (?n & ?EQ & EQl);
       match type of EQl with
       | tau     = tau => clear EQl
       | val _   = tau => now inv EQl
@@ -1520,13 +1520,13 @@ Ltac inv_trans_one :=
       | _ => idtac
       end
 
-  (* ChoiceI *)
-  | h : trans' _ (ChoiceI ?n ?k) _ |- _ =>
-      apply trans_choiceI_inv in h as (?n & ?TR)
-
   (* TauI *)
   | h : trans' _ (TauI _) _ |- _ =>
       apply trans_tauI_inv in h
+
+  (* ChoiceI *)
+  | h : trans' _ (ChoiceI ?n ?k) _ |- _ =>
+      apply trans_choiceI_inv in h as (?n & ?TR)
 
   (* choiceI2 *)
   | h : trans' _ (choiceI2 _ _) _ |- _ =>

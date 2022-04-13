@@ -496,7 +496,7 @@ Qed.
 And in particular, we get the proper instance justifying rewriting [~] to the left of a [bind].
 |*)
 #[global] Instance bind_sbisim_cong :
- forall (E : Type -> Type) (X Y : Type) (R : rel Y Y) RR,
+ forall (E : Type -> Type) (X Y : Type) RR,
    Proper (sbisim ==> pointwise_relation X (st RR) ==> st RR) (@bind E X Y).
 Proof.
   repeat red; intros; eapply sbisim_clo_bind; eauto.
