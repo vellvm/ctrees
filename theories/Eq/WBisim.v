@@ -50,16 +50,8 @@ From CTree Require Import
      Eq.Trans
      Eq.SBisim.
 
-From RelationAlgebra Require Import
-     monoid
-     kat
-     kat_tac
-     prop
-     rel
-     srel
-     comparisons
-     rewriting
-     normalisation.
+From RelationAlgebra Require Export
+     rel srel monoid kat kat_tac rewriting normalisation.
 
 Import CTree.
 Import CTreeNotations.

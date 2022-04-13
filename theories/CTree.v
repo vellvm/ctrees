@@ -3,8 +3,7 @@ From ITree Require Export
      Core.Subevent
      Basics.Function
      Indexed.Function
-     Indexed.Sum
-.
+     Indexed.Sum.
 
 From CTree.Core Require Export
      Utils

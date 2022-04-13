@@ -40,7 +40,7 @@ answered by [wtrans].
 
 .. coq::none
 |*)
-From Coq Require Import Lia.
+From Coq Require Import Lia Basics.
 
 From Coinduction Require Import
      coinduction rel tactics.
@@ -51,16 +51,8 @@ From CTree Require Import
      Eq.Shallow
      Eq.Trans.
 
-From RelationAlgebra Require Import
-     monoid
-     kat
-     kat_tac
-     prop
-     rel
-     srel
-     comparisons
-     rewriting
-     normalisation.
+From RelationAlgebra Require Export
+     rel srel.
 
 (* TODO: Decide where to set this *)
 Arguments trans : simpl never.

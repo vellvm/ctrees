@@ -6,15 +6,21 @@ This file reexports everything that's necessary to reason w.r.t.
 Tactics are redefined locally to support both relations.
 |*)
 
+From Coq Require Export Basics.
+
+From RelationAlgebra Require Export
+     rel srel.
+
 From Coinduction Require Export
      coinduction rel tactics.
 
-From CTree Require Import CTree.
 From CTree.Eq Require Export
      Shallow
      Equ
      Trans
      SBisim.
+
+From CTree Require Export CTree.
 
 (* Export CTreeNotations. *)
 Export EquNotations.

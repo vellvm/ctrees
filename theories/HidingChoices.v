@@ -5,16 +5,9 @@ Hiding all choices
 
 .. coq::none
 |*)
-From RelationAlgebra Require Import
-     monoid
-     kat
-     kat_tac
-     prop
-     rel
-     srel
-     comparisons
-     rewriting
-     normalisation.
+
+From RelationAlgebra Require Export
+     rel srel monoid kat kat_tac rewriting normalisation.
 
 From CTree Require Import
 	   CTree Eq.

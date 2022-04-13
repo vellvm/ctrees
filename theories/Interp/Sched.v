@@ -3,7 +3,7 @@ From ExtLib Require Import
      Structures.Monad.
 
 From CTree Require Import
-     CTree Eq.
+     Eq.
 
 Import ITree.Basics.Basics.Monads.
 Import MonadNotation.
@@ -101,10 +101,6 @@ Proof.
       rewrite bind_ret_l.
       step; constructor; auto.
 Qed.
-
-(* TODO: export globally? *)
-From RelationAlgebra Require Import
-     rel srel.
 
 (* TODO: think about all this stuff and move it *)
 Lemma step_sbisim_vis_gen {E X Y} (e : E X) (k k' : X -> ctree E Y) (R : rel _ _) :

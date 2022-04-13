@@ -125,17 +125,6 @@ Proof.
     apply CIH, REL.
 Qed.
 
-From RelationAlgebra Require Import
-     monoid
-     kat
-     kat_tac
-     prop
-     rel
-     srel
-     comparisons
-     rewriting
-     normalisation.
-
 From Coq Require Import Datatypes.
 
 (* This is actually not trivial.

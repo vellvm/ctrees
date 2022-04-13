@@ -13,10 +13,6 @@ We develop in this file the [get_head] function to compute this prefix.
 .. coq:: none
 |*)
 
-From RelationAlgebra Require Import
-     rel
-     srel.
-
 From CTree Require Import
 	CTree Eq.
 
