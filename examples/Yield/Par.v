@@ -1044,7 +1044,7 @@ Section parallel.
       }
       subst. eapply IHvisible_. 2: reflexivity. all: eauto.
       pose proof (ctree_eta t1). rewrite <- Heqc in H1. rewrite H1 in H.
-      epose proof (sbisim_ChoiceI_1_inv _ _ _ H); auto. apply H2.
+      epose proof (sbisim_ChoiceI_1_inv _ H); auto. apply H2.
     - inv Heqc0.
     - inv Heqc0. apply inj_pair2 in H3, H4. subst.
       apply sbisim_vis_visible; auto.

@@ -102,89 +102,6 @@ Proof.
       step; constructor; auto.
 Qed.
 
-(* TODO: think about all this stuff and move it *)
-Lemma step_sbisim_vis_gen {E X Y} (e : E X) (k k' : X -> ctree E Y) (R : rel _ _) :
-  (Proper (equ eq ==> equ eq ==> Basics.impl) R) ->
-  (forall x, R (k x) (k' x)) ->
-  sb R (Vis e k) (Vis e k').
-Proof.
-  intros PR EQs.
-  split; intros ? ? TR; inv_trans; subst.
-  all: cbn; eexists; etrans; rewrite EQ; auto.
-Qed.
-
-Lemma step_sbisim_vis {E X Y} (e : E X) (k k' : X -> ctree E Y) (R : rel _ _) :
-  (forall x, (st R) (k x) (k' x)) ->
-  sb (st R) (Vis e k) (Vis e k').
-Proof.
-  apply step_sbisim_vis_gen.
-  typeclasses eauto.
-Qed.
-
-Lemma step_sbisim_tauV_gen {E X} (t t' : ctree E X) (R : rel _ _) :
-  (Proper (equ eq ==> equ eq ==> Basics.impl) R) ->
-  (R t t') ->
-  sb R (TauV t) (TauV t').
-Proof.
-  intros PR EQs.
-  split; intros ? ? TR; inv_trans; subst.
-  all: cbn; eexists; etrans; rewrite EQ; auto.
-Qed.
-
-Lemma step_sbisim_tauV {E X} (t t' : ctree E X) (R : rel _ _) :
-  (st R t t') ->
-  sb (st R) (TauV t) (TauV t').
-Proof.
-  apply step_sbisim_tauV_gen.
-  typeclasses eauto.
-Qed.
-
-Ltac svis  := apply step_sbisim_vis.
-Ltac stauv := apply step_sbisim_tauV.
-Ltac sstep := svis || stauv.
-
-Lemma step_sbisim_choiceI_gen {E X} n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) (R : rel _ _) :
-  (forall x, exists y, sb R (k x) (k' y)) ->
-  (forall y, exists x, sb R (k x) (k' y)) ->
-  sb R (ChoiceI n k) (ChoiceI m k').
-Proof.
-  intros EQs1 EQs2.
-  split; intros ? ? TR; inv_trans; subst.
-  - destruct (EQs1 n0) as [x [F _]]; cbn in F.
-    apply F in TR; destruct TR as [u' TR' EQ'].
-    eexists.
-    eapply trans_choiceI with (x := x); [|reflexivity].
-    eauto.
-    eauto.
-  - destruct (EQs2 m0) as [x [_ B]]; cbn in B.
-    apply B in TR; destruct TR as [u' TR' EQ'].
-    eexists.
-    eapply trans_choiceI with (x := x); [|reflexivity].
-    eauto.
-    eauto.
-Qed.
-
-Lemma step_sbisim_choiceI_id {E X} n (k k' : fin n -> ctree E X) (R : rel _ _) :
-  (forall x, sb R (k x) (k' x)) ->
-  sb R (ChoiceI n k) (ChoiceI n k').
-Proof.
-  intros; apply step_sbisim_choiceI_gen.
-  intros x; exists x; apply H.
-  intros x; exists x; apply H.
-Qed.
-
-Lemma step_sbisim_choiceI_id' {E X} n (k k' : fin n -> ctree E X)  :
-  (forall x, (k x) ~ (k' x)) ->
-  (ChoiceI n k) ~ (ChoiceI n k').
-Proof.
-  intros.
-  step.
-  eapply step_sbisim_choiceI_id.
-  intros.
-  specialize (H x).
-  now step in H.
-Qed.
-
 Lemma foo {E X} l (t t' u : ctree E X):
   t ~ t' ->
   trans l t u ->
@@ -387,6 +304,12 @@ Proof.
   destruct EQ' as [EQ' | EQ']; rewrite EQ'; auto.
   now rewrite sb_tauI.
 Qed.
+
+(* TODO: define properly the set of tactics in [sbisim] and kill this *)
+Ltac sret  := apply step_sb_ret.
+Ltac svis  := apply step_sb_vis.
+Ltac stauv := apply step_sb_tauV.
+Ltac sstep := sret || svis || stauv.
 
 Lemma guarded_is_bisimilar {E X} : forall (t : ctree E X),
     guarded_form t ~ t.
