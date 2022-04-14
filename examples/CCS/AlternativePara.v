@@ -147,12 +147,12 @@ Proof.
         intros [|].
         step; constructor; auto.
         destruct t.
-        eapply equ_clo_bind; [reflexivity | intros [] [] _; auto].
-        eapply equ_clo_bind; [reflexivity | intros [] [] _; auto].
+        upto_bind_eq; auto.
+        upto_bind_eq; auto.
         constructor.
         intros [|].
-        eapply equ_clo_bind; [reflexivity | intros [] [] _; auto].
-        eapply equ_clo_bind; [reflexivity | intros [] [] _; auto].
+        upto_bind_eq; auto.
+        upto_bind_eq; auto.
 Qed.
 
 Lemma trans_communicatingL : forall l (P P' Q : ccs),

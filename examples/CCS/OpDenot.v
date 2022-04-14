@@ -218,7 +218,7 @@ Proof.
       apply SPar with a.
       apply STEP.
       apply are_opposite_sym in Op.
-      rewrite <- (are_opposite_are_op _ Op). 
+      rewrite <- (are_opposite_are_op _ Op).
       apply SRep', STEP'.
       rewrite <- EQ',EQ,<-EQ'',<-EQ'''.
       rewrite parabang_eq.

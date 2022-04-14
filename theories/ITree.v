@@ -78,7 +78,7 @@ Lemma unfold_interp_ctree {E F X} (h: E ~> ctree F) (t : itree E X):
 Proof.
   revert t.
   coinduction R CIH.
-  intros; cbn.
+  intros; cbn*.
   Opaque CTree.bind.
   unfold cobserve; cbn.
   destruct (iobserve t) eqn:ot; try now cbn; auto.
@@ -107,17 +107,17 @@ Proof.
   rewrite 2 Interp.unfold_interp.
 	punfold bisim.
 	inv bisim; pclearbot; try easy.
-	- cbn.
+	- cbn*.
     constructor; intros ?.
     step.
     cbn.
     constructor; intros ?.
     now apply CIH.
-	- cbn -[ebt].
+	- cbn.
     upto_bind_eq.
     constructor; intros ?.
     rewrite 2 Interp.unfold_interp.
-    cbn -[ebt].
+    cbn.
     step; cbn.
     constructor; intros ?.
     step; cbn.
@@ -194,9 +194,10 @@ Proof.
       auto.
 Qed.
 
-Lemma foo E X : forall (t1 : itree (ExtChoice +' E) X) l t2',
+Lemma trans_embed_inv E X : forall (t1 : itree (ExtChoice +' E) X) l t2',
     trans l (embed t1) t2' ->
-    (exists r : X, (t2' ≅ CTree.stuckI)%ctree /\ l = val r) \/ exists t2, (t2' ~ embed t2)%ctree.
+    (exists r : X, (t2' ≅ CTree.stuckI)%ctree /\ l = val r)
+    \/ exists t2, (t2' ~ embed t2)%ctree.
 Proof.
   unfold trans.
   intros * TR.
@@ -204,7 +205,8 @@ Proof.
   remember (embed t1) as et1.
   cut (
       ((et1 ≅ embed t1)%ctree \/ (et1 ≅ cTauI (embed t1))%ctree) ->
-      (exists r : X, (t2' ≅ CTree.stuckI)%ctree /\ l = val r) \/ exists t2 : itree (ExtChoice +' E) X, t2' ~ embed t2).
+      (exists r : X, (t2' ≅ CTree.stuckI)%ctree /\ l = val r)
+      \/ exists t2 : itree (ExtChoice +' E) X, t2' ~ embed t2).
   intros H; eapply H; eauto; left; subst; auto.
   clear Heqet1.
   revert t1.
@@ -290,6 +292,16 @@ Proof.
     + step in EQ; rewrite <- x0 in EQ; inv EQ.
 Qed.
 
+
+(*
+  t1  ≈  u1
+
+ [t1] -r> stuck
+--------------
+ [u1] -r> stuck
+
+ *)
+
 Lemma bar E X : forall (t1 u1 : itree (ExtChoice +' E) X) l t2',
     trans l (embed t1) t2' ->
     t1 ≈ u1 ->
@@ -300,15 +312,14 @@ Lemma bar E X : forall (t1 u1 : itree (ExtChoice +' E) X) l t2',
       ((t2' ≅ CTree.stuckI)%ctree /\
          trans l (embed u1) CTree.stuckI).
 Proof.
-  (* intros * TR. *)
-  (* edestruct foo as [(r & STUCK & EQ) | (t2 & EQ)]; eauto. *)
-  (* - subst l. rewrite STUCK in TR. *)
-  (*   right; split; auto. *)
-  (*   clear t2' STUCK. *)
-
-  (*   revert u1 H. *)
-  (*   cbn in TR; red in TR. *)
-  (*   remember (embed t1) as et1. *)
+  intros * TR.
+  edestruct trans_embed_inv as [(r & STUCK & EQ) | (t2 & EQ)]; eauto.
+  - subst l. rewrite STUCK in TR.
+    right; split; auto.
+    clear t2' STUCK.
+    revert u1 H.
+    unfold trans in TR; cbn in TR; red in TR.
+    remember (embed t1) as et1.
   (*   intros u1 EUTT. *)
   (*     (* match type of Heqot1 with *) *)
   (*     (* | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ~ t) by (subst; reflexivity); clear Heqot1 *) *)

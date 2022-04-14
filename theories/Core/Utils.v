@@ -1,7 +1,13 @@
 From Coq Require Import Fin.
 From Coq Require Export Program.Equality.
+From Coinduction Require Import
+	coinduction rel tactics.
 
-Notation fin := t.
+Notation fin := Fin.t.
+
+#[global] Arguments bt : simpl never.
+Ltac next := unfold bt; cbn.
+Tactic Notation "cbn*" := next.
 
 (* TODO: move *)
 Polymorphic Class MonadTrigger (E : Type -> Type) (M : Type -> Type) : Type :=
@@ -27,9 +33,6 @@ Ltac break :=
          | h : _ /\ _  |- _ => destruct h
          | h : exists x, _ |- _ => destruct h
          end.
-
-From Coinduction Require Import
-	coinduction rel tactics.
 
 (* A smarter version of this should be part of the [coinduction] library *)
 Ltac step_in H :=

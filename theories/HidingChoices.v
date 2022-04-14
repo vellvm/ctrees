@@ -56,7 +56,7 @@ Proof.
   unfold Proper, respectful.
   unfold equ; coinduction ? CIH.
   intros * EQ.
-  cbn.
+  next.
   rewrite 2 unfold_hide.
   step in EQ.
   inv EQ; cbn; auto.

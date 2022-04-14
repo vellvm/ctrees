@@ -349,7 +349,7 @@ Proof.
     upto_bind_eq.
     constructor; intros ?.
     auto.
-  - rewrite 2 unfold_interp, <-H0, <-H. cbn.
+  - rewrite 2 unfold_interp, <-H0, <-H. cbn*.
     constructor; intros ?.
     step.
     cbn; constructor; intros ?.

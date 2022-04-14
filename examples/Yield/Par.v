@@ -66,7 +66,7 @@ Definition choiceI_bound {E R} b := (gfp (@fchoiceI_bound E R b)).
 Proof.
   unfold Proper, respectful, impl. intros ? b ?. subst. revert b.
   red. intros. revert x y H H0. coinduction r CIH. intros x y Hequ H.
-  step in Hequ. step in H. cbn.
+  step in Hequ. step in H. cbn*.
   red in H |- *. inversion Hequ; auto. 2: destruct b0.
   - rewrite <- H1 in H. inversion H. subst. apply inj_pair2 in H4, H5. subst.
     constructor. intros. eapply CIH. apply REL. apply H3.
@@ -81,7 +81,7 @@ Qed.
 Proof.
   unfold Proper, respectful, flip, impl. intros ? b ?. subst. revert b.
   red. intros. revert x y H H0. coinduction r CIH. intros x y Hequ H.
-  step in Hequ. step in H. cbn.
+  step in Hequ. step in H. cbn*.
   red in H |- *. inversion Hequ; auto. 2: destruct b0.
   - rewrite <- H2 in H. inversion H. subst. apply inj_pair2 in H4, H5. subst.
     constructor. intros. eapply CIH. apply REL. apply H3.

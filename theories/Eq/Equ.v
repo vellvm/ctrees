@@ -253,15 +253,15 @@ Proof.
   - inv EQ.
     rewrite <- H3 in EQu.
     inv EQu.
-    cbn; rewrite <- H0, <- H2; auto.
+    cbn*; rewrite <- H0, <- H2; auto.
   - dependent destruction EQ.
-    cbn.
+    cbn*.
     rewrite <- x in EQu.
     dependent destruction EQu.
     rewrite <- H0, <- x.
     eauto.
   - dependent destruction EQ.
-    cbn.
+    cbn*.
     rewrite <- x in EQu.
     dependent destruction EQu.
     rewrite <- H0, <- x.
@@ -277,22 +277,21 @@ Proof.
   step in EQt.
   step in EQu.
   step in EQ.
-  inv EQt; rewrite <- H in EQ.
+  cbn*; inv EQt; rewrite <- H in EQ.
   - inv EQ.
     rewrite <- H3 in EQu.
-    inv EQu.
-    cbn; rewrite <- H0, <- H2; auto.
+    inv EQu; auto.
   - dependent destruction EQ.
     cbn.
     rewrite <- x in EQu.
     dependent destruction EQu.
-    rewrite <- H0, <- x.
+    rewrite <- x.
     eauto.
   - dependent destruction EQ.
     cbn.
     rewrite <- x in EQu.
     dependent destruction EQu.
-    rewrite <- H0, <- x.
+    rewrite <- x.
     eauto.
 Qed.
 
@@ -843,14 +842,14 @@ Proof.
   coinduction S CIH.
   intros t.
   rewrite unfold_bind.
-  cbn; desobs t; constructor; auto.
+  cbn*; desobs t; constructor; auto.
 Qed.
 
 Lemma bind_bind {E X Y Z} : forall (t : ctree E X) (k : X -> ctree E Y) (l : Y -> ctree E Z),
     (t >>= k) >>= l ≅ t >>= (fun x => k x >>= l).
 Proof.
   coinduction S CIH; intros.
-  rewrite (ctree_eta t). cbn.
+  rewrite (ctree_eta t). cbn*.
   desobs t; cbn.
   - reflexivity.
   - constructor; intros. apply CIH.

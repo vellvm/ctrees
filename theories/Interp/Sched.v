@@ -222,7 +222,7 @@ Proof.
   intros * EQ.
   step in EQ.
   rewrite ! unfold_guarded_form.
-  cbn.
+  cbn*.
   inv EQ; auto.
   - cbn.
     constructor; intros ?.
@@ -305,7 +305,9 @@ Proof.
   now rewrite sb_tauI.
 Qed.
 
-(* TODO: define properly the set of tactics in [sbisim] and kill this *)
+(* TODO: define properly the set of tactics in [sbisim] and kill this.
+   TODO: this is not resilient enough, it loops if the goal is not exactly of the right shape
+ *)
 Ltac sret  := apply step_sb_ret.
 Ltac svis  := apply step_sb_vis.
 Ltac stauv := apply step_sb_tauV.
@@ -320,7 +322,7 @@ Proof.
   rewrite unfold_guarded_form.
   desobs t.
   - now cbn.
-  - cbn.
+  - cbn*.
     unfold mtrigger; rewrite bind_trigger.
     sstep; intros ?.
     rewrite sb_tauI.

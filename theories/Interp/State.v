@@ -20,9 +20,6 @@ Open Scope monad_scope.
 
 Set Implicit Arguments.
 
-(* TODO: Experiment with setting this globally.. *)
-Arguments bt : simpl never.
-
 (* Stateful handlers [E ~> stateT S (itree F)] and morphisms
    [E ~> state S] define stateful itree morphisms
    [itree E ~> stateT S (itree F)]. *)
