@@ -458,23 +458,13 @@ The resulting enhancing function gives a valid up-to technique
 
 End bind.
 
-Ltac __upto_bind_sbisim :=
-  match goal with
-    |- body (t (@sb ?E ?X)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
-      apply (ft_t (@bind_ctx_sbisim_t E T X)), in_bind_ctx
-  | |- body (bt (@sb ?E ?X)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
-      apply (fbt_bt (@bind_ctx_sbisim_t E T X)), in_bind_ctx
-  end.
-Ltac __upto_bind_eq_sbisim :=
-  __upto_bind_sbisim; [reflexivity | intros ? ? <-].
-
 Import CTree.
 Import CTreeNotations.
 
 (*|
 Expliciting the reasoning rule provided by the up-to principles.
 |*)
-Lemma sbisim_clo_bind (E: Type -> Type) (X Y : Type) :
+Lemma st_clo_bind (E: Type -> Type) (X Y : Type) :
 	forall (t1 t2 : ctree E X) (k1 k2 : X -> ctree E Y) RR,
 		t1 ~ t2 ->
     (forall x, (st RR) (k1 x) (k2 x)) ->
@@ -488,14 +478,43 @@ Proof.
 Qed.
 
 (*|
+Specializing the congruence principle for [~]
+|*)
+Lemma sbisim_clo_bind (E: Type -> Type) (X Y : Type) :
+	forall (t1 t2 : ctree E X) (k1 k2 : X -> ctree E Y),
+		t1 ~ t2 ->
+    (forall x, k1 x ~ k2 x) ->
+    t1 >>= k1 ~ t2 >>= k2
+.
+Proof.
+  intros * EQ EQs.
+  apply (ft_t (@bind_ctx_sbisim_t E X Y)).
+  apply in_bind_ctx; auto.
+  intros ? ? <-; auto.
+  apply EQs.
+Qed.
+
+(*|
 And in particular, we get the proper instance justifying rewriting [~] to the left of a [bind].
 |*)
-#[global] Instance bind_sbisim_cong :
+#[global] Instance bind_sbisim_cong_gen :
  forall (E : Type -> Type) (X Y : Type) RR,
    Proper (sbisim ==> pointwise_relation X (st RR) ==> st RR) (@bind E X Y).
 Proof.
-  repeat red; intros; eapply sbisim_clo_bind; eauto.
+  repeat red; intros; eapply st_clo_bind; eauto.
 Qed.
+
+Ltac __upto_bind_sbisim :=
+  match goal with
+    |- @sbisim _ ?X (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
+      apply sbisim_clo_bind
+  | |- body (t (@sb ?E ?X)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
+      apply (ft_t (@bind_ctx_sbisim_t E T X)), in_bind_ctx
+  | |- body (bt (@sb ?E ?X)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
+      apply (fbt_bt (@bind_ctx_sbisim_t E T X)), in_bind_ctx
+  end.
+Ltac __upto_bind_eq_sbisim :=
+  __upto_bind_sbisim; [reflexivity | intros ?].
 
 Section Ctx.
 

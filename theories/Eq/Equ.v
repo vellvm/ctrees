@@ -623,35 +623,60 @@ The resulting enhancing function gives a valid up-to technique
 
 End bind.
 
-Ltac __upto_bind_equ' SS :=
-  match goal with
-    |- body (t (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
-      apply (ft_t (@bind_ctx_equ_t E T1 T2 R1 R2 SS RR)), in_bind_ctx
-  | |- body (bt (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
-      apply (fbt_bt (@bind_ctx_equ_t E T1 T2 R1 R2 SS RR)), in_bind_ctx
-  end.
-Tactic Notation "__upto_bind_equ" uconstr(eq) := __upto_bind_equ' eq.
-
-Ltac __eupto_bind_equ :=
-  match goal with
-    |- body (t (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
-      eapply (ft_t (@bind_ctx_equ_t E T1 T2 R1 R2 _ RR)), in_bind_ctx
-  | |- body (bt (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
-      eapply (fbt_bt (@bind_ctx_equ_t E T1 T2 R1 R2 _ RR)), in_bind_ctx
-  end.
-
-Ltac __upto_bind_eq_equ :=
-  __upto_bind_equ eq; [reflexivity | intros ? ? <-].
-
 (*|
 Expliciting the reasoning rule provided by the up-to principle.
 |*)
-Lemma equ_clo_bind (E: Type -> Type) (X1 X2 Y1 Y2 : Type) :
+
+Lemma et_clo_bind (E: Type -> Type) (X1 X2 Y1 Y2 : Type) :
 	forall (t1 : ctree E X1) (t2 : ctree E X2) (k1 : X1 -> ctree E Y1) (k2 : X2 -> ctree E Y2)
     (S : rel X1 X2) (R : rel Y1 Y2) RR,
 		equ S t1 t2 ->
-    (forall x1 x2, S x1 x2 -> (et R RR) (k1 x1) (k2 x2)) ->
+    (forall x1 x2, S x1 x2 -> et R RR (k1 x1) (k2 x2)) ->
     et R RR (bind t1 k1) (bind t2 k2)
+.
+Proof.
+  intros.
+  apply (ft_t (bind_ctx_equ_t S R)).
+  now apply in_bind_ctx.
+Qed.
+
+Lemma et_clo_bind_eq (E: Type -> Type) (X Y1 Y2 : Type) :
+	forall (t : ctree E X) (k1 : X -> ctree E Y1) (k2 : X -> ctree E Y2)
+    (R : rel Y1 Y2) RR,
+    (forall x, et R RR (k1 x) (k2 x)) ->
+    et R RR (bind t k1) (bind t k2)
+.
+Proof.
+  intros * EQ.
+  apply (ft_t (bind_ctx_equ_t (X2 := X) eq R)).
+  apply in_bind_ctx.
+  reflexivity.
+  intros ? ? <-.
+  apply EQ.
+Qed.
+
+(*|
+And in particular, we get the proper instance justifying rewriting [equ]
+to the left of a [bind].
+|*)
+#[global] Instance bind_equ_cong_gen :
+ forall (E : Type -> Type) (X Y : Type) (R : rel Y Y) RR,
+   Proper (equ (@eq X) ==> pointwise_relation X (et R RR) ==> et R RR) (@bind E X Y).
+Proof.
+  repeat red. intros.
+  eapply et_clo_bind; eauto.
+  intros ? ? <-; auto.
+Qed.
+
+(*|
+Specializing these congruence lemmas at the [sbisim] level for equational proofs
+|*)
+Lemma equ_clo_bind (E: Type -> Type) (X1 X2 Y1 Y2 : Type) :
+	forall (t1 : ctree E X1) (t2 : ctree E X2) (k1 : X1 -> ctree E Y1) (k2 : X2 -> ctree E Y2)
+    (S : rel X1 X2) (R : rel Y1 Y2),
+		equ S t1 t2 ->
+    (forall x1 x2, S x1 x2 -> equ R (k1 x1) (k2 x2)) ->
+    equ R (bind t1 k1) (bind t2 k2)
 .
 Proof.
   intros.
@@ -661,29 +686,53 @@ Qed.
 
 Lemma equ_clo_bind_eq (E: Type -> Type) (X Y1 Y2 : Type) :
 	forall (t : ctree E X) (k1 : X -> ctree E Y1) (k2 : X -> ctree E Y2)
-    (R : rel Y1 Y2) RR,
-    (forall x, (et R RR) (k1 x) (k2 x)) ->
-    et R RR (bind t k1) (bind t k2)
+    (R : rel Y1 Y2),
+    (forall x, equ R (k1 x) (k2 x)) ->
+    equ R (bind t k1) (bind t k2)
 .
 Proof.
-  intros.
+  intros * EQ.
   apply (ft_t (bind_ctx_equ_t (X2 := X) eq R)).
   apply in_bind_ctx.
   reflexivity.
-  intros ? ? <-; auto.
+  intros ? ? <-.
+  apply EQ.
 Qed.
 
-(*|
-And in particular, we get the proper instance justifying rewriting [equ]
-to the left of a [bind].
-|*)
-#[global] Instance bind_equ_cong :
- forall (E : Type -> Type) (X Y : Type) (R : rel Y Y) RR,
-   Proper (equ (@eq X) ==> pointwise_relation X (et R RR) ==> et R RR) (@bind E X Y).
-Proof.
-  repeat red. intros. eapply equ_clo_bind. eauto.
-  intros ? ? <-; auto.
-Qed.
+Ltac __upto_bind_equ' SS :=
+  match goal with
+    (* Out of a coinductive proof --- terminology abuse, this is simply using the congruence of the relation, not a upto *)
+    |- @equ ?E ?R1 ?R2 ?RR (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+      apply (@equ_clo_bind E T1 T2 R1 R2 _ _ _ _ SS RR)
+
+    (* Upto when unguarded *)
+  | |- body (t (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+        apply (ft_t (@bind_ctx_equ_t E T1 T2 R1 R2 SS RR)), in_bind_ctx
+
+    (* Upto when guarded *)
+  | |- body (bt (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+      apply (fbt_bt (@bind_ctx_equ_t E T1 T2 R1 R2 SS RR)), in_bind_ctx
+  end.
+Tactic Notation "__upto_bind_equ" uconstr(eq) := __upto_bind_equ' eq.
+
+Ltac __eupto_bind_equ :=
+  match goal with
+    (* Out of a coinductive proof --- terminology abuse, this is simply using the congruence of the relation, not a upto *)
+    |- @equ ?E ?R1 ?R2 ?RR (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+      eapply (@equ_clo_bind E T1 T2 R1 R2 _ _ _ _ _ RR)
+
+    (* Upto when unguarded *)
+  | |- body (t (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+        eapply (ft_t (@bind_ctx_equ_t E T1 T2 R1 R2 _ RR)), in_bind_ctx
+
+    (* Upto when guarded *)
+  | |- body (bt (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+      eapply (fbt_bt (@bind_ctx_equ_t E T1 T2 R1 R2 _ RR)), in_bind_ctx
+  end.
+
+Ltac __upto_bind_eq_equ :=
+  __upto_bind_equ eq; [reflexivity | intros ? ? <-].
+
 
 (*|
 Up-to [equ eq] bisimulations

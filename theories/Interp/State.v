@@ -73,15 +73,25 @@ Section State.
   | VisF e k => f _ e s >>= (fun sx => TauI (interp_state f (k (snd sx)) (fst sx)))
   end.
 
-  Lemma unfold_interp_state {E F R} (h : E ~> Monads.stateT S (ctree F))
+(* Ltac __eupto_bind_equ := *)
+(*   match goal with *)
+(*     |- body (t (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) => *)
+(*       eapply (ft_t (@bind_ctx_equ_t E T1 T2 R1 R2 _ RR)), in_bind_ctx *)
+(*   | |- body (bt (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) => *)
+(*       eapply (fbt_bt (@bind_ctx_equ_t E T1 T2 R1 R2 _ RR)), in_bind_ctx *)
+(*   end. *)
+
+
+  Lemma unfold_interp_state {E F R}
+        (h : E ~> Monads.stateT S (ctree F))
         (t : ctree E R) s :
     interp_state h t s ≅ _interp_state h (observe t) s.
   Proof.
-    unfold interp_state, interp, Basics.iter, MonadIter_stateT0, Basics.iter, MonadIter_ctree; cbn.    
+    unfold interp_state, interp, Basics.iter, MonadIter_stateT0, Basics.iter, MonadIter_ctree; cbn.
     rewrite unfold_iter; destruct observe eqn:Hobs; cbn.
     - rewrite 2 bind_ret_l; reflexivity.
-    - rewrite bind_map, bind_bind; cbn; setoid_rewrite bind_ret_l.      
-      apply bind_equ_cong; reflexivity.
+    - rewrite bind_map, bind_bind; cbn; setoid_rewrite bind_ret_l.
+      reflexivity.
     - do 2 rewrite bind_bind; cbn; do 2 setoid_rewrite bind_ret_l; cbn.
       rewrite bind_bind.
       setoid_rewrite bind_ret_l; cbn.
@@ -128,9 +138,13 @@ Section State.
         (e : E R) (f : E ~> Monads.stateT S (ctree F)) (s : S)
     : (interp_state f (CTree.trigger e) s) ≅ (f _ e s >>= fun x => TauI (Ret x)).
   Proof.
-    unfold CTree.trigger. rewrite interp_state_vis.
-    eapply bind_equ_cong; try reflexivity.
-    intros []. setoid_rewrite interp_state_ret. reflexivity.
+    unfold CTree.trigger. rewrite interp_state_vis; cbn.
+    upto_bind_eq.
+    (* TODO: why is this rewrite so slow?
+       TODO: proof system for [equ] similar to the one for [sbisim]
+     *)
+    setoid_rewrite interp_state_ret.
+    now destruct x1.
   Qed.
 
   Lemma interp_state_trigger {E F : Type -> Type} {R: Type}
@@ -142,11 +156,10 @@ Section State.
     match goal with
       |- ?y ~ ?x => remember y; rewrite <- (bind_ret_r x); subst
     end.
-    eapply bind_sbisim_cong; try reflexivity.
-    intros []; setoid_rewrite interp_state_ret.
     cbn.
-    rewrite sb_tauI.
-    reflexivity.
+    upto_bind_eq.
+    rewrite sb_tauI, interp_state_ret.
+    now destruct x.
   Qed.
 
   Lemma interp_state_bind {E F : Type -> Type} {A B: Type}
