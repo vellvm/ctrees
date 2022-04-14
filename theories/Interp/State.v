@@ -20,6 +20,9 @@ Open Scope monad_scope.
 
 Set Implicit Arguments.
 
+(* TODO: Experiment with setting this globally.. *)
+Arguments bt : simpl never.
+
 (* Stateful handlers [E ~> stateT S (itree F)] and morphisms
    [E ~> state S] define stateful itree morphisms
    [itree E ~> stateT S (itree F)]. *)
@@ -171,20 +174,20 @@ Section State.
     revert s t.
     coinduction ? IH; intros.
     rewrite (ctree_eta t).
-    cbn -[bt].
+    cbn.
     rewrite unfold_bind.
     rewrite unfold_interp_state.
-    destruct (observe t) eqn:Hobs; cbn -[bt].
+    destruct (observe t) eqn:Hobs; cbn.
     - rewrite interp_state_ret. rewrite bind_ret_l. cbn.
       rewrite unfold_interp_state. reflexivity.
     - rewrite interp_state_vis.
-      cbn -[bt].
-      rewrite bind_bind. cbn -[bt].
+      cbn.
+      rewrite bind_bind. cbn.
       upto_bind_eq.
       rewrite bind_tauI.
       constructor; intros ?; apply IH.
     - rewrite unfold_interp_state.
-      cbn -[bt].
+      cbn.
       rewrite bind_choice.
       constructor; intros ?.
       rewrite bind_tauI.
