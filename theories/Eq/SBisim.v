@@ -40,13 +40,14 @@ answered by [wtrans].
 
 .. coq::none
 |*)
-From Coq Require Import Lia Basics.
+From Coq Require Import Lia Basics Fin.
 
 From Coinduction Require Import
      coinduction rel tactics.
 
 From CTree Require Import
      CTree
+     Utils
      Eq.Equ
      Eq.Shallow
      Eq.Trans.
@@ -852,27 +853,6 @@ Invisible taus can be stripped-out w.r.t. to [sbisim], but not visible ones
     - etrans.
   Qed.
 
-  Lemma sb_tauI_l E X : forall (t u : ctree E X),
-      t ~ u ->
-      TauI t ~ u.
-  Proof.
-    intros * EQ; now rewrite sb_tauI.
-  Qed.
-
-  Lemma sb_tauI_r E X : forall (t u : ctree E X),
-      t ~ u ->
-      t ~ TauI u.
-  Proof.
-    intros * EQ; now rewrite sb_tauI.
-  Qed.
-
-  Lemma sb_tauI_lr E X : forall (t u : ctree E X),
-      t ~ u ->
-      TauI t ~ TauI u.
-  Proof.
-    intros * EQ; now rewrite !sb_tauI.
-  Qed.
-
   Lemma sb_tauV E X : forall (t u : ctree E X),
       t ~ u ->
       TauV t ~ TauV u.
@@ -881,6 +861,19 @@ Invisible taus can be stripped-out w.r.t. to [sbisim], but not visible ones
     apply step_sb_tauV; auto.
   Qed.
 
+  (** Choices *)
+  Lemma sb_choiceI1 E X : forall (k : fin 1 -> ctree E X),
+      ChoiceI 1 k ~ k F1.
+  Proof.
+    intros; step; econstructor.
+    - intros ? ? ?. inv H.
+      apply Eqdep.EqdepTheory.inj_pair2 in H3; subst.
+      dependent destruction x; exists t'; etrans; auto.      
+      inversion x.
+    - intros ? ? ?; cbn.
+      etrans.
+  Qed.
+    
   Lemma sb_choiceV E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) :
     (forall x, exists y, k x ~ k' y) ->
     (forall y, exists x, k x ~ k' y) ->
@@ -921,6 +914,22 @@ Invisible taus can be stripped-out w.r.t. to [sbisim], but not visible ones
     now step in H.
   Qed.
 
+  Lemma sb_choiceI_l E X n: forall (k: fin (S n) -> ctree E X) t,
+      (forall x, k x ~ t) ->
+      ChoiceI (S n) k ~ t.
+  Proof.
+    intros * EQ.
+    rewrite <- sb_tauI with (t:=t).
+    apply sb_choiceI; intros; exists F1; apply EQ.
+  Qed.  
+
+  Lemma sb_choiceI_r E X n: forall (k: fin (S n) -> ctree E X) t,
+      (forall x, k x ~ t) ->
+      t ~ ChoiceI (S n) k.
+  Proof.
+    intros; now rewrite sb_choiceI_l.
+  Qed.
+  
 End Sb_Proof_System.
 
 (* TODO: tactics!
@@ -938,6 +947,15 @@ Ltac sstep := sret || svis || stauv.
 
 
  *)
+
+Lemma choiceV_bisim: forall (E: Type -> Type) R n (k k': fin n -> ctree E R),
+    (forall t, k t ~ k' t) ->
+    ChoiceV n k ~ ChoiceV n k'.
+Proof.
+  intros E R n k k' EQ.
+  step; split; intros ? ? ?; inv_trans; subst; eexists; etrans; cbn;
+    rewrite EQ0; auto.
+Qed.
 
 (*|
 Sanity checks

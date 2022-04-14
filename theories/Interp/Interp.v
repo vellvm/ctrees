@@ -110,14 +110,6 @@ Proof.
     constructor; intros ?; auto.
 Qed.
 
-(* TODO [step] should refold  *)
-Lemma bind_choice {E R S} b n (k : _ -> ctree E R) (h : _ -> ctree E S):
-      (Choice b n k) >>= h ≅ Choice b n (fun x => k x >>= h).
-Proof.
-  step; cbn; constructor; intros ?.
-  reflexivity.
-Qed.
-
 (* Note: this is specialized to [ctree F] as target monad. *)
 (* TODO: Incorporate Irene's work to generalize *)
 Lemma interp_bind {E F R S} (h : E ~> ctree F) (t : ctree E R) (k : R -> ctree _ S) :
