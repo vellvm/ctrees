@@ -839,221 +839,6 @@ Section Sb_Proof_System.
     apply EQ.
   Qed.
 
-Section Proof_Rules.
-
-  Lemma step_sb_ret_gen E X (x y : X) (R : rel _ _) :
-    R stuckI stuckI ->
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    x = y ->
-    sb R (Ret x) (Ret y : ctree E X).
-  Proof.
-    intros Rstuck PROP <-.
-    split; cbn; intros ? ? TR; inv_trans; subst.
-    all: cbn; eexists; etrans.
-    all: now rewrite EQ.
-  Qed.
-
-  Lemma step_sb_ret E X (x y : X) (R : rel _ _) :
-    x = y ->
-    sbt R (Ret x) (Ret y : ctree E X).
-  Proof.
-    apply step_sb_ret_gen.
-    reflexivity.
-    typeclasses eauto.
-  Qed.
-
-(*|
-The vis nodes are deterministic from the perspective of the labeled transition system,
-stepping is hence symmetric and we can just recover the itree-style rule.
-|*)
-  Lemma step_sb_vis_gen E X Y (e : E X) (k k' : X -> ctree E Y) (R : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    (forall x, R (k x) (k' x)) ->
-    sb R (Vis e k) (Vis e k').
-  Proof.
-    intros PR EQs.
-    split; intros ? ? TR; inv_trans; subst.
-    all: cbn; eexists; etrans; rewrite EQ; auto.
-  Qed.
-
-  Lemma step_sb_vis E X Y (e : E X) (k k' : X -> ctree E Y) (R : rel _ _) :
-    (forall x, (st R) (k x) (k' x)) ->
-    sbt R (Vis e k) (Vis e k').
-  Proof.
-    intros * EQ.
-    apply step_sb_vis_gen; auto.
-    typeclasses eauto.
-  Qed.
-
-(*|
-Same goes for visible tau nodes.
-|*)
-   Lemma step_sb_tauV_gen E X (t t' : ctree E X) (R : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    (R t t') ->
-    sb R (TauV t) (TauV t').
-  Proof.
-    intros PR EQs.
-    split; intros ? ? TR; inv_trans; subst.
-    all: cbn; eexists; etrans; rewrite EQ; auto.
-  Qed.
-
-  Lemma step_sb_tauV E X (t t' : ctree E X) (R : rel _ _) :
-    (st R t t') ->
-    sbt R (TauV t) (TauV t').
-  Proof.
-    apply step_sb_tauV_gen.
-    typeclasses eauto.
-  Qed.
-
-(*|
-When matching visible choices one against another, in general we need to explain how
-we map the branches from the left to the branches to the right, and reciprocally.
-A useful special case is the one where the arity coincide and we simply use the identity
-in both directions. We can in this case have [n] rather than [2n] obligations.
-|*)
-
-  Lemma step_sb_choiceV_gen E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) (R : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    (forall x, exists y, R (k x) (k' y)) ->
-    (forall y, exists x, R (k x) (k' y)) ->
-    sb R (ChoiceV n k) (ChoiceV m k').
-  Proof.
-    intros PROP EQs1 EQs2.
-    split; intros ? ? TR; inv_trans; subst.
-    - destruct (EQs1 n0) as [x HR].
-      eexists.
-      etrans.
-      rewrite EQ; eauto.
-    - destruct (EQs2 m0) as [x HR].
-      eexists.
-      etrans.
-      cbn; rewrite EQ; eauto.
-  Qed.
-
-  Lemma step_sb_choiceV E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) (R : rel _ _) :
-    (forall x, exists y, st R (k x) (k' y)) ->
-    (forall y, exists x, st R (k x) (k' y)) ->
-    sbt R (ChoiceV n k) (ChoiceV m k').
-  Proof.
-    intros EQs1 EQs2.
-    apply step_sb_choiceV_gen; auto.
-    typeclasses eauto.
-  Qed.
-
-  Lemma step_sb_choiceV_id_gen E X n (k k' : fin n -> ctree E X) (R : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    (forall x, R (k x) (k' x)) ->
-    sb R (ChoiceV n k) (ChoiceV n k').
-  Proof.
-    intros PROP EQs.
-    apply step_sb_choiceV_gen; auto.
-    all: intros x; exists x; auto.
-  Qed.
-
-  Lemma step_sb_choiceV_id E X n (k k' : fin n -> ctree E X) (R : rel _ _) :
-    (forall x, st R (k x) (k' x)) ->
-    sbt R (ChoiceV n k) (ChoiceV n k').
-  Proof.
-    apply step_sb_choiceV_id_gen.
-    typeclasses eauto.
-  Qed.
-
-(*|
-For invisible nodes, the situation is different: we may kill them, but that execution
-cannot act as going under the guard.
-|*)
-  Lemma step_sb_tauI_gen E X (t t' : ctree E X) (R : rel _ _) :
-    sb R t t' ->
-    sb R (TauI t) (TauI t').
-  Proof.
-    intros EQ.
-    split; intros ? ? TR; inv_trans; subst.
-    all: apply EQ in TR as [? ? ?].
-    all: eexists; [apply trans_tauI; eauto | eauto].
-  Qed.
-
-  Lemma step_sb_tauI E X (t t' : ctree E X) (R : rel _ _) :
-    sbt R t t' ->
-    sbt R (TauI t) (TauI t').
-  Proof.
-    apply step_sb_tauI_gen.
-  Qed.
-
-  Lemma step_sb_choiceI_gen E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) (R : rel _ _) :
-    (forall x, exists y, sb R (k x) (k' y)) ->
-    (forall y, exists x, sb R (k x) (k' y)) ->
-    sb R (ChoiceI n k) (ChoiceI m k').
-  Proof.
-    intros EQs1 EQs2.
-    split; intros ? ? TR; inv_trans; subst.
-    - destruct (EQs1 n0) as [x [F _]]; cbn in F.
-      apply F in TR; destruct TR as [u' TR' EQ'].
-      eexists.
-      eapply trans_choiceI with (x := x); [|reflexivity].
-      eauto.
-      eauto.
-    - destruct (EQs2 m0) as [x [_ B]]; cbn in B.
-      apply B in TR; destruct TR as [u' TR' EQ'].
-      eexists.
-      eapply trans_choiceI with (x := x); [|reflexivity].
-      eauto.
-      eauto.
-  Qed.
-
-  Lemma step_sb_choiceI E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) (R : rel _ _) :
-    (forall x, exists y, sbt R (k x) (k' y)) ->
-    (forall y, exists x, sbt R (k x) (k' y)) ->
-    sbt R (ChoiceI n k) (ChoiceI m k').
-  Proof.
-    apply step_sb_choiceI_gen.
-  Qed.
-
-  Lemma step_sb_choiceI_id_gen {E X} n (k k' : fin n -> ctree E X) (R : rel _ _) :
-    (forall x, sb R (k x) (k' x)) ->
-    sb R (ChoiceI n k) (ChoiceI n k').
-  Proof.
-    intros; apply step_sb_choiceI_gen.
-    intros x; exists x; apply H.
-    intros x; exists x; apply H.
-  Qed.
-
-  Lemma step_sb_choiceI_id {E X} n (k k' : fin n -> ctree E X) (R : rel _ _) :
-    (forall x, sbt R (k x) (k' x)) ->
-    sbt R (ChoiceI n k) (ChoiceI n k').
-  Proof.
-    apply step_sb_choiceI_id_gen.
-  Qed.
-
-End Proof_Rules.
-
-(*|
-Proof system for [~]
---------------------
-
-While the proof rules from the previous section are useful for performing full on
-coinductive proofs, lifting these at the level of [sbisim] can allow for completely
-avoiding any coinduction when combined with a pre-established equational theory.
-|*)
-Section Sb_Proof_System.
-
-  Lemma sb_ret E X : forall x y,
-      x = y ->
-      Ret x ~ (Ret y : ctree E X).
-  Proof.
-    intros * <-.
-    now step.
-  Qed.
-
-  Lemma sb_vis E X e Y : forall (k k' : X -> ctree E Y),
-      (forall x, k x ~ k' x) ->
-      Vis e k ~ Vis e k'.
-  Proof.
-    intros * EQ.
-    upto_vis.
-    apply EQ.
-  Qed.
-
 (*|
 Visible vs. Invisible Taus
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1077,8 +862,7 @@ Invisible taus can be stripped-out w.r.t. to [sbisim], but not visible ones
   Qed.
 
   (** Choices *)
-
-  Lemma sb_choiceI1_l E X : forall (k : fin 1 -> ctree E X),
+  Lemma sb_choiceI1 E X : forall (k : fin 1 -> ctree E X),
       ChoiceI 1 k ~ k F1.
   Proof.
     intros; step; econstructor.
@@ -1089,13 +873,7 @@ Invisible taus can be stripped-out w.r.t. to [sbisim], but not visible ones
     - intros ? ? ?; cbn.
       etrans.
   Qed.
-
-  Lemma sb_choiceI1_r E X : forall (k : fin 1 -> ctree E X),
-      k F1 ~ ChoiceI 1 k.
-  Proof.
-    intros; now rewrite sb_choiceI1_l.
-  Qed.
-  
+    
   Lemma sb_choiceV E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) :
     (forall x, exists y, k x ~ k' y) ->
     (forall y, exists x, k x ~ k' y) ->
@@ -1136,6 +914,22 @@ Invisible taus can be stripped-out w.r.t. to [sbisim], but not visible ones
     now step in H.
   Qed.
 
+  Lemma sb_choiceI_l E X n: forall (k: fin (S n) -> ctree E X) t,
+      (forall x, k x ~ t) ->
+      ChoiceI (S n) k ~ t.
+  Proof.
+    intros * EQ.
+    rewrite <- sb_tauI with (t:=t).
+    apply sb_choiceI; intros; exists F1; apply EQ.
+  Qed.  
+
+  Lemma sb_choiceI_r E X n: forall (k: fin (S n) -> ctree E X) t,
+      (forall x, k x ~ t) ->
+      t ~ ChoiceI (S n) k.
+  Proof.
+    intros; now rewrite sb_choiceI_l.
+  Qed.
+  
 End Sb_Proof_System.
 
 (* TODO: tactics!
