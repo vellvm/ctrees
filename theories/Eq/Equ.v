@@ -175,7 +175,7 @@ to be closed by reflexivity in effect: the companion is always reflexive.
 |*)
 	Lemma refl_t {RRR: Reflexive RR}: const seq <= et.
 	Proof.
-		apply leq_t. intro.
+		apply leq_t. intro. cbn.
 		change (@eq (ctree E R)  <= equb_ RR eq).
 		intros p ? <-. cbn. desobs p; auto.
 	Qed.
@@ -953,4 +953,3 @@ Ltac subs :=
     [ h : ?x ≅ _, h' : context[?x] |- _ ] =>
       rewrite h in h'; clear h
   end.
-

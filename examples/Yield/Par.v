@@ -25,8 +25,8 @@ From ITree Require Import
 
 From CTree Require Import
      CTree
-	   Eq
- 	   Interp.Interp.
+	 Eq
+ 	 Interp.Interp.
 
 Import ListNotations.
 Import CTreeNotations.
@@ -61,33 +61,38 @@ Qed.
 Definition choiceI_bound {E R} b := (gfp (@fchoiceI_bound E R b)).
 #[global] Hint Unfold choiceI_bound: core.
 
-#[global] Instance equ_choiceI_bound {E R} :
-  Proper (eq ==> equ eq ==> impl) (@choiceI_bound E R).
+Notation ct Q := (t (fchoiceI_bound Q)).
+Notation cT Q := (T (fchoiceI_bound Q)).
+Notation cbt Q := (bt (fchoiceI_bound Q)).
+Notation cbT Q := (bT (fchoiceI_bound Q)).
+
+#[global] Instance equ_choiceI_bound {E R} b :
+  Proper (equ eq ==> impl) (@choiceI_bound E R b).
 Proof.
-  unfold Proper, respectful, impl. intros ? b ?. subst. revert b.
+  unfold Proper, respectful, impl. intros ? ?. subst. revert b.
   red. intros. revert x y H H0. coinduction r CIH. intros x y Hequ H.
   step in Hequ. step in H. cbn*.
   red in H |- *. inversion Hequ; auto. 2: destruct b0.
-  - rewrite <- H1 in H. inversion H. subst. apply inj_pair2 in H4, H5. subst.
+  - rewrite <- H1 in H. inv H. invert.
     constructor. intros. eapply CIH. apply REL. apply H3.
-  - rewrite <- H1 in H. inversion H. subst. apply inj_pair2 in H4. subst.
+  - rewrite <- H1 in H. inv H. invert.
     constructor. intros. eapply CIH. apply REL. apply H3.
-  - rewrite <- H1 in H. inversion H. subst. apply inj_pair2 in H3. subst.
+  - rewrite <- H1 in H. inv H. invert.
     constructor; auto. intros. eapply CIH. apply REL. apply H4.
 Qed.
 
-#[global] Instance equ_choiceI_bound' {E R} :
-  Proper (eq ==> equ eq ==> flip impl) (@choiceI_bound E R).
+#[global] Instance equ_choiceI_bound' {E R} b :
+  Proper (equ eq ==> flip impl) (@choiceI_bound E R b).
 Proof.
-  unfold Proper, respectful, flip, impl. intros ? b ?. subst. revert b.
+  unfold Proper, respectful, flip, impl. intros ? ?. subst. revert b.
   red. intros. revert x y H H0. coinduction r CIH. intros x y Hequ H.
   step in Hequ. step in H. cbn*.
   red in H |- *. inversion Hequ; auto. 2: destruct b0.
-  - rewrite <- H2 in H. inversion H. subst. apply inj_pair2 in H4, H5. subst.
+  - rewrite <- H2 in H. inv H. invert.
     constructor. intros. eapply CIH. apply REL. apply H3.
-  - rewrite <- H2 in H. inversion H. subst. apply inj_pair2 in H4. subst.
+  - rewrite <- H2 in H. inv H. invert.
     constructor. intros. eapply CIH. apply REL. apply H3.
-  - rewrite <- H2 in H. inversion H. subst. apply inj_pair2 in H3. subst.
+  - rewrite <- H2 in H. inv H. invert.
     constructor; auto. intros. eapply CIH. apply REL. apply H4.
 Qed.
 
@@ -154,6 +159,55 @@ Proof.
     assert (t' ≅ Ret r). { rewrite ctree_eta. rewrite <- x. reflexivity. }
     rewrite H in Hbound. rewrite H0. auto.
 Qed.
+
+
+(* Definition bind_ctx {E X Y} *)
+(*            (R: ctree E X -> Prop) *)
+(*            (S: X -> ctree E Y -> Prop) : *)
+(*   ctree E Y -> Prop := *)
+(*   sup_all (fun x => *)
+(*   sup R (fun _ => *)
+(*   sup_all (fun k => *)
+(*              sup (S x) (fun k' => CTree.bind x k)))). *)
+
+#[global] Instance equ_ct {E R} {r : ctree E R -> Prop} n :
+  Proper ((equ eq) ==> flip impl) (ct n r).
+Proof.
+  unfold Proper, respectful, flip, impl. intros.
+  step in H. inv H.
+  - step. red. rewrite <- H2. auto.
+  - step. red. rewrite <- H2. constructor.
+    intros. apply (gfp_t (fchoiceI_bound n)). rewrite REL.
+    step.
+Admitted.
+
+#[global] Instance equ_choiceI_boundF {E R r} n :
+  Proper (going (equ eq) ==> flip impl) (@choiceI_boundF E R n (ct n r)).
+Proof.
+  unfold Proper, respectful, flip, impl. intros.
+  inv H. step in H1. inv H0.
+  - inv H1; auto.
+  - inv H1. invert. constructor. intros. rewrite REL. auto.
+Admitted.
+
+Lemma bind_choiceI_bound {E R1 R2} n (t : ctree E R1) (k : R1 -> ctree E R2) :
+  choiceI_bound n t ->
+  (forall x, choiceI_bound n (k x)) ->
+  choiceI_bound n (t >>= k).
+Proof.
+  red. intros. revert t k H H0. coinduction r CIH. intros.
+  cbn*. step in H. red in H |- *.
+  rewrite unfold_bind.
+  desobs t. 3: destruct vis.
+  - specialize (H0 r0). step in H0. red in H0.
+    desobs (k r0); auto. 2: destruct vis.
+    + admit.
+    + inv H0. invert. constructor. intros. admit.
+    + inv H0. invert. constructor; auto. intros. admit.
+  - inv H. invert. constructor; auto.
+  - inv H. invert. constructor; auto.
+  - inv H. invert. constructor; auto.
+Admitted.
 
 Variant yieldE S : Type -> Type :=
 | Yield : S -> yieldE S S.

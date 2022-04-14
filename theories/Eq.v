@@ -18,7 +18,8 @@ From CTree.Eq Require Export
      Shallow
      Equ
      Trans
-     SBisim.
+     SBisim
+     Visible.
 
 From CTree Require Export CTree.
 
@@ -92,4 +93,3 @@ Ltac eq2sb H :=
   end.
 
 #[global] Opaque wtrans.
-

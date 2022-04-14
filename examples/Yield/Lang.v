@@ -24,6 +24,9 @@ From ITree Require Import
      Events.State
      Events.StateFacts.
 
+From Coinduction Require Import
+	coinduction rel tactics.
+
 From CTree Require Import
      CTree
      Eq.
@@ -138,5 +141,41 @@ Section Denote1.
 
   Definition schedule_denot (t : stmt) : thread :=
     schedule' 1 (fun _ => (interp_state (denote_imp t))) Fin.F1.
+
+  Lemma denote_expr_bounded e :
+    choiceI_bound 1 (denote_expr e).
+  Proof.
+    induction e; cbn; unfold trigger; auto.
+    - step. constructor. intros. step. constructor.
+    - step. constructor.
+    - apply bind_choiceI_bound; auto.
+      intros. apply bind_choiceI_bound; auto.
+      intros. step. constructor.
+    - apply bind_choiceI_bound; auto.
+      intros. apply bind_choiceI_bound; auto.
+      intros. step. constructor.
+    - apply bind_choiceI_bound; auto.
+      intros. apply bind_choiceI_bound; auto.
+      intros. step. constructor.
+  Qed.
+
+  Lemma denote_stmt_bounded t :
+    choiceI_bound 1 (denote_imp t).
+  Proof.
+    induction t; cbn.
+    - apply bind_choiceI_bound. apply denote_expr_bounded.
+      intros. step. constructor. intros. step. constructor.
+    - apply bind_choiceI_bound; auto.
+    - apply bind_choiceI_bound. apply denote_expr_bounded.
+      intros. step. step in IHt1. step in IHt2. destruct (is_true x); auto.
+    - step. unfold while. admit.
+    - apply bind_choiceI_bound.
+      + intros. step. constructor. intros. step. constructor.
+      + intros. destruct x.
+        * apply bind_choiceI_bound; auto.
+          intros. step. constructor; auto. intros. step. constructor.
+        * step. constructor.
+    - step. constructor.
+  Abort.
 
 End Denote1.

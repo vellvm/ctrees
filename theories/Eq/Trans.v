@@ -88,36 +88,6 @@ least annoying solution.
 	  | obs {X : Type} (e : E X) (v : X)
 	  | val {X : Type} (v : X).
 
-  Inductive visible_ : hrel S' S' :=
-  | VisibleI {n} (x : Fin.t n) k t :
-    visible_ (observe (k x)) t ->
-    visible_ (ChoiceF false n k) t
-
-  | VisibleV {n} (x : Fin.t n) k1 k2 :
-    (forall x, k1 x ≅ k2 x) ->
-    visible_ (ChoiceVF n k1) (ChoiceVF n k2)
-
-  | VisibleVis {X} (e : E X) k1 k2 :
-    (forall x, k1 x ≅ k2 x) ->
-    visible_ (VisF e k1) (VisF e k2)
-
-	| VisibleRet r :
-    visible_ (RetF r) (RetF r)
-  .
-  Hint Constructors visible_ : core.
-
-	Definition visibleR : hrel S S :=
-	  fun u v => visible_ (observe u) (observe v).
-
-	#[global] Instance visible_equ :
-		Proper (equ eq ==> equ eq ==> iff) visibleR.
-	Proof.
-	  intros ? ? eqt ? ? equ; unfold visibleR.
-    Admitted.
-
-	Definition visible : srel SS SS := {| hrel_of := visibleR : hrel SS SS |}.
-
-
 (*|
 The transition relation over [ctree]s.
 It can either:
@@ -350,7 +320,8 @@ Elimination rules for [trans]
 		now (apply (str_refl (trans tau)); cbn).
     intros ?????. apply wtrans_tau. apply (str_trans (trans tau)).
     eexists; apply wtrans_tau; eassumption.
-  Qed.
+    Qed.
+
 
 End Trans.
 
