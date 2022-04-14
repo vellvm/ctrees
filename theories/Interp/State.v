@@ -73,15 +73,6 @@ Section State.
   | VisF e k => f _ e s >>= (fun sx => TauI (interp_state f (k (snd sx)) (fst sx)))
   end.
 
-(* Ltac __eupto_bind_equ := *)
-(*   match goal with *)
-(*     |- body (t (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) => *)
-(*       eapply (ft_t (@bind_ctx_equ_t E T1 T2 R1 R2 _ RR)), in_bind_ctx *)
-(*   | |- body (bt (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) => *)
-(*       eapply (fbt_bt (@bind_ctx_equ_t E T1 T2 R1 R2 _ RR)), in_bind_ctx *)
-(*   end. *)
-
-
   Lemma unfold_interp_state {E F R}
         (h : E ~> Monads.stateT S (ctree F))
         (t : ctree E R) s :
@@ -104,13 +95,24 @@ Section State.
       reflexivity.
   Qed.
 
+  (* TODO: in the following proof, [cbn] reduces too much.
+     Need to diagnostic and fix
+   *)
   #[global]
-   Instance eq_itree_interp_state {E F R} (h : E ~> Monads.stateT S (ctree F)) :
+   Instance equ_interp_state {E F R} (h : E ~> Monads.stateT S (ctree F)) :
     Proper (equ eq ==> eq ==> equ eq)
            (@interp_state _ _ _ _ _ _ h R).
   Proof.
-    repeat red; intros; subst.
-  Admitted.
+    unfold Proper, respectful.
+    coinduction ? IH; intros * EQ1 * <-.
+    rewrite !unfold_interp_state.
+    step in EQ1; inv EQ1; cbn [_interp_state]; auto.
+    - simpl bind. upto_bind_eq.
+      constructor; intros; auto.
+    - constructor; intros.
+      step; constructor; intros.
+      auto.
+  Qed.
 
   Lemma interp_state_ret {E F : Type -> Type} {R: Type}
         (f : forall T, E T -> S -> ctree F (S * T)%type)
