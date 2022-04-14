@@ -40,13 +40,14 @@ answered by [wtrans].
 
 .. coq::none
 |*)
-From Coq Require Import Lia Basics.
+From Coq Require Import Lia Basics Fin.
 
 From Coinduction Require Import
      coinduction rel tactics.
 
 From CTree Require Import
      CTree
+     Utils
      Eq.Equ
      Eq.Shallow
      Eq.Trans.
@@ -1075,6 +1076,26 @@ Invisible taus can be stripped-out w.r.t. to [sbisim], but not visible ones
     apply step_sb_tauV; auto.
   Qed.
 
+  (** Choices *)
+
+  Lemma sb_choiceI1_l E X : forall (k : fin 1 -> ctree E X),
+      ChoiceI 1 k ~ k F1.
+  Proof.
+    intros; step; econstructor.
+    - intros ? ? ?. inv H.
+      apply Eqdep.EqdepTheory.inj_pair2 in H3; subst.
+      dependent destruction x; exists t'; etrans; auto.      
+      inversion x.
+    - intros ? ? ?; cbn.
+      etrans.
+  Qed.
+
+  Lemma sb_choiceI1_r E X : forall (k : fin 1 -> ctree E X),
+      k F1 ~ ChoiceI 1 k.
+  Proof.
+    intros; now rewrite sb_choiceI1_l.
+  Qed.
+  
   Lemma sb_choiceV E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) :
     (forall x, exists y, k x ~ k' y) ->
     (forall y, exists x, k x ~ k' y) ->
