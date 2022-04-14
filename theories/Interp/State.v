@@ -1,4 +1,3 @@
-From Coq Require Import Program.Tactics Morphisms.
 From ExtLib Require Import
      Structures.Functor
      Structures.Monad.
@@ -6,11 +5,7 @@ From ExtLib Require Import
 From ITree Require Import
      Events.State
      CategoryOps.
-
-From Coinduction Require Import
-     coinduction rel tactics.
-
-Import ITree.Basics.Basics.Monads.
+Import Basics.Monads.
 
 From CTree Require Import
      CTree
@@ -129,6 +124,7 @@ Section State.
   Proof.
     rewrite unfold_interp_state; reflexivity.
   Qed.
+
   Lemma interp_state_tau {E F : Type -> Type} {T : Type}
         (t : ctree E T) (h : E ~> Monads.stateT S (ctree F)) (s : S)
     : interp_state h (TauI t) s ≅ TauI (TauI (interp_state h t s)).
@@ -172,18 +168,29 @@ Section State.
       ≅
       (interp_state f t s >>= fun st => interp_state f (k (snd st)) (fst st)).
   Proof.
+    revert s t.
+    coinduction ? IH; intros.
     rewrite (ctree_eta t).
-    cbn.
+    cbn -[bt].
     rewrite unfold_bind.
     rewrite unfold_interp_state.
-    destruct (observe t) eqn:Hobs; cbn.
+    destruct (observe t) eqn:Hobs; cbn -[bt].
     - rewrite interp_state_ret. rewrite bind_ret_l. cbn.
       rewrite unfold_interp_state. reflexivity.
     - rewrite interp_state_vis.
-      cbn.
-      rewrite bind_bind.
-      (** LEF: Why does upto_bind_equ not work *)
-Admitted.
+      cbn -[bt].
+      rewrite bind_bind. cbn -[bt].
+      upto_bind_eq.
+      rewrite bind_tauI.
+      constructor; intros ?; apply IH.
+    - rewrite unfold_interp_state.
+      cbn -[bt].
+      rewrite bind_choice.
+      constructor; intros ?.
+      rewrite bind_tauI.
+      step; constructor; intros ?.
+      apply IH.
+  Qed.
 
 End State.
 
