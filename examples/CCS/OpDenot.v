@@ -309,6 +309,12 @@ Proof.
   eapply trans_val_invT in TR; subst; destruct v.
 Qed.
 
+Lemma γι : forall l,
+    γ (ι l) = l.
+Proof.
+  intros []; auto.
+Qed.
+
 (* Naming *)
 Lemma cross_model_compose : forall T t u U,
     bisimilar t T ->
@@ -329,6 +335,28 @@ Proof.
     edestruct B' as [U' TRU' ?]; eauto.
     edestruct F as (u' & TRu' & ?); [apply EQtT | |]; eauto.
     erewrite ιγ in TRu'; eauto.
+    cbn in *; eauto.
+Qed.
+
+Lemma cross_model_compose' : forall T t u U,
+    bisimilar t T ->
+    T ~ U ->
+    bisimilar u U ->
+    Operational.bisim t u.
+Proof.
+  coinduction ? ?.
+  intros * EQtT EQtu EQuU.
+  pose proof bisimilar_bisim as [F B].
+  step in EQtu; destruct EQtu as [F' B'].
+  split; intros ? ? TRTt.
+  - edestruct F as (T' & TRT' & ?); [apply EQtT | |]; eauto.
+    edestruct F' as [U' TRU' ?]; eauto.
+    edestruct B as (u' & TRu' & ?); [apply EQuU | |]; eauto.
+    erewrite γι in TRu'; eauto.
+  - edestruct F as (T' & TRT' & ?); [apply EQuU | |]; eauto.
+    edestruct B' as [U' TRU' ?]; eauto.
+    edestruct B as (u' & TRu' & ?); [apply EQtT | |]; eauto.
+    erewrite γι in TRu'; eauto.
     cbn in *; eauto.
 Qed.
 
@@ -368,9 +396,43 @@ Proof.
     edestruct B' as (T' & TRT & EQuT); [apply BISt |..]; eauto.
     erewrite ιγ in TRT; eauto.
     eexists. apply TRT.
-    clear - EQuU EQtu EQuT.
     apply bisimilar_bisimilar_inv in EQuU, EQuT.
     eapply cross_model_compose; eauto.
+Qed.
+
+(* Naming really, these make no sense *)
+Lemma embed_complete : forall t u, ⟦t⟧ ~ ⟦u⟧ -> Operational.bisim t u.
+Proof.
+  intros * BIS.
+  step in BIS; destruct BIS as [F B]; cbn in *.
+  step; split.
+  - intros ? T' TR.
+    pose proof (@term_model_bisimilar t) as BISt.
+    pose proof (@term_model_bisimilar u) as BISu.
+    pose proof bisimilar_bisim as [F' B'].
+    edestruct F' as (t' & TRt & EQTt); [apply BISt | ..]; eauto.
+    edestruct F as [u' TR'' EQtu]; eauto.
+    edestruct B' as (U' & TRu & EQuU); [apply BISu |..]; eauto.
+    erewrite γι in TRu; eauto.
+    eexists. apply TRu.
+    eapply cross_model_compose'; eauto.
+  - intros ? U' TR.
+    pose proof (@term_model_bisimilar_inv u) as BISu.
+    pose proof (@term_model_bisimilar_inv t) as BISt.
+    pose proof bisimilar_inv_bisim_inv as [F' B'].
+    cbn.
+    edestruct B' as (u' & TRu & EQuU); [apply BISu |..]; eauto.
+    edestruct B as [t' TR'' EQtu]; eauto.
+    edestruct F' as (T' & TRT & EQuT); [apply BISt |..]; eauto.
+    erewrite γι in TRT; eauto.
+    eexists. apply TRT.
+    apply bisimilar_bisimilar_inv in EQuU, EQuT.
+    eapply cross_model_compose'; eauto.
+Qed.
+
+Theorem what_should_this_be_named : forall t u, ⟦t⟧ ~ ⟦u⟧ <-> Operational.bisim t u.
+Proof.
+  intros; split; eauto using embed_complete, embed_sound.
 Qed.
 
 (* bisim_sem ⟦u⟧ ⟦v⟧ <-> bisim_op u v *)
