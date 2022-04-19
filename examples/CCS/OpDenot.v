@@ -332,13 +332,24 @@ Proof.
     cbn in *; eauto.
 Qed.
 
+Lemma bisimilar_bisimilar_inv : forall t T,
+    bisimilar_inv t T -> bisimilar T t.
+Proof.
+  intros * (R & [F B] & HR).
+  exists (rev R); split; [| apply HR].
+  split.
+  red; intros; edestruct B; eauto.
+  red; intros; edestruct F; eauto.
+Qed.
+
 (* Naming *)
 Lemma embed_sound : forall t u, Operational.bisim t u -> ⟦t⟧ ~ ⟦u⟧.
 Proof.
   intros * BIS.
-  apply (gfp_fp b t u) in BIS; destruct BIS as [F _]; cbn in *.
-  step; split; intros ? T' TR.
-  - pose proof (@term_model_bisimilar t) as BISt.
+  apply (gfp_fp b t u) in BIS; destruct BIS as [F B]; cbn in *.
+  step; split.
+  - intros ? T' TR.
+    pose proof (@term_model_bisimilar t) as BISt.
     pose proof (@term_model_bisimilar u) as BISu.
     pose proof bisimilar_bisim as [F' B'].
     edestruct B' as (t' & TRt & EQTt); [apply BISt | ..]; eauto.
@@ -347,17 +358,19 @@ Proof.
     erewrite ιγ in TRu; eauto.
     eexists. apply TRu.
     eapply cross_model_compose; eauto.
-  - pose proof (@term_model_bisimilar_inv u) as BISu.
+  - intros ? U' TR.
+    pose proof (@term_model_bisimilar_inv u) as BISu.
     pose proof (@term_model_bisimilar_inv t) as BISt.
     pose proof bisimilar_inv_bisim_inv as [F' B'].
-    edestruct F' as (U' & TRu & EQuU); [apply BISu |..]; eauto.
-    (* edestruct B as [u' TR'' EQtu]; eauto. *)
-    (* edestruct F' as (t' & TRt & EQTt); [apply BISt | ..]; eauto. *)
-    (* erewrite ιγ in TRu; eauto. *)
-    (* eexists. apply TRu. *)
-    (* eapply cross_model_compose; eauto. *)
-    (* WEIRD THINGS GOING ON *)
-Admitted.
-
+    cbn.
+    edestruct F' as (u' & TRu & EQuU); [apply BISu |..]; eauto.
+    edestruct B as [t' TR'' EQtu]; eauto.
+    edestruct B' as (T' & TRT & EQuT); [apply BISt |..]; eauto.
+    erewrite ιγ in TRT; eauto.
+    eexists. apply TRT.
+    clear - EQuU EQtu EQuT.
+    apply bisimilar_bisimilar_inv in EQuU, EQuT.
+    eapply cross_model_compose; eauto.
+Qed.
 
 (* bisim_sem ⟦u⟧ ⟦v⟧ <-> bisim_op u v *)
