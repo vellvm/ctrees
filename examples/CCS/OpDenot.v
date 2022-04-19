@@ -28,8 +28,8 @@ Set Implicit Arguments.
 Set Contextual Implicit.
 
 Lemma SRep': forall P a P'
-               (STEP : step P a P'),
-    step (!P) a (P' ∥ !P).
+               (STEP : step a P P'),
+    step a (!P) (P' ∥ !P).
 Proof.
   intros * TR; apply SRep,SParL; auto.
 Qed.
@@ -76,7 +76,6 @@ Proof.
   all:match goal with |- context[if ?b then _ else _] => destruct b; easy end.
 Qed.
 
-(* More general (?) notions of simulations *)
 Definition forward (R : term -> ccs -> Prop) : Prop :=
   forall P P' q a,
 		R P q ->
@@ -89,11 +88,20 @@ Definition backward (R : term -> ccs -> Prop) : Prop :=
     trans l q q' ->
 	  exists P', P ⊢ γ l →op P' /\ R P' q'.
 
-Definition bisim := exists R, forward R /\ backward R.
+Definition bisim R := forward R /\ backward R.
+Definition bisimilar P q := exists R, bisim R /\ R P q.
+
+Lemma bisimilar_bisim : bisim bisimilar.
+Proof.
+  split; red; intros * (R & BIS & HR) TR;
+    pose proof BIS as [F B].
+  - edestruct F as (? & ? & ?); eauto; eexists; split; eauto.
+    exists R; split; auto.
+  - edestruct B as (? & ? & ?); eauto; eexists; split; eauto.
+    exists R; split; auto.
+Qed.
 
 Definition bisim_model := fun P q => ⟦P⟧ ~ q.
-
-
 
 Lemma complete : forward bisim_model.
 Proof.
@@ -240,14 +248,80 @@ Proof.
       rewrite <- EQ'; cbn; rewrite paraA; auto.
 Qed.
 
-Theorem is_bisim : bisim.
+Theorem term_model_bisimilar : forall P, bisimilar P ⟦P⟧.
 Proof.
-  exists bisim_model; auto using correct,complete.
+  exists bisim_model; split; red; auto using correct,complete.
 Qed.
 
 (* We depend currently on
    - [Eqdep.Eq_rect_eq.eq_rect_eq]
  *)
-Print Assumptions is_bisim.
+Print Assumptions term_model_bisimilar.
+
+Definition forward_inv (R : ccs -> term -> Prop) : Prop :=
+  forall p p' Q l,
+		R p Q ->
+		trans l p p' ->
+	  exists Q', Q ⊢ γ l →op Q' /\ R p' Q'.
+
+Definition backward_inv (R : ccs -> term -> Prop) : Prop :=
+  forall p Q Q' a,
+		R p Q ->
+    Q ⊢ a →op Q' ->
+	  exists p', trans (ι a) p p' /\ R p' Q'.
+
+Definition bisim_inv R := forward_inv R /\ backward_inv R.
+Definition bisimilar_inv t u := exists R, bisim_inv R /\ R t u.
+
+Definition rev {A B} (R : A -> B -> Prop) : B -> A -> Prop := fun b a => R a b.
+
+Lemma bisim_bisim_inv : forall R, bisim R -> bisim_inv (rev R).
+Proof.
+  intros ? [F B]; split; red; unfold rev; cbn; intros * HR TR.
+  edestruct B; eauto.
+  edestruct F; eauto.
+Qed.
+
+Lemma term_model_bisimilar_inv : forall P, bisimilar_inv ⟦P⟧ P.
+Proof.
+  intros P; edestruct (@term_model_bisimilar P) as (R & BIS & HR); eauto.
+  eexists; split.
+  apply bisim_bisim_inv; eauto.
+  auto.
+Qed.
+
+Lemma bar : forall T t u U,
+    bisimilar t T ->
+    Operational.bisim t u ->
+    bisimilar u U ->
+    T ~ U.
+Proof.
+Admitted.
+
+Lemma foo : forall t u, Operational.bisim t u -> ⟦t⟧ ~ ⟦u⟧.
+Proof.
+  intros * BIS.
+  apply (gfp_fp b t u) in BIS; destruct BIS as [F _]; cbn in *.
+  step; split; intros ? T' TR.
+  - pose proof (@term_model_bisimilar t) as BISt.
+    pose proof (@term_model_bisimilar u) as BISu.
+    pose proof bisimilar_bisim as [F' B'].
+    edestruct B' as (t' & TRt & EQTt); [apply BISt | ..]; eauto.
+    edestruct F as [u' TR'' EQtu]; eauto.
+    edestruct F' as (U' & TRu & EQuU); [apply BISu |..]; eauto.
+    (* todo ι (γ l) == l *)
+    destruct l.
+    + eexists. apply TRu.
+      clear - EQTt EQtu EQuU.
+      eapply bar; eauto.
+    + destruct e, v.
+      eexists. apply TRu.
+      clear - EQTt EQtu EQuU.
+      eapply bar; eauto.
+    + eapply trans_val_invT in TR; subst; destruct v.
+  -
+Admitted.
+
+
 
 (* bisim_sem ⟦u⟧ ⟦v⟧ <-> bisim_op u v *)

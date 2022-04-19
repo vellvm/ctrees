@@ -9,52 +9,52 @@ Definition use_channel (c : chan) (a : option action) : bool :=
   | None => false
   end.
 
-Inductive step : term -> option action -> term -> Prop :=
+Inductive step : option action -> term -> term -> Prop :=
 
 | SAct: forall a P,
-    step (a · P) (Some a) P
+    step (Some a) (a · P) P
 
 | STau: forall P,
-    step (TauT P) None P
+    step None (TauT P) P
 
 | SSumL: forall P a P' Q
-           (STEPL : step P a P'),
-    step (P ⊕ Q) a P'
+           (STEPL : step a P P'),
+    step a (P ⊕ Q) P'
 | SSumR: forall P Q a Q'
-           (STEPR : step Q a Q'),
-    step (P ⊕ Q) a Q'
+           (STEPR : step a Q Q'),
+    step a (P ⊕ Q) Q'
 
 | SParL: forall P a P' Q
-           (STEPL : step P a P'),
-    step (P ∥ Q) a (P' ∥ Q)
+           (STEPL : step a P P'),
+    step a (P ∥ Q) (P' ∥ Q)
 | SParR: forall P Q a Q'
-           (STEPR : step Q a Q'),
-    step (P ∥ Q) a (P ∥ Q')
+           (STEPR : step a Q Q'),
+    step a (P ∥ Q) (P ∥ Q')
 
 | SPar: forall P a P' Q Q'
-          (STEPL : step P (Some a) P')
-          (STEPR : step Q (Some (op a)) Q'),
-    step (P ∥ Q) None (P' ∥ Q')
+          (STEPL : step (Some a) P P')
+          (STEPR : step (Some (op a)) Q Q'),
+    step None (P ∥ Q) (P' ∥ Q')
 
 | SRes: forall P a P' c
-          (STEP : step P a P')
+          (STEP : step a P P')
           (FC : use_channel c a = false),
-    step (P ∖ c) a (P' ∖ c)
+    step a (P ∖ c) (P' ∖ c)
 
 | SRep: forall P a P'
-          (STEP : step (P ∥ !P) a P'),
-    step (!P) a P'.
+          (STEP : step a (P ∥ !P) P'),
+    step a (!P) P'.
 
 Module OpNotations.
 
-  Notation "P '⊢' a '→op'  Q" := (step P a Q)  (at level 50).
+  Notation "P '⊢' a '→op'  Q" := (step a P Q)  (at level 50).
 
 End OpNotations.
 
 Section Example.
 
   Fact ex1: forall P Q,
-    step (ex P Q) None ((P ∥ Q) ∖ a).
+    step None (ex P Q) ((P ∥ Q) ∖ a).
     intros.
     apply SRes; auto.
     eapply SPar.
@@ -64,7 +64,7 @@ Section Example.
   Qed.
 
   Fact ex2: forall P Q,
-      step (ex P Q) (Some (↑b)) ((0 ∥ ↓a · Q) ∖ a).
+      step (Some (↑b)) (ex P Q) ((0 ∥ ↓a · Q) ∖ a).
     intros.
     apply SRes; auto.
     eapply SParL.
@@ -79,7 +79,7 @@ Section Example.
   Ltac inv h := inversion h; subst; clear h.
 
   Fact ex3 : forall P Q R α,
-      step (ex P Q) α R ->
+      step α (ex P Q) R ->
     (α = None /\ R = ((P ∥ Q) ∖ a)) \/
     (α = Some (↑b) /\ R = ((0 ∥ ↓a · Q) ∖ a)).
     intros.
@@ -87,3 +87,26 @@ Section Example.
   Qed.
 
 End Example.
+
+From RelationAlgebra Require Import monoid kat prop rel comparisons kat_tac rewriting normalisation.
+From Coinduction Require Import lattice coinduction rel tactics.
+
+(** the function defining (strong) simulations and similarity *)
+Program Definition s: mon (term -> term -> Prop) :=
+  {| body R p q :=
+    forall l p', step l p p' -> exists2 q', step l q q' & R p' q' |}.
+Next Obligation. cbv. firstorder. Qed.
+
+(** the symmetrised version, defining (strong) bisimulations and bisimilarity *)
+Notation b := (cap s (comp converse (comp s converse))).
+
+Notation bisim := (gfp b: hrel _ _).
+(* Notation "p ~ q" := (gfp b p q) (at level 70). *)
+(* Notation t := (t b). *)
+(* Notation T := (T b). *)
+(* Notation bt := (bt b). *)
+(* Notation bT := (bT b). *)
+(* (** notations  for easing readability in proofs by enhanced coinduction *) *)
+(* Notation "x [~] y" := (t _ x y) (at level 79). *)
+(* Notation "x {~} y" := (bt _ x y) (at level 79). *)
+
