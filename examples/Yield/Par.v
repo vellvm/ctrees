@@ -160,54 +160,153 @@ Proof.
     rewrite H in Hbound. rewrite H0. auto.
 Qed.
 
+(* TODO: move to ctree library *)
+Variant equ_clos1_body {E X} (R : ctree E X -> Prop) : (ctree E X -> Prop) :=
+  | Equ_clos1 : forall t t'
+                 (Equt : t ≅ t')
+                 (HR : R t'),
+      equ_clos1_body R t.
 
-(* Definition bind_ctx {E X Y} *)
-(*            (R: ctree E X -> Prop) *)
-(*            (S: X -> ctree E Y -> Prop) : *)
-(*   ctree E Y -> Prop := *)
-(*   sup_all (fun x => *)
-(*   sup R (fun _ => *)
-(*   sup_all (fun k => *)
-(*              sup (S x) (fun k' => CTree.bind x k)))). *)
+Program Definition equ_clos1 {E X} : mon (ctree E X -> Prop) :=
+  {| body := @equ_clos1_body E X |}.
+Next Obligation.
+  intros * ?? LE t EQ; inv EQ.
+  econstructor; eauto.
+  apply LE; auto.
+Qed.
+
+Lemma equ_clos1_ct {E R} n : @equ_clos1 E R <= ct n.
+Proof.
+  apply Coinduction.
+  intros r t EQ; inv EQ.
+  cbn. red. step in Equt. inv Equt; auto.
+  2: destruct b.
+  all: cbn in HR; red in HR; rewrite <- H in HR; inv HR; invert;
+    constructor; intros; auto; apply (f_Tf (fchoiceI_bound n)); econstructor; eauto.
+Qed.
 
 #[global] Instance equ_ct {E R} {r : ctree E R -> Prop} n :
   Proper ((equ eq) ==> flip impl) (ct n r).
 Proof.
   unfold Proper, respectful, flip, impl. intros.
-  step in H. inv H.
-  - step. red. rewrite <- H2. auto.
-  - step. red. rewrite <- H2. constructor.
-    intros. apply (gfp_t (fchoiceI_bound n)). rewrite REL.
-    step.
-Admitted.
+  apply (ft_t (equ_clos1_ct n)); econstructor; eauto.
+Qed.
 
 #[global] Instance equ_choiceI_boundF {E R r} n :
   Proper (going (equ eq) ==> flip impl) (@choiceI_boundF E R n (ct n r)).
 Proof.
   unfold Proper, respectful, flip, impl. intros.
-  inv H. step in H1. inv H0.
-  - inv H1; auto.
-  - inv H1. invert. constructor. intros. rewrite REL. auto.
-Admitted.
+  inv H. step in H1. inv H0; inv H1; auto; invert; constructor; intros; auto.
+  rewrite REL; auto.
+  rewrite REL; auto.
+  rewrite REL; auto.
+Qed.
+
+#[global] Instance equ_choiceI_bound_ {E R r} n :
+  Proper (equ eq ==> flip impl) (@choiceI_bound_ E R n (ct n r)).
+Proof.
+  cbn. red. intros. rewrite H. auto.
+Qed.
+
+Definition bind_ctx1 {E X Y}
+           (R: ctree E X -> Prop)
+           (S: (X -> ctree E Y) -> Prop) :
+  ctree E Y -> Prop :=
+  (sup R
+       (fun x => sup S
+                  (fun k => (fun t => t = CTree.bind x k)))).
+
+Lemma foo: forall {X} (x : X) R,
+    R x <-> (fun t => t = x) <= R.
+Proof.
+  firstorder congruence.
+Qed.
+
+Lemma leq_bind_ctx1 {E X Y} :
+  forall R S S', @bind_ctx1 E X Y R S <= S' <->
+              (forall x, R x -> forall k, S k -> S' (CTree.bind x k)).
+Proof.
+  intros. unfold bind_ctx1.
+  setoid_rewrite sup_spec.
+  setoid_rewrite sup_spec.
+  setoid_rewrite <- foo.
+  firstorder.
+Qed.
+
+Lemma in_bind_ctx1 {E X Y} (R : ctree E X -> Prop) (S : (X -> ctree E Y) -> Prop) x f :
+  R x -> S f -> @bind_ctx1 E X Y R S (CTree.bind x f).
+Proof. intros. epose proof (proj1 (leq_bind_ctx1 R S _)). apply H1; auto. Qed.
+#[global] Opaque bind_ctx1.
+
+Program Definition bind_ctx1_equ {E X Y} n : mon (ctree E Y -> Prop) :=
+  {| body := fun R => @bind_ctx1 E X Y (choiceI_bound n) (fun f => forall x, R (f x)) |}.
+Next Obligation.
+  intros E X Y n R R' Hleq x.
+  apply leq_bind_ctx1. intros x' H' k H''.
+  apply in_bind_ctx1; auto. intros. apply Hleq; auto.
+Qed.
+
+Lemma bind_ctx1_ct {E X Y} n : @bind_ctx1_equ E X Y n <= ct n.
+Proof.
+  apply Coinduction. intros r. apply (leq_bind_ctx1 _).
+  intros x Hx k Hk.
+  cbn. red. unfold observe. cbn.
+  step in Hx.
+  inversion Hx.
+  - cbn in *.
+    generalize (Hk r0).
+    apply (fchoiceI_bound n).
+    apply id_T.
+  - constructor; intros ?. apply (fTf_Tf (fchoiceI_bound n)).
+    apply in_bind_ctx1; auto.
+    intros. apply (b_T (fchoiceI_bound n)). apply Hk.
+  - constructor; intros ?. apply (fTf_Tf (fchoiceI_bound n)).
+    apply in_bind_ctx1; auto.
+    intros. apply (b_T (fchoiceI_bound n)). apply Hk.
+  - constructor; auto; intros ?. apply (fTf_Tf (fchoiceI_bound n)).
+    apply in_bind_ctx1; auto.
+    intros. apply (b_T (fchoiceI_bound n)). apply Hk.
+Qed.
+
+Lemma ct_clo_bind {E R1 R2} n r (t : ctree E R1) (k : R1 -> ctree E R2) :
+  choiceI_bound n t ->
+  (forall x, ct n r (k x)) ->
+  ct n r (CTree.bind t k).
+Proof.
+  intros.
+  apply (ft_t (@bind_ctx1_ct E R1 R2 n)).
+  eapply in_bind_ctx1; auto.
+Qed.
 
 Lemma bind_choiceI_bound {E R1 R2} n (t : ctree E R1) (k : R1 -> ctree E R2) :
   choiceI_bound n t ->
   (forall x, choiceI_bound n (k x)) ->
-  choiceI_bound n (t >>= k).
+  choiceI_bound n (CTree.bind t k).
+
 Proof.
   red. intros. revert t k H H0. coinduction r CIH. intros.
   cbn*. step in H. red in H |- *.
   rewrite unfold_bind.
   desobs t. 3: destruct vis.
-  - specialize (H0 r0). step in H0. red in H0.
-    desobs (k r0); auto. 2: destruct vis.
-    + admit.
-    + inv H0. invert. constructor. intros. admit.
-    + inv H0. invert. constructor; auto. intros. admit.
-  - inv H. invert. constructor; auto.
-  - inv H. invert. constructor; auto.
-  - inv H. invert. constructor; auto.
-Admitted.
+  2, 3, 4: inv H; invert; constructor; auto.
+  specialize (H0 r0). step in H0. red in H0.
+  inv H0; constructor; auto; intros; apply (gfp_t (fchoiceI_bound n)); auto.
+Qed.
+
+Lemma iter_choiceI_bound {E R I} n (k : I -> ctree E (I + R)) (Hn : n > 0):
+  (forall i, choiceI_bound n (k i)) ->
+  forall i, choiceI_bound n (iter k i).
+Proof.
+  unfold choiceI_bound. coinduction r CIH. intros.
+  cbn*. unfold iter, MonadIter_ctree. rewrite unfold_iter.
+  rewrite unfold_bind.
+  destruct (observe (k i)) eqn:?. 3: destruct vis.
+  2, 3, 4: pose proof (H i) as H'; step in H'; red in H';
+  rewrite Heqc in H'; inversion H'; invert;
+  constructor; auto; intros;
+  eapply ct_clo_bind; auto; intros y; destruct y; step; econstructor; eauto.
+  destruct r0; constructor; auto; intros; apply CIH; auto.
+Qed.
 
 Variant yieldE S : Type -> Type :=
 | Yield : S -> yieldE S S.

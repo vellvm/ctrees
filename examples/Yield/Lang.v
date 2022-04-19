@@ -168,7 +168,12 @@ Section Denote1.
     - apply bind_choiceI_bound; auto.
     - apply bind_choiceI_bound. apply denote_expr_bounded.
       intros. step. step in IHt1. step in IHt2. destruct (is_true x); auto.
-    - step. unfold while. admit.
+    - unfold while. apply iter_choiceI_bound; auto.
+      intros. apply bind_choiceI_bound. apply denote_expr_bounded.
+      intros. destruct (is_true x).
+      + apply bind_choiceI_bound; auto.
+        intros. step. constructor.
+      + step. constructor.
     - apply bind_choiceI_bound.
       + intros. step. constructor. intros. step. constructor.
       + intros. destruct x.
@@ -176,6 +181,6 @@ Section Denote1.
           intros. step. constructor; auto. intros. step. constructor.
         * step. constructor.
     - step. constructor.
-  Abort.
+  Qed.
 
 End Denote1.
