@@ -7,5 +7,6 @@ From ITree Require Export
 
 From CTree.Core Require Export
      Utils
+     Index
      CTreeDefinitions.
 

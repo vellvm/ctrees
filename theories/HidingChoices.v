@@ -29,29 +29,29 @@ Import Fin.
 
 (* Definition hide {E R} (t : ctree E R) := hide' (observe t). *)
 
-Definition hide {E R} : ctree E R -> ctree E R :=
+Definition hide {E C R} : ctree E C R -> ctree E C R :=
   cofix hide t :=
     match observe t with
     | RetF v => Ret v
     | VisF e k => Vis e (fun x => hide (k x))
-    | ChoiceF b n k => Choice false n (fun x => hide (k x))
+    | ChoiceF b c k => Choice false c (fun x => hide (k x))
     end.
 
 Notation hide_ t :=
   match observe t with
   | RetF v => Ret v
   | VisF e k => Vis e (fun x => hide (k x))
-  | ChoiceF b n k => Choice false n (fun x => hide (k x))
+  | ChoiceF b c k => Choice false c (fun x => hide (k x))
   end.
 
-Lemma unfold_hide {E R} (t : ctree E R) :
+Lemma unfold_hide {E C R} (t : ctree E C R) :
   hide t ≅ hide_ t.
 Proof.
   now step.
 Qed.
 
-#[global] Instance hide_equ {E R} :
-  Proper (equ eq ==> equ eq) (@hide E R).
+#[global] Instance hide_equ {E C R} :
+  Proper (equ eq ==> equ eq) (@hide E C R).
 Proof.
   unfold Proper, respectful.
   unfold equ; coinduction ? CIH.
@@ -64,15 +64,15 @@ Qed.
 
 Ltac split_wtr WTR := destruct WTR as [?t2 [?t1 ?step1 ?step2] ?step3].
 
-Lemma eq_observe_equ {E R} : forall (t u : ctree E R),
+Lemma eq_observe_equ {E C R} : forall (t u : ctree E C R),
     observe t = observe u ->
     t ≅ u.
 Proof.
   intros * EQ; now rewrite ctree_eta,EQ,<-ctree_eta.
 Qed.
 
-Lemma trans_hide {E R} :
-  forall l (t u : ctree E R),
+Lemma trans_hide {E C R} `{HasStuck : C0 -< C} :
+  forall l (t u : ctree E C R),
     l <> tau ->
     trans l t u ->
     trans l (hide t) (hide u).
@@ -83,7 +83,7 @@ Proof.
   revert t u Heqot Heqou.
   induction TR; intros; try easy.
   - rewrite unfold_hide, <- Heqot.
-    eapply (trans_choiceI _ x); eauto.
+    eapply (trans_choiceI _ _ x); eauto.
     apply IHTR; auto.
   - rewrite unfold_hide, <- Heqot.
     constructor.
@@ -94,8 +94,8 @@ Proof.
     econstructor.
 Qed.
 
-Lemma trans_tau_hide {E R} :
-  forall l (t u v : ctree E R),
+Lemma trans_tau_hide {E C R} `{HasStuck : C0 -< C} :
+  forall l (t u v : ctree E C R),
     trans tau t u ->
     trans l (hide u) (hide v) ->
     trans l (hide t) (hide v).
@@ -109,14 +109,14 @@ Proof.
   - rewrite unfold_hide, <- Heqot;
       eapply trans_choiceI; [|reflexivity]; eauto.
   - rewrite unfold_hide, <- Heqot.
-    eapply (trans_choiceI _ x).
+    eapply (trans_choiceI _ _ x).
     eauto.
     rewrite H.
     apply eq_observe_equ in Heqou; rewrite Heqou; auto.
 Qed.
 
-Lemma trans_tau_hide' {E R} :
-  forall l (t u v : ctree E R),
+Lemma trans_tau_hide' {E C R} `{C0 -< C} :
+  forall l (t u v : ctree E C R),
     l <> tau ->
     trans tau t u ->
     trans l u v ->
@@ -127,8 +127,8 @@ Proof.
   eapply trans_tau_hide; eauto.
 Qed.
 
-Lemma transs_hide {E R} :
-  forall l (t u v : ctree E R),
+Lemma transs_hide {E C R} `{C0 -< C} :
+  forall l (t u v : ctree E C R),
     l <> tau ->
     (trans tau)^* t u ->
     trans l u v ->
@@ -143,8 +143,8 @@ Proof.
 Qed.
 
 (* This does not hold: the taus in queue cannot be eaten *)
-Lemma wtrans_hide {E R} :
-  forall l (t u : ctree E R),
+Lemma wtrans_hide {E C R} `{C0 -< C} :
+  forall l (t u : ctree E C R),
     l <> tau ->
     wtrans l t u ->
     trans l (hide t) (hide u).
@@ -165,11 +165,11 @@ Ltac eq2equ H :=
   | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≅ t) by (subst; reflexivity); clear H
   end.
 
-Lemma ChoiceI_wtrans {E R} :
-  forall l n (t u : ctree E R) k x,
+Lemma ChoiceI_wtrans {E C R} `{C0 -< C} :
+  forall l X (c : C X) (t u : ctree E C R) k x,
     wtrans l t u ->
     t ≅ k x ->
-    wtrans l (ChoiceI n k) u.
+    wtrans l (ChoiceI c k) u.
 Proof.
   intros * WTR EQ.
   destruct WTR as [v [w [[|?] ?] ?] ?].

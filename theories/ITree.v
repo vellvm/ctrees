@@ -17,11 +17,11 @@ Open Scope ctree.
 Set Implicit Arguments.
 Set Contextual Implicit.
 
-Definition h_embed {E} : E ~> ctree E :=
+Definition h_embed {E C} : E ~> ctree E C :=
   fun _ e => CTree.trigger e.
-Definition embed' {E} : itree E ~> ctree E := interp h_embed.
+Definition embed' {E} : itree E ~> ctree E (C01) := interp h_embed.
 
-Definition embed {E} : itree (ExtChoice +' E) ~> ctree E :=
+Definition embed {E C} : itree (C +' E) ~> ctree E (C01 +' C) :=
   fun _ t => internalize (embed' t).
 
 Notation "t '-' l '→' u" := (trans l t u)
@@ -61,19 +61,19 @@ Notation "t '-' l '→' u" := (transR l t u)
 #[local] Notation iVis e k  := (Vis e k).
 #[local] Notation iTau t    := (Tau t).
 #[local] Notation cRet x    := (CTreeDefinitions.Ret x).
-#[local] Notation cTauI t   := (CTreeDefinitions.TauI t).
+#[local] Notation cTauI t   := (CTreeDefinitions.tauI t).
 #[local] Notation cVis e k  := (CTreeDefinitions.Vis e k).
 
 (** Unfolding of [interp]. *)
-Definition _interp {E F R} (f : E ~> ctree F) (ot : itreeF E R _)
-  : ctree F R :=
+Definition _interp {E F C R} `{C1 -< C} (f : E ~> ctree F C) (ot : itreeF E R _)
+  : ctree F C R :=
   match ot with
   | RetF r => CTreeDefinitions.Ret r
   | TauF t => cTauI (interp f t)
   | VisF e k => CTree.bind (f _ e) (fun x => cTauI (interp f (k x)))
   end.
 
-Lemma unfold_interp_ctree {E F X} (h: E ~> ctree F) (t : itree E X):
+Lemma unfold_interp_ctree {E F C X} `{C1 -< C} (h: E ~> ctree F C) (t : itree E X):
   (interp h t ≅ _interp h (iobserve t))%ctree.
 Proof.
   revert t.
@@ -90,15 +90,15 @@ Proof.
   Transparent CTree.bind.
   cbn.
   rewrite Equ.bind_map.
-  apply (fbt_bt (@bind_ctx_equ_t F X0 X0 X X eq eq) R), in_bind_ctx.
+  apply (fbt_bt (@bind_ctx_equ_t F _ X0 X0 X X eq eq) R), in_bind_ctx.
   reflexivity.
   intros ? ? <-.
   constructor; intros ?.
   reflexivity.
 Qed.
 
-Lemma embed_eq {E X}:
-	Proper (eq_itree eq ==> equ eq) (@embed E X).
+Lemma embed_eq {E C X}:
+	Proper (eq_itree eq ==> equ eq) (@embed E C X).
 Proof.
 	unfold Proper, respectful.
 	coinduction r CIH.
@@ -129,17 +129,17 @@ From Coq Require Import Datatypes.
 
 (* This is actually not trivial.
    There are two ways to encode itrees' taus:
-   - If we use TauI, then I believe we have eutt mapping to sbisim I believe.
+   - If we use tauI, then I believe we have eutt mapping to sbisim I believe.
    Proving so however is tricky: [eutt] has a weird behavior that consists of
    being allowed to either look at taus (tau/tau rule) or ignore them (asymmetric rules).
-   In contrast, [sbisim] can only ignore [TauI]. In the Tau/Tau case, it's therefore quite
+   In contrast, [sbisim] can only ignore [tauI]. In the Tau/Tau case, it's therefore quite
    unclear how the proof should proceed: fundamentally, the rule is useful in [eutt] if and
    only if the computations are both [spin] from now on --- in all other cases it can be
    replaced by two asymmetric rules.
    And as it turns out, if it is indeed [spin] against [spin], then [sbisim] relate [spinI]
    against itself as well.
    But how do we turn this into a proof?
-   - If we use TauV, then [eutt] certainly does not map against sbisim --- actually, it maps
+   - If we use tauV, then [eutt] certainly does not map against sbisim --- actually, it maps
    against [equ] as well in this case. However, I think it should map against [wbisim], but
    that remains to be proved.
 
@@ -151,12 +151,12 @@ Notation embed_ t :=
   | TauF t => cTauI (cTauI (embed t))
   | VisF (inl1 e) k =>
       match e,k with
-      | ext_chose n, k => ChoiceV n (fun x => cTauI (cTauI (cTauI (embed (k x)))))
+      | c, k => ChoiceV c (fun x => cTauI (cTauI (cTauI (embed (k x)))))
       end
   | VisF (inr1 e) k => CTreeDefinitions.vis e (fun x => cTauI (cTauI (cTauI (embed (k x)))))
   end.
 
-Lemma unfold_embed {E X} (t : itree (_ +' E) X) : (embed t ≅ embed_ t)%ctree.
+Lemma unfold_embed {E C X} (t : itree (C +' E) X) : (embed t ≅ embed_ t)%ctree.
 Proof.
   unfold embed, embed', internalize at 1.
   rewrite unfold_interp_ctree, Interp.unfold_interp.
@@ -167,8 +167,7 @@ Proof.
     step; cbn.
     reflexivity.
   - destruct e.
-    + destruct e.
-      cbn.
+    + cbn.
       rewrite Equ.unfold_bind at 1.
       cbn.
       step; cbn; constructor; intros ?.
@@ -194,9 +193,9 @@ Proof.
       auto.
 Qed.
 
-Lemma trans_embed_inv E X : forall (t1 : itree (ExtChoice +' E) X) l t2',
+Lemma trans_embed_inv E C X : forall (t1 : itree (C +' E) X) l t2',
     trans l (embed t1) t2' ->
-    (exists r : X, (t2' ≅ CTree.stuckI)%ctree /\ l = val r)
+    (exists r : X, (t2' ≅ stuckI)%ctree /\ l = val r)
     \/ exists t2, (t2' ~ embed t2)%ctree.
 Proof.
   unfold trans.
@@ -205,32 +204,32 @@ Proof.
   remember (embed t1) as et1.
   cut (
       ((et1 ≅ embed t1)%ctree \/ (et1 ≅ cTauI (embed t1))%ctree) ->
-      (exists r : X, (t2' ≅ CTree.stuckI)%ctree /\ l = val r)
-      \/ exists t2 : itree (ExtChoice +' E) X, t2' ~ embed t2).
+      (exists r : X, (t2' ≅ stuckI)%ctree /\ l = val r)
+      \/ exists t2 : itree (C +' E) X, t2' ~ embed t2).
   intros H; eapply H; eauto; left; subst; auto.
   clear Heqet1.
   revert t1.
   dependent induction TR.
   - intros ? EQ.
     destruct EQ as [EQ | EQ].
-    + rewrite unfold_embed in EQ.
+    + rewrite (unfold_embed t1) in EQ.
       step in EQ.
       rewrite <- x in EQ.
       destruct (iobserve t1) eqn:EQ1; try now inv EQ.
       * dependent induction EQ.
         specialize (REL x0).
-        specialize (IHTR _ _ eq_refl eq_refl t).
+        specialize (IHTR _ t2' (k x0) eq_refl).
         edestruct IHTR; eauto.
       * destruct e.
-        destruct e; inv EQ.
+        inv EQ.
         inv EQ.
     + step in EQ.
       rewrite <- x in EQ.
       clear x et1.
       dependent induction EQ.
       specialize (REL x0).
-      specialize (IHTR _ _ eq_refl eq_refl t1).
-      edestruct IHTR; auto.
+      specialize (IHTR _ t2' (k x0) eq_refl).
+      edestruct IHTR; eauto.
   - intros * EQ.
     assert (t2' ≅ t)%ctree by (step; now rewrite x).
     setoid_rewrite H0.
@@ -243,7 +242,6 @@ Proof.
       rewrite unfold_embed in EQ.
       destruct (iobserve t1) eqn:EQ1; try now step in EQ; inv EQ.
       destruct e; [| step in EQ; inv EQ].
-      destruct e.
       step in EQ; dependent induction EQ.
       setoid_rewrite (REL x0).
       right.
@@ -265,7 +263,6 @@ Proof.
       rewrite unfold_embed in EQ.
       destruct (iobserve t1) eqn:EQ1; try now step in EQ; inv EQ.
       destruct e0.
-      destruct e0.
       step in EQ; inv EQ.
       step in EQ; dependent induction EQ.
       setoid_rewrite (REL x0).
@@ -277,7 +274,7 @@ Proof.
       step in EQ; inv EQ.
 
   - intros * EQ.
-    assert (t2' ≅ Choice false 0 k)%ctree by (step; now rewrite x).
+    assert (t2' ≅ ChoiceI choice0 k)%ctree by (step; now rewrite x).
     setoid_rewrite H.
     clear t2' x H.
     destruct EQ as [EQ | EQ].
@@ -287,8 +284,8 @@ Proof.
       destruct (iobserve t1) eqn:EQ1; try now step in EQ; inv EQ.
       * dependent induction EQ.
         left; eexists; split; eauto.
-        rewrite choiceI0_always_stuck; reflexivity.
-      * destruct e; [destruct e |]; step in EQ; inv EQ.
+        rewrite choiceStuckI_always_stuck; reflexivity.
+      * destruct e; step in EQ; inv EQ.
     + step in EQ; rewrite <- x0 in EQ; inv EQ.
 Qed.
 
@@ -302,15 +299,15 @@ Qed.
 
  *)
 
-Lemma bar E X : forall (t1 u1 : itree (ExtChoice +' E) X) l t2',
+Lemma bar E C X : forall (t1 u1 : itree (C +' E) X) l t2',
     trans l (embed t1) t2' ->
     t1 ≈ u1 ->
     (exists t2 u2,
         trans l (embed u1) (embed u2) /\
           (t2' ~ embed t2)%ctree /\
           t2 ≈ u2) \/
-      ((t2' ≅ CTree.stuckI)%ctree /\
-         trans l (embed u1) CTree.stuckI).
+      ((t2' ≅ stuckI)%ctree /\
+         trans l (embed u1) stuckI).
 Proof.
   intros * TR.
   edestruct trans_embed_inv as [(r & STUCK & EQ) | (t2 & EQ)]; eauto.
@@ -412,8 +409,8 @@ Proof.
   (*   + destruct e. *)
 Admitted.
 
-Lemma embed_eutt {E X}:
-  Proper (eutt eq ==> sbisim) (@embed E X).
+Lemma embed_eutt {E C X}:
+  Proper (eutt eq ==> sbisim) (@embed E C X).
 Proof.
   unfold Proper,respectful.
   coinduction ? CIH.
@@ -444,7 +441,7 @@ Proof.
         eauto.
         rewrite EQ2.
         apply CIH, EUTT2.
-      * exists CTree.stuckI.
+      * exists stuckI.
         2:setoid_rewrite EQ2; reflexivity.
         rewrite unfold_embed, <- Heqou.
         apply trans_tauI, trans_tauI.
@@ -452,8 +449,7 @@ Proof.
 
       + pclearbot.
         destruct e.
-        * destruct e.
-          apply trans_choiceV_inv in TR as (u' & EQ & ->).
+        * apply trans_choiceV_inv in TR as (u' & EQ & ->).
           eexists.
           rewrite unfold_embed, <- Heqou.
           apply trans_choiceV.
@@ -486,7 +482,7 @@ Qed.
 
 
 (* Maybe simpler to just write a coinductive relation *)
-Definition partial_inject {E X} : ctree E X -> itree E (option X) :=
+(*Definition partial_inject {E X} : ctree E X -> itree E (option X) :=
 	cofix _inject t :=
 	 match CTreeDefinitions.observe t with
 	| CTreeDefinitions.RetF x => Ret (Some x)
@@ -511,16 +507,16 @@ Definition option_rel {A B : Type} (R : A -> B -> Prop) : option A -> option B -
 (* This is probably false: no reason for the embedding to succeed. *)
 Lemma partial_inject_eq {E X} :
 	Proper (equ eq ==> eq_itree (option_rel eq)) (@partial_inject E X).
-Admitted.
+Admitted.*)
 
-Variant is_detF {E X} (is_det : ctree E X -> Prop) : ctree E X -> Prop :=
+Variant is_detF {E C X} `{C1 -< C} (is_det : ctree E C X -> Prop) : ctree E C X -> Prop :=
 | Ret_det : forall x, is_detF is_det (CTreeDefinitions.Ret x)
 | Vis_det : forall {Y} (e : E Y) k,
 	(forall y, is_det (k y)) ->
 	is_detF is_det (CTreeDefinitions.Vis e k)
 | Tau_det : forall t,
 	(is_det t) ->
-	is_detF is_det (CTreeDefinitions.TauI t)
+	is_detF is_det (CTreeDefinitions.tauI t)
 .
 
-Definition is_det {E X} := paco1 (@is_detF E X) bot1.
+Definition is_det {E C X} `{C1 -< C} := paco1 (@is_detF E C X _) bot1.

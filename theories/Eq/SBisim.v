@@ -45,6 +45,8 @@ From Coq Require Import Lia Basics Fin.
 From Coinduction Require Import
      coinduction rel tactics.
 
+From ITree Require Import Core.Subevent.
+
 From CTree Require Import
      CTree
      Utils
@@ -62,8 +64,8 @@ Arguments trans : simpl never.
 
 Section StrongBisim.
 
-  Context {E : Type -> Type} {X : Type}.
-  Notation S := (ctree E X).
+  Context {E C : Type -> Type} {X : Type} `{HasStuck : C0 -< C}.
+  Notation S := (ctree E C X).
 
 (*|
 Strong Bisimulation
@@ -104,7 +106,7 @@ End StrongBisim.
 (*|
 The relation itself
 |*)
-Definition sbisim {E X} := (gfp (@sb E X) : hrel _ _).
+Definition sbisim {E C X} `{HasStuck : C0 -< C} := (gfp (@sb E C X _) : hrel _ _).
 
 Module SBisimNotations.
 
@@ -125,8 +127,8 @@ Import SBisimNotations.
 Ltac fold_sbisim :=
   repeat
     match goal with
-    | h: context[@sb ?E ?X] |- _ => fold (@sbisim E X) in h
-    | |- context[@sb ?E ?X]      => fold (@sbisim E X)
+    | h: context[@sb ?E ?C ?X] |- _ => fold (@sbisim E C X) in h
+    | |- context[@sb ?E ?C ?X]      => fold (@sbisim E C X)
     end.
 
 Ltac __coinduction_sbisim R H :=
@@ -134,10 +136,10 @@ Ltac __coinduction_sbisim R H :=
 
 Tactic Notation "__step_sbisim" :=
   match goal with
-  | |- context[@sbisim ?E ?X] =>
+  | |- context[@sbisim ?E ?C ?X] =>
       unfold sbisim;
       step;
-      fold (@sbisim E X)
+      fold (@sbisim E C X)
   | |- _ => step
   end.
 
@@ -148,20 +150,20 @@ Tactic Notation "__step_sbisim" :=
 
 Ltac __step_in_sbisim H :=
   match type of H with
-  | context [@sbisim ?E ?X] =>
+  | context [@sbisim ?E ?C ?X] =>
       unfold sbisim in H;
       step in H;
-      fold (@sbisim E X) in H
+      fold (@sbisim E C X) in H
   end.
 
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H.
 
 Section sbisim_theory.
 
-	Context {E : Type -> Type} {X : Type}.
-  Notation ss := (@ss E X).
-  Notation sb := (@sb E X).
-  Notation sbisim  := (@sbisim E X).
+  Context {E C : Type -> Type} {X : Type} `{HasStuck : C0 -< C}.
+  Notation ss := (@ss E C X).
+  Notation sb := (@sb E C X).
+  Notation sbisim  := (@sbisim E C X).
   Notation st  := (coinduction.t sb).
   Notation sbt := (coinduction.bt sb).
   Notation sT  := (coinduction.T sb).
@@ -170,8 +172,8 @@ This is just a hack suggested by Damien Pous to avoid a
 universe inconsistency when using both the relational algebra
 and coinduction libraries (we fix the type at which we'll use [eq]).
 |*)
-  Definition seq: relation (ctree E X) := eq.
-  Arguments seq/.
+    Definition seq: relation (ctree E C X) := eq.
+    Arguments seq/.
 
 (*|
 [eq] is a post-fixpoint, thus [const eq] is below [t]
@@ -388,7 +390,6 @@ Hence [equ eq] is a included in [sbisim]
 
 End sbisim_theory.
 
-
 (*|
 Up-to [bind] context bisimulations
 ----------------------------------
@@ -400,14 +401,14 @@ We now prove the same result, but for strong and weak bisimulation.
 Section bind.
   Obligation Tactic := idtac.
 
-  Context {E: Type -> Type} {X Y: Type}.
+ Context {E C: Type -> Type} {X Y: Type} `{HasStuck : C0 -< C}.
 
 (*|
 Specialization of [bind_ctx] to a function acting with [sbisim] on the bound value,
 and with the argument (pointwise) on the continuation.
 |*)
-  Program Definition bind_ctx_sbisim : mon (rel (ctree E Y) (ctree E Y)) :=
-    {|body := fun R => @bind_ctx E X X Y Y sbisim (pointwise eq R) |}.
+  Program Definition bind_ctx_sbisim : mon (rel (ctree E C Y) (ctree E C Y)) :=
+    {|body := fun R => @bind_ctx E C X X Y Y sbisim (pointwise eq R) |}.
   Next Obligation.
     intros ?? H. apply leq_bind_ctx. intros ?? H' ?? H''.
     apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
@@ -464,15 +465,15 @@ Import CTreeNotations.
 (*|
 Expliciting the reasoning rule provided by the up-to principles.
 |*)
-Lemma st_clo_bind (E: Type -> Type) (X Y : Type) :
-	forall (t1 t2 : ctree E X) (k1 k2 : X -> ctree E Y) RR,
+Lemma st_clo_bind (E C: Type -> Type) `{C0 -< C} (X Y : Type) :
+	forall (t1 t2 : ctree E C X) (k1 k2 : X -> ctree E C Y) RR,
 		t1 ~ t2 ->
     (forall x, (st RR) (k1 x) (k2 x)) ->
     st RR (t1 >>= k1) (t2 >>= k2)
 .
 Proof.
   intros.
-  apply (ft_t (@bind_ctx_sbisim_t E X Y)).
+  apply (ft_t (@bind_ctx_sbisim_t E C X Y _)).
   apply in_bind_ctx; auto.
   intros ? ? <-; auto.
 Qed.
@@ -480,15 +481,15 @@ Qed.
 (*|
 Specializing the congruence principle for [~]
 |*)
-Lemma sbisim_clo_bind (E: Type -> Type) (X Y : Type) :
-	forall (t1 t2 : ctree E X) (k1 k2 : X -> ctree E Y),
+Lemma sbisim_clo_bind (E C: Type -> Type) `{C0 -< C} (X Y : Type) :
+	forall (t1 t2 : ctree E C X) (k1 k2 : X -> ctree E C Y),
 		t1 ~ t2 ->
     (forall x, k1 x ~ k2 x) ->
     t1 >>= k1 ~ t2 >>= k2
 .
 Proof.
   intros * EQ EQs.
-  apply (ft_t (@bind_ctx_sbisim_t E X Y)).
+  apply (ft_t (@bind_ctx_sbisim_t E C X Y _)).
   apply in_bind_ctx; auto.
   intros ? ? <-; auto.
   apply EQs.
@@ -498,31 +499,31 @@ Qed.
 And in particular, we get the proper instance justifying rewriting [~] to the left of a [bind].
 |*)
 #[global] Instance bind_sbisim_cong_gen :
- forall (E : Type -> Type) (X Y : Type) RR,
-   Proper (sbisim ==> pointwise_relation X (st RR) ==> st RR) (@bind E X Y).
+ forall (E C : Type -> Type) `{C0 -< C} (X Y : Type) RR,
+   Proper (sbisim ==> pointwise_relation X (st RR) ==> st RR) (@bind E C X Y).
 Proof.
   repeat red; intros; eapply st_clo_bind; eauto.
 Qed.
 
 Ltac __upto_bind_sbisim :=
   match goal with
-    |- @sbisim _ ?X (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
+    |- @sbisim _ _ ?X _ (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
       apply sbisim_clo_bind
-  | |- body (t (@sb ?E ?X)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
-      apply (ft_t (@bind_ctx_sbisim_t E T X)), in_bind_ctx
-  | |- body (bt (@sb ?E ?X)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
-      apply (fbt_bt (@bind_ctx_sbisim_t E T X)), in_bind_ctx
+  | |- body (t (@sb ?E ?C ?X _)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
+      apply (ft_t (@bind_ctx_sbisim_t E C T X _)), in_bind_ctx
+  | |- body (bt (@sb ?E ?C ?X _)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
+      apply (fbt_bt (@bind_ctx_sbisim_t E C T X _)), in_bind_ctx
   end.
 Ltac __upto_bind_eq_sbisim :=
   __upto_bind_sbisim; [reflexivity | intros ?].
 
 Section Ctx.
 
-  Context {E: Type -> Type} {X Y Y': Type}.
+  Context {E C: Type -> Type} {X Y Y': Type}.
 
   Definition vis_ctx (e : E X)
-             (R: rel (X -> ctree E Y) (X -> ctree E Y')):
-    rel (ctree E Y) (ctree E Y') :=
+             (R: rel (X -> ctree E C Y) (X -> ctree E C Y')):
+    rel (ctree E C Y) (ctree E C Y') :=
     sup_all (fun k => sup (R k) (fun k' => pairH (Vis e k) (vis e k'))).
 
   Lemma leq_vis_ctx e:
@@ -547,10 +548,10 @@ End Ctx.
 Section sb_vis_ctx.
   Obligation Tactic := idtac.
 
-  Context {E: Type -> Type} {X Y: Type}.
+  Context {E C: Type -> Type} {X Y: Type}.
 
-  Program Definition vis_ctx_sbisim (e : E X): mon (rel (ctree E Y) (ctree E Y)) :=
-    {|body := fun R => @vis_ctx E X Y Y e (pointwise eq R) |}.
+  Program Definition vis_ctx_sbisim (e : E X): mon (rel (ctree E C Y) (ctree E C Y)) :=
+    {|body := fun R => @vis_ctx E C X Y Y e (pointwise eq R) |}.
   Next Obligation.
     intros ??? H. apply leq_vis_ctx. intros ?? H'.
     apply in_vis_ctx. intros ? ? <-. now apply H, H'.
@@ -559,7 +560,7 @@ Section sb_vis_ctx.
 (*|
 The resulting enhancing function gives a valid up-to technique
 |*)
-  Lemma vis_ctx_sbisim_t (e : E X) : vis_ctx_sbisim e <= st.
+  Lemma vis_ctx_sbisim_t `{C0 -< C} (e : E X) : vis_ctx_sbisim e <= st.
   Proof.
     apply Coinduction.
     intros R.
@@ -574,14 +575,14 @@ The resulting enhancing function gives a valid up-to technique
   Qed.
 
 End sb_vis_ctx.
-Arguments vis_ctx_sbisim_t {_ _ _} e.
+Arguments vis_ctx_sbisim_t {_ _ _ _ _} e.
 
 Ltac __upto_vis_sbisim :=
   match goal with
-    |- @sbisim _ ?X (Vis ?e _) (Vis ?e _) => apply (ft_t (vis_ctx_sbisim_t (Y := X) e)), in_vis_ctx; intros ? ? <-
-  | |- body (t (@sb ?E ?R)) ?RR (Vis ?e _) (Vis ?e _) =>
+    |- @sbisim _ _ ?X _ (Vis ?e _) (Vis ?e _) => apply (ft_t (vis_ctx_sbisim_t (Y := X) e)), in_vis_ctx; intros ? ? <-
+  | |- body (t (@sb ?E ?C ?R _)) ?RR (Vis ?e _) (Vis ?e _) =>
       apply (ft_t (vis_ctx_sbisim_t e)), in_vis_ctx; intros ? ? <-
-  | |- body (bt (@sb ?E ?R)) ?RR (Vis ?e _) (Vis ?e _) =>
+  | |- body (bt (@sb ?E ?C ?R _)) ?RR (Vis ?e _) (Vis ?e _) =>
       apply (fbt_bt (vis_ctx_sbisim_t e)), in_vis_ctx; intros ? ? <-
   end.
 
@@ -598,7 +599,7 @@ Ltac __playL_sbisim H :=
 
 Ltac __eplayL_sbisim :=
   match goal with
-  | h : @sbisim ?E ?X _ _ |- _ =>
+  | h : @sbisim ?E ?C ?X _ _ _ |- _ =>
       step in h;
       let Hf := fresh "Hf" in
       destruct h as [Hf _];
@@ -615,7 +616,7 @@ Ltac __playR_sbisim H :=
 
 Ltac __eplayR_sbisim :=
   match goal with
-  | h : @sbisim ?E ?X _ _ |- _ =>
+  | h : @sbisim ?E ?C ?X _ _ _ |- _ =>
       step in h;
       let Hb := fresh "Hb" in
       destruct h as [Hb _];
@@ -645,11 +646,16 @@ Do we actually need them on [sb (st R)], or something else?
 
 Section Proof_Rules.
 
-  Lemma step_sb_ret_gen E X (x y : X) (R : rel _ _) :
+  Context {E C : Type -> Type}.
+  Context {HasStuck : C0 -< C}.
+  Context {HasTau : C1 -< C}.
+  Context {X Y : Type}.
+
+  Lemma step_sb_ret_gen (x y : X) (R : rel _ _) :
     R stuckI stuckI ->
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     x = y ->
-    sb R (Ret x) (Ret y : ctree E X).
+    sb R (Ret x) (Ret y : ctree E C X).
   Proof.
     intros Rstuck PROP <-.
     split; cbn; intros ? ? TR; inv_trans; subst.
@@ -657,9 +663,9 @@ Section Proof_Rules.
     all: now rewrite EQ.
   Qed.
 
-  Lemma step_sb_ret E X (x y : X) (R : rel _ _) :
+  Lemma step_sb_ret (x y : X) (R : rel _ _) :
     x = y ->
-    sbt R (Ret x) (Ret y : ctree E X).
+    sbt R (Ret x) (Ret y : ctree E C X).
   Proof.
     apply step_sb_ret_gen.
     reflexivity.
@@ -670,7 +676,7 @@ Section Proof_Rules.
 The vis nodes are deterministic from the perspective of the labeled transition system,
 stepping is hence symmetric and we can just recover the itree-style rule.
 |*)
-  Lemma step_sb_vis_gen E X Y (e : E X) (k k' : X -> ctree E Y) (R : rel _ _) :
+  Lemma step_sb_vis_gen (e : E X) (k k' : X -> ctree E C Y) (R : rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (forall x, R (k x) (k' x)) ->
     sb R (Vis e k) (Vis e k').
@@ -680,7 +686,7 @@ stepping is hence symmetric and we can just recover the itree-style rule.
     all: cbn; eexists; etrans; rewrite EQ; auto.
   Qed.
 
-  Lemma step_sb_vis E X Y (e : E X) (k k' : X -> ctree E Y) (R : rel _ _) :
+  Lemma step_sb_vis (e : E X) (k k' : X -> ctree E C Y) (R : rel _ _) :
     (forall x, (st R) (k x) (k' x)) ->
     sbt R (Vis e k) (Vis e k').
   Proof.
@@ -692,19 +698,19 @@ stepping is hence symmetric and we can just recover the itree-style rule.
 (*|
 Same goes for visible tau nodes.
 |*)
-   Lemma step_sb_tauV_gen E X (t t' : ctree E X) (R : rel _ _) :
+   Lemma step_sb_tauV_gen (t t' : ctree E C X) (R : rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (R t t') ->
-    sb R (TauV t) (TauV t').
+    sb R (tauV t) (tauV t').
   Proof.
     intros PR EQs.
     split; intros ? ? TR; inv_trans; subst.
     all: cbn; eexists; etrans; rewrite EQ; auto.
   Qed.
 
-  Lemma step_sb_tauV E X (t t' : ctree E X) (R : rel _ _) :
+  Lemma step_sb_tauV (t t' : ctree E C X) (R : rel _ _) :
     (st R t t') ->
-    sbt R (TauV t) (TauV t').
+    sbt R (tauV t) (tauV t').
   Proof.
     apply step_sb_tauV_gen.
     typeclasses eauto.
@@ -717,47 +723,47 @@ A useful special case is the one where the arity coincide and we simply use the 
 in both directions. We can in this case have [n] rather than [2n] obligations.
 |*)
 
-  Lemma step_sb_choiceV_gen E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) (R : rel _ _) :
+  Lemma step_sb_choiceV_gen Z (c : C Y) (c' : C Z) (k : Y -> ctree E C X) (k' : Z -> ctree E C X) (R : rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (forall x, exists y, R (k x) (k' y)) ->
     (forall y, exists x, R (k x) (k' y)) ->
-    sb R (ChoiceV n k) (ChoiceV m k').
+    sb R (ChoiceV c k) (ChoiceV c' k').
   Proof.
     intros PROP EQs1 EQs2.
     split; intros ? ? TR; inv_trans; subst.
-    - destruct (EQs1 n0) as [x HR].
+    - destruct (EQs1 x) as [z HR].
       eexists.
       etrans.
       rewrite EQ; eauto.
-    - destruct (EQs2 m0) as [x HR].
+    - destruct (EQs2 x) as [y HR].
       eexists.
       etrans.
       cbn; rewrite EQ; eauto.
   Qed.
 
-  Lemma step_sb_choiceV E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) (R : rel _ _) :
+  Lemma step_sb_choiceV Z (c : C Y) (c' : C Z) (k : Y -> ctree E C X) (k' : Z -> ctree E C X) (R : rel _ _) :
     (forall x, exists y, st R (k x) (k' y)) ->
     (forall y, exists x, st R (k x) (k' y)) ->
-    sbt R (ChoiceV n k) (ChoiceV m k').
+    sbt R (ChoiceV c k) (ChoiceV c' k').
   Proof.
     intros EQs1 EQs2.
     apply step_sb_choiceV_gen; auto.
     typeclasses eauto.
   Qed.
 
-  Lemma step_sb_choiceV_id_gen E X n (k k' : fin n -> ctree E X) (R : rel _ _) :
+  Lemma step_sb_choiceV_id_gen (c : C Y) (k k' : Y -> ctree E C X) (R : rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (forall x, R (k x) (k' x)) ->
-    sb R (ChoiceV n k) (ChoiceV n k').
+    sb R (ChoiceV c k) (ChoiceV c k').
   Proof.
     intros PROP EQs.
     apply step_sb_choiceV_gen; auto.
     all: intros x; exists x; auto.
   Qed.
 
-  Lemma step_sb_choiceV_id E X n (k k' : fin n -> ctree E X) (R : rel _ _) :
+  Lemma step_sb_choiceV_id (c : C Y) (k k' : Y -> ctree E C X) (R : rel _ _) :
     (forall x, st R (k x) (k' x)) ->
-    sbt R (ChoiceV n k) (ChoiceV n k').
+    sbt R (ChoiceV c k) (ChoiceV c k').
   Proof.
     apply step_sb_choiceV_id_gen.
     typeclasses eauto.
@@ -767,9 +773,9 @@ in both directions. We can in this case have [n] rather than [2n] obligations.
 For invisible nodes, the situation is different: we may kill them, but that execution
 cannot act as going under the guard.
 |*)
-  Lemma step_sb_tauI_gen E X (t t' : ctree E X) (R : rel _ _) :
+  Lemma step_sb_tauI_gen (t t' : ctree E C X) (R : rel _ _) :
     sb R t t' ->
-    sb R (TauI t) (TauI t').
+    sb R (tauI t) (tauI t').
   Proof.
     intros EQ.
     split; intros ? ? TR; inv_trans; subst.
@@ -777,27 +783,27 @@ cannot act as going under the guard.
     all: eexists; [apply trans_tauI; eauto | eauto].
   Qed.
 
-  Lemma step_sb_tauI E X (t t' : ctree E X) (R : rel _ _) :
+  Lemma step_sb_tauI (t t' : ctree E C X) (R : rel _ _) :
     sbt R t t' ->
-    sbt R (TauI t) (TauI t').
+    sbt R (tauI t) (tauI t').
   Proof.
     apply step_sb_tauI_gen.
   Qed.
 
-  Lemma step_sb_choiceI_gen E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) (R : rel _ _) :
+  Lemma step_sb_choiceI_gen Z (c : C Y) (c' : C Z) (k : Y -> ctree E C X) (k' : Z -> ctree E C X) (R : rel _ _) :
     (forall x, exists y, sb R (k x) (k' y)) ->
     (forall y, exists x, sb R (k x) (k' y)) ->
-    sb R (ChoiceI n k) (ChoiceI m k').
+    sb R (ChoiceI c k) (ChoiceI c' k').
   Proof.
     intros EQs1 EQs2.
     split; intros ? ? TR; inv_trans; subst.
-    - destruct (EQs1 n0) as [x [F _]]; cbn in F.
+    - destruct (EQs1 c0) as [x [F _]]; cbn in F.
       apply F in TR; destruct TR as [u' TR' EQ'].
       eexists.
       eapply trans_choiceI with (x := x); [|reflexivity].
       eauto.
       eauto.
-    - destruct (EQs2 m0) as [x [_ B]]; cbn in B.
+    - destruct (EQs2 c'0) as [x [_ B]]; cbn in B.
       apply B in TR; destruct TR as [u' TR' EQ'].
       eexists.
       eapply trans_choiceI with (x := x); [|reflexivity].
@@ -805,26 +811,26 @@ cannot act as going under the guard.
       eauto.
   Qed.
 
-  Lemma step_sb_choiceI E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) (R : rel _ _) :
+  Lemma step_sb_choiceI Z (c : C Y) (c' : C Z) (k : Y -> ctree E C X) (k' : Z -> ctree E C X) (R : rel _ _) :
     (forall x, exists y, sbt R (k x) (k' y)) ->
     (forall y, exists x, sbt R (k x) (k' y)) ->
-    sbt R (ChoiceI n k) (ChoiceI m k').
+    sbt R (ChoiceI c k) (ChoiceI c' k').
   Proof.
     apply step_sb_choiceI_gen.
   Qed.
 
-  Lemma step_sb_choiceI_id_gen {E X} n (k k' : fin n -> ctree E X) (R : rel _ _) :
+  Lemma step_sb_choiceI_id_gen (c : C Y) (k k' : Y -> ctree E C X) (R : rel _ _) :
     (forall x, sb R (k x) (k' x)) ->
-    sb R (ChoiceI n k) (ChoiceI n k').
+    sb R (ChoiceI c k) (ChoiceI c k').
   Proof.
     intros; apply step_sb_choiceI_gen.
     intros x; exists x; apply H.
     intros x; exists x; apply H.
   Qed.
 
-  Lemma step_sb_choiceI_id {E X} n (k k' : fin n -> ctree E X) (R : rel _ _) :
+  Lemma step_sb_choiceI_id (c : C Y) (k k' : Y -> ctree E C X) (R : rel _ _) :
     (forall x, sbt R (k x) (k' x)) ->
-    sbt R (ChoiceI n k) (ChoiceI n k').
+    sbt R (ChoiceI c k) (ChoiceI c k').
   Proof.
     apply step_sb_choiceI_id_gen.
   Qed.
@@ -841,15 +847,20 @@ avoiding any coinduction when combined with a pre-established equational theory.
 |*)
 Section Sb_Proof_System.
 
-  Lemma sb_ret E X : forall x y,
+  Context {E C : Type -> Type}.
+  Context {HasStuck : C0 -< C}.
+  Context {HasTau : C1 -< C}.
+  Context {X Y : Type}.
+
+  Lemma sb_ret : forall x y,
       x = y ->
-      Ret x ~ (Ret y : ctree E X).
+      Ret x ~ (Ret y : ctree E C X).
   Proof.
     intros * <-.
     now step.
   Qed.
 
-  Lemma sb_vis E X e Y : forall (k k' : X -> ctree E Y),
+  Lemma sb_vis e : forall (k k' : X -> ctree E C Y),
       (forall x, k x ~ k' x) ->
       Vis e k ~ Vis e k'.
   Proof.
@@ -863,8 +874,8 @@ Visible vs. Invisible Taus
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 Invisible taus can be stripped-out w.r.t. to [sbisim], but not visible ones
 |*)
-  Lemma sb_tauI E X : forall (t : ctree E X),
-      TauI t ~ t.
+  Lemma sb_tauI : forall (t : ctree E C X),
+      tauI t ~ t.
   Proof.
     intros t; play.
     - inv_trans.
@@ -872,84 +883,89 @@ Invisible taus can be stripped-out w.r.t. to [sbisim], but not visible ones
     - etrans.
   Qed.
 
- Lemma sb_tauI_l E X : forall (t u : ctree E X),
+  Lemma sb_tauI_l : forall (t u : ctree E C X),
       t ~ u ->
-      TauI t ~ u.
+      tauI t ~ u.
   Proof.
     intros * EQ; now rewrite sb_tauI.
   Qed.
 
-  Lemma sb_tauI_r E X : forall (t u : ctree E X),
+  Lemma sb_tauI_r : forall (t u : ctree E C X),
       t ~ u ->
-      t ~ TauI u.
+      t ~ tauI u.
   Proof.
     intros * EQ; now rewrite sb_tauI.
   Qed.
 
-  Lemma sb_tauI_lr E X : forall (t u : ctree E X),
+  Lemma sb_tauI_lr : forall (t u : ctree E C X),
       t ~ u ->
-      TauI t ~ TauI u.
+      tauI t ~ tauI u.
   Proof.
     intros * EQ; now rewrite !sb_tauI.
   Qed.
 
-  Lemma sb_tauV E X : forall (t u : ctree E X),
+  Lemma sb_tauV : forall (t u : ctree E C X),
       t ~ u ->
-      TauV t ~ TauV u.
+      tauV t ~ tauV u.
   Proof.
     intros * EQ; step.
-    apply step_sb_tauV; auto.
+    apply @step_sb_tauV; auto.
   Qed.
+
 
 (*|
 Choice
 |*)
   (* TODO: Double check that this is needed, it should be taus in all contexts I can think of *)
-  Lemma sb_choiceI1 E X : forall (k : fin 1 -> ctree E X),
-      ChoiceI 1 k ~ k F1.
+  Lemma sb_choiceI1 `{HasFin : Cn -< C} : forall (k : fin 1 -> ctree E C X),
+      chooseIn k ~ k F1.
   Proof.
     intros; step; econstructor.
     - intros ? ? ?. inv H.
-      apply Eqdep.EqdepTheory.inj_pair2 in H3; subst.
+      apply Eqdep.EqdepTheory.inj_pair2 in H4; subst.
       dependent destruction x; exists t'; etrans; auto.
       inversion x.
     - intros ? ? ?; cbn.
       etrans.
   Qed.
 
-  Lemma sb_choiceV E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) :
+  Lemma sb_choiceV I J (ci : C I) (cj : C J)
+        (k : I -> ctree E C X) (k' : J -> ctree E C X) :
     (forall x, exists y, k x ~ k' y) ->
     (forall y, exists x, k x ~ k' y) ->
-    ChoiceV n k ~ ChoiceV m k'.
+    ChoiceV ci k ~ ChoiceV cj k'.
   Proof.
     intros * EQs1 EQs2; step.
-    apply step_sb_choiceV; auto.
+    apply @step_sb_choiceV; auto.
   Qed.
 
-  Lemma sb_choiceV_id E X n (k k' : fin n -> ctree E X) :
+  Lemma sb_choiceV_id I (c : C I)
+        (k k' : I -> ctree E C X) :
     (forall x, k x ~ k' x) ->
-    ChoiceV n k ~ ChoiceV n k'.
+    ChoiceV c k ~ ChoiceV c k'.
   Proof.
     intros * EQs; step.
-    apply step_sb_choiceV_id; auto.
+    apply @step_sb_choiceV_id; auto.
   Qed.
 
-  Lemma sb_choiceI E X n m (k : fin n -> ctree E X) (k' : fin m -> ctree E X) :
+  Lemma sb_choiceI I J (ci : C I) (cj : C J)
+        (k : I -> ctree E C X) (k' : J -> ctree E C X) :
     (forall x, exists y, k x ~ k' y) ->
     (forall y, exists x, k x ~ k' y) ->
-    ChoiceI n k ~ ChoiceI m k'.
+    ChoiceI ci k ~ ChoiceI cj k'.
   Proof.
     intros; step.
-    eapply step_sb_choiceI; auto.
+    eapply @step_sb_choiceI; auto.
     intros x; destruct (H x) as (y & EQ).
     exists y; now step in EQ.
     intros y; destruct (H0 y) as (x & EQ).
     exists x; now step in EQ.
   Qed.
 
-  Lemma sb_choiceI_id {E X} n (k k' : fin n -> ctree E X)  :
+  Lemma sb_choiceI_id I (c : C I)
+        (k k' : I -> ctree E C X) :
     (forall x, k x ~ k' x) ->
-    ChoiceI n k ~ ChoiceI n k'.
+    ChoiceI c k ~ ChoiceI c k'.
   Proof.
     intros; step.
     apply @step_sb_choiceI_id; intros x.
@@ -957,13 +973,15 @@ Choice
     now step in H.
   Qed.
 
-  Lemma sb_choiceI_idempotent E X n: forall (k: fin (S n) -> ctree E X) t,
+  Lemma sb_choiceI_idempotent {HasFin : Cn -< C} : forall n (k: fin (S n) -> ctree E C X) t,
       (forall x, k x ~ t) ->
-      ChoiceI (S n) k ~ t.
+      chooseIn k ~ t.
   Proof.
     intros * EQ.
     rewrite <- sb_tauI with (t:=t).
-    apply sb_choiceI; intros; exists F1; apply EQ.
+    apply sb_choiceI; intros.
+    exists tt; apply EQ.
+    exists F1; apply EQ.
   Qed.
 
 End Sb_Proof_System.
@@ -983,6 +1001,13 @@ Ltac sstep := sret || svis || stauv.
 
 
  *)
+Section WithParams.
+
+  Context {E C : Type -> Type}.
+  Context {HasStuck : C0 -< C}.
+  Context {HasTau : C1 -< C}.
+  Context {HasC2 : C2 -< C}.
+  Context {HasC3 : C3 -< C}.
 
 (*|
 Sanity checks
@@ -1006,180 +1031,187 @@ tau challenge infinitely often.
 With invisible schedules, they are always equivalent: neither of them
 produce any challenge for the other.
 |*)
-Lemma spinV_nary_n_m : forall {E R} n m,
-    n>0 ->
-    m>0 ->
-    @spinV_nary E R n ~ spinV_nary m.
-Proof.
-  intros E R.
-  coinduction S CIH; symmetric.
-  intros * ? ? l p' TR.
-  destruct m as [|m]; [lia |].
-  rewrite ctree_eta in TR; cbn in TR.
-  inv_trans.
-  subst.
-  eexists.
-  rewrite ctree_eta; cbn.
-  econstructor. exact Fin.F1.
-  reflexivity.
-  rewrite EQ; eauto.
-Qed.
+  Lemma spinV_gen_nonempty : forall {Z X Y} (c: C X) (c': C Y) (x: X) (y: Y), @spinV_gen E C Z X c ~ spinV_gen c'.
+  Proof.
+    intros R.
+    coinduction S CIH; symmetric.
+    intros * ? ? l p' TR.
+    rewrite ctree_eta in TR; cbn in TR.
+    apply trans_choiceV_inv in TR as (_ & EQ & ->).
+    eexists.
+    rewrite ctree_eta; cbn.
+    econstructor. exact y.
+    reflexivity.
+    rewrite EQ; eauto.
+  Qed.
 
-Lemma spinI_nary_n_m : forall {E R} n m,
-    @spinI_nary E R n ~ spinI_nary m.
-Proof.
-  intros E R.
-  coinduction S _; symmetric.
-  cbn; intros * TR.
-  exfalso; eapply spinI_nary_is_stuck, TR.
-Qed.
+  Lemma spinI_gen_bisim : forall {Z X Y} (c: C X) (c': C Y),
+      @spinI_gen E C Z X c ~ spinI_gen c'.
+  Proof.
+    intros R.
+    coinduction S _; symmetric.
+    cbn; intros * TR.
+    exfalso; eapply spinI_gen_is_stuck, TR.
+  Qed.
 
 (*|
 ChoiceI2 is associative, commutative, idempotent, merges into ChoiceI3, and admits _a lot_ of units.
 |*)
-Lemma choiceI2_assoc {E X} : forall (t u v : ctree E X),
-	  choiceI2 (choiceI2 t u) v ~ choiceI2 t (choiceI2 u v).
-Proof.
-  intros.
-  play; inv_trans; etrans.
-Qed.
 
-Lemma choiceI2_commut {E X} : forall (t u : ctree E X),
-	  choiceI2 t u ~ choiceI2 u t.
-Proof.
+  Lemma chooseI2_assoc {X} : forall (t u v : ctree E C X),
+	    chooseI2 (chooseI2 t u) v ~ chooseI2 t (chooseI2 u v).
+  Proof.
+    intros.
+    play; inv_trans; etrans.
+  Qed.
+
+  Lemma chooseI2_commut {X} : forall (t u : ctree E C X),
+	    chooseI2 t u ~ chooseI2 u t.
+  Proof.
 (*|
 Note: could use a symmetry argument here as follows to only play one direction of the game.
 [coinduction ? _; symmetric.]
 but automation just handles it...
 |*)
-  intros.
-  play; inv_trans; etrans.
-Qed.
+    intros.
+    play; inv_trans; etrans.
+  Qed.
 
-Lemma choiceI2_idem {E X} : forall (t : ctree E X),
-	  choiceI2 t t ~ t.
-Proof.
-  intros.
-  play; inv_trans; etrans.
-Qed.
+  Lemma chooseI2_idem {X} : forall (t : ctree E C X),
+	    chooseI2 t t ~ t.
+  Proof.
+    intros.
+    play; inv_trans; etrans.
+  Qed.
 
-Lemma choiceI2_merge {E X} : forall (t u v : ctree E X),
-	  choiceI2 (choiceI2 t u) v ~ choiceI3 t u v.
-Proof.
-  intros.
-  play; inv_trans; etrans.
-Qed.
+  Lemma chooseI2_merge {X} : forall (t u v : ctree E C X),
+	    chooseI2 (chooseI2 t u) v ~ chooseI3 t u v.
+  Proof.
+    intros.
+    play; inv_trans; etrans.
+  Qed.
 
-Lemma choiceI2_is_stuck {E X} : forall (u v : ctree E X),
-    is_stuck u ->
-	  choiceI2 u v ~ v.
-Proof.
-  intros * ST.
-  play.
-  - inv_trans.
-    exfalso; eapply ST, TR. (* automate stuck transition trying to step? *)
-    exists t'; auto.             (* automate trivial case *)
-  - etrans.
-Qed.
+  Lemma chooseI2_is_stuck {X} : forall (u v : ctree E C X),
+      is_stuck u ->
+	    chooseI2 u v ~ v.
+  Proof.
+    intros * ST.
+    play.
+    - inv_trans.
+      exfalso; eapply ST, TR. (* automate stuck transition trying to step? *)
+      exists t'; auto.             (* automate trivial case *)
+    - etrans.
+  Qed.
 
-Lemma choiceI2_stuckV_l {E X} : forall (t : ctree E X),
-	  choiceI2 stuckV t ~ t.
-Proof.
-  intros; apply choiceI2_is_stuck, stuckV_is_stuck.
-Qed.
+  Lemma chooseI2_stuckV_l {X} : forall (t : ctree E C X),
+	    chooseI2 stuckV t ~ t.
+  Proof.
+    intros; apply chooseI2_is_stuck, stuckV_is_stuck.
+  Qed.
 
-Lemma choiceI2_stuckI_l {E X} : forall (t : ctree E X),
-	  choiceI2 stuckI t ~ t.
-Proof.
-  intros; apply choiceI2_is_stuck, stuckI_is_stuck.
-Qed.
+  Lemma chooseI2_stuckI_l {X} : forall (t : ctree E C X),
+	    chooseI2 stuckI t ~ t.
+  Proof.
+    intros; apply chooseI2_is_stuck, stuckI_is_stuck.
+  Qed.
 
-Lemma choiceI2_stuckV_r {E X} : forall (t : ctree E X),
-	  choiceI2 t stuckV ~ t.
-Proof.
-  intros; rewrite choiceI2_commut; apply choiceI2_stuckV_l.
-Qed.
+  Lemma chooseI2_stuckV_r {X} : forall (t : ctree E C X),
+	    chooseI2 t stuckV ~ t.
+  Proof.
+    intros; rewrite chooseI2_commut; apply chooseI2_stuckV_l.
+  Qed.
 
-Lemma choiceI2_stuckI_r {E X} : forall (t : ctree E X),
-	  choiceI2 t stuckI ~ t.
-Proof.
-  intros; rewrite choiceI2_commut; apply choiceI2_stuckI_l.
-Qed.
+  Lemma chooseI2_stuckI_r {X} : forall (t : ctree E C X),
+	    chooseI2 t stuckI ~ t.
+  Proof.
+    intros; rewrite chooseI2_commut; apply chooseI2_stuckI_l.
+  Qed.
 
-Lemma choiceI2_spinI_l {E X} : forall (t : ctree E X),
-	  choiceI2 spinI t ~ t.
-Proof.
-  intros; apply choiceI2_is_stuck, spinI_is_stuck.
-Qed.
+  Lemma chooseI2_spinI_l {X} : forall (t : ctree E C X),
+	    chooseI2 spinI t ~ t.
+  Proof.
+    intros; apply chooseI2_is_stuck, spinI_is_stuck.
+  Qed.
 
-Lemma choiceI2_spinI_r {E X} : forall (t : ctree E X),
-	  choiceI2 t spinI ~ t.
-Proof.
-  intros; rewrite choiceI2_commut; apply choiceI2_is_stuck, spinI_is_stuck.
-Qed.
+  Lemma chooseI2_spinI_r {X} : forall (t : ctree E C X),
+	    chooseI2 t spinI ~ t.
+  Proof.
+    intros; rewrite chooseI2_commut; apply chooseI2_is_stuck, spinI_is_stuck.
+  Qed.
 
 (*|
 Inversion principles
 --------------------
 |*)
-Lemma sbisim_ret_inv {E R} (r1 r2 : R) :
-  (Ret r1 : ctree E R) ~ Ret r2 ->
-  r1 = r2.
-Proof.
-  intro.
-  eplayL.
-  now inv_trans.
-Qed.
+  Lemma sbisim_ret_inv X (r1 r2 : X) :
+    (Ret r1 : ctree E C X) ~ Ret r2 -> r1 = r2.
+  Proof.
+    intro.
+    eplayL.
+    now inv_trans.
+  Qed.
 
-(** For the next few lemmas, we need to know that [X] is inhabited in order to
-    take a step *)
-Lemma sbisim_vis_inv_type {E R X1 X2}
-      (e1 : E X1) (e2 : E X2) (k1 : X1 -> ctree E R) (k2 : X2 -> ctree E R) (x : X1):
-  Vis e1 k1 ~ Vis e2 k2 ->
-  X1 = X2.
-Proof.
-  intros.
-  eplayL.
-  inv TR; auto.
-  Unshelve. auto.
-Qed.
+(*|
+ For the next few lemmas, we need to know that [X] is inhabited in order to
+ take a step
+|*)
+  Lemma sbisim_vis_inv_type {X X1 X2}
+        (e1 : E X1) (e2 : E X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree E C X) (x : X1):
+    Vis e1 k1 ~ Vis e2 k2 ->
+    X1 = X2.
+  Proof.
+    intros.
+    eplayL.
+    inv TR; auto.
+    Unshelve. auto.
+  Qed.
 
-Lemma sbisim_vis_inv {E R X} (e1 e2 : E X) (k1 k2 : X -> ctree E R) (x : X) :
-  Vis e1 k1 ~ Vis e2 k2 ->
-  e1 = e2 /\ forall x, k1 x ~ k2 x.
-Proof.
-  intros.
-  split.
-  - eplayL.
-    etrans.
-    inv_trans; eauto.
-  - intros.
-    clear x.
+  Lemma sbisim_vis_inv {X Y} (e1 e2 : E Y) (k1 k2 : Y -> ctree E C X) (x : Y) :
+    Vis e1 k1 ~ Vis e2 k2 ->
+    e1 = e2 /\ forall x, k1 x ~ k2 x.
+  Proof.
+    intros.
+    split.
+    - eplayL.
+      etrans.
+      inv_trans; eauto.
+    - intros.
+      clear x.
+      eplayL.
+      inv_trans.
+      subst. eauto.
+      Unshelve. auto.
+  Qed.
+
+  Lemma sbisim_ChoiceV_inv {X Y Z}
+        c1 c2 (k1 : X -> ctree E C Z) (k2 : Y -> ctree E C Z) :
+    ChoiceV c1 k1 ~ ChoiceV c2 k2 ->
+    (forall i1, exists i2, k1 i1 ~ k2 i2).
+  Proof.
+    intros EQ i1.
     eplayL.
     inv_trans.
-    subst. eauto.
-    Unshelve. auto.
-Qed.
-
-Lemma sbisim_ChoiceV_inv {E R}
-      n1 n2 (k1 : fin n1 -> ctree E R) (k2 : fin n2 -> ctree E R) :
-  ChoiceV n1 k1 ~ ChoiceV n2 k2 ->
-  (forall i1, exists i2, k1 i1 ~ k2 i2).
-Proof.
-  intros EQ i1.
-  eplayL.
-  inv_trans.
-  eexists; eauto.
-Qed.
+    eexists; eauto.
+  Qed.
 
 (*|
 Annoying case: [Vis e k ~ ChoiceV n k'] is true if [e : E void] and [n = 0].
 We rule out [n = 0] in this definition.
 |*)
-Definition are_bisim_incompat {E R} (t u : ctree E R) :=
+(* FIXME subevent is not powerful enough for this definition *)
+(*Definition are_bisim_incompat {E C R} (t u : ctree E C R) :=
   match observe t, observe u with
   | RetF _, RetF _
   | VisF _ _, VisF _ _
+<<<<<<< HEAD
+  | ChoiceF true _ _, ChoiceF true _ _
+  | ChoiceF false _ _, _
+  | _, ChoiceF false _ _ => false
+  | ChoiceF true n _, RetF _ => true
+  | RetF _,  ChoiceF true n _ => true
+  | ChoiceF true n _, VisF _ _ => negb (Nat.eqb n O)
+  | VisF _ _, ChoiceF true n _ => negb (Nat.eqb n O)
+=======
   | ChoiceVF _ _, ChoiceVF _ _
   | ChoiceIF _ _, _
   | _, ChoiceIF _ _ => false
@@ -1187,10 +1219,11 @@ Definition are_bisim_incompat {E R} (t u : ctree E R) :=
   | RetF _,  ChoiceVF n _ => true
   | ChoiceVF n _, VisF _ _ => negb (Nat.eqb n O)
   | VisF _ _, ChoiceVF n _ => negb (Nat.eqb n O)
+>>>>>>> master
   | _, _ => true
   end.
 
-Lemma sbisim_absurd {E R} (t u : ctree E R) :
+Lemma sbisim_absurd {E C R} (t u : ctree E C R) :
   are_bisim_incompat t u = true ->
   t ~ u ->
   False.
@@ -1217,78 +1250,82 @@ Proof.
 Qed.
 
 Ltac sb_abs h :=
-  exfalso; eapply sbisim_absurd; [| eassumption]; cbn; try reflexivity.
+  exfalso; eapply sbisim_absurd; [| eassumption]; cbn; try reflexivity.*)
 
-Lemma sbisim_ret_vis_inv {E R X} (r : R) (e : E X) k :
-  Ret r ~ Vis e k -> False.
-Proof.
-  intros * abs; sb_abs abs.
-Qed.
+  Lemma sbisim_ret_vis_inv {X Y}(r : Y) (e : E X) (k : X -> ctree E C Y) :
+    Ret r ~ Vis e k -> False.
+  Proof.
+  (*intros * abs; sb_abs abs.
+Qed.*)
+  Admitted.
 
-Lemma sbisim_ret_ChoiceV_inv {E R} (r : R) n (k : fin n -> ctree E R) :
-  Ret r ~ ChoiceV n k -> False.
-Proof.
-  intros * abs; sb_abs abs.
-Qed.
+  Lemma sbisim_ret_ChoiceV_inv {X Y} (r : Y) (c : C X) (k : X -> ctree E C Y) :
+    Ret r ~ ChoiceV c k -> False.
+  Proof.
+  (*intros * abs; sb_abs abs.
+Qed.*)
+  Admitted.
 
 (*|
 For this to be absurd, we need one of the return types to be inhabited.
 |*)
-Lemma sbisim_vis_ChoiceV_inv {E R X}
-      (e : E X) (k1 : X -> ctree E R) n (k2 : fin n -> ctree E R) :
-  n > 0 ->
-  Vis e k1 ~ ChoiceV n k2 -> False.
-Proof.
-  intros * INEQ abs.
+  Lemma sbisim_vis_ChoiceV_inv {X Y Z}
+        (e : E X) (k1 : X -> ctree E C Z) (c : C Y) k2 (y : Y) :
+    Vis e k1 ~ ChoiceV c k2 -> False.
+  Proof.
+  (*intros * INEQ abs.
   sb_abs abs.
   rewrite Bool.negb_true_iff, PeanoNat.Nat.eqb_neq.
   lia.
-Qed.
+Qed.*)
+  Admitted.
 
-Lemma sbisim_vis_ChoiceV_inv' {E R X}
-      (e : E X) (k1 : X -> ctree E R) n (k2 : fin n -> ctree E R) (x : X) :
-  Vis e k1 ~ ChoiceV n k2 -> False.
-Proof.
-  intro. step in H. destruct H as [Hf Hb]. cbn in *.
-  edestruct Hf as [x' Ht Hs]; [apply (@trans_vis _ _ _ _ x _) |]. inv_trans.
-Qed.
+  Lemma sbisim_vis_ChoiceV_inv' {X Y Z}
+        (e : E X) (k1 : X -> ctree E C Z) (c : C Y) k2 (x : X) :
+    Vis e k1 ~ ChoiceV c k2 -> False.
+  Proof.
+    intro. step in H. destruct H as [Hf Hb]. cbn in *.
+    edestruct Hf as [x' Ht Hs]; [apply (@trans_vis _ _ _ _ _ _ x _) |]. inv_trans.
+  Qed.
 
 (*|
 Not fond of these two, need to give some thoughts about them
 |*)
-Lemma sbisim_ret_ChoiceI_inv {E R} (r : R) n (k : fin n -> ctree E R) :
-  Ret r ~ ChoiceI n k ->
-  exists i, Ret r ~ k i.
-Proof.
-  intro. step in H. destruct H as [Hf Hb]. cbn in *.
-  edestruct Hf as [x Ht Hs]; [apply trans_ret |].
-  apply trans_choiceI_inv in Ht.
-  destruct Ht as [i Ht]. exists i.
-  step. split.
-  - repeat intro. inv H. exists x; auto. rewrite <- Hs.
-    rewrite ctree_eta. rewrite <- H3. rewrite choiceI0_always_stuck. auto.
-  - repeat intro. eapply trans_choiceI in H; eauto. specialize (Hb _ _ H).
-    destruct Hb. inv H0. exists stuckI. constructor.
-    cbn. rewrite <- H1. symmetry. rewrite ctree_eta .
-    rewrite <- H5. rewrite choiceI0_always_stuck. auto.
-Qed.
+  Lemma sbisim_ret_ChoiceI_inv {X Y} (r : Y) (c : C X) (k : X -> ctree E C Y) :
+    Ret r ~ ChoiceI c k ->
+    exists x, Ret r ~ k x.
+  Proof.
+    intro. step in H. destruct H as [Hf Hb]. cbn in *.
+    edestruct Hf as [x Ht Hs]; [apply trans_ret |].
+    apply trans_choiceI_inv in Ht.
+    destruct Ht as [i Ht]. exists i.
+    step. split.
+    - repeat intro. inv H. exists x; auto. rewrite <- Hs.
+      rewrite ctree_eta. rewrite <- H3. rewrite choiceStuckI_always_stuck. auto.
+    - repeat intro. eapply trans_choiceI in H; eauto. specialize (Hb _ _ H).
+      destruct Hb. inv H0. exists stuckI. constructor.
+      cbn. rewrite <- H1. symmetry. rewrite ctree_eta .
+      rewrite <- H5. rewrite choiceStuckI_always_stuck. auto.
+  Qed.
 
-Lemma sbisim_ChoiceI_1_inv {E R} (k : fin 1 -> ctree E R) t x :
-  ChoiceI 1 k ~ t ->
-  k x ~ t.
-Proof.
-  intro. step in H. step. destruct H. cbn in *. split; repeat intro.
-  - apply H. econstructor; apply H1.
-  - edestruct H0. apply H1. exists x0; auto.
-    inv H2. apply Eqdep.EqdepTheory.inj_pair2 in H7. subst.
-    assert (x = x1).
-    {
-      clear H H0 H1 H3 H8 l t' x0 t k E R.
-      remember 1%nat.
-      destruct x.
-      - dependent destruction x1; auto.
-        inv Heqn. inv x1.
-      - inv Heqn. inv x.
-    }
-    subst. auto.
-Qed.
+(* Lemma sbisim_ChoiceI_Tau_inv {X} (k : fin 1 -> ctree E C R) t x : *)
+(*   ChoiceI (subevent _ Tau) k ~ t -> *)
+(*   k x ~ t. *)
+(* Proof. *)
+(*   intro. step in H. step. destruct H. cbn in *. split; repeat intro. *)
+(*   - apply H. econstructor; apply H1. *)
+(*   - edestruct H0. apply H1. exists x0; auto. *)
+(*     inv H2. apply Eqdep.EqdepTheory.inj_pair2 in H7, H8. subst. *)
+(*     assert (x = x1). *)
+(*     { *)
+(*       clear H H0 H1 H3 H9 l t' x0 t k E R. *)
+(*       remember 1%nat. *)
+(*       destruct x. *)
+(*       - dependent destruction x1; auto. *)
+(*         inv Heqn. inv x1. *)
+(*       - inv Heqn. inv x. *)
+(*     } *)
+(*     subst. auto. *)
+(* Qed. *)
+
+End WithParams.

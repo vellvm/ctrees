@@ -8,39 +8,36 @@ Import CTreeNotations.
 (* Import CTreeNotations. *)
 
 Section Internalize.
-  Variable E : Type -> Type.
+  Variable E C : Type -> Type.
+  Variable ExtChoice : Type -> Type.
+  Context `{C1 -< C}.
 
-  Variant ExtChoice : Type -> Type :=
-    | ext_chose n : ExtChoice (Fin.t n).
-  Arguments ext_chose n : clear implicits.
+  Definition internalize_h : ExtChoice ~> ctree E (C +' ExtChoice) :=
+    fun _ e => choice true e.
 
-  Definition internalize_h {E} : ExtChoice ~> ctree E :=
-    fun _ '(ext_chose n) => CTree.choice true n.
-
-  Definition internalize_h' {E} : ExtChoice +' E ~> ctree E :=
+  Definition internalize_h' : ExtChoice +' E ~> ctree E (C +' ExtChoice) :=
     fun _ e => match e with
             | inl1 e => internalize_h e
             | inr1 e => trigger e
             end.
 
-  Definition internalize : ctree (ExtChoice +' E) ~> ctree E :=
-    interp internalize_h'.
+  Definition internalize : ctree (ExtChoice +' E) C ~> ctree E (C +' ExtChoice) :=
+    interpE internalize_h'.
 
   Lemma internalize_ret {R} (r : R) : internalize (Ret r) ≅ Ret r.
   Proof.
     unfold internalize.
-    rewrite interp_ret. (* Why is it slow? *)
+    rewrite interp_ret.
     reflexivity.
   Qed.
 
-  Lemma internalize_bind {R S} (t : ctree _ R) (k : R -> ctree _ S) :
+  Lemma internalize_bind {R S} (t : ctree _ _ R) (k : R -> ctree _ _ S) :
     internalize (t >>= k) ≅ internalize t >>= (fun x => internalize (k x)).
   Proof.
     unfold internalize.
-    rewrite interp_bind. (* Why is it slow? *)
+    rewrite interp_bind.
     reflexivity.
   Qed.
 
 End Internalize.
-Arguments ext_chose n : clear implicits.
-
+(* Arguments ext_chose n : clear implicits. *)

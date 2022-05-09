@@ -2,6 +2,7 @@ From Coq Require Import Fin.
 From Coq Require Export Program.Equality.
 From Coinduction Require Import
 	coinduction rel tactics.
+From ITree Require Import Basics.Basics.
 
 Notation fin := Fin.t.
 
@@ -11,10 +12,10 @@ Tactic Notation "cbn*" := next.
 
 (* TODO: move *)
 Polymorphic Class MonadTrigger (E : Type -> Type) (M : Type -> Type) : Type :=
-  mtrigger : forall X, E X -> M X.
+  mtrigger : E ~> M.
 
-Polymorphic Class MonadChoice (M : Type -> Type) : Type :=
-  choice : forall (b : bool) (n: nat), M (Fin.t n).
+Polymorphic Class MonadChoice (M C : Type -> Type) : Type :=
+  choice : forall (b : bool), C ~> M.
 
 Notation rel X Y := (X -> Y -> Prop).
 

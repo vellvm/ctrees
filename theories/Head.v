@@ -13,6 +13,7 @@ We develop in this file the [get_head] function to compute this prefix.
 .. coq:: none
 |*)
 
+From ITree Require Import Core.Subevent.
 From CTree Require Import
 	CTree Eq.
 
@@ -31,10 +32,10 @@ The [head] data structure captures trivially this data.
 .. coq::
 |*)
 
-Variant head {E R} :=
+Variant head {E C R} :=
 	| HRet    (r : R)
-	| HChoice (n : nat) (k : Fin.t n -> ctree E R)
-	| HVis    (X : Type) (e : E X) (k : X -> ctree E R).
+	| HChoice (X : Type) (c : C X) (k : X -> ctree E C R)
+	| HVis    (X : Type) (e : E X) (k : X -> ctree E C R).
 
 (*|
 The [get_head] computation simply scrolls the tree until it reaches
@@ -42,24 +43,24 @@ a none invisible choice node.
 Notice that this computation may loop if the original computation
 admits a infinite branch of invisible choices.
 |*)
-Definition get_head {E X} : ctree E X -> ctree E (@head E X) :=
-  cofix get_head (t : ctree E X) :=
+Definition get_head {E C X} : ctree E C X -> ctree E C (@head E C X) :=
+  cofix get_head (t : ctree E C X) :=
     match observe t with
-    | RetF x            => Ret (HRet x)
-    | VisF e k          => Ret (HVis e k)
-    | ChoiceVF n k      => Ret (HChoice k)
-    | ChoiceIF n k      => Choice false n (fun i => get_head (k i))
+    | RetF x          => Ret (HRet x)
+    | VisF e k        => Ret (HVis e k)
+    | ChoiceF true c k => Ret (HChoice c k)
+    | ChoiceF false c k => Choice false c (fun x => get_head (k x))
     end.
 
 Notation get_head_ t :=
-  match observe t with
-  | RetF x            => Ret (HRet x)
-  | VisF e k          => Ret (HVis e k)
-  | ChoiceVF n k      => Ret (HChoice k)
-  | ChoiceIF n k      => Choice false n (fun i => get_head (k i))
-  end.
+    match observe t with
+    | RetF x          => Ret (HRet x)
+    | VisF e k        => Ret (HVis e k)
+    | ChoiceF true c k => Ret (HChoice c k)
+    | ChoiceF false c k => Choice false c (fun x => get_head (k x))
+    end.
 
-Lemma unfold_get_head {E X} : forall (t : ctree E X),
+Lemma unfold_get_head {E C X} : forall (t : ctree E C X),
     get_head t ≅ get_head_ t.
 Proof.
   intros.
@@ -71,9 +72,9 @@ Transitions in a tree can always be reflected in their head-tree.
 The exact shape of the lemma depends on the nature of the transition.
 We wrap them together in [trans_get_head].
 |*)
-Lemma trans_get_head_obs {E X} : forall (t u : ctree E X) Y (e : E Y) v,
+Lemma trans_get_head_obs {E C X} `{C0 -< C} : forall (t u : ctree E C X) Y (e : E Y) v,
     trans (obs e v) t u ->
-    exists (k : Y -> ctree E X),
+    exists (k : Y -> ctree E C X),
       trans (val (HVis e k)) (get_head t) stuckI /\
         u ≅ k v.
 Proof.
@@ -96,10 +97,10 @@ Proof.
     rewrite <- ctree_eta; symmetry; assumption.
 Qed.
 
-Lemma trans_get_head_tau {E X} : forall (t u : ctree E X),
+Lemma trans_get_head_tau {E C R} `{C0 -< C} : forall (t u : ctree E C R),
     trans tau t u ->
-    exists n (k : Fin.t n -> ctree E X) x,
-      trans (val (HChoice k)) (get_head t) stuckI /\
+    exists X (c : C X) (k : X -> ctree E C R) x,
+      trans (val (HChoice c k)) (get_head t) stuckI /\
         u ≅ k x.
 Proof.
   intros * TR.
@@ -108,21 +109,21 @@ Proof.
   setoid_rewrite (ctree_eta u).
   setoid_rewrite unfold_get_head.
   induction TR; try now inv Heqob; subst.
-  - destruct IHTR as (m & kf & z & IHTR & EQ); auto.
-    exists m, kf, z; split; [| exact EQ].
-    rename x into y.
+  - specialize (IHTR Heqob). destruct IHTR as (Y & c' & k' & y & IHTR & EQ); auto.
+    exists Y, c', k', y. split; [| exact EQ].
+    rename x into z.
     rewrite <- unfold_get_head in IHTR.
-    eapply trans_choiceI with (x := y).
+    eapply trans_choiceI with (x := z).
     apply IHTR.
     reflexivity.
-  - exists n,k,x; split.
+  - exists X,c,k,x; split.
     constructor.
     rewrite <- ctree_eta; symmetry; assumption.
 Qed.
 
-Lemma trans_get_head_ret {E X} : forall (t u : ctree E X) (v : X),
+Lemma trans_get_head_ret {E C X} `{C0 -< C} : forall (t u : ctree E C X) (v : X),
     trans (val v) t u ->
-    trans (val (@HRet E X v)) (get_head t) stuckI /\
+    trans (val (@HRet E C X v)) (get_head t) stuckI /\
       u ≅ stuckI.
 Proof.
   intros * TR.
@@ -140,31 +141,36 @@ Proof.
     reflexivity.
   - dependent induction Heqob.
     split.
-    constructor.
-    symmetry; rewrite choiceI0_always_stuck; reflexivity.
+    constructor. symmetry. unfold stuckI.
+    symmetry; rewrite choiceStuckI_always_stuck; reflexivity.
 Qed.
 
-Lemma trans_get_head : forall {E X} (t u : ctree E X) l,
+Lemma trans_get_head : forall {E C R} `{C0 -< C} (t u : ctree E C R) l,
     trans l t u ->
     match l with
-    | tau => exists n (k : Fin.t n -> ctree E X) x,
-        trans (val (HChoice k)) (get_head t) stuckI /\ u ≅ k x
-    | obs e v => exists (k : _ -> ctree E X),
+    | tau => exists X (c : C X) (k : X -> ctree E C R) x,
+        trans (val (HChoice c k)) (get_head t) stuckI /\ u ≅ k x
+    | obs e v => exists (k : _ -> ctree E C R),
         trans (val (HVis e k)) (get_head t) stuckI /\ u ≅ k v
-    | val v => trans (val (@HRet E _ v)) (get_head t) stuckI /\ u ≅ stuckI
+    | val v => trans (val (@HRet E C _ v)) (get_head t) stuckI /\ u ≅ stuckI
     end.
 Proof.
   intros *; destruct l.
   apply trans_get_head_tau.
   apply trans_get_head_obs.
-  intros H.
-  pose proof (trans_val_invT H); subst; apply trans_get_head_ret; assumption.
+  intros H0.
+  pose proof (trans_val_invT H0); subst; apply trans_get_head_ret; assumption.
 Qed.
 
 (*|
 The only transitions that the head-tree can take are value ones.
 |*)
-Lemma trans_get_head_inv {E X} : forall (P : ctree E X) l u,
+Ltac eq2equ H :=
+  match type of H with
+  | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≅ t) by (subst; reflexivity); clear H
+  end.
+
+Lemma trans_get_head_inv {E C X} `{C0 -< C} : forall (P : ctree E C X) l u,
     trans l (get_head P) u ->
     is_val l.
 Proof.
@@ -178,8 +184,8 @@ Proof.
     desobs P; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-    + step in EQ; destruct (equb_choice_invT _ _ EQ) as [-> _].
-      eapply equb_choice_invE in EQ.
+    + step in EQ; destruct (equb_choice_invT _ _ _ _ EQ) as [-> _].
+      eapply equb_choice_invE in EQ as [].
       setoid_rewrite <- ctree_eta in IHTR.
       eapply IHTR; eauto.
   - exfalso.
@@ -196,8 +202,8 @@ Proof.
 Qed.
 
 Lemma trans_HRet :
-  forall {E X} r (p: ctree E X) q,
-    trans (val (@HRet E X r)) (get_head p) q ->
+  forall {E C X} `{C0 -< C} r (p: ctree E C X) q,
+    trans (val (@HRet E C X r)) (get_head p) q ->
     trans (val r) p stuckI.
 Proof.
   intros * TR.
@@ -213,11 +219,11 @@ Proof.
     desobs p; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-    + step in EQ; destruct (equb_choice_invT _ _ EQ) as [-> _].
-      eapply equb_choice_invE in EQ.
+    + step in EQ; destruct (equb_choice_invT _ _ _ _ EQ) as [-> _].
       setoid_rewrite <- ctree_eta in IHTR.
       econstructor.
       apply IHTR; eauto.
+      now apply equb_choice_invE in EQ.
   - unfold trans.
     apply val_eq_inv in Heql; inv Heql.
     rewrite unfold_get_head in EQ.
@@ -230,13 +236,13 @@ Proof.
 Qed.
 
 Lemma trans_HChoice :
-  forall {E X} n k (p: ctree E X) q,
-    trans (val (HChoice (n := n) k)) (get_head p) q ->
+  forall {E C R X} `{C0 -< C} (c : C X) k (p: ctree E C R) q,
+    trans (val (HChoice c k)) (get_head p) q ->
     forall i, trans tau p (k i).
 Proof.
   intros * TR.
   remember (get_head p) as Hp.
-  remember (val (HChoice k)) as l.
+  remember (val (HChoice c k)) as l.
   eq2equ HeqHp.
   rewrite ctree_eta in EQ.
   revert p EQ k Heql.
@@ -247,8 +253,8 @@ Proof.
     desobs p; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-    + step in EQ; destruct (equb_choice_invT _ _ EQ) as [-> _].
-      eapply equb_choice_invE in EQ.
+    + step in EQ; destruct (equb_choice_invT _ _ _ _ EQ) as [-> _].
+      eapply equb_choice_invE in EQ as [].
       setoid_rewrite <- ctree_eta in IHTR.
       econstructor.
       apply IHTR; eauto.
@@ -265,7 +271,7 @@ Proof.
 Qed.
 
 Lemma trans_HVis :
-  forall {E X Y} (e : E Y) (p: ctree E X) (k : Y -> ctree E X) q,
+  forall {E C X Y} `{C0 -< C} (e : E Y) (p: ctree E C X) (k : Y -> ctree E C X) q,
     trans (val (HVis e k)) (get_head p) q ->
     forall i, trans (obs e i) p (k i).
 Proof.
@@ -282,8 +288,8 @@ Proof.
     desobs p; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-    + step in EQ; destruct (equb_choice_invT _ _ EQ) as [-> _].
-      eapply equb_choice_invE in EQ.
+    + step in EQ; destruct (equb_choice_invT _ _ _ _ EQ) as [-> _].
+      eapply equb_choice_invE in EQ as [].
       setoid_rewrite <- ctree_eta in IHTR.
       econstructor.
       apply IHTR; eauto.
@@ -305,16 +311,16 @@ well-behaved w.r.t. to [equ] as usual: rewriting [equ eq] leads to [equ eq_head]
 computations, where [eq_head] propagates [equ] to the computations contained in the
 heads.
 |*)
-Variant eq_head {E R} : @head E R -> head -> Prop :=
+Variant eq_head {E C R} : @head E C R -> head -> Prop :=
 | eq_head_ret : forall r, eq_head (HRet r) (HRet r)
-| eq_head_choice : forall n (k1 k2 : fin n -> _),
-    (forall i, k1 i ≅ k2 i) ->
-    eq_head (HChoice k1) (HChoice k2)
+| eq_head_choice : forall X (c : C X) (k1 k2 : X -> _),
+    (forall x, k1 x ≅ k2 x) ->
+    eq_head (HChoice c k1) (HChoice c k2)
 | eq_head_vis : forall X (e : E X) k1 k2,
     (forall x, k1 x ≅ k2 x) ->
     eq_head (HVis e k1) (HVis e k2).
 
-#[global] Instance eq_head_equiv {E R} : Equivalence (@eq_head E R).
+#[global] Instance eq_head_equiv {E C R} : Equivalence (@eq_head E C R).
 Proof.
   split.
   - intros []; constructor; auto.
@@ -328,8 +334,8 @@ Proof.
     constructor; intros; rewrite H; auto.
 Qed.
 
-#[global] Instance get_head_equ {E X} :
-  Proper (equ eq ==> equ (eq_head)) (@get_head E X).
+#[global] Instance get_head_equ {E C X} :
+  Proper (equ eq ==> equ (eq_head)) (@get_head E C X).
 Proof.
   unfold Proper, respectful.
   unfold equ; coinduction S CIH.

@@ -13,7 +13,7 @@ From Coinduction Require Import
 	 coinduction rel tactics.
 
 From CTree Require Import
-	 CTree Eq.Shallow Eq.Equ.
+	   CTree Eq.Shallow Eq.Equ.
 
 Import CTree.
 Import CTreeNotations.
@@ -25,22 +25,22 @@ Set Primitive Projections.
 
 Section Visible.
 
-  Context {E : Type -> Type} {R : Type}.
+  Context {E C : Type -> Type} {R : Type}.
 
-  Notation S' := (ctree' E R).
-  Notation S  := (ctree  E R).
+  Notation S' := (ctree' E C R).
+  Notation S  := (ctree  E C R).
 
   Definition SS : EqType :=
 	{| type_of := S ; Eq := equ eq |}.
 
   Inductive visible_ : hrel S' S' :=
-  | VisibleI {n} (x : Fin.t n) k t :
+  | VisibleI {X} (c : C X) x k t :
     visible_ (observe (k x)) t ->
-    visible_ (ChoiceF false n k) t
+    visible_ (ChoiceF false c k) t
 
-  | VisibleV {n} (x : Fin.t n) k1 k2 :
+  | VisibleV {X} (c : C X) (x : X) k1 k2 :
     (forall x, k1 x ≅ k2 x) ->
-    visible_ (ChoiceF true n k1) (ChoiceF true n k2)
+    visible_ (ChoiceF true c k1) (ChoiceF true c k2)
 
   | VisibleVis {X} (e : E X) k1 k2 :
     (forall x, k1 x ≅ k2 x) ->
@@ -52,43 +52,44 @@ Section Visible.
   Hint Constructors visible_ : core.
 
   Definition visibleR : hrel S S :=
-	fun u v => visible_ (observe u) (observe v).
+	  fun u v => visible_ (observe u) (observe v).
 
   #[local] Instance visible__equ_aux1 t :
-	Proper (going (equ eq) ==> flip impl) (visible_ t).
+	  Proper (going (equ eq) ==> flip impl) (visible_ t).
   Proof.
-	intros x x' equ TR.
-	inv equ; rename H into equ.
-	step in equ.
-	dependent induction TR; intros; eauto; inv equ; try invert; auto;
-	  (constructor; auto; etransitivity; [apply H | symmetry; auto]).
+	  intros x x' equ TR.
+	  inv equ; rename H into equ.
+	  step in equ.
+	  dependent induction TR; intros; eauto; inv equ; try invert; auto;
+	    (constructor; auto; etransitivity; [apply H | symmetry; auto]).
   Qed.
 
   #[local] Instance visible__equ_aux2 :
-	Proper (going (equ eq) ==> going (equ eq) ==> impl) visible_.
+	  Proper (going (equ eq) ==> going (equ eq) ==> impl) visible_.
   Proof.
-	intros x x' xequ y y' yequ TR. rewrite <- yequ. clear yequ y'.
-	inv xequ; rename H into xequ.	step in xequ.
+	  intros x x' xequ y y' yequ TR. rewrite <- yequ. clear yequ y'.
+	  inv xequ; rename H into xequ.	step in xequ.
     revert x' xequ.
-	dependent induction TR; intros; eauto; inv xequ; try invert; auto.
+	  dependent induction TR; intros; eauto; inv xequ; try invert; auto.
     2, 3: constructor; auto; intros; rewrite <- H; symmetry; auto.
     econstructor. apply IHTR. rewrite REL. reflexivity.
   Qed.
 
   #[global] Instance visible__equ :
-	Proper (going (equ eq) ==> going (equ eq) ==> iff) visible_.
+	  Proper (going (equ eq) ==> going (equ eq) ==> iff) visible_.
   Proof.
-	intros ? ? eqt ? ? equ; split; intros TR.
-	- eapply visible__equ_aux2; eauto.
-	- symmetry in equ; symmetry in eqt; eapply visible__equ_aux2; eauto.
+	  intros ? ? eqt ? ? equ; split; intros TR.
+	  - eapply visible__equ_aux2; eauto.
+	  - symmetry in equ; symmetry in eqt; eapply visible__equ_aux2; eauto.
   Qed.
 
   #[global] Instance visible_equ :
-	Proper (equ eq ==> equ eq ==> iff) visibleR.
+	  Proper (equ eq ==> equ eq ==> iff) visibleR.
   Proof.
-	intros ? ? eqt ? ? equ; unfold visibleR.
+	  intros ? ? eqt ? ? equ; unfold visibleR.
     rewrite eqt, equ. reflexivity.
   Qed.
 
   Definition visible : srel SS SS := {| hrel_of := visibleR : hrel SS SS |}.
+
 End Visible.

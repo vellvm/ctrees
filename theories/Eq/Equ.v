@@ -19,6 +19,8 @@ From Coq Require Import RelationClasses Program.
 From Coinduction Require Import
 	coinduction rel tactics.
 
+From ITree Require Import Core.Subevent.
+
 From CTree Require Import
      CTree
      Eq.Shallow.
@@ -31,12 +33,12 @@ Import CTree.
 
 Section equ.
 
-  Context {E : Type -> Type} {R1 R2 : Type} (RR : R1 -> R2 -> Prop).
+  Context {E C : Type -> Type} {R1 R2 : Type} (RR : R1 -> R2 -> Prop).
 
 (*|
 We also need to do some gymnastics to work around the
 two-layered definition of [ctree]. We first define a
-relation transformer [equF] as an indexed inductive type
+relation transformer [equb] as an indexed inductive type
 on [ctree'], which is then composed with [observe] to obtain
 a relation transformer on [ctree] ([equ_]).
 
@@ -44,22 +46,22 @@ In short, this is necessitated by the fact that dependent
 pattern-matching is not allowed on [ctree].
 |*)
 
-  Variant equb (eq : ctree E R1 -> ctree E R2 -> Prop) :
-    ctree' E R1 -> ctree' E R2 -> Prop :=
+  Variant equb (eq : ctree E C R1 -> ctree E C R2 -> Prop) :
+    ctree' E C R1 -> ctree' E C R2 -> Prop :=
   | Eq_Ret x y (REL : RR x y) : equb eq (RetF x) (RetF y)
   | Eq_Vis {X} (e : E X) k1 k2
       (REL : forall x, eq (k1 x) (k2 x)) :
       equb eq (VisF e k1) (VisF e k2)
-  | Eq_Choice b {n} (k1 : Fin.t n -> _) (k2 : Fin.t n -> _)
-              (REL : forall i, eq (k1 i) (k2 i)) :
-      equb eq (ChoiceF b n k1) (ChoiceF b n k2)
+  | Eq_Choice b {X} {c : C X} k1 k2
+      (REL : forall x, eq (k1 x) (k2 x)) :
+      equb eq (ChoiceF b c k1) (ChoiceF b c k2)
   .
   Hint Constructors equb: core.
 
-  Definition equb_ eq : ctree E R1 -> ctree E R2 -> Prop :=
+  Definition equb_ eq : ctree E C R1 -> ctree E C R2 -> Prop :=
 	fun t1 t2 => equb eq (observe t1) (observe t2).
 
-  Program Definition fequ: mon (ctree E R1 -> ctree E R2 -> Prop) := {|body := equb_|}.
+  Program Definition fequ: mon (ctree E C R1 -> ctree E C R2 -> Prop) := {|body := equb_|}.
   Next Obligation.
     unfold pointwise_relation, Basics.impl, equb_.
     intros ?? INC ?? EQ. inversion_clear EQ; auto.
@@ -88,7 +90,7 @@ denoted [t], is accessible during a proof by coinduction.
 
 |*)
 
-Definition equ {E R1 R2} R := (gfp (@fequ E R1 R2 R)).
+Definition equ {E C R1 R2} R := (gfp (@fequ E C R1 R2 R)).
 #[global] Hint Unfold equ: core.
 #[global] Hint Constructors equb: core.
 Arguments equb_ _ _ _ _/.
@@ -96,8 +98,8 @@ Arguments equb_ _ _ _ _/.
 Ltac fold_equ :=
   repeat
     match goal with
-    | h: context[@fequ ?E ?R1 ?R2 ?RR] |- _ => fold (@equ E R1 R2 RR) in h
-    | |- context[@fequ ?E ?R1 ?R2 ?RR] => fold (@equ E R1 R2 RR)
+    | h: context[@fequ ?E ?C ?R1 ?R2 ?RR] |- _ => fold (@equ E C R1 R2 RR) in h
+    | |- context[@fequ ?E ?C ?R1 ?R2 ?RR] => fold (@equ E C R1 R2 RR)
     end.
 
 Ltac __coinduction_equ R H :=
@@ -105,10 +107,10 @@ Ltac __coinduction_equ R H :=
 
 Tactic Notation "__step_equ" :=
   match goal with
-  | |- context [@equ ?E ?R1 ?R2 ?RR _ _] =>
+  | |- context [@equ ?E ?C ?R1 ?R2 ?RR _ _] =>
       unfold equ;
       step;
-      fold (@equ E R1 R2 RR)
+      fold (@equ E C R1 R2 RR)
   | |- _ => step
   end.
 
@@ -119,10 +121,10 @@ Tactic Notation "__step_equ" :=
 
 Ltac __step_in_equ H :=
   match type of H with
-  | context [@equ ?E ?R1 ?R2 ?RR _ _] =>
+  | context [@equ ?E ?C ?R1 ?R2 ?RR _ _] =>
       unfold equ in H;
       step in H;
-      fold (@equ E R1 R2 RR) in H
+      fold (@equ E C R1 R2 RR) in H
   end.
 
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_equ H.
@@ -151,16 +153,16 @@ Import EquNotations.
 
 Section equ_theory.
 
-	Variable (E : Type -> Type) (R : Type) (RR : R -> R -> Prop).
-  Notation eT  := (coinduction.T (fequ (E := E) RR)).
-  Notation et  := (coinduction.t (fequ (E := E) RR)).
-  Notation ebt := (coinduction.bt (fequ (E := E) RR)).
+	Variable (E C : Type -> Type) (R : Type) (RR : R -> R -> Prop).
+  Notation eT  := (coinduction.T (fequ (E := E) (C := C) RR)).
+  Notation et  := (coinduction.t (fequ (E := E) (C := C) RR)).
+  Notation ebt := (coinduction.bt (fequ (E := E) (C := C) RR)).
 (*|
 This is just a hack suggested by Damien Pous to avoid a
 universe inconsistency when using both the relational algebra
 and coinduction libraries (we fix the type at which we'll use [eq]).
 |*)
-  Definition seq: relation (ctree E R) := eq.
+  Definition seq: relation (ctree E C R) := eq.
 
 (*|
 [eq] is a post-fixpoint, thus [const eq] is below [t]
@@ -175,8 +177,8 @@ to be closed by reflexivity in effect: the companion is always reflexive.
 |*)
 	Lemma refl_t {RRR: Reflexive RR}: const seq <= et.
 	Proof.
-		apply leq_t. intro. cbn.
-		change (@eq (ctree E R)  <= equb_ RR eq).
+		apply leq_t. intro.
+		change (@eq (ctree E C R)  <= equb_ RR eq).
 		intros p ? <-. cbn. desobs p; auto.
 	Qed.
 
@@ -203,8 +205,8 @@ to be closed by reflexivity in effect: the companion is always reflexive.
 			constructor. intro x0. now exists (k2 x0).
 		- rewrite <- H in H2.
 			destruct (Choice_eq1 H2); subst.
-			destruct (Choice_eq2 H2).
-			constructor. intros i. now (exists (k0 i)).
+      destruct (Choice_eq2 H2) as [-> ->].
+			constructor. intros x0. now exists (k2 x0).
 	Qed.
 
 (*|
@@ -226,7 +228,7 @@ essentially we can conclude by reflexivity without stepping completely through
 [equb], but only after exposing it by unfolding and case-analysing on the structure
 of the tree.
 |*)
-  #[global] Instance Reflexive_equb (equ : ctree E R -> ctree E R -> Prop) :
+  #[global] Instance Reflexive_equb (equ : ctree E C R -> ctree E C R -> Prop) :
     Reflexive RR -> Reflexive equ -> Reflexive (equb RR equ).
   Proof.
     red. destruct x; auto.
@@ -234,14 +236,14 @@ of the tree.
 
 End equ_theory.
 
-#[global] Instance Equivalence_equ {E R}: Equivalence (@equ E R R eq).
+#[global] Instance Equivalence_equ {E C R}: Equivalence (@equ E C R R eq).
 Proof. apply Equivalence_et. typeclasses eauto. Qed.
 
 #[global] Hint Constructors equb : core.
-Arguments equb_ {E R1 R2} RR eq t1 t2/.
+Arguments equb_ {E C R1 R2} RR eq t1 t2/.
 
-#[global] Instance equb_eq_equ {E X} {Q : rel X X} :
-  Proper (equ eq ==> equ eq ==> flip impl) (@equ E X X Q).
+#[global] Instance equb_eq_equ {E C X} {Q : rel X X} :
+  Proper (equ eq ==> equ eq ==> flip impl) (@equ E C X X Q).
 Proof.
   unfold Proper, respectful, flip, impl.
   coinduction ? IH.
@@ -268,8 +270,8 @@ Proof.
     eauto.
 Qed.
 
-#[global] Instance equb_eq_equ' {E X Y} {R : rel X Y} :
-  Proper (equ eq ==> equ eq ==> flip impl) (@equ E X Y R).
+#[global] Instance equb_eq_equ' {E C X Y} {R : rel X Y} :
+  Proper (equ eq ==> equ eq ==> flip impl) (@equ E C X Y R).
 Proof.
   unfold Proper, respectful, flip, impl; cbn.
   unfold equ; coinduction ? IH.
@@ -300,43 +302,44 @@ Dependent inversion of [equ] and [equb] equations
 -------------------------------------------------
 We assume [JMeq_eq] to invert easily bisimilarity of dependently typed constructors
 |*)
-Lemma equ_vis_invT {E X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E S) k2 :
+Lemma equ_vis_invT {E C X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E C S) k2 :
   Vis e1 k1 ≅ Vis e2 k2 ->
   X = Y.
 Proof.
-  intros EQ.
-	step in EQ. dependent induction EQ; auto.
+  intros EQ. step in EQ.
+  dependent induction EQ; auto.
 Qed.
 
-Lemma equ_vis_invE {E X S} (e1 e2 : E X) (k1 k2 : X -> ctree E S) :
+Lemma equ_vis_invE {E C X S} (e1 e2 : E X) (k1 k2 : X -> ctree E C S) :
   Vis e1 k1 ≅ Vis e2 k2 ->
   e1 = e2 /\ forall x, k1 x ≅ k2 x.
 Proof.
-  intros EQ; step in EQ.
-	inv EQ.
+  intros EQ. step in EQ.
+  inv EQ.
 	dependent destruction H2.
 	dependent destruction H4.
 	auto.
 Qed.
 
-Lemma equ_choice_invT {E S b b' n m} (k1 : _ -> ctree E S) k2 :
-  Choice b n k1 ≅ Choice b' m k2 ->
-  n = m /\ b = b'.
+Lemma equ_choice_invT {E C X Y S b b'} (c1 : C X) (c2 : C Y) (k1 : X -> ctree E C S) k2 :
+  Choice b c1 k1 ≅ Choice b' c2 k2 ->
+  X = Y /\ b = b'.
 Proof.
   intros EQ; step in EQ.
 	dependent destruction EQ; auto.
 Qed.
 
-Lemma equ_choice_invE {E S b n} (k1 : _ -> ctree E S) k2 :
-  Choice b n k1 ≅ Choice b n k2 ->
+Lemma equ_choice_invE {E C X S b} (c1 c2 : C X) (k1 : _ -> ctree E C S) k2 :
+  Choice b c1 k1 ≅ Choice b c2 k2 ->
   forall x, k1 x ≅ k2 x.
 Proof.
   intros EQ; step in EQ.
 	inv EQ.
-	dependent destruction H; auto.
+	dependent destruction H.
+  now dependent destruction H5.
 Qed.
 
-Lemma equb_vis_invT {E X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E S) k2 :
+Lemma equb_vis_invT {E C X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E C S) k2 :
   equb eq (equ eq) (VisF e1 k1) (VisF e2 k2) ->
   X = Y.
 Proof.
@@ -344,7 +347,7 @@ Proof.
 	dependent induction EQ; auto.
 Qed.
 
-Lemma equb_vis_invE {E X S} (e1 e2 : E X) (k1 k2 : X -> ctree E S) :
+Lemma equb_vis_invE {E C X S} (e1 e2 : E X) (k1 k2 : X -> ctree E C S) :
   equb eq (equ eq) (VisF e1 k1) (VisF e2 k2) ->
   e1 = e2 /\ forall x, equ eq (k1 x) (k2 x).
 Proof.
@@ -353,21 +356,21 @@ Proof.
 	dependent destruction H; dependent destruction H4; auto.
 Qed.
 
-Lemma equb_choice_invT {E S b b' n m} (k1 : _ -> ctree E S) k2 :
-  equb eq (equ eq) (ChoiceF b n k1) (ChoiceF b' m k2) ->
-  n = m /\ b = b'.
+Lemma equb_choice_invT {E C X Y S b b'} (c1 : C X) (c2 : C Y) (k1 : _ -> ctree E C S) k2 :
+  equb eq (equ eq) (ChoiceF b c1 k1) (ChoiceF b' c2 k2) ->
+  X = Y /\ b = b'.
 Proof.
   intros EQ.
 	dependent induction EQ; auto.
 Qed.
 
-Lemma equb_choice_invE {E S b n} (k1 : _ -> ctree E S) k2 :
-  equb eq (equ eq) (ChoiceF b n k1) (ChoiceF b n k2) ->
-  forall x, equ eq (k1 x) (k2 x).
+Lemma equb_choice_invE {E C X S b} (c1 c2 : C X) (k1 : _ -> ctree E C S) k2 :
+  equb eq (equ eq) (ChoiceF b c1 k1) (ChoiceF b c2 k2) ->
+  c1 = c2 /\ forall x, equ eq (k1 x) (k2 x).
 Proof.
   intros EQ.
 	inv EQ.
-	dependent destruction H; auto.
+	dependent destruction H. now dependent destruction H5.
 Qed.
 
 (*|
@@ -384,35 +387,35 @@ eq ==> going(equ)   ==> fimpl    equb eq (t_equ eq r)
 equ ==> equ ==> flip impl)       bt_equ eq r
 |*)
 
-#[global] Instance equ_observe {E R} :
-  Proper (equ eq ==> going (equ eq)) (@observe E R).
+#[global] Instance equ_observe {E C R} :
+  Proper (equ eq ==> going (equ eq)) (@observe E C R).
 Proof.
   constructor. step in H.
   now step.
 Qed.
 
-#[global] Instance equ_ChoiceF {E R} b n :
-  Proper (pointwise_relation _ (equ eq) ==> going (equ eq)) (@ChoiceF E R _ b n).
+#[global] Instance equ_ChoiceF {E C R X} b (c : C X) :
+  Proper (pointwise_relation _ (equ eq) ==> going (equ eq)) (@ChoiceF E C R _ _ b c).
 Proof.
   constructor. red in H. step. econstructor; eauto.
 Qed.
 
-#[global] Instance equ_VisF {E R X} (e : E X) :
-  Proper (pointwise_relation _ (equ eq) ==> going (equ eq)) (@VisF E R _ _ e).
+#[global] Instance equ_VisF {E C R X} (e : E X) :
+  Proper (pointwise_relation _ (equ eq) ==> going (equ eq)) (@VisF E C R _ _ e).
 Proof.
   constructor. red in H. step. econstructor; eauto.
 Qed.
 
-#[global] Instance observing_sub_equ E R :
-  subrelation (@observing E R R eq) (equ eq).
+#[global] Instance observing_sub_equ E C R :
+  subrelation (@observing E C R R eq) (equ eq).
 Proof.
   repeat intro.
   step. rewrite (observing_observe H). apply Reflexive_equb; eauto.
 Qed.
 
-#[global] Instance equ_eq_equ {E R r} :
+#[global] Instance equ_eq_equ {E C R r} :
   Proper (going (equ eq) ==> eq ==> flip impl)
-	     (@equb E R R eq (et eq r)).
+	     (@equb E C R R eq (et eq r)).
 Proof.
   unfold Proper, respectful, flip, impl. intros. subst.
   inv H. step in H0. inv H0; inv H1; auto.
@@ -422,9 +425,9 @@ Proof.
     subst. constructor. intros. rewrite REL. auto.
 Qed.
 
-#[global] Instance eq_equ_equ {E R r} :
+#[global] Instance eq_equ_equ {E C R r} :
   Proper (eq ==> going (equ eq) ==> flip impl)
-	     (@equb E R R eq (et eq r)).
+	     (@equb E C R R eq (et eq r)).
 Proof.
   unfold Proper, respectful, flip, impl. intros. subst.
   inv H0. step in H. inv H; inv H1; auto.
@@ -434,16 +437,16 @@ Proof.
     subst. constructor. intros. rewrite REL. auto.
 Qed.
 
-#[global] Instance equ_clos_eT_goal {E R} RR f :
-  Proper (@equ E R R eq ==> equ eq ==> flip impl) (eT eq f RR).
+#[global] Instance equ_clos_eT_goal {E C R} RR f :
+  Proper (@equ E C R R eq ==> equ eq ==> flip impl) (eT eq f RR).
 Proof.
   cbn; intros ? ? eq1 ? ? eq2 H.
   rewrite eq1, eq2.
   auto.
 Qed.
 
-#[global] Instance equ_clos_eT_ctx {E R} RR f :
-  Proper (@equ E R R eq ==> equ eq ==> impl) (eT eq f RR).
+#[global] Instance equ_clos_eT_ctx {E C R} RR f :
+  Proper (@equ E C R R eq ==> equ eq ==> impl) (eT eq f RR).
 Proof.
   cbn; intros ? ? eq1 ? ? eq2 H.
   rewrite <- eq1, <- eq2.
@@ -457,8 +460,8 @@ Ltac _apply f :=
 (* Tactic Notation "Lapply" ident(f) := _apply f. *)
 (* Tactic Notation "Lapply'" uconstr(f) := _apply @f. *)
 
-#[global] Instance gfp_bt_equ {E R r} :
-	 Proper (gfp (@fequ E R R eq) ==> equ eq ==> flip impl)
+#[global] Instance gfp_bt_equ {E C R r} :
+	 Proper (gfp (@fequ E C R R eq) ==> equ eq ==> flip impl)
 	  (ebt eq r).
 Proof.
 	unfold Proper, respectful, flip, impl.
@@ -468,8 +471,8 @@ Proof.
 	_apply @gfp_bt; symmetry; assumption.
 Qed.
 
-#[global] Instance Equivalence_bt_equb_gen {E X R S} `{Equivalence _ R}:
-  Proper ((gfp (@fequ E X _ eq)) ==> (gfp (@fequ E X _ eq)) ==> flip impl) (ebt R S).
+#[global] Instance Equivalence_bt_equb_gen {E C X R S} `{Equivalence _ R}:
+  Proper ((gfp (@fequ E C X _ eq)) ==> (gfp (@fequ E C X _ eq)) ==> flip impl) (ebt R S).
 Proof.
 	unfold Proper, respectful, flip, impl.
 	intros.
@@ -477,6 +480,7 @@ Proof.
 	_apply @gfp_bt; rewrite H0; reflexivity.
 	_apply @gfp_bt; rewrite H1; reflexivity.
 Qed.
+
 
 (*|
 Up-to bind principle
@@ -520,7 +524,7 @@ Heterogeneous [pair], todo move to coinduction library
 
   Section Bind_ctx.
 
-    Context {E: Type -> Type} {X X' Y Y': Type}.
+    Context {E C: Type -> Type} {X X' Y Y': Type}.
 
 (*|
 Most general contextualisation function associated to [bind].
@@ -541,9 +545,9 @@ of [sup_all] locally.
 |*)
 
     Definition bind_ctx
-               (R: rel (ctree E X) (ctree E X'))
-               (S: rel (X -> ctree E Y) (X' -> ctree E Y')):
-      rel (ctree E Y) (ctree E Y') :=
+               (R: rel (ctree E C X) (ctree E C X'))
+               (S: rel (X -> ctree E C Y) (X' -> ctree E C Y')):
+      rel (ctree E C Y) (ctree E C Y') :=
       sup_all (fun x => sup (R x)
                          (fun x' => sup_all
                                    (fun k => sup (S k)
@@ -583,14 +587,14 @@ that it si below the companion.
 |*)
   Section Equ_Bind_ctx.
 
-    Context {E: Type -> Type} {X1 X2 Y1 Y2: Type}.
+    Context {E C: Type -> Type} {X1 X2 Y1 Y2: Type}.
 
 (*|
 Specialization of [bind_ctx] to a function acting with [equ] on the bound value,
 and with the argument (pointwise) on the continuation.
 |*)
-    Program Definition bind_ctx_equ SS: mon (rel (ctree E Y1) (ctree E Y2)) :=
-      {|body := fun R => @bind_ctx E X1 X2 Y1 Y2 (equ SS) (pointwise SS R) |}.
+    Program Definition bind_ctx_equ SS: mon (rel (ctree E C Y1) (ctree E C Y2)) :=
+      {|body := fun R => @bind_ctx E C X1 X2 Y1 Y2 (equ SS) (pointwise SS R) |}.
     Next Obligation.
       intros ??? H. apply leq_bind_ctx. intros ?? H' ?? H''.
       apply in_bind_ctx. apply H'. intros t t' HS. apply H0, H'', HS.
@@ -626,8 +630,8 @@ End bind.
 Expliciting the reasoning rule provided by the up-to principle.
 |*)
 
-Lemma et_clo_bind (E: Type -> Type) (X1 X2 Y1 Y2 : Type) :
-	forall (t1 : ctree E X1) (t2 : ctree E X2) (k1 : X1 -> ctree E Y1) (k2 : X2 -> ctree E Y2)
+Lemma et_clo_bind (E C: Type -> Type) (X1 X2 Y1 Y2 : Type) :
+	forall (t1 : ctree E C X1) (t2 : ctree E C X2) (k1 : X1 -> ctree E C Y1) (k2 : X2 -> ctree E C Y2)
     (S : rel X1 X2) (R : rel Y1 Y2) RR,
 		equ S t1 t2 ->
     (forall x1 x2, S x1 x2 -> et R RR (k1 x1) (k2 x2)) ->
@@ -639,8 +643,8 @@ Proof.
   now apply in_bind_ctx.
 Qed.
 
-Lemma et_clo_bind_eq (E: Type -> Type) (X Y1 Y2 : Type) :
-	forall (t : ctree E X) (k1 : X -> ctree E Y1) (k2 : X -> ctree E Y2)
+Lemma et_clo_bind_eq (E C: Type -> Type) (X Y1 Y2 : Type) :
+	forall (t : ctree E C X) (k1 : X -> ctree E C Y1) (k2 : X -> ctree E C Y2)
     (R : rel Y1 Y2) RR,
     (forall x, et R RR (k1 x) (k2 x)) ->
     et R RR (bind t k1) (bind t k2)
@@ -658,9 +662,9 @@ Qed.
 And in particular, we get the proper instance justifying rewriting [equ]
 to the left of a [bind].
 |*)
-#[global] Instance bind_equ_cong_gen :
- forall (E : Type -> Type) (X Y : Type) (R : rel Y Y) RR,
-   Proper (equ (@eq X) ==> pointwise_relation X (et R RR) ==> et R RR) (@bind E X Y).
+#[global] Instance bind_equ_cong :
+ forall (E C : Type -> Type) (X Y : Type) (R : rel Y Y) RR,
+   Proper (equ (@eq X) ==> pointwise_relation X (et R RR) ==> et R RR) (@bind E C X Y).
 Proof.
   repeat red. intros.
   eapply et_clo_bind; eauto.
@@ -670,8 +674,8 @@ Qed.
 (*|
 Specializing these congruence lemmas at the [sbisim] level for equational proofs
 |*)
-Lemma equ_clo_bind (E: Type -> Type) (X1 X2 Y1 Y2 : Type) :
-	forall (t1 : ctree E X1) (t2 : ctree E X2) (k1 : X1 -> ctree E Y1) (k2 : X2 -> ctree E Y2)
+Lemma equ_clo_bind (E C: Type -> Type) (X1 X2 Y1 Y2 : Type) :
+	forall (t1 : ctree E C X1) (t2 : ctree E C X2) (k1 : X1 -> ctree E C Y1) (k2 : X2 -> ctree E C Y2)
     (S : rel X1 X2) (R : rel Y1 Y2),
 		equ S t1 t2 ->
     (forall x1 x2, S x1 x2 -> equ R (k1 x1) (k2 x2)) ->
@@ -683,8 +687,8 @@ Proof.
   now apply in_bind_ctx.
 Qed.
 
-Lemma equ_clo_bind_eq (E: Type -> Type) (X Y1 Y2 : Type) :
-	forall (t : ctree E X) (k1 : X -> ctree E Y1) (k2 : X -> ctree E Y2)
+Lemma equ_clo_bind_eq (E C: Type -> Type) (X Y1 Y2 : Type) :
+	forall (t : ctree E C X) (k1 : X -> ctree E C Y1) (k2 : X -> ctree E C Y2)
     (R : rel Y1 Y2),
     (forall x, equ R (k1 x) (k2 x)) ->
     equ R (bind t k1) (bind t k2)
@@ -701,32 +705,32 @@ Qed.
 Ltac __upto_bind_equ' SS :=
   match goal with
     (* Out of a coinductive proof --- terminology abuse, this is simply using the congruence of the relation, not a upto *)
-    |- @equ ?E ?R1 ?R2 ?RR (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
-      apply (@equ_clo_bind E T1 T2 R1 R2 _ _ _ _ SS RR)
+    |- @equ ?E ?C ?R1 ?R2 ?RR (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+      apply (@equ_clo_bind E C T1 T2 R1 R2 _ _ _ _ SS RR)
 
     (* Upto when unguarded *)
-  | |- body (t (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
-        apply (ft_t (@bind_ctx_equ_t E T1 T2 R1 R2 SS RR)), in_bind_ctx
+  | |- body (t (@fequ ?E ?C ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+        apply (ft_t (@bind_ctx_equ_t E C T1 T2 R1 R2 SS RR)), in_bind_ctx
 
     (* Upto when guarded *)
-  | |- body (bt (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
-      apply (fbt_bt (@bind_ctx_equ_t E T1 T2 R1 R2 SS RR)), in_bind_ctx
+  | |- body (bt (@fequ ?E ?C ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+      apply (fbt_bt (@bind_ctx_equ_t E C T1 T2 R1 R2 SS RR)), in_bind_ctx
   end.
 Tactic Notation "__upto_bind_equ" uconstr(eq) := __upto_bind_equ' eq.
 
 Ltac __eupto_bind_equ :=
   match goal with
     (* Out of a coinductive proof --- terminology abuse, this is simply using the congruence of the relation, not a upto *)
-    |- @equ ?E ?R1 ?R2 ?RR (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
-      eapply (@equ_clo_bind E T1 T2 R1 R2 _ _ _ _ _ RR)
+    |- @equ ?E ?C ?R1 ?R2 ?RR (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+      eapply (@equ_clo_bind E C T1 T2 R1 R2 _ _ _ _ _ RR)
 
     (* Upto when unguarded *)
-  | |- body (t (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
-        eapply (ft_t (@bind_ctx_equ_t E T1 T2 R1 R2 _ RR)), in_bind_ctx
+  | |- body (t (@fequ ?E ?C ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+        eapply (ft_t (@bind_ctx_equ_t E C T1 T2 R1 R2 _ RR)), in_bind_ctx
 
     (* Upto when guarded *)
-  | |- body (bt (@fequ ?E ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
-      eapply (fbt_bt (@bind_ctx_equ_t E T1 T2 R1 R2 _ RR)), in_bind_ctx
+  | |- body (bt (@fequ ?E ?C ?R1 ?R2 ?RR)) ?R (CTree.bind (T := ?T1) _ _) (CTree.bind (T := ?T2) _ _) =>
+      eapply (fbt_bt (@bind_ctx_equ_t E C T1 T2 R1 R2 _ RR)), in_bind_ctx
   end.
 
 Ltac __upto_bind_eq_equ :=
@@ -744,15 +748,15 @@ associated enhancing function.
 (*|
 Definition of the enhancing function
 |*)
-Variant equ_clos_body {E X1 X2} (R : rel (ctree E X1) (ctree E X2)) : (rel (ctree E X1) (ctree E X2)) :=
+Variant equ_clos_body {E C X1 X2} (R : rel (ctree E C X1) (ctree E C X2)) : (rel (ctree E C X1) (ctree E C X2)) :=
   | Equ_clos : forall t t' u' u
                  (Equt : t ≅ t')
                  (HR : R t' u')
                  (Equu : u' ≅ u),
       equ_clos_body R t u.
 
-Program Definition equ_clos {E X1 X2} : mon (rel (ctree E X1) (ctree E X2)) :=
-  {| body := @equ_clos_body E X1 X2 |}.
+Program Definition equ_clos {E C X1 X2} : mon (rel (ctree E C X1) (ctree E C X2)) :=
+  {| body := @equ_clos_body E C X1 X2 |}.
 Next Obligation.
   intros * ?? LE t u EQ; inv EQ.
   econstructor; eauto.
@@ -762,7 +766,7 @@ Qed.
 (*|
 Sufficient condition to prove compatibility only over the simulation
 |*)
-Lemma equ_clos_sym {E X} : compat converse (@equ_clos E X X).
+Lemma equ_clos_sym {E C X} : compat converse (@equ_clos E C X X).
 Proof.
   intros R t u EQ; inv EQ.
   apply Equ_clos with u' t'; intuition.
@@ -785,15 +789,15 @@ Open Scope ctree.
 Even eta-laws for coinductive data-structures are not valid w.r.t. to [eq]
 in Coq. We however do recover them w.r.t. [equ].
 |*)
-Lemma ctree_eta_ {E R} (t : ctree E R) : t ≅ go (_observe t).
+Lemma ctree_eta_ {E C R} (t : ctree E C R) : t ≅ go (_observe t).
 Proof. now step. Qed.
 
-Lemma ctree_eta {E R} (t : ctree E R) : t ≅ go (observe t).
+Lemma ctree_eta {E C R} (t : ctree E C R) : t ≅ go (observe t).
 Proof.
   now step.
 Qed.
 
-Lemma unfold_spinI {E R} : @spinI E R ≅ TauI spinI.
+Lemma unfold_spinI {E C R} `{C1 -< C} : @spinI E C _ R ≅ tauI spinI.
 Proof.
   exact (ctree_eta spinI).
 Qed.
@@ -802,10 +806,10 @@ Notation bind_ t k :=
   match observe t with
   | RetF r => k%function r
   | VisF e ke => Vis e (fun x => bind (ke x) k)
-  | ChoiceF b n ke => Choice b n (fun x => bind (ke x) k)
+  | ChoiceF b c ke => Choice b c (fun x => bind (ke x) k)
   end.
 
-Lemma unfold_bind {E R S} (t : ctree E R) (k : R -> ctree E S)
+Lemma unfold_bind {E C R S} (t : ctree E C R) (k : R -> ctree E C S)
   : bind t k ≅ bind_ t k.
 Proof.
 	now step.
@@ -814,11 +818,11 @@ Qed.
 Notation iter_ step i :=
   (lr <- step%function i;;
    match lr with
-   | inl l => TauI (iter step l)
+   | inl l => tauI (iter step l)
    | inr r => Ret r
    end)%ctree.
 
-Lemma unfold_iter {E R I} (step : I -> ctree E (I + R)) i:
+Lemma unfold_iter {E C R I} `{C1 -< C} (step : I -> ctree E C (I + R)) i:
 	iter step i ≅ iter_ step i.
 Proof.
 	now step.
@@ -829,14 +833,14 @@ Monadic laws
 ------------
 The three usual monadic laws can be estalished w.r.t. [equ eq].
 |*)
-Lemma bind_ret_l {E X Y} : forall (x : X) (k : X -> ctree E Y),
+Lemma bind_ret_l {E C X Y} : forall (x : X) (k : X -> ctree E C Y),
     Ret x >>= k ≅ k x.
 Proof.
   intros.
   now rewrite unfold_bind.
 Qed.
 
-Lemma bind_ret_r {E X} : forall (t : ctree E X),
+Lemma bind_ret_r {E C X} : forall (t : ctree E C X),
     x <- t;; Ret x ≅ t.
 Proof.
   coinduction S CIH.
@@ -845,7 +849,7 @@ Proof.
   cbn*; desobs t; constructor; auto.
 Qed.
 
-Lemma bind_bind {E X Y Z} : forall (t : ctree E X) (k : X -> ctree E Y) (l : Y -> ctree E Z),
+Lemma bind_bind {E C X Y Z} : forall (t : ctree E C X) (k : X -> ctree E C Y) (l : Y -> ctree E C Z),
     (t >>= k) >>= l ≅ t >>= (fun x => k x >>= l).
 Proof.
   coinduction S CIH; intros.
@@ -859,89 +863,90 @@ Qed.
 (*|
 Structural rules
 |*)
-Lemma bind_vis {E X Y Z} (e : E X) (k : X -> ctree E Y) (g : Y -> ctree E Z):
+Lemma bind_vis {E C X Y Z} (e : E X) (k : X -> ctree E C Y) (g : Y -> ctree E C Z):
   Vis e k >>= g ≅ Vis e (fun x => k x >>= g).
 Proof.
   now rewrite unfold_bind.
 Qed.
 
-Lemma bind_trigger {E X Y} (e : E X) (k : X -> ctree E Y) :
+Lemma bind_trigger {E C X Y} (e : E X) (k : X -> ctree E C Y) :
   trigger e >>= k ≅ Vis e (fun x => k x).
 Proof.
   unfold trigger; rewrite bind_vis; setoid_rewrite bind_ret_l.
   reflexivity.
 Qed.
 
-Lemma bind_choice {E X Y} b n (k : _ -> ctree E X) (g : X -> ctree E Y):
-  Choice b n k >>= g ≅ Choice b n (fun x => k x >>= g).
+Lemma bind_choice {E C X Y Z} b (c : C X) (k : X -> ctree E C Y) (g : Y -> ctree E C Z):
+  Choice b c k >>= g ≅ Choice b c (fun x => k x >>= g).
 Proof.
   now rewrite unfold_bind.
 Qed.
 
-Lemma bind_tauV {E X Y} (t : ctree E X) (g : X -> ctree E Y):
-  TauV t >>= g ≅ TauV (t >>= g).
+Lemma bind_tauV {E C X Y} `{C1 -< C} (t : ctree E C X) (g : X -> ctree E C Y):
+  tauV t >>= g ≅ tauV (t >>= g).
 Proof.
-  now cbn; rewrite bind_choice.
+  apply bind_choice.
 Qed.
 
-Lemma bind_tauI {E X Y} (t : ctree E X) (g : X -> ctree E Y):
-  TauI t >>= g ≅ TauI (t >>= g).
+Lemma bind_tauI {E C X Y} `{C1 -< C} (t : ctree E C X) (g : X -> ctree E C Y):
+  tauI t >>= g ≅ tauI (t >>= g).
 Proof.
-  now cbn; rewrite bind_choice.
+  apply bind_choice.
 Qed.
 
 (*|
 Map
 |*)
-Lemma map_map {E R S T}: forall (f : R -> S) (g : S -> T) (t : ctree E R),
+Lemma map_map {E C R S T}: forall (f : R -> S) (g : S -> T) (t : ctree E C R),
     map g (map f t) ≅ map (fun x => g (f x)) t.
 Proof.
   unfold map. intros. rewrite bind_bind. setoid_rewrite bind_ret_l. reflexivity.
 Qed.
 
-Lemma bind_map {E R S T}: forall (f : R -> S) (k: S -> ctree E T) (t : ctree E R),
+Lemma bind_map {E C R S T}: forall (f : R -> S) (k: S -> ctree E C T) (t : ctree E C R),
     bind (map f t) k ≅ bind t (fun x => k (f x)).
 Proof.
   unfold map. intros. rewrite bind_bind. setoid_rewrite bind_ret_l. reflexivity.
 Qed.
 
-Lemma map_bind {E X Y Z} (t: ctree E X) (k: X -> ctree E Y) (f: Y -> Z) :
+Lemma map_bind {E C X Y Z} (t: ctree E C X) (k: X -> ctree E C Y) (f: Y -> Z) :
   (map f (bind t k)) ≅ bind t (fun x => map f (k x)).
 Proof.
   intros. unfold map. apply bind_bind.
 Qed.
 
-Lemma map_ret {E A B} (f : A -> B) (a : A) :
-    @map E _ _ f (Ret a) ≅ Ret (f a).
+Lemma map_ret {E C A B} (f : A -> B) (a : A) :
+    @map E C _ _ f (Ret a) ≅ Ret (f a).
 Proof.
   intros. unfold map.
   rewrite bind_ret_l; reflexivity.
 Qed.
+Notation "▷ e" := (subevent _ e) (at level 0).
 
 (*|
 Convenience: all child-less invisible choices can be proved [equ], no need to work w.r.t. a bisim
 |*)
-Lemma choiceI0_always_stuck : forall {E R} k,
-    ChoiceI 0 k ≅ @CTree.stuckI E R.
+Lemma choiceStuckI_always_stuck : forall {E C R} `{C0 -< C} (k : _ -> ctree E C R),
+    ChoiceI choice0 k ≅ stuckI.
 Proof.
   intros.
   step.
   constructor; intros abs; inv abs.
 Qed.
 
-Lemma choiceV0_always_stuck : forall {E R} k,
-    ChoiceV 0 k ≅ @CTree.stuckV E R.
+Lemma choiceStuckV_always_stuck : forall {E C R} `{C0 -< C} (k : _ -> ctree E C R),
+    ChoiceV choice0 k ≅ stuckV.
 Proof.
   intros.
   step.
   constructor; intros abs; inv abs.
 Qed.
 
-Lemma choice_equ: forall (E: Type -> Type) R b n (k k': fin n -> ctree E R),
+Lemma choice_equ: forall (E C: Type -> Type) R b n (c : C n) (k k': n -> ctree E C R),
     (forall t, k t ≅ k' t) ->
-    Choice b n k ≅ Choice b n k'.
+    Choice b c k ≅ Choice b c k'.
 Proof.
-  intros E R b n k k' EQ.
+  intros * EQ.
   step; econstructor; auto.
 Qed.
 

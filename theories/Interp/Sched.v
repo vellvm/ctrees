@@ -3,48 +3,48 @@ From ExtLib Require Import
      Structures.Monad.
 
 From CTree Require Import
-     Eq.
+     Eq
+     Interp.Interp.
 
 Import ITree.Basics.Basics.Monads.
 Import MonadNotation.
 Open Scope monad_scope.
 
-#[global] Instance ctree_trigger {E} : MonadTrigger E (ctree E) :=
-  @CTree.trigger _.
+#[global] Instance ctree_trigger {E C} : MonadTrigger E (ctree E C) :=
+  @CTree.trigger _ _.
 
 #[global] Instance stateT_trigger {E S M} {MM : Monad M} {MT: MonadTrigger E M} :
   MonadTrigger E (stateT S M) :=
   fun _ e s => v <- mtrigger _ e;; ret (s, v).
 
-Definition schedule {E M : Type -> Type}
-					 {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {FoM : MonadTrigger E M}
-					 (h : forall n, M (fin n)) :
-	ctree E ~> M :=
-  fun R =>
+Definition schedule {E C M : Type -> Type}
+           {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {FoM : MonadTrigger E M} (h : bool -> C ~> M) :
+	ctree E C ~> M :=
+  interp mtrigger h.
+(*fun R =>
 		iter (fun t =>
 				    match observe t with
 				    | RetF r => ret (inr r)
-				    | @ChoiceF _ _ _ _ n k => bind (h n) (fun x => ret (inl (k x)))
+				    | @ChoiceF _ _ _ _ _ _ c k => bind (h c) (fun x => ret (inl (k x)))
 				    | VisF e k => bind (mtrigger _ e) (fun x => ret (inl (k x)))
-				    end).
+   end).*)
 
-Definition schedule_cst {E} (h : forall n, fin n) : ctree E ~> ctree E :=
-  schedule (fun n => Ret (h n)).
+Definition schedule_cst {E C} `{C1 -< C} (h : bool -> C ~> ctree void1 C) : ctree E C ~> ctree E C :=
+  schedule (fun b _ c => translate (fun _ (e : void1 _) => match e with end) (h b _ c)).
 
-Definition round_robin {E} : ctree E ~> stateT nat (ctree E).
-  refine (schedule
-            (fun n m =>
-               (* m: branch to be scheduled
-                  n: arity of the new node
-                *)
-               match n as n' return (ctree E (nat * fin n')) with
-               | O => CTree.stuckI
-               | 1 => Ret (m, Fin.F1)
-               | S (S n) => (Ret (S m, @Fin.of_nat_lt (Nat.modulo m (S (S n))) _ _))
-               end
-         )).
-  apply (NPeano.Nat.mod_upper_bound).
-  auto with arith.
+Program Definition round_robin {E} : ctree E (C01 +' Cn) ~> stateT nat (ctree E (C01 +' Cn)) :=
+  schedule (
+    fun (b : bool) T c s =>
+      match c with
+      | inr1 c => _
+      | _ => r <- choice b c;; ret (s, r)
+      end).
+Next Obligation.
+  destruct c. destruct n.
+  - apply stuckI.
+  - apply ret. split. apply (S n).
+    eapply (@Fin.of_nat_lt (Nat.modulo s (S n))).
+    apply NPeano.Nat.mod_upper_bound. auto with arith.
 Defined.
 
 (* TODO:
@@ -60,26 +60,26 @@ Prove that the original computation simulates the scheduled one?
 Notation ChoiceVF := (ChoiceF true).
 Notation ChoiceIF := (ChoiceF false).
 
-Definition guarded_form {E X} (t : ctree E X) : ctree E X :=
+Definition guarded_form {E C X} `{C1 -< C} (t : ctree E C X) : ctree E C X :=
 	CTree.iter (fun t =>
 				        match observe t with
 				        | RetF r => ret (inr r)
-				        | ChoiceIF n k =>
-                    ChoiceI n (fun x => Ret (inl (k x)))
-				        | ChoiceVF n k =>
-                    ChoiceI n (fun x => TauV (Ret (inl (k x))))
+				        | ChoiceIF c k =>
+                    ChoiceI c (fun x => Ret (inl (k x)))
+				        | ChoiceVF c k =>
+                    ChoiceI c (fun x => tauV (Ret (inl (k x))))
 				        | VisF e k => bind (mtrigger _ e) (fun x => Ret (inl (k x)))
 				        end) t.
 
-Lemma unfold_guarded_form {E X} (t : ctree E X) :
+Lemma unfold_guarded_form {E C X} `{C1 -< C} (t : ctree E C X) :
   guarded_form t ≅
   match observe t with
 	| RetF r => ret r
-	| ChoiceIF n k =>
-      ChoiceI n (fun x => TauI (guarded_form (k x)))
-	| ChoiceVF n k =>
-      ChoiceI n (fun x => TauV (TauI (guarded_form (k x))))
-	| VisF e k => bind (mtrigger _ e) (fun x => TauI (guarded_form (k x)))
+	| ChoiceIF c k =>
+      ChoiceI c (fun x => tauI (guarded_form (k x)))
+	| ChoiceVF c k =>
+      ChoiceI c (fun x => tauV (tauI (guarded_form (k x))))
+	| VisF e k => bind (mtrigger _ e) (fun x => tauI (guarded_form (k x)))
 	end.
 Proof.
   unfold guarded_form at 1.
@@ -102,7 +102,7 @@ Proof.
       step; constructor; auto.
 Qed.
 
-Lemma foo {E X} l (t t' u : ctree E X):
+Lemma foo {E C X} `{C0 -< C} l (t t' u : ctree E C X):
   t ~ t' ->
   trans l t u ->
   exists u', trans l t' u' /\ u ~ u'.
@@ -112,11 +112,11 @@ Proof.
 Qed.
 
 Lemma trans_guarded_inv_strong :
-  forall {E X} (t u v : ctree E X) l,
-    (v ≅ guarded_form t \/ v ≅ TauI (guarded_form t)) ->
+  forall {E C X} `{HasStuck : C0 -< C} `{HasTau : C1 -< C} (t u v : ctree E C X) l,
+    (v ≅ guarded_form t \/ v ≅ tauI (guarded_form t)) ->
     trans l v u ->
     exists t', trans l t t'
-          /\ (u ≅ guarded_form t' \/ u ≅ TauI (guarded_form t')).
+          /\ (u ≅ guarded_form t' \/ u ≅ tauI (guarded_form t')).
 Proof.
   intros * EQ TR.
   revert t EQ.
@@ -127,14 +127,14 @@ Proof.
       setoid_rewrite (ctree_eta t).
       desobs t; try now step in EQ; inv EQ.
       destruct vis.
-      * pose proof equ_choice_invT _ _ EQ as [<- _].
+      * pose proof equ_choice_invT _ _ _ _ EQ as [<- _].
         apply equ_choice_invE with (x := x0) in EQ .
         rewrite EQ in TR.
         apply trans_tauV_inv in TR as [EQ' ->].
         eexists; split; eauto.
         etrans.
 
-      * pose proof equ_choice_invT _ _ EQ as [<- _].
+      * pose proof equ_choice_invT _ _ _ _ EQ as [<- _].
         apply equ_choice_invE with (x := x0) in EQ .
         specialize (IHTR _ _ eq_refl eq_refl).
         edestruct IHTR as (t' & ? & ?); eauto.
@@ -144,7 +144,7 @@ Proof.
         eauto.
 
     + rewrite ctree_eta, <- x in EQ.
-      pose proof equ_choice_invT _ _ EQ as [-> _].
+      pose proof equ_choice_invT _ _ _ _ EQ as [-> _].
       apply equ_choice_invE with (x := x0) in EQ .
       specialize (IHTR _ _ eq_refl eq_refl).
       edestruct IHTR as (t' & ? & ?); eauto.
@@ -190,14 +190,15 @@ Proof.
       left.
       rewrite ctree_eta, <- x, unfold_guarded_form.
       cbn.
-      rewrite ! choiceI0_always_stuck.
+      rewrite subevent_subevent.
+      rewrite ! choiceStuckI_always_stuck.
       reflexivity.
     + rewrite ctree_eta, <- x0 in EQ.
       now step in EQ; inv EQ.
 Qed.
 
 Lemma trans_guarded_inv :
-  forall E X (t u : ctree E X) l,
+  forall E C X `(C0 -< C) `(C1 -< C) (t u : ctree E C X) l,
     trans l (guarded_form t) u ->
     exists t', trans l t t'
           /\ u ~ guarded_form t'.
@@ -215,7 +216,7 @@ Ltac fold_bind :=
            |- context [CTree.subst ?k ?t] => fold (CTree.bind t k)
          end.
 
-#[global] Instance guarded_equ E X : Proper (equ eq ==> equ eq) (@guarded_form E X).
+#[global] Instance guarded_equ E C X `(C1 -< C) : Proper (equ eq ==> equ eq) (@guarded_form E C X _).
 Proof.
   do 2 red.
   coinduction ? IH.
@@ -242,12 +243,12 @@ Qed.
 (* Equality on [observe u] rewritten in [equ]? *)
 Opaque CTree.bind.
 Lemma trans_guarded_strong :
-  forall E X (t u : ctree E X) l,
+  forall E C X `(HasStuck : C0 -< C) `(HasTau : C1 -< C) (t u : ctree E C X) l,
     trans l t u ->
     exists u',
       trans l (guarded_form t) u'
       /\ (u' ≅ guarded_form u
-         \/ u' ≅ TauI (guarded_form u)).
+         \/ u' ≅ tauI (guarded_form u)).
 Proof.
   intros * TR.
   (* revert t EQ. *)
@@ -288,11 +289,12 @@ Proof.
     cbn; etrans.
     left.
     rewrite unfold_guarded_form, <- x; cbn.
-    now rewrite ! choiceI0_always_stuck.
+    rewrite subevent_subevent.
+    now rewrite ! choiceStuckI_always_stuck.
 Qed.
 
 Lemma trans_guarded :
-  forall E X (t u : ctree E X) l,
+  forall E C X `(C0 -< C) `(C1 -< C) (t u : ctree E C X) l,
     trans l t u ->
     exists u',
       trans l (guarded_form t) u'
@@ -300,7 +302,7 @@ Lemma trans_guarded :
 Proof.
   intros * TR.
   edestruct trans_guarded_strong as (u' & TR' & EQ'); eauto.
-  exists u'; split; auto.
+  exists u'; split; eauto.
   destruct EQ' as [EQ' | EQ']; rewrite EQ'; auto.
   now rewrite sb_tauI.
 Qed.
@@ -313,7 +315,7 @@ Ltac svis  := apply step_sb_vis.
 Ltac stauv := apply step_sb_tauV.
 Ltac sstep := sret || svis || stauv.
 
-Lemma guarded_is_bisimilar {E X} : forall (t : ctree E X),
+Lemma guarded_is_bisimilar {E C X} `{C0 -< C} `{C1 -< C} : forall (t : ctree E C X),
     guarded_form t ~ t.
 Proof.
   coinduction ? IH.
@@ -322,9 +324,9 @@ Proof.
   rewrite unfold_guarded_form.
   desobs t.
   - now cbn.
-  - cbn*.
+  - cbn.
     unfold mtrigger; rewrite bind_trigger.
-    sstep; intros ?.
+    svis; intros ?.
     rewrite sb_tauI.
     apply IH.
   - destruct vis.
@@ -333,15 +335,15 @@ Proof.
       * inv_trans.
         subst.
         eexists.
-        eapply trans_choiceV with (x := n0).
+        eapply trans_choiceV with (x := c0).
         rewrite EQ.
         rewrite sb_tauI.
         apply IH.
       * cbn.
         inv_trans; subst.
         eexists.
-        eapply trans_choiceI with (x := n0).
-        2:etrans.
+        eapply trans_choiceI with (x := x).
+        2:etrans. 
         etrans.
         rewrite sb_tauI.
         rewrite EQ; apply IH.
@@ -351,14 +353,14 @@ Proof.
         inv_trans.
         edestruct trans_guarded_inv as (u' & TR' & EQ'); eauto.
         eexists.
-        eapply trans_choiceI with (x := n0); [| reflexivity].
+        eapply trans_choiceI with (x := c0); [| reflexivity].
         eassumption.
         rewrite EQ'; auto.
       * cbn; intros ? ? TR.
         inv_trans.
         edestruct trans_guarded as (u' & TR' & EQ'); eauto.
         eexists.
-        eapply trans_choiceI with (x := n0); [| reflexivity].
+        eapply trans_choiceI with (x := c0); [| reflexivity].
         apply trans_tauI.
         eauto.
         rewrite EQ'; auto.

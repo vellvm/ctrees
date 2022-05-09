@@ -36,7 +36,7 @@ Qed.
 
 Lemma trans_nil_inv : forall l p, ~ trans l nil p.
 Proof.
-  intros * abs; eapply stuckV_is_stuck; apply abs.
+  intros * abs; eapply (stuckV_is_stuck (C := ccsC)); apply abs.
 Qed.
 
 Definition ι : option action -> @label ccsE :=

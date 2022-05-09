@@ -45,25 +45,25 @@ Definition communicating : ccs -> ccs -> ccs :=
     match rP, rQ with
     | HRet rP, _ => Q
     | _, HRet rQ => P
-    | HChoice kP, HChoice kQ =>
-        choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
-                 (ChoiceV _ (fun i => F P (kQ i)))
-    | HChoice kP, HVis e kQ =>
-        choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
+    | HChoice c kP, HChoice c' kQ =>
+        chooseI2 (ChoiceV c (fun i => F (kP i) Q))
+                 (ChoiceV c' (fun i => F P (kQ i)))
+    | HChoice c kP, HVis e kQ =>
+        chooseI2 (ChoiceV c (fun i => F (kP i) Q))
                  (Vis e     (fun x => F P (kQ x)))
-    | HVis e kP, HChoice kQ =>
-        choiceI2 (Vis e     (fun x => F (kP x) Q))
-                 (ChoiceV _ (fun i => F P (kQ i)))
+    | HVis e kP, HChoice c kQ =>
+        chooseI2 (Vis e     (fun x => F (kP x) Q))
+                 (ChoiceV c (fun i => F P (kQ i)))
     | HVis eP kP, HVis eQ kQ =>
         match eP, kP, eQ, kQ with
         | Act a, kP, Act b, kQ =>
             if are_opposite a b
             then
-              choiceI3 (TauV (F (kP tt) (kQ tt)))
+              chooseI3 (tauV (F (kP tt) (kQ tt)))
                        (trigger (Act a);; F (kP tt) Q)
                        (trigger (Act b);; F P (kQ tt))
             else
-              choiceI2 (trigger (Act a);; F (kP tt) Q)
+              chooseI2 (trigger (Act a);; F (kP tt) Q)
                        (trigger (Act b);; F P (kQ tt))
         end
     end.
@@ -74,25 +74,25 @@ Notation communicating_ P Q :=
    match rP, rQ with
    | HRet rP, _ => Q
    | _, HRet rQ => P
-   | HChoice kP, HChoice kQ =>
-       choiceI2 (ChoiceV _ (fun i => communicating (kP i) Q))
-                (ChoiceV _ (fun i => communicating P (kQ i)))
-   | HChoice kP, HVis e kQ =>
-       choiceI2 (ChoiceV _ (fun i => communicating (kP i) Q))
+   | HChoice c kP, HChoice c' kQ =>
+       chooseI2 (ChoiceV c  (fun i => communicating (kP i) Q))
+                (ChoiceV c' (fun i => communicating P (kQ i)))
+   | HChoice c kP, HVis e kQ =>
+       chooseI2 (ChoiceV c (fun i => communicating (kP i) Q))
                 (Vis e     (fun x => communicating P (kQ x)))
-   | HVis e kP, HChoice kQ =>
-       choiceI2 (Vis e     (fun x => communicating (kP x) Q))
-                (ChoiceV _ (fun i => communicating P (kQ i)))
+   | HVis e kP, HChoice c kQ =>
+       chooseI2 (Vis e     (fun x => communicating (kP x) Q))
+                (ChoiceV c (fun i => communicating P (kQ i)))
    | HVis eP kP, HVis eQ kQ =>
        match eP, kP, eQ, kQ with
        | Act a, kP, Act b, kQ =>
            if are_opposite a b
            then
-             choiceI3 (TauV (communicating (kP tt) (kQ tt)))
+             chooseI3 (tauV (communicating (kP tt) (kQ tt)))
                       (trigger (Act a);; communicating (kP tt) Q)
                       (trigger (Act b);; communicating P (kQ tt))
            else
-             choiceI2 (trigger (Act a);; communicating (kP tt) Q)
+             chooseI2 (trigger (Act a);; communicating (kP tt) Q)
                       (trigger (Act b);; communicating P (kQ tt))
        end
    end)%ctree.
@@ -144,9 +144,8 @@ Proof.
       destruct e0, e2.
       * destruct (are_opposite a a0).
         constructor.
-        intros [|].
+        intros [| |].
         step; constructor; auto.
-        destruct t.
         upto_bind_eq; auto.
         upto_bind_eq; auto.
         constructor.
@@ -163,7 +162,7 @@ Proof.
   (* red in TR; red. *)
   pose proof (trans_get_head TR) as TRhd.
   destruct l.
-  - destruct TRhd as (n & k & x & TRhd & EQ).
+  - destruct TRhd as (? & c & k & x & TRhd & EQ).
     rewrite unfold_communicating.
     eapply trans_bind_r; [apply TRhd |].
 (* Here, [get_hd Q] could diverge silently in all branches,
@@ -183,7 +182,7 @@ Proof.
   eapply trans_bind_r; [apply TRP |].
   eapply trans_bind_r; [apply TRQ |].
   cbn; rewrite OP.
-  eapply trans_choiceI with (x := Fin.F1); [| reflexivity].
+  eapply trans_choiceI with (x := t31); [| reflexivity].
   rewrite EQP, EQQ.
   apply trans_tauV.
 Qed.
@@ -199,33 +198,37 @@ Proof.
     try (pose proof (trans_val_invT TRP); subst; easy);
     try (pose proof (trans_val_invT TRQ); subst; easy).
   - apply trans_get_head in TRP.
-    apply trans_get_head in TRQ.
-    destruct TRP as (? & ? & ? & TRP & EQP).
-    destruct TRQ as (? & ? & ? & TRQ & EQQ).
+    apply trans_get_head in TRQ. 
+    destruct TRP as (? & ? & ? & ? & TRP & EQP).
+    destruct TRQ as (? & ? & ? & ? & TRQ & EQQ).
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
-    eapply (trans_choiceI _ Fin.F1); [| reflexivity].
+    eapply (trans_choiceI _ _ true); [| reflexivity].
     rewrite EQP.
-    pose proof (@trans_choiceV _ _ x (fun i : fin x => communicating (x0 i) Q) x1); auto.
+    destruct x0; repeat try destruct s.
+    all: remember c as c'; destruct c;
+      pose proof (@trans_choiceV _ _ _ _ _ (subevent _ c') (fun t => communicating (x1 t) Q) x2); auto.
   - apply trans_get_head in TRP.
     apply trans_get_head in TRQ.
-    destruct TRP as (? & ? & ? & TRP & EQP).
+    destruct TRP as (? & ? & ? & ? & TRP & EQP).
     destruct TRQ as (? & TRQ & EQQ).
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
-    eapply (trans_choiceI _ Fin.F1); [| reflexivity].
+    eapply (trans_choiceI _ _ true); [| reflexivity].
     rewrite EQP.
-    pose proof (@trans_choiceV _ _ x (fun i : fin x => communicating (x0 i) Q) x1); auto.
+    destruct x0; repeat try destruct s.
+    all: remember c as c'; destruct c;
+      pose proof (@trans_choiceV _ _ _ _ _ (subevent _ c') (fun t => communicating (x1 t) Q) x2); auto.
   - apply trans_get_head in TRP.
     apply trans_get_head in TRQ.
     destruct TRP as (? & TRP & EQP).
-    destruct TRQ as (? & ? & ? & TRQ & EQQ).
+    destruct TRQ as (? & ? & ? & ? & TRQ & EQQ).
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
-    eapply (trans_choiceI _ Fin.F1); [| reflexivity].
+    eapply (trans_choiceI _ _ true); [| reflexivity].
     constructor.
     rewrite EQP; auto.
   - apply trans_get_head in TRP.
@@ -237,11 +240,11 @@ Proof.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
     destruct e, e0.
     destruct (are_opposite a a0).
-    + eapply (trans_choiceI _ (Fin.FS Fin.F1)); [| reflexivity].
+    + eapply (trans_choiceI _ _ t32); [| reflexivity].
       rewrite EQP.
       destruct v.
       eapply trans_trigger'.
-    + eapply (trans_choiceI _ Fin.F1); [| reflexivity].
+    + eapply (trans_choiceI _ _ true); [| reflexivity].
       rewrite EQP.
       repeat match goal with | h : unit |- _ => destruct h end.
       eapply trans_trigger'.
@@ -259,29 +262,31 @@ Proof.
     try (pose proof (trans_val_invT TRQ); subst; easy).
   - apply trans_get_head in TRP.
     apply trans_get_head in TRQ.
-    destruct TRP as (? & ? & ? & TRP & EQP).
-    destruct TRQ as (? & ? & ? & TRQ & EQQ).
+    destruct TRP as (? & ? & ? & ? & TRP & EQP).
+    destruct TRQ as (? & ? & ? & ? & TRQ & EQQ).
     cbn in *.
     rewrite unfold_communicating.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
-    eapply (trans_choiceI _ (Fin.FS Fin.F1)); [| reflexivity].
+    eapply (trans_choiceI _ _ false); [| reflexivity].
     rewrite EQQ.
-    pose proof (@trans_choiceV _ _ x2 (fun i : fin x2 => communicating P (x3 i)) x4); auto.
+    destruct x4; repeat try destruct s.
+    all: remember c as c'; destruct c;
+      pose proof (@trans_choiceV _ _ _ _ _ (subevent _ c') (fun t => communicating P (x5 t)) x6); auto.
   - apply trans_get_head in TRP.
     apply trans_get_head in TRQ.
-    destruct TRP as (? & ? & ? & TRP & EQP).
+    destruct TRP as (? & ? & ? & ? & TRP & EQP).
     destruct TRQ as (? & TRQ & EQQ).
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn.
-    eapply (trans_choiceI _ (Fin.FS Fin.F1)); [| reflexivity].
+    eapply (trans_choiceI _ _ false); [| reflexivity].
     constructor; rewrite EQQ; auto.
   - destruct (trans_get_head TRP) as (? & TRP' & EQP).
-    destruct (trans_get_head TRQ) as (? & ? & ? & TRQ' & EQQ).
+    destruct (trans_get_head TRQ) as (? & ? & ? & ? & TRQ' & EQQ).
     rewrite unfold_communicating.
     cbn in *.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
-    eapply (trans_choiceI _ (Fin.FS Fin.F1)); [| reflexivity].
+    eapply (trans_choiceI _ _ false); [| reflexivity].
     rewrite EQQ; econstructor; auto.
   - destruct (trans_get_head TRP) as (? & TRP' & EQP).
     destruct (trans_get_head TRQ) as (? & TRQ' & EQQ).
@@ -290,11 +295,11 @@ Proof.
     do 2 (eapply trans_bind_r; [cbn; eauto |]); cbn; auto.
     destruct e, e0.
     destruct (are_opposite a a0).
-    + eapply (trans_choiceI _ (Fin.FS (Fin.FS Fin.F1))); [| reflexivity].
+    + eapply (trans_choiceI _ _ t33); [| reflexivity].
       rewrite EQQ.
       destruct v,v0.
       eapply trans_trigger'.
-    + eapply (trans_choiceI _ (Fin.FS Fin.F1)); [| reflexivity].
+    + eapply (trans_choiceI _ _ false); [| reflexivity].
       rewrite EQQ.
       repeat match goal with | h : unit |- _ => destruct h end.
       eapply trans_trigger'.
@@ -401,10 +406,10 @@ Qed.
  *)
 Admitted.
 
-Inductive heads E X :=
-| Lheads : (@head E X) -> heads E X
-| Rheads : (@head E X) -> heads E X
-| Sheads : (@head E X * @head E X) -> heads E X.
+Inductive heads E C X :=
+| Lheads : (@head E C X) -> heads E C X
+| Rheads : (@head E C X) -> heads E C X
+| Sheads : (@head E C X * @head E C X) -> heads E C X.
 
 Definition pairing {X} (x1 : X + X) (x2 : X) : X * X :=
   match x1 with
@@ -412,50 +417,50 @@ Definition pairing {X} (x1 : X + X) (x2 : X) : X * X :=
   | inr x1 => (x2,x1)
   end.
 
-Definition get_head_cst {E X} (hd : @head E X + @head E X) : ctree E X -> ctree E (heads E X) :=
-  cofix get_head_cst (t : ctree E X) :=
+Definition get_head_cst {E C X} (hd : @head E C X + @head E C X) : ctree E C X -> ctree E C (heads E C X) :=
+  cofix get_head_cst (t : ctree E C X) :=
     match observe t with
     | RetF x            => Ret (Sheads (pairing hd (HRet x)))
     | VisF e k          => Ret (Sheads (pairing hd (HVis e k)))
-    | ChoiceF true n k  => Ret (Sheads (pairing hd (HChoice k)))
-    | ChoiceF false n k => Choice false n (fun i => get_head_cst (k i))
+    | ChoiceF true c k  => Ret (Sheads (pairing hd (HChoice c k)))
+    | ChoiceF false c k => Choice false c (fun i => get_head_cst (k i))
     end.
 
-Definition get_heads {E X} : ctree E X -> ctree E X -> ctree E (heads E X) :=
-  cofix get_heads (t u : ctree E X) :=
+Definition get_heads {E X} : ctree E ccsC X -> ctree E ccsC X -> ctree E ccsC (heads E ccsC X) :=
+  cofix get_heads (t u : ctree E ccsC X) :=
     match observe t, observe u with
-    | ChoiceF false n1 k1, ChoiceF false n2 k2 =>
-        ChoiceI n1 (fun i => ChoiceI n2 (fun j => get_heads (k1 i) (k2 j)))
+    | ChoiceF false c1 k1, ChoiceF false c2 k2 =>
+        ChoiceI c1 (fun i => ChoiceI c2 (fun j => get_heads (k1 i) (k2 j)))
     | RetF x, ChoiceF false _ _     =>
-        choiceI2 (Ret (Lheads (HRet x))) (get_head_cst (inl (HRet x)) u)
+        chooseI2 (Ret (Lheads (HRet x))) (get_head_cst (inl (HRet x)) u)
     | VisF e k, ChoiceF false _ _      =>
-        choiceI2 (Ret (Lheads (HVis e k))) (get_head_cst (inl (HVis e k)) u)
-    | ChoiceF true n k, ChoiceF false _ _ =>
-        choiceI2 (Ret (Lheads (HChoice k))) (get_head_cst (inl (HChoice k)) u)
+        chooseI2 (Ret (Lheads (HVis e k))) (get_head_cst (inl (HVis e k)) u)
+    | ChoiceF true c k, ChoiceF false _ _ =>
+        chooseI2 (Ret (Lheads (HChoice c k))) (get_head_cst (inl (HChoice c k)) u)
     | ChoiceF false _ _, RetF x      =>
-        choiceI2 (Ret (Rheads (HRet x))) (get_head_cst (inr (HRet x)) u)
+        chooseI2 (Ret (Rheads (HRet x))) (get_head_cst (inr (HRet x)) u)
     | ChoiceF false _ _, VisF e k       =>
-        choiceI2 (Ret (Rheads (HVis e k))) (get_head_cst (inr (HVis e k)) u)
-    | ChoiceF false _ _, ChoiceF true n k =>
-        choiceI2 (Ret (Rheads (HChoice k))) (get_head_cst (inr (HChoice k)) u)
+        chooseI2 (Ret (Rheads (HVis e k))) (get_head_cst (inr (HVis e k)) u)
+    | ChoiceF false _ _, ChoiceF true c k =>
+        chooseI2 (Ret (Rheads (HChoice c k))) (get_head_cst (inr (HChoice c k)) u)
     | RetF x, RetF y     =>
         Ret (Sheads (HRet x, HRet y))
     | VisF e k, RetF y     =>
         Ret (Sheads (HVis e k, HRet y))
-    | ChoiceF true n k, RetF y     =>
-        Ret (Sheads (HChoice k, HRet y))
+    | ChoiceF true c k, RetF y     =>
+        Ret (Sheads (HChoice c k, HRet y))
     | RetF x, VisF e' k'     =>
         Ret (Sheads (HRet x, HVis e' k'))
     | VisF e k, VisF e' k'     =>
         Ret (Sheads (HVis e k, HVis e' k'))
-    | ChoiceF true n k, VisF e' k'     =>
-        Ret (Sheads (HChoice k, HVis e' k'))
-    | RetF x, ChoiceF true n k'     =>
-        Ret (Sheads (HRet x, HChoice k'))
-    | VisF e k, ChoiceF true n k'     =>
-        Ret (Sheads (HVis e k, HChoice k'))
-    | ChoiceF true n k, ChoiceF true n' k'     =>
-        Ret (Sheads (HChoice k, HChoice k'))
+    | ChoiceF true c k, VisF e' k'     =>
+        Ret (Sheads (HChoice c k, HVis e' k'))
+    | RetF x, ChoiceF true c k'     =>
+        Ret (Sheads (HRet x, HChoice c k'))
+    | VisF e k, ChoiceF true c k'     =>
+        Ret (Sheads (HVis e k, HChoice c k'))
+    | ChoiceF true c k, ChoiceF true c' k'     =>
+        Ret (Sheads (HChoice c k, HChoice c' k'))
     end.
 
 Definition communicating_synch : ccs -> ccs -> ccs :=
@@ -465,38 +470,38 @@ Definition communicating_synch : ccs -> ccs -> ccs :=
     | Lheads hdP =>
         match hdP with
         | HRet rP => Q
-        | HChoice kP => ChoiceV _ (fun i => F (kP i) Q)
+        | HChoice c kP => ChoiceV c (fun i => F (kP i) Q)
         | HVis e kP => Vis e (fun i => F (kP i) Q)
         end
     | Rheads hdQ =>
         match hdQ with
         | HRet rQ => P
-        | HChoice kQ => ChoiceV _ (fun i => F P (kQ i))
+        | HChoice c kQ => ChoiceV c (fun i => F P (kQ i))
         | HVis e kQ => Vis e (fun i => F P (kQ i))
         end
     | Sheads (hdP,hdQ) =>
         match hdP, hdQ with
         | HRet rP, _ => Q
         | _, HRet rQ => P
-        | HChoice kP, HChoice kQ =>
-            choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
-                     (ChoiceV _ (fun i => F P (kQ i)))
-        | HChoice kP, HVis e kQ =>
-            choiceI2 (ChoiceV _ (fun i => F (kP i) Q))
+        | HChoice c kP, HChoice c' kQ =>
+            chooseI2 (ChoiceV c  (fun i => F (kP i) Q))
+                     (ChoiceV c' (fun i => F P (kQ i)))
+        | HChoice c kP, HVis e kQ =>
+            chooseI2 (ChoiceV c (fun i => F (kP i) Q))
                      (Vis e     (fun x => F P (kQ x)))
-        | HVis e kP, HChoice kQ =>
-            choiceI2 (Vis e     (fun x => F (kP x) Q))
-                     (ChoiceV _ (fun i => F P (kQ i)))
+        | HVis e kP, HChoice c kQ =>
+            chooseI2 (Vis e     (fun x => F (kP x) Q))
+                     (ChoiceV c (fun i => F P (kQ i)))
         | HVis eP kP, HVis eQ kQ =>
             match eP, kP, eQ, kQ with
             | Act a, kP, Act b, kQ =>
                 if are_opposite a b
                 then
-                  choiceI3 (TauV (F (kP tt) (kQ tt)))
+                  chooseI3 (tauV (F (kP tt) (kQ tt)))
                            (trigger (Act a);; F (kP tt) Q)
                            (trigger (Act b);; F P (kQ tt))
                 else
-                  choiceI2 (trigger (Act a);; F (kP tt) Q)
+                  chooseI2 (trigger (Act a);; F (kP tt) Q)
                            (trigger (Act b);; F P (kQ tt))
             end
         end

@@ -23,10 +23,10 @@ choice.
 .. coq:: none
 |*)
 
-From ITree Require Import Basics.Basics Core.Subevent.
+From ITree Require Import Basics.Basics Core.Subevent Indexed.Sum.
 
 From CTree Require Import
-	   Core.Utils.
+	   Core.Utils Core.Index.
 
 From ExtLib Require Import
 	   Structures.Functor
@@ -42,7 +42,7 @@ Set Primitive Projections.
 
 Section ctree.
 
-  Context {E : Type -> Type} {R : Type}.
+  Context {E : Type -> Type} {C : Type -> Type} {R : Type}.
 
 (*|
 The type [ctree] is defined as the final coalgebra ("greatest fixed point") of the functor [ctreeF].
@@ -55,22 +55,16 @@ value returned by the environment
 
 TODO YZ:
 
-- Do we want to name the sources of the choices?
-  For instance if we want to support simultaneously different schedulers for different kind of non-determinism in a language.
-- Do we want non-finite internal branching? Indexed by arbitrary types?
-- Or crazier, do we want non-uniform branching, modelling non-uniform random choices for instance?
-- Could ctrees be parameterized by:
-
-  + a bound on nested choices before reaching a Vis/Ret
-  + a general domain of choice events
+- Do we want non-uniform branching, modelling non-uniform random choices for instance?
+- Could ctrees be parameterized by a bound on nested choices before reaching a Vis/Ret?
 
 .. coq::
 |*)
 
   Variant ctreeF (ctree : Type) :=
-    | RetF (r : R)                                   (* a pure computation *)
-    | VisF {X : Type} (e : E X) (k : X -> ctree)      (* an external event *)
-    | ChoiceF (vis : bool) (n : nat) (k : fin n -> ctree)  (* an internal non-deterministic branching *)
+    | RetF (r : R)                                               (* a pure computation *)
+    | VisF {X : Type} (e : E X) (k : X -> ctree)                 (* an external event *)
+    | ChoiceF {X : Type} (vis : bool) (c : C X) (k : X -> ctree) (* an internal non-deterministic branching *)
   .
 
   CoInductive ctree : Type :=
@@ -87,9 +81,9 @@ Bind Scope ctree_scope with ctree.
 Delimit Scope ctree_scope with ctree.
 Local Open Scope ctree_scope.
 
-Arguments ctree _ _ : clear implicits.
-Arguments ctreeF _ _ : clear implicits.
-Arguments ChoiceF {_ _} [_] vis n.
+Arguments ctree _ _ _ : clear implicits.
+Arguments ctreeF _ _ _ : clear implicits.
+Arguments ChoiceF {_ _ _} [_] {_} vis c k.
 
 (*|
 A [ctree'] is a "forced" [ctree]. It is the type of inputs
@@ -98,27 +92,98 @@ of [go], and outputs of [observe].
 .. coq::
 |*)
 
-Notation ctree' E R := (ctreeF E R (ctree E R)).
+Notation ctree' E C R := (ctreeF E C R (ctree E C R)).
 
 (*|
 We wrap the primitive projection [_observe] in a function [observe].
 |*)
 
-Definition observe {E R} (t : ctree E R) : ctree' E R := @_observe E R t.
+Definition observe {E C R} (t : ctree E C R) : ctree' E C R := @_observe E C R t.
+
+Notation Ret x        := (go (RetF x)).
+Notation Vis e k      := (go (VisF e k)).
+Notation Choice b c k := (go (ChoiceF b (subevent _ c) k)).
+Notation ChoiceV c k  := (go (ChoiceF true (subevent _ c) k)).
+Notation ChoiceI c k  := (go (ChoiceF false (subevent _ c) k)).
+Notation ChoiceVF c   := (ChoiceF true (subevent _ c)).
+Notation ChoiceIF c   := (ChoiceF false (subevent _ c)).
+
+Section Choices.
+
+  Context {E C : Type -> Type}.
+  Context {R : Type}.
 
 (*|
-We encode [itree]'s [Tau] constructor as a unary internal choice.
+Silent failure: contrary to an event-based failure, this
+stuck state cannot be observed, it will be indistinguishable
+from [spin] w.r.t. the bisimulations introduced.
 |*)
+  Definition stuckI `{C0 -< C} : ctree E C R :=
+    ChoiceI choice0 (fun x : void => match x with end).
 
-Notation Ret x := (go (RetF x)).
-Notation Vis e k := (go (VisF e k)).
-Notation TauI  t := (go (ChoiceF false 1 (fun _ => t))).
-Notation TauV t := (go (ChoiceF true 1 (fun _ => t))).
-Notation Choice b n k := (go (ChoiceF b n k)).
-Notation ChoiceV n k := (go (ChoiceF true n k)).
-Notation ChoiceI n k := (go (ChoiceF false n k)).
-Notation ChoiceVF := (ChoiceF true).
-Notation ChoiceIF := (ChoiceF false).
+  Definition stuckV `{C0 -< C} : ctree E C R :=
+    ChoiceV choice0 (fun x : void => match x with end).
+
+(*|
+Guards similar to [itree]'s taus.
+|*)
+  Definition tauI `{C1 -< C} t : ctree E C R :=
+    ChoiceI choice1 (fun _ => t).
+
+  Definition tauV `{C1 -< C} t : ctree E C R :=
+    ChoiceV choice1 (fun _ => t).
+
+(*|
+Bounded choices
+|*)
+  Definition chooseI2 `{C2 -< C} t u : ctree E C R :=
+    ChoiceI choice2 (fun b => if b : bool then t else u).
+  Definition chooseV2 `{C2 -< C} t u : ctree E C R :=
+    ChoiceV choice2 (fun b => if b : bool then t else u).
+  Definition chooseI3 `{C3 -< C} t u v : ctree E C R :=
+    ChoiceI choice3 (fun n => match n with
+                           | t31 => t
+                           | t32 => u
+                           | t33 => v
+                           end).
+  Definition chooseV3 `{C3 -< C} t u v : ctree E C R :=
+    ChoiceV choice3 (fun n => match n with
+                           | t31 => t
+                           | t32 => u
+                           | t33 => v
+                           end).
+  Definition chooseI4 `{C4 -< C} t u v w : ctree E C R :=
+    ChoiceI choice4 (fun n => match n with
+                           | t41 => t
+                           | t42 => u
+                           | t43 => v
+                           | t44 => w
+                           end).
+  Definition chooseV4 `{C4 -< C} t u v w : ctree E C R :=
+    ChoiceV choice4 (fun n => match n with
+                           | t41 => t
+                           | t42 => u
+                           | t43 => v
+                           | t44 => w
+                           end).
+
+(*|
+Finite choice
+|*)
+  Definition chooseIn `{Cn -< C} n k : ctree E C R :=
+    ChoiceI (choicen n) k.
+  Definition chooseVn `{Cn -< C} n k : ctree E C R :=
+    ChoiceV (choicen n) k.
+
+(*|
+Countable choice
+|*)
+  Definition chooseIN `{CN -< C} k : ctree E C R :=
+    ChoiceI choiceN k.
+  Definition chooseVN `{CN -< C} k : ctree E C R :=
+    ChoiceV choiceN k.
+
+End Choices.
 
 (*|
 Main operations on [ctree]
@@ -160,6 +225,10 @@ name (some of which are overloaded generalizations of these).
 
 Module CTree.
 
+Section CTree.
+
+  Context {E C : Type -> Type}.
+
 (*|
 [bind]: monadic composition, tree substitution, sequencing of
 computations. [bind t k] is also denoted by [t >>= k] and using
@@ -173,31 +242,59 @@ In particular, this allows us to nest [bind] in other cofixpoints,
 as long as the recursive occurences are in the continuation
 (i.e., this makes it easy to define tail-recursive functions).
 |*)
-Definition subst {E : Type -> Type} {T U : Type} (k : T -> ctree E U)
-  : ctree E T -> ctree E U :=
-  cofix _subst (u : ctree E T) : ctree E U :=
-    match observe u with
-    | RetF r => k r
-    | VisF e h => Vis e (fun x => _subst (h x))
-    | ChoiceF b n h => Choice b n (fun x => _subst (h x))
-    end.
+  Definition subst {T U : Type} (k : T -> ctree E C U)
+    : ctree E C T -> ctree E C U :=
+    cofix _subst (u : ctree E C T) : ctree E C U :=
+      match observe u with
+      | RetF r => k r
+      | VisF e h => Vis e (fun x => _subst (h x))
+      | ChoiceF b c h => Choice b c (fun x => _subst (h x))
+      end.
 
-Definition bind {E : Type -> Type} {T U : Type} (u : ctree E T) (k : T -> ctree E U)
-  : ctree E U :=
-  subst k u.
+  Definition bind {T U : Type} (u : ctree E C T) (k : T -> ctree E C U)
+    : ctree E C U :=
+    subst k u.
 
 (*|
 Monadic composition of continuations (i.e., Kleisli composition).
 |*)
 
-Definition cat {E T U V}
-           (k : T -> ctree E U) (h : U -> ctree E V) :
-  T -> ctree E V :=
-  fun t => bind (k t) h.
+  Definition cat {T U V}
+             (k : T -> ctree E C U) (h : U -> ctree E C V) :
+    T -> ctree E C V :=
+    fun t => bind (k t) h.
 
 (*|
-[iter]: See [Basics.Basics.MonadIter].
+Functorial map ([fmap] in Haskell)
+|*)
 
+  Definition map {R S} (f : R -> S)  (t : ctree E C R) : ctree E C S :=
+    bind t (fun x => Ret (f x)).
+
+(*|
+Atomic itrees triggering a single event.
+|*)
+
+  Definition trigger : E ~> ctree E C :=
+    fun R e => Vis e (fun x => Ret x).
+
+(*|
+Atomic ctrees with choice.
+|*)
+
+  Definition choice {X : Type} : forall b (c : C X), ctree E C X :=
+    fun b c => Choice b c (fun x => Ret x).
+
+(*|
+Ignore the result of a tree.
+|*)
+
+  Definition ignore {R} : ctree E C R -> ctree E C unit :=
+    map (fun _ => tt).
+
+End CTree.
+
+(*|
 [on_left lr l t]: run a computation [t] if the first argument is an [inl l].
 [l] must be a variable (used as a pattern), free in the expression [t]:
 
@@ -212,70 +309,44 @@ Notation on_left lr l t :=
   end) (only parsing).
 
 (*|
-Note: here we must be careful to call [iter\_ l] under [Tau] to avoid an eager
-infinite loop if [step i] is always of the form [Ret (inl _)] (cf. issue #182).
+Combinators for loops must be guarded, we hence assume that
+unary choices are available.
 |*)
+Section withTau.
 
-Definition iter {E : Type -> Type} {R I: Type}
-           (step : I -> ctree E (I + R)) : I -> ctree E R :=
-  cofix iter_ i := bind (step i) (fun lr => on_left lr l (TauI (iter_ l))).
+  Context {E C : Type -> Type}.
+  Context `{C1 -< C}.
 
-(*|
-Functorial map ([fmap] in Haskell)
-|*)
-
-Definition map {E R S} (f : R -> S)  (t : ctree E R) : ctree E S :=
-  bind t (fun x => Ret (f x)).
-
-(*|
-Atomic itrees triggering a single event.
-|*)
-
-Definition trigger {E : Type -> Type} : E ~> ctree E :=
-  fun R e => Vis e (fun x => Ret x).
-
-(*|
-Atomic itrees with choice over a finite arity.
-|*)
-
-Definition choice {E : Type -> Type} : forall b n, ctree E (fin n) :=
-  fun b n => Choice b n (fun x => Ret x).
-
-(*|
-Silent failure: contrary to an event-based failure, this
-stuck state cannot be observed, it will be indistinguishable
-from [spin] w.r.t. the bisimulations introduced.
-|*)
-Definition stuckI {E R} : ctree E R :=
-  ChoiceI 0 (fun x : fin 0 => match x with end).
-
-Definition stuckV {E R} : ctree E R :=
-  ChoiceV 0 (fun x : fin 0 => match x with end).
-
-(*|
-Ignore the result of a tree.
-|*)
-
-Definition ignore {E R} : ctree E R -> ctree E unit :=
-  map (fun _ => tt).
-
-(*|
-Infinite taus.
-|*)
-
-CoFixpoint spinI {E R} : ctree E R := TauI spinI.
-CoFixpoint spinV {E R} : ctree E R := TauV spinV.
-CoFixpoint spinI_nary {E R} (n : nat) : ctree E R :=
-	ChoiceI n (fun _ => spinI_nary n).
-CoFixpoint spinV_nary {E R} (n : nat) : ctree E R :=
-	ChoiceV n (fun _ => spinV_nary n).
+  CoFixpoint spinI {R} : ctree E C R := tauI spinI.
+  CoFixpoint spinV {R} : ctree E C R := tauV spinV.
 
 (*|
 Repeat a computation infinitely.
 |*)
 
-Definition forever {E R S} (t : ctree E R) : ctree E S :=
-  cofix forever_t := bind t (fun _ => TauI (forever_t)).
+  Definition forever {R S} (t : ctree E C R) : ctree E C S :=
+    cofix forever_t := bind t (fun _ => tauI (forever_t)).
+
+(*|
+[iter]: See [Basics.Basics.MonadIter].
+Note: here we must be careful to call [iter\_ l] under [Tau] to avoid an eager
+infinite loop if [step i] is always of the form [Ret (inl _)] (cf. issue #182).
+|*)
+
+  Definition iter {R I: Type}
+             (step : I -> ctree E C (I + R)) : I -> ctree E C R :=
+    cofix iter_ i := bind (step i) (fun lr => on_left lr l (tauI (iter_ l))).
+
+End withTau.
+
+(*|
+Infinite taus.
+|*)
+
+CoFixpoint spinI_gen {E C R X} (x : C X) : ctree E C R :=
+	ChoiceI x (fun _ => spinI_gen x).
+CoFixpoint spinV_gen {E C R X} (x : C X) : ctree E C R :=
+	ChoiceV x (fun _ => spinV_gen x).
 
 Ltac fold_subst :=
   repeat (change (CTree.subst ?k ?t) with (CTree.bind t k)).
@@ -286,7 +357,7 @@ Ltac fold_monad :=
   repeat (change (@CTree.map ?E) with (@Functor.fmap (ctree E) _)).
 
 End CTree.
-Arguments CTree.choice {E} b n.
+Arguments CTree.choice {E C X} b c.
 
 (*|
 =========
@@ -318,69 +389,36 @@ Instances
 =========
 |*)
 
-#[global] Instance Functor_ctree {E} : Functor (ctree E) :=
-{ fmap := @CTree.map E }.
+#[global] Instance Functor_ctree {E C} : Functor (ctree E C) :=
+{ fmap := @CTree.map E C }.
 
-#[global] Instance Monad_ctree {E} : Monad (ctree E) :=
+#[global] Instance Monad_ctree {E C} : Monad (ctree E C) :=
 {| ret := fun _ x => Ret x
-;  bind := @CTree.bind E
+;  bind := @CTree.bind E C
 |}.
 
-#[global] Instance MonadIter_ctree {E} : MonadIter (ctree E) :=
-  fun _ _ => CTree.iter.
+#[global] Instance MonadIter_ctree {E C} `{C1 -< C} : MonadIter (ctree E C) :=
+  fun R I => @CTree.iter E C _ R I.
 
 (* #[global] Instance MonadTrigger_ctree : MonadTrigger ctree := *)
 (*   fun T => CTree.trigger. *)
 
-#[global] Instance MonadChoice_ctree {E} : MonadChoice (ctree E) :=
-  CTree.choice.
+#[global] Instance MonadChoice_ctree {E C} : MonadChoice (ctree E C) C :=
+  fun b X => @CTree.choice E C X b.
 
-(*|
-TODO: we need to do some thinking about what the right
-way to represent and manipulate these finite branches.
-|*)
-
-Definition choiceV2 {E X} (t u : ctree E X) :=
- (ChoiceV 2 (fun b =>
-			   match b with | Fin.F1 => t | _ => u end)).
-
-Definition choiceV3 {E X} (t u v : ctree E X) :=
- (ChoiceV 3 (fun (b : fin 3) =>
-			   match b with
-			   | Fin.F1 => t
-			   | Fin.FS Fin.F1 => u
-			   | _ => v end)).
-
-Definition choiceV4 {E X} (t u v w : ctree E X) :=
- (ChoiceV 4 (fun (b : fin 4) =>
-			   match b with
-			   | Fin.F1 => t
-			   | Fin.FS Fin.F1 => u
-			   | Fin.FS (Fin.FS Fin.F1) => v
-			   | _ => w end)).
-
-Definition choiceI2 {E X} (t u : ctree E X) :=
- (ChoiceI 2 (fun b =>
-			   match b with | Fin.F1 => t | _ => u end)).
-
-Definition choiceI3 {E X} (t u v : ctree E X) :=
- (ChoiceI 3 (fun (b : fin 3) =>
-			   match b with
-			   | Fin.F1 => t
-			   | Fin.FS Fin.F1 => u
-			   | _ => v end)).
-
-Definition choiceI4 {E X} (t u v w : ctree E X) :=
- (ChoiceI 4 (fun (b : fin 4) =>
-			   match b with
-			   | Fin.F1 => t
-			   | Fin.FS Fin.F1 => u
-			   | Fin.FS (Fin.FS Fin.F1) => v
-			   | _ => w end)).
+(* Notation Choice b n k := (go (ChoiceF b n k)). *)
+(* Notation ChoiceV n k := (go (ChoiceF true n k)). *)
+(* Notation ChoiceI n k := (go (ChoiceF false n k)). *)
+(* Notation ChoiceVF n k := (ChoiceF true n k). *)
+(* Notation ChoiceIF n k := (ChoiceF false n k). *)
 
 Notation trigger e :=
 	(CTree.trigger (subevent _ e)).
 Notation vis e k := (Vis (subevent _ e) k).
+Notation choice b c :=
+	(CTree.choice b (subevent _ c)).
+Notation choiceI c := (choice false c).
+Notation choiceV c := (choice true c).
 
 (*|
 ====================================
@@ -393,16 +431,16 @@ axioms where possible. Here for now we fully embrace [JMeq_eq]
 -- it is introduced under the scene by [dependent destruction].
 |*)
 
-Lemma Vis_eq1 E R T Y e k Z f h: @VisF E R T Y e k = @VisF E R T Z f h -> Y=Z.
+Lemma Vis_eq1 E C R T Y e k Z f h: @VisF E C R T Y e k = @VisF E C R T Z f h -> Y=Z.
 Proof. intro H. now dependent destruction H. Qed.
 
-Lemma Vis_eq2 E R T Y e k f h: @VisF E R T Y e k = @VisF E R T Y f h -> e=f /\ k=h.
+Lemma Vis_eq2 E C R T Y e k f h: @VisF E C R T Y e k = @VisF E C R T Y f h -> e=f /\ k=h.
 Proof. intro H. now dependent destruction H. Qed.
 
-Lemma Choice_eq1 E R T b b' n m k h: @ChoiceF E R T b n k = @ChoiceF E R T b' m h -> b = b' /\ n=m.
+Lemma Choice_eq1 E C R T Y Z b b' c c' k h: @ChoiceF E C R T Y b c k = @ChoiceF E C R T Z b' c' h -> b = b' /\ Y=Z.
 Proof. intro H. now dependent destruction H. Qed.
 
-Lemma Choice_eq2 E R T b n k h: @ChoiceF E R T b n k = @ChoiceF E R T b n h -> k=h.
+Lemma Choice_eq2 E C R T Y b c c' k h: @ChoiceF E C R T Y b c k = @ChoiceF E C R T Y b c' h -> c=c' /\ k=h.
 Proof. intro H. now dependent destruction H. Qed.
 
 (*|
@@ -438,15 +476,17 @@ Compute with fuel
 
 Remove [Tau]s from the front of an [itree].
 |*)
-
-Fixpoint burn (n : nat) {E R} (t : ctree E R) :=
+Fixpoint burn (n : nat) {E C : Type -> Type} {R} (t : ctree E (C1 +' C) R) : ctree E (C1 +' C) R :=
   match n with
-  | O => t
+  | 0 => t
   | S n =>
-    match observe t with
-    | RetF r => Ret r
-    | VisF e k => Vis e k
-    | @ChoiceF _ _ _ _ 1 t' => burn n (t' Fin.F1)
-    | ChoiceF b n k => Choice b n k
-    end
+      match observe t with
+      | RetF r => Ret r
+      | VisF e k => Vis e k
+      | ChoiceF b (inl1 c) k =>
+          match c in (C1 T) return (T -> _) -> _ with
+          | choice1 => fun k => burn n (k tt)
+          end k
+      | ChoiceF b c k => Choice b c k
+      end
   end.
