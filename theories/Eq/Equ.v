@@ -529,7 +529,7 @@ Heterogeneous [pair], todo move to coinduction library
 
   Section Bind_ctx.
 
-    Context {E C: Type -> Type} {X X' Y Y': Type}.
+    Context {E F C D: Type -> Type} {X X' Y Y': Type}.
 
 (*|
 Most general contextualisation function associated to [bind].
@@ -550,9 +550,9 @@ of [sup_all] locally.
 |*)
 
     Definition bind_ctx
-               (R: rel (ctree E C X) (ctree E C X'))
-               (S: rel (X -> ctree E C Y) (X' -> ctree E C Y')):
-      rel (ctree E C Y) (ctree E C Y') :=
+               (R: rel (ctree E C X) (ctree F D X'))
+               (S: rel (X -> ctree E C Y) (X' -> ctree F D Y')):
+      rel (ctree E C Y) (ctree F D Y') :=
       sup_all (fun x => sup (R x)
                          (fun x' => sup_all
                                    (fun k => sup (S k)
@@ -599,7 +599,7 @@ Specialization of [bind_ctx] to a function acting with [equ] on the bound value,
 and with the argument (pointwise) on the continuation.
 |*)
     Program Definition bind_ctx_equ SS: mon (rel (ctree E C Y1) (ctree E C Y2)) :=
-      {|body := fun R => @bind_ctx E C X1 X2 Y1 Y2 (equ SS) (pointwise SS R) |}.
+      {|body := fun R => @bind_ctx E E C C X1 X2 Y1 Y2 (equ SS) (pointwise SS R) |}.
     Next Obligation.
       intros ??? H. apply leq_bind_ctx. intros ?? H' ?? H''.
       apply in_bind_ctx. apply H'. intros t t' HS. apply H0, H'', HS.
@@ -753,15 +753,15 @@ associated enhancing function.
 (*|
 Definition of the enhancing function
 |*)
-Variant equ_clos_body {E C X1 X2} (R : rel (ctree E C X1) (ctree E C X2)) : (rel (ctree E C X1) (ctree E C X2)) :=
+Variant equ_clos_body {E F C D X1 X2} (R : rel (ctree E C X1) (ctree F D X2)) : (rel (ctree E C X1) (ctree F D X2)) :=
   | Equ_clos : forall t t' u' u
                  (Equt : t ≅ t')
                  (HR : R t' u')
                  (Equu : u' ≅ u),
       equ_clos_body R t u.
 
-Program Definition equ_clos {E C X1 X2} : mon (rel (ctree E C X1) (ctree E C X2)) :=
-  {| body := @equ_clos_body E C X1 X2 |}.
+Program Definition equ_clos {E F C D X1 X2} : mon (rel (ctree E C X1) (ctree F D X2)) :=
+  {| body := @equ_clos_body E F C D X1 X2 |}.
 Next Obligation.
   intros * ?? LE t u EQ; inv EQ.
   econstructor; eauto.
@@ -771,7 +771,7 @@ Qed.
 (*|
 Sufficient condition to prove compatibility only over the simulation
 |*)
-Lemma equ_clos_sym {E C X} : compat converse (@equ_clos E C X X).
+Lemma equ_clos_sym {E C X} : compat converse (@equ_clos E E C C X X).
 Proof.
   intros R t u EQ; inv EQ.
   apply Equ_clos with u' t'; intuition.

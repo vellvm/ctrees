@@ -62,11 +62,6 @@ Set Implicit Arguments.
 (* TODO: Decide where to set this *)
 Arguments trans : simpl never.
 
-Section StrongBisim.
-
-  Context {E C : Type -> Type} {X : Type} `{HasStuck : C0 -< C}.
-  Notation S := (ctree E C X).
-
 (*|
 Strong Bisimulation
 -------------------
@@ -75,31 +70,52 @@ Relation relaxing [equ] to become insensitive to:
 - the particular branches taken during (any kind of) choices.
 |*)
 
+Section StrongSim.
 (*|
-The function defining strong simulations: [trans] plays must be answered
-using [trans].
-The [ss] definition stands for [strong simulation]. The bisimulation [sb]
+The [ss] definition stands for heterogeneous [strong simulation]:
+[trans] plays must be answered using [trans].
+|*)
+  Program Definition ss {E F C D : Type -> Type} {X Y : Type}
+    `{HasStuck : C0 -< C} `{HasStuck' : C0 -< D}
+    (L : rel (@label E) (@label F)) :
+    mon (ctree E C X -> ctree F D Y -> Prop) :=
+    {| body R t u :=
+      forall l t', trans l t t' -> exists u' l', trans l' u u' /\ R t' u' /\ L l l'
+    |}.
+  Next Obligation.
+    edestruct H0 as (u' & l' & ?); eauto.
+    eexists; eexists; intuition; eauto.
+  Qed.
+
+End StrongSim.
+
+Section StrongBisim.
+  Context {E F C D : Type -> Type} {X Y : Type} `{HasStuck : C0 -< C} `{HasStuck' : C0 -< D}.
+  Notation S := (ctree E C X).
+  Notation S' := (ctree F D Y).
+
+(*|
+The bisimulation [sb]
 is obtained by expliciting the symmetric aspect of the definition following
 Pous'16 in order to be able to exploit symmetry arguments in proofs
 (see [square_st] for an illustration).
-|*)
-  Program Definition ss : mon (S -> S -> Prop) :=
-    {| body R t u :=
-      forall l t', trans l t t' -> exists2 u', trans l u u' & R t' u'
-    |}.
-  Next Obligation.
-    edestruct H0; eauto.
-  Qed.
-
-(*|
-Symmetrized version: the other direction of the simulation is obtained as
+It is obtained as
 fun R t u => ss (fun x y => R y x) u t
 i.e. fun R t u => ss (converse R) u t
 i.e. fun R => converse (ss (converse R))
 i.e. comp converse (comp ss converse)
 The bisimulation is then obtained by intersecting both relations.
 |*)
-  Definition sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
+
+  Definition sb : mon (S -> S -> Prop) := (cap (ss eq) (comp converse (comp (ss eq) converse))).
+
+(*|
+In the heterogeneous case, the relation is not symmetric.
+|*)
+  Program Definition hsb L : mon (S -> S' -> Prop) := {| body R t u := ss L R t u /\ ss (flip L) (flip R) u t |}.
+  Next Obligation.
+    split; intros; [edestruct H0 as (? & ? & ?) | edestruct H1 as (? & ? & ?)]; eauto; eexists; eexists; intuition; eauto.
+  Qed.
 
 End StrongBisim.
 
@@ -107,15 +123,29 @@ End StrongBisim.
 The relation itself
 |*)
 Definition sbisim {E C X} `{HasStuck : C0 -< C} := (gfp (@sb E C X _) : hrel _ _).
+Definition ssim {E F C D X Y} `{HasStuck : C0 -< C} `{HasStuck' : C0 -< D} L := (gfp (@ss E F C D X Y _ _ L) : hrel _ _).
+Definition hsbisim {E F C D X Y} `{HasStuck : C0 -< C} `{HasStuck' : C0 -< D} L := (gfp (@hsb E F C D X Y _ _ L) : hrel _ _).
 
 Module SBisimNotations.
 
+  Notation sst L := (t (ss L)).
+  Notation ssbt L := (bt (ss L)).
+  Notation ssT L := (T (ss L)).
+
+  Notation "t (≲ L ) u" := (ssim L t u) (at level 70).
+  Notation "t ≲ u" := (ssim eq t u) (at level 70).
   Notation "t ~ u" := (sbisim t u) (at level 70).
   Notation st := (t sb).
   Notation sT := (T sb).
   Notation sbt := (bt sb).
   Notation sbT := (bT sb).
-  (** notations  for easing readability in proofs by enhanced coinduction *)
+  (** notations for easing readability in proofs by enhanced coinduction *)
+  Notation "t [≲ L ] u" := (ss L _ t u) (at level 79).
+  Notation "t [≲] u" := (ss eq _ t u) (at level 79).
+  Notation "t {≲ L } u" := (sst L _ t u) (at level 79).
+  Notation "t {≲} u" := (sst eq _ t u) (at level 79).
+  Notation "t {{≲ L }} u" := (ssbt L _ t u) (at level 79).
+  Notation "t {{≲}} u" := (ssbt eq _ t u) (at level 79).
   Notation "t [~] u" := (st  _ t u) (at level 79).
   Notation "t {~} u" := (sbt _ t u) (at level 79).
   Notation "t {{~}} u" := (sb _ t u) (at level 79).
@@ -127,15 +157,27 @@ Import SBisimNotations.
 Ltac fold_sbisim :=
   repeat
     match goal with
+    | h: context[@hsb ?E ?F ?C ?D ?X ?Y _ _ ?L] |- _ => fold (@hsbisim E F C D X Y _ _ L) in h
+    | |- context[@hsb ?E ?F ?C ?D ?X ?Y _ _ ?L]      => fold (@hsbisim E F C D X Y _ _ L)
     | h: context[@sb ?E ?C ?X] |- _ => fold (@sbisim E C X) in h
     | |- context[@sb ?E ?C ?X]      => fold (@sbisim E C X)
+    | h: context[@ss ?E ?F ?C ?D ?X ?Y _ _ ?L] |- _ => fold (@ssim E F C D X Y _ _ L) in h
+    | |- context[@ss ?E ?F ?C ?D ?X ?Y _ _ ?L]      => fold (@ssim E F C D X Y _ _ L)
     end.
 
 Ltac __coinduction_sbisim R H :=
-  unfold sbisim; apply_coinduction; fold_sbisim; intros R H.
+  unfold sbisim, hsbisim, ssim; apply_coinduction; fold_sbisim; intros R H.
 
 Tactic Notation "__step_sbisim" :=
   match goal with
+  | |- context[@ssim ?E ?F ?C ?D ?X ?Y _ _ ?L] =>
+      unfold ssim;
+      step;
+      fold (@ssim E F C D X Y _ _ L)
+  | |- context[@hsbisim ?E ?F ?C ?D ?X ?Y _ _ ?L] =>
+      unfold hsbisim;
+      step;
+      fold (@hsbisim E F C D X Y _ _ L)
   | |- context[@sbisim ?E ?C ?X] =>
       unfold sbisim;
       step;
@@ -143,25 +185,33 @@ Tactic Notation "__step_sbisim" :=
   | |- _ => step
   end.
 
-#[local] Tactic Notation "step" := __step_sbisim.
+Tactic Notation "step" := __step_sbisim || step.
 
-#[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
-  __coinduction_sbisim R H.
+Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
+  __coinduction_sbisim R H || coinduction R H.
 
 Ltac __step_in_sbisim H :=
   match type of H with
+  | context[@ssim ?E ?F ?C ?D ?X ?Y] =>
+      unfold ssim in H;
+      step in H;
+      fold (@ssim E F C D X Y) in H
+  | context[@hsbisim ?E ?F ?C ?D ?X ?Y] =>
+      unfold hsbisim in H;
+      step in H;
+      fold (@hsbisim E F C D X Y) in H
   | context [@sbisim ?E ?C ?X] =>
       unfold sbisim in H;
       step in H;
       fold (@sbisim E C X) in H
   end.
 
-#[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H.
+Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
 
 Section sbisim_theory.
 
   Context {E C : Type -> Type} {X : Type} `{HasStuck : C0 -< C}.
-  Notation ss := (@ss E C X).
+  Notation ss := (@ss E E C C X X _ _ eq).
   Notation sb := (@sb E C X).
   Notation sbisim  := (@sbisim E C X).
   Notation st  := (coinduction.t sb).
@@ -212,9 +262,9 @@ i.e. validity of up-to symmetry
       now exists y.
     - unfold sb; rewrite cap_l at 1.
       intros R x z [y xy yz] l x' xx'.
-      destruct (xy _ _ xx') as [y' yy' x'y'].
-      destruct (yz _ _ yy') as [z' zz' y'z'].
-      exists z'. assumption.
+      destruct (xy _ _ xx') as (y' & ? & yy' & x'y' & <-).
+      destruct (yz _ _ yy') as (z' & ? & zz' & y'z' & <-).
+      exists z', l. intuition.
       apply (f_Tf sb).  (* TODO: set of tactics for the companion *)
       eexists; eauto.
   Qed.
@@ -290,15 +340,15 @@ Strong bisimulation up-to [equ] is valid
 |*)
   Lemma equ_clos_st : equ_clos <= st.
   Proof.
-    apply Coinduction, by_Symmetry; [apply equ_clos_sym |].
-    intros R t u EQ l t1 TR; inv EQ.
+    apply Coinduction. apply by_Symmetry. apply equ_clos_sym.
+    intros R t u EQ l t1 TR. cbn in EQ. inv EQ.
     destruct HR as [F _]; cbn in *.
     rewrite Equt in TR.
     apply F in TR.
-    destruct TR as [? ? ?].
-    eexists.
+    destruct TR as (? & ? & ? & ? & ?). subst.
+    exists x. exists x0. intuition.
     rewrite <- Equu; eauto.
-    apply (f_Tf sb).
+    eapply (f_Tf sb).
     econstructor; intuition.
     auto.
   Qed.
@@ -368,15 +418,15 @@ contexts.
   #[global] Instance equ_ss_closed_goal {r} : Proper (equ eq ==> equ eq ==> flip impl) (ss r).
   Proof.
     intros t t' tt' u u' uu'; cbn; intros.
-    rewrite tt' in H0. apply H in H0 as [? ? ?].
-    eexists; eauto. rewrite uu'. eauto.
+    rewrite tt' in H0. apply H in H0 as (? & ? & ? & ? & ?).
+    eexists; eexists; eauto. rewrite uu'. eauto.
   Qed.
 
   #[global] Instance equ_ss_closed_ctx {r} : Proper (equ eq ==> equ eq ==> impl) (ss r).
   Proof.
     intros t t' tt' u u' uu'; cbn; intros.
-    rewrite <- tt' in H0. apply H in H0 as [? ? ?].
-    eexists; eauto. rewrite <- uu'. eauto.
+    rewrite <- tt' in H0. apply H in H0 as (? & ? & ? & ? & ?).
+    eexists; eexists; eauto. rewrite <- uu'. eauto.
   Qed.
 
 (*|
@@ -408,7 +458,7 @@ Specialization of [bind_ctx] to a function acting with [sbisim] on the bound val
 and with the argument (pointwise) on the continuation.
 |*)
   Program Definition bind_ctx_sbisim : mon (rel (ctree E C Y) (ctree E C Y)) :=
-    {|body := fun R => @bind_ctx E C X X Y Y sbisim (pointwise eq R) |}.
+    {|body := fun R => @bind_ctx E E C C X X Y Y sbisim (pointwise eq R) |}.
   Next Obligation.
     intros ?? H. apply leq_bind_ctx. intros ?? H' ?? H''.
     apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
@@ -437,9 +487,9 @@ The resulting enhancing function gives a valid up-to technique
     step in tt; destruct tt as (F & B); cbn in *.
     cbn in *; intros l u STEP.
     apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
-    - apply F in STEP as [u' STEP EQ'].
-      eexists.
-      apply trans_bind_l; eauto.
+    - apply F in STEP as (u' & ? & STEP & EQ' & ?).
+      eexists. exists l. subst. split.
+      apply trans_bind_l; eauto. split; auto.
       apply (fT_T equ_clos_st).
       econstructor; [exact EQ | | reflexivity].
       apply (fTf_Tf sb).
@@ -447,13 +497,14 @@ The resulting enhancing function gives a valid up-to technique
       intros ? ? ->.
       apply (b_T sb).
       apply kk; auto.
-    - apply F in STEPres as [u' STEPres EQ'].
+    - apply F in STEPres as (u' & ? & STEPres & EQ' & ?). subst.
       pose proof (trans_val_inv STEPres) as EQ.
       rewrite EQ in STEPres.
       specialize (kk v v eq_refl) as [Fk Bk].
-      apply Fk in STEP as [u'' STEP EQ'']; cbn in *.
-      eexists.
+      apply Fk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
+      eexists. eexists. split.
       eapply trans_bind_r; cbn in *; eauto.
+      split; auto.
       eapply (id_T sb); cbn; auto.
   Qed.
 
@@ -568,7 +619,9 @@ The resulting enhancing function gives a valid up-to technique
     intros k k' kk'.
     cbn.
     split; intros ? ? TR; inv_trans; subst.
-    all: cbn; eexists; eauto with trans.
+    all: cbn; eexists; eexists.
+    all: split; eauto with trans.
+    all: split; auto.
     all: rewrite EQ.
     all: specialize (kk' x x eq_refl).
     all: now eapply (b_T sb).
@@ -594,8 +647,8 @@ Ltac __playL_sbisim H :=
   step in H;
   let Hf := fresh "Hf" in
   destruct H as [Hf _];
-  cbn in Hf; edestruct Hf as [? ?TR ?EQ];
-  [etrans |].
+  cbn in Hf; edestruct Hf as (? & ? & ?TR & ?EQ & ?);
+  subst; [etrans |].
 
 Ltac __eplayL_sbisim :=
   match goal with
@@ -603,8 +656,8 @@ Ltac __eplayL_sbisim :=
       step in h;
       let Hf := fresh "Hf" in
       destruct h as [Hf _];
-      cbn in Hf; edestruct Hf as [? ?TR ?EQ];
-      [etrans |]
+      cbn in Hf; edestruct Hf as (? & ? & ?TR & ?EQ & ?);
+      subst; [etrans |]
   end.
 
 Ltac __playR_sbisim H :=
@@ -620,8 +673,8 @@ Ltac __eplayR_sbisim :=
       step in h;
       let Hb := fresh "Hb" in
       destruct h as [Hb _];
-      cbn in Hb; edestruct Hb as [? ?TR ?EQ];
-      [etrans |]
+      cbn in Hb; edestruct Hb as (? & ? & ?TR & ?EQ & ?);
+      subst; [etrans |]
   end.
 
 #[local] Tactic Notation "play" := __play_sbisim.
@@ -659,7 +712,7 @@ Section Proof_Rules.
   Proof.
     intros Rstuck PROP <-.
     split; cbn; intros ? ? TR; inv_trans; subst.
-    all: cbn; eexists; etrans.
+    all: cbn; exists stuckI; eexists; intuition; etrans.
     all: now rewrite EQ.
   Qed.
 
@@ -683,7 +736,7 @@ stepping is hence symmetric and we can just recover the itree-style rule.
   Proof.
     intros PR EQs.
     split; intros ? ? TR; inv_trans; subst.
-    all: cbn; eexists; etrans; rewrite EQ; auto.
+    all: cbn; eexists; eexists; intuition; etrans; rewrite EQ; auto.
   Qed.
 
   Lemma step_sb_vis (e : E X) (k k' : X -> ctree E C Y) (R : rel _ _) :
@@ -705,7 +758,7 @@ Same goes for visible tau nodes.
   Proof.
     intros PR EQs.
     split; intros ? ? TR; inv_trans; subst.
-    all: cbn; eexists; etrans; rewrite EQ; auto.
+    all: cbn; eexists; eexists; intuition; etrans; rewrite EQ; auto.
   Qed.
 
   Lemma step_sb_tauV (t t' : ctree E C X) (R : rel _ _) :
@@ -732,11 +785,11 @@ in both directions. We can in this case have [n] rather than [2n] obligations.
     intros PROP EQs1 EQs2.
     split; intros ? ? TR; inv_trans; subst.
     - destruct (EQs1 x) as [z HR].
-      eexists.
+      eexists. eexists. intuition.
       etrans.
       rewrite EQ; eauto.
     - destruct (EQs2 x) as [y HR].
-      eexists.
+      eexists. eexists. intuition.
       etrans.
       cbn; rewrite EQ; eauto.
   Qed.
@@ -779,8 +832,8 @@ cannot act as going under the guard.
   Proof.
     intros EQ.
     split; intros ? ? TR; inv_trans; subst.
-    all: apply EQ in TR as [? ? ?].
-    all: eexists; [apply trans_tauI; eauto | eauto].
+    all: apply EQ in TR as (? & ? & ? & ? & ?).
+    all: eexists; eexists; intuition; subst; [apply trans_tauI; eauto | eauto].
   Qed.
 
   Lemma step_sb_tauI (t t' : ctree E C X) (R : rel _ _) :
@@ -798,14 +851,14 @@ cannot act as going under the guard.
     intros EQs1 EQs2.
     split; intros ? ? TR; inv_trans; subst.
     - destruct (EQs1 c0) as [x [F _]]; cbn in F.
-      apply F in TR; destruct TR as [u' TR' EQ'].
-      eexists.
+      apply F in TR; destruct TR as (u' & ? & TR' & EQ' & ?).
+      eexists. eexists. subst. intuition.
       eapply trans_choiceI with (x := x); [|reflexivity].
       eauto.
       eauto.
     - destruct (EQs2 c'0) as [x [_ B]]; cbn in B.
-      apply B in TR; destruct TR as [u' TR' EQ'].
-      eexists.
+      apply B in TR; destruct TR as (u' & ? & TR' & EQ' & ?).
+      eexists. eexists. subst. intuition.
       eapply trans_choiceI with (x := x); [|reflexivity].
       eauto.
       eauto.
@@ -880,7 +933,7 @@ Invisible taus can be stripped-out w.r.t. to [sbisim], but not visible ones
     intros t; play.
     - inv_trans.
       etrans.
-    - etrans.
+    - eauto 6 with trans.
   Qed.
 
   Lemma sb_tauI_l : forall (t u : ctree E C X),
@@ -923,10 +976,10 @@ Choice
     intros; step; econstructor.
     - intros ? ? ?. inv H.
       apply Eqdep.EqdepTheory.inj_pair2 in H4; subst.
-      dependent destruction x; exists t'; etrans; auto.
+      dependent destruction x; exists t', l; etrans; auto.
       inversion x.
     - intros ? ? ?; cbn.
-      etrans.
+      eauto 6 with trans.
   Qed.
 
   Lemma sb_choiceV I J (ci : C I) (cj : C J)
@@ -1038,9 +1091,9 @@ produce any challenge for the other.
     intros * ? ? l p' TR.
     rewrite ctree_eta in TR; cbn in TR.
     apply trans_choiceV_inv in TR as (_ & EQ & ->).
-    eexists.
+    eexists. eexists.
     rewrite ctree_eta; cbn.
-    econstructor. exact y.
+    split; [econstructor |]. exact y.
     reflexivity.
     rewrite EQ; eauto.
   Qed.
@@ -1062,7 +1115,7 @@ ChoiceI2 is associative, commutative, idempotent, merges into ChoiceI3, and admi
 	    chooseI2 (chooseI2 t u) v ~ chooseI2 t (chooseI2 u v).
   Proof.
     intros.
-    play; inv_trans; etrans.
+    play; inv_trans; eauto 7 with trans.
   Qed.
 
   Lemma chooseI2_commut {X} : forall (t u : ctree E C X),
@@ -1074,21 +1127,21 @@ Note: could use a symmetry argument here as follows to only play one direction o
 but automation just handles it...
 |*)
     intros.
-    play; inv_trans; etrans.
+    play; inv_trans; eauto 6 with trans.
   Qed.
 
   Lemma chooseI2_idem {X} : forall (t : ctree E C X),
 	    chooseI2 t t ~ t.
   Proof.
     intros.
-    play; inv_trans; etrans.
+    play; inv_trans; eauto 6 with trans.
   Qed.
 
   Lemma chooseI2_merge {X} : forall (t u v : ctree E C X),
 	    chooseI2 (chooseI2 t u) v ~ chooseI3 t u v.
   Proof.
     intros.
-    play; inv_trans; etrans.
+    play; inv_trans; eauto 7 with trans.
   Qed.
 
   Lemma chooseI2_is_stuck {X} : forall (u v : ctree E C X),
@@ -1099,8 +1152,8 @@ but automation just handles it...
     play.
     - inv_trans.
       exfalso; eapply ST, TR. (* automate stuck transition trying to step? *)
-      exists t'; auto.             (* automate trivial case *)
-    - etrans.
+      exists t', l; eauto.             (* automate trivial case *)
+    - eauto 6 with trans.
   Qed.
 
   Lemma chooseI2_stuckV_l {X} : forall (t : ctree E C X),
@@ -1285,7 +1338,7 @@ Qed.*)
     Vis e k1 ~ ChoiceV c k2 -> False.
   Proof.
     intro. step in H. destruct H as [Hf Hb]. cbn in *.
-    edestruct Hf as [x' Ht Hs]; [apply (@trans_vis _ _ _ _ _ _ x _) |]. inv_trans.
+    edestruct Hf as (x' & ? & Ht & Hs & ?); [apply (@trans_vis _ _ _ _ _ _ x _) |]. subst. inv_trans.
   Qed.
 
 (*|
@@ -1296,15 +1349,16 @@ Not fond of these two, need to give some thoughts about them
     exists x, Ret r ~ k x.
   Proof.
     intro. step in H. destruct H as [Hf Hb]. cbn in *.
-    edestruct Hf as [x Ht Hs]; [apply trans_ret |].
+    edestruct Hf as (x & ? & Ht & Hs & ?); [apply trans_ret |].
     apply trans_choiceI_inv in Ht.
     destruct Ht as [i Ht]. exists i.
     step. split.
-    - repeat intro. inv H. exists x; auto. rewrite <- Hs.
-      rewrite ctree_eta. rewrite <- H3. rewrite choiceStuckI_always_stuck. auto.
-    - repeat intro. eapply trans_choiceI in H; eauto. specialize (Hb _ _ H).
-      destruct Hb. inv H0. exists stuckI. constructor.
-      cbn. rewrite <- H1. symmetry. rewrite ctree_eta .
+    - repeat intro. inv H0. exists x, (val r). split; intuition. rewrite <- Hs.
+      rewrite ctree_eta. rewrite <- H4. rewrite choiceStuckI_always_stuck. auto.
+    - repeat intro. eapply trans_choiceI in H0; eauto. specialize (Hb _ _ H0).
+      destruct Hb as (? & ? & ? & ? & ?). subst. inv H1. exists stuckI, (val r).
+      intuition.
+      cbn. rewrite <- H2. symmetry. rewrite ctree_eta.
       rewrite <- H5. rewrite choiceStuckI_always_stuck. auto.
   Qed.
 
