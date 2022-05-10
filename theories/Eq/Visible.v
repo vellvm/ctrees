@@ -59,7 +59,7 @@ Section Visible.
   Proof.
 	  intros x x' equ TR.
 	  inv equ; rename H into equ.
-	  step in equ.
+	  step in equ. cbn in equ.
 	  dependent induction TR; intros; eauto; inv equ; try invert; auto;
 	    (constructor; auto; etransitivity; [apply H | symmetry; auto]).
   Qed.
@@ -68,7 +68,7 @@ Section Visible.
 	  Proper (going (equ eq) ==> going (equ eq) ==> impl) visible_.
   Proof.
 	  intros x x' xequ y y' yequ TR. rewrite <- yequ. clear yequ y'.
-	  inv xequ; rename H into xequ.	step in xequ.
+	  inv xequ; rename H into xequ.	step in xequ. cbn in xequ.
     revert x' xequ.
 	  dependent induction TR; intros; eauto; inv xequ; try invert; auto.
     2, 3: constructor; auto; intros; rewrite <- H; symmetry; auto.

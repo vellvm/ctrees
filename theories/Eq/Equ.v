@@ -27,6 +27,11 @@ From CTree Require Import
 
 Import CTree.
 
+#[local] Ltac step_ := step; simpl body.
+#[local] Ltac step := step_.
+#[local] Ltac step_in H := step in H; simpl body in H.
+#[local] Tactic Notation "step" "in" ident(H) := step_in H.
+
 (*|
 .. coq::
 |*)

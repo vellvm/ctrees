@@ -48,8 +48,7 @@ Ltac step_ :=
   | |- body (t ?b) ?R ?x ?y => apply (bt_t b R x y)
   | |- gfp ?b ?x => apply (proj2 (gfp_fp b x))
   | |- body (t ?b) ?R ?x => apply (bt_t b R x)
-  end;
-  simpl body.
+  end.
 
 Ltac step := first [step_ | red; step_].
 
@@ -60,6 +59,5 @@ match type of H with
 | gfp ?b ?x => apply (gfp_fp b x) in H
 | body (t ?b) ?R ?x => apply (bt_t b R x) in H
 | _ => red in H; step_in H
-end;
-simpl body in H.
+end.
 Tactic Notation "step" "in" ident(H) := step_in H.
