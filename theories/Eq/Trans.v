@@ -1577,6 +1577,7 @@ Create HintDb trans.
  trans_chooseV21 trans_chooseV22
  trans_chooseV31 trans_chooseV32 trans_chooseV33
  trans_chooseV41 trans_chooseV42 trans_chooseV43 trans_chooseV44
+ trans_bind_l trans_bind_r
   : trans.
 
 Ltac etrans := eauto with trans.
