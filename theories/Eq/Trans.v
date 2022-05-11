@@ -1477,27 +1477,6 @@ Ltac inv_trans_one :=
       | _ => idtac
       end
 
-  (* ChoiceV *)
-  | h : trans' _ (ChoiceV ?c ?k) _ |- _ =>
-      let EQl := fresh "EQl" in
-      apply trans_choiceV_inv in h as (?x & ?EQ & EQl);
-      match type of EQl with
-      | tau     = tau => clear EQl
-      | val _   = tau => now inv EQl
-      | obs _ _ = tau => now inv EQl
-      | _ => idtac
-      end
-
-  | h : trans' _ {| _observe := ChoiceF true ?c ?k |} _ |- _ =>
-      let EQl := fresh "EQl" in
-      apply trans_choiceV_inv' in h as (?x & ?EQ & EQl);
-      match type of EQl with
-      | tau     = tau => clear EQl
-      | val _   = tau => now inv EQl
-      | obs _ _ = tau => now inv EQl
-      | _ => idtac
-      end
-
   (* chooseV2 *)
   | h : trans' _ (chooseV2 _ _) _ |- _ =>
       let EQl := fresh "EQl" in
@@ -1535,13 +1514,6 @@ Ltac inv_trans_one :=
   | h : trans' _ (tauI _) _ |- _ =>
       apply trans_tauI_inv in h
 
-  (* ChoiceI *)
-  | h : trans' _ (ChoiceI ?c ?k) _ |- _ =>
-      apply trans_choiceI_inv in h as (?c & ?TR)
-
-  | h : trans' _ {| _observe := ChoiceF false ?c ?k |} _ |- _ =>
-      apply trans_choiceI_inv' in h as (?c & ?TR)
-
   (* chooseI2 *)
   | h : trans' _ (chooseI2 _ _) _ |- _ =>
       apply trans_chooseI2_inv in h as [?TR | ?TR]
@@ -1554,12 +1526,41 @@ Ltac inv_trans_one :=
   | h : trans' _ (chooseI4 _ _ _ _) _ |- _ =>
       apply trans_chooseI4_inv in h as [?TR | [?TR | [?TR | ?TR]]]
 
-  (* stuckI *)
-  | h : trans' _ stuckI _ |- _ =>
-      exfalso; eapply stuckI_is_stuck; now apply h
   (* stuckV *)
   | h : trans' _ stuckV _ |- _ =>
       exfalso; eapply stuckV_is_stuck; now apply h
+
+  (* stuckI *)
+  | h : trans' _ stuckI _ |- _ =>
+      exfalso; eapply stuckI_is_stuck; now apply h
+
+  (* ChoiceV *)
+  | h : trans' _ (ChoiceV ?c ?k) _ |- _ =>
+      let EQl := fresh "EQl" in
+      apply trans_choiceV_inv in h as (?x & ?EQ & EQl);
+      match type of EQl with
+      | tau     = tau => clear EQl
+      | val _   = tau => now inv EQl
+      | obs _ _ = tau => now inv EQl
+      | _ => idtac
+      end
+
+  | h : trans' _ (go (ChoiceF true ?c ?k)) _ |- _ =>
+      let EQl := fresh "EQl" in
+      apply trans_choiceV_inv' in h as (?x & ?EQ & EQl);
+      match type of EQl with
+      | tau     = tau => clear EQl
+      | val _   = tau => now inv EQl
+      | obs _ _ = tau => now inv EQl
+      | _ => idtac
+      end
+
+  (* ChoiceI *)
+  | h : trans' _ (ChoiceI _ _) _ |- _ =>
+      apply trans_choiceI_inv in h as (?x & ?TR)
+
+  | h : trans' _ (go (ChoiceF false _ _)) _ |- _ =>
+      apply trans_choiceI_inv' in h as (?x & ?TR)
 
   end; try subs
 .

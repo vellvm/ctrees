@@ -850,16 +850,16 @@ cannot act as going under the guard.
   Proof.
     intros EQs1 EQs2.
     split; intros ? ? TR; inv_trans; subst.
-    - destruct (EQs1 c0) as [x [F _]]; cbn in F.
+    - destruct (EQs1 x) as [z [F _]]; cbn in F.
       apply F in TR; destruct TR as (u' & ? & TR' & EQ' & ?).
       eexists. eexists. subst. intuition.
-      eapply trans_choiceI with (x := x); [|reflexivity].
+      eapply trans_choiceI with (x := z); [|reflexivity].
       eauto.
       eauto.
-    - destruct (EQs2 c'0) as [x [_ B]]; cbn in B.
+    - destruct (EQs2 x) as [y [_ B]]; cbn in B.
       apply B in TR; destruct TR as (u' & ? & TR' & EQ' & ?).
       eexists. eexists. subst. intuition.
-      eapply trans_choiceI with (x := x); [|reflexivity].
+      eapply trans_choiceI with (x := y); [|reflexivity].
       eauto.
       eauto.
   Qed.
