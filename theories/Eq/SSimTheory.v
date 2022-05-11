@@ -36,16 +36,22 @@ Section ssim_theory.
   Notation ssbt L := (coinduction.bt (ss L)).
   Notation ssT L := (coinduction.T (ss L)).
 
-  Lemma Reflexive_ss: forall R, Reflexive R -> Reflexive (sse R).
+  Lemma Reflexive_ss: forall L R, Reflexive L -> Reflexive R -> Reflexive (ss1 L R).
   Proof.
-    intros R H t l t' tt'.
+    intros L R HL HR t l t' tt'.
     exists t', l. auto.
   Qed.
 
   #[global] Instance Reflexive_ssim: Reflexive (ssim1 eq).
   Proof.
     cbn. coinduction R CH.
-    apply Reflexive_ss. cbn. apply CH.
+    apply Reflexive_ss; auto.
+  Qed.
+
+  #[global] Instance Reflexive_ssim_flip: Reflexive (ssim1 (flip eq)).
+  Proof.
+    cbn. coinduction R CH.
+    apply Reflexive_ss; auto.
   Qed.
 
   Lemma Transitive_ss: forall R, Transitive R -> Transitive (sse R).
@@ -578,3 +584,50 @@ Inversion principles
   Qed.
 
 End WithParams.
+
+(*|
+A strong bisimulation gives two strong simulations,
+but two strong simulations do not always give a strong bisimulation.
+|*)
+
+Lemma hsb_ss : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L RR (t : ctree E C X) (t' : ctree F D Y), hsb L RR t t' -> ss L RR t t'.
+Proof.
+  intros. apply H1.
+Qed.
+
+Lemma ss_hsb : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L RR (t : ctree E C X) (t' : ctree F D Y), ss L RR t t' -> ss (flip L) (flip RR) t' t -> hsb L RR t t'.
+Proof.
+  split; auto.
+Qed.
+
+Lemma hsbisim_ssim : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L (t : ctree E C X) (t' : ctree F D Y), hsbisim L t t' -> ssim L t t'.
+Proof.
+  intros until L.
+  coinduction R CH. simpl. intros.
+  step in H1.
+  apply H1 in H2 as H3. destruct H3 as (? & ? & ? & ? & ?).
+  exists x, x0. auto.
+Qed.
+
+#[local] Definition t1 : ctree void1 (C01 +' C2) unit :=
+  tauV (Ret tt).
+
+#[local] Definition t2 : ctree void1 (C01 +' C2) unit :=
+  chooseV2 (Ret tt) (stuckI).
+
+Lemma ssim_hsbisim : ssim eq t1 t2 /\ ssim (flip eq) t2 t1 /\ ~ hsbisim eq t1 t2.
+Proof.
+  unfold t1, t2. intuition.
+  - step. cbn. intros. inv_trans. subst.
+    exists (Ret tt), tau. intuition. rewrite EQ. reflexivity.
+  - step. cbn. intros. inv_trans; subst.
+    + exists (Ret tt), tau. intuition. rewrite EQ. reflexivity.
+    + exists (Ret tt), tau. intuition. rewrite EQ. apply stuckI_ssim.
+  - step in H. cbn in H. destruct H as [_ ?].
+    specialize (H tau stuckI). lapply H; [| etrans].
+    intros. destruct H0 as (? & ? & ? & ? & ?). subst.
+    inv_trans. step in H1. cbn in H1. destruct H1 as [? _].
+    specialize (H0 (val tt) stuckI). lapply H0. 2: { rewrite EQ. etrans. }
+    intro. destruct H1 as (? & ? & ? & ? & ?). subst.
+    now apply stuckI_is_stuck in H1.
+Qed.
