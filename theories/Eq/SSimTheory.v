@@ -18,6 +18,7 @@ From RelationAlgebra Require Export
 
 Set Implicit Arguments.
 
+Import EquNotations.
 Import SBisimNotations.
 
 (* TODO: Decide where to set this *)
@@ -566,7 +567,8 @@ Inversion principles
 --------------------
 |*)
   Lemma ssim_ret_inv X Y (r1 : X) (r2 : Y) :
-    (Ret r1 : ctree E C X) (≲L) (Ret r2 : ctree F D Y) -> L (val r1) (val r2).
+    (Ret r1 : ctree E C X) (≲L) (Ret r2 : ctree F D Y) ->
+    L (val r1) (val r2).
   Proof.
     intro.
     eplay. inv_trans. now subst.
@@ -585,22 +587,41 @@ Inversion principles
 
 End WithParams.
 
+Lemma ssim_subrelation : forall {E C X} `{C0 -< C} (t t' : ctree E C X) L L',
+  subrelation L L' -> ssim L t t' -> ssim L' t t'.
+Proof.
+  intros. revert t t' H1. coinduction R CH.
+  intros. step in H1. simpl. intros.
+  cbn in H1. apply H1 in H2 as (? & ? & ? & ? & ?).
+  apply H0 in H4. exists x, x0. auto.
+Qed.
+
 (*|
 A strong bisimulation gives two strong simulations,
 but two strong simulations do not always give a strong bisimulation.
+This property is true if we only allow choices with 0 or 1 branch,
+but we prove a counter-example for a ctree with a binary choice.
 |*)
 
-Lemma hsb_ss : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L RR (t : ctree E C X) (t' : ctree F D Y), hsb L RR t t' -> ss L RR t t'.
+Lemma hsb_ss : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L RR
+  (t : ctree E C X) (t' : ctree F D Y),
+  hsb L RR t t' -> ss L RR t t'.
 Proof.
   intros. apply H1.
 Qed.
 
-Lemma ss_hsb : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L RR (t : ctree E C X) (t' : ctree F D Y), ss L RR t t' -> ss (flip L) (flip RR) t' t -> hsb L RR t t'.
+Lemma ss_hsb : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L RR
+  (t : ctree E C X) (t' : ctree F D Y),
+  ss L RR t t' ->
+  ss (flip L) (flip RR) t' t ->
+  hsb L RR t t'.
 Proof.
   split; auto.
 Qed.
 
-Lemma hsbisim_ssim : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L (t : ctree E C X) (t' : ctree F D Y), hsbisim L t t' -> ssim L t t'.
+Lemma hsbisim_ssim : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L
+  (t : ctree E C X) (t' : ctree F D Y),
+  hsbisim L t t' -> ssim L t t'.
 Proof.
   intros until L.
   coinduction R CH. simpl. intros.
@@ -609,13 +630,75 @@ Proof.
   exists x, x0. auto.
 Qed.
 
+Lemma trans__trans : forall {E C X} `{C0 -< C} l
+  (t t' : ctree E C X),
+  trans_ l (observe t) (observe t') = trans l t t'.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma ctree_C01_trans_det : forall {E X} l (t t' t'' : ctree E C01 X),
+  trans l t t' -> trans l t t'' -> t' ≅ t''.
+Proof.
+  intros. do 3 red in H.
+  rewrite ctree_eta in H0.
+  genobs t ot. genobs t' ot'. rewrite ctree_eta, <- Heqot'.
+  clear t t' Heqot Heqot'. revert t'' H0.
+  dependent induction H; intros; inv_trans.
+  - eapply IHtrans_; eauto.
+    rewrite <- ctree_eta.
+    destruct c, c, x, x0. assumption.
+  - rewrite <- ctree_eta. destruct c, c, x, x0. now rewrite <- H, EQ.
+  - subst. rewrite <- ctree_eta. now rewrite <- H, EQ.
+  - rewrite EQ. apply choiceStuckI_always_stuck.
+Qed.
+
+Lemma ssim_hsbisim_equiv_gen : forall {E F X Y} (L : rel _ _) (t : ctree E C01 X) (t' : ctree F C01 Y),
+  (forall x x' y, L x y -> L x' y -> x = x') ->
+  (forall x y y', L x y -> L x y' -> y = y') ->
+  ssim L t t' -> ssim (flip L) t' t -> hsbisim L t t'.
+Proof.
+  intros until 2. revert t t'.
+  coinduction R CH. red. red. cbn. split; intros.
+  - step in H1. cbn in H1.
+    apply H1 in H3 as H3'. destruct H3' as (? & ? & ? & ? & ?).
+    exists x, x0. intuition. apply CH.
+    + apply H5.
+    + step in H2. cbn in H2. apply H2 in H4 as (? & ? & ? & ? & ?).
+      replace x2 with l in H4.
+      2: { eapply H; eauto. }
+      assert (t'0 ≅ x1) by (eapply ctree_C01_trans_det; eauto).
+      now rewrite H9.
+  - step in H2. cbn in H2.
+    apply H2 in H3 as H3'. destruct H3' as (? & ? & ? & ? & ?).
+    exists x, x0. intuition. apply CH.
+    + step in H1. cbn in H1. apply H1 in H4 as (? & ? & ? & ? & ?).
+      replace x2 with l in H4.
+      2: { eapply H0; eauto. }
+      assert (t'0 ≅ x1) by (eapply ctree_C01_trans_det; eauto).
+      now rewrite H9.
+    + apply H5.
+Qed.
+
+Lemma ssim_hsbisim_equiv : forall {E X} (t t' : ctree E C01 X),
+  ssim eq t t' -> ssim eq t' t -> hsbisim eq t t'.
+Proof.
+  intros. apply ssim_hsbisim_equiv_gen; intros.
+  - now subst.
+  - now subst.
+  - apply H.
+  - apply ssim_subrelation with (L := eq); auto.
+    red. intros. subst. reflexivity.
+Qed.
+
 #[local] Definition t1 : ctree void1 (C01 +' C2) unit :=
   tauV (Ret tt).
 
 #[local] Definition t2 : ctree void1 (C01 +' C2) unit :=
   chooseV2 (Ret tt) (stuckI).
 
-Lemma ssim_hsbisim : ssim eq t1 t2 /\ ssim (flip eq) t2 t1 /\ ~ hsbisim eq t1 t2.
+Lemma ssim_hsbisim_nequiv :
+  ssim eq t1 t2 /\ ssim (flip eq) t2 t1 /\ ~ hsbisim eq t1 t2.
 Proof.
   unfold t1, t2. intuition.
   - step. cbn. intros. inv_trans. subst.
