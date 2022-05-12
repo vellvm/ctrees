@@ -208,6 +208,25 @@ Ltac __step_in_sbisim H :=
 
 Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
 
+(*|
+The two definitions of homogeneous bisimulation are equivalent.
+|*)
+Lemma hsbisim_eq_sbisim : forall {E C X} `{C0 -< C} (t t' : ctree E C X),
+  hsbisim eq t t' <-> sbisim t t'.
+Proof.
+  split; intros; revert t t' H0.
+  - coinduction R CH. intros. step in H0. cbn in H0. split; cbn; intros.
+    + apply H0 in H1 as (? & ? & ? & ? & ?). subst.
+      apply CH in H2. eauto.
+    + apply H0 in H1 as (? & ? & ? & ? & ?). subst.
+      apply CH in H2. eauto.
+  - coinduction R CH. intros. step in H0. cbn in H0. split; cbn; intros.
+    + apply H0 in H1 as (? & ? & ? & ? & ?). subst.
+      apply CH in H2. eauto.
+    + apply H0 in H1 as (? & ? & ? & ? & ?). subst.
+      apply CH in H2. eauto.
+Qed.
+
 Section sbisim_theory.
 
   Context {E C : Type -> Type} {X : Type} `{HasStuck : C0 -< C}.
