@@ -57,7 +57,7 @@ Proof.
   destruct EQ as [F _].
   setoid_rewrite (ctree_eta vending) in F.
   cbn in F.
-  edestruct F as [u' TR EQ]; [apply (trans_vis _ tt) | clear F].
+  edestruct F as (u' & ? & TR & EQ & ?); [apply (trans_vis _ tt) | clear F; subst].
   fold (@CTree.bind E (C0 +' C2) unit void (Ret tt) (fun _ : unit =>
                                             chooseI2 (trigger ReqTea;; vis Tea (fun _ : unit => vending)) (trigger ReqCoffee;; vis Coffee (fun _ : unit => vending)))) in EQ.
   rewrite bind_ret_l in EQ.
@@ -66,14 +66,14 @@ Proof.
   apply trans_choiceI_inv in TR as [[|] h].
   - apply trans_trigger_inv in h.
     destruct h as ([] & EQ & _).
-    edestruct F as [u'' TR _].
+    edestruct F as (u'' & ? & TR & ? & ?); subst.
     apply trans_chooseI22,(trans_trigger _ tt).
     rewrite EQ in TR.
     apply trans_trigger_inv in TR as ([] & _ & abs).
     inv abs.
   - apply trans_trigger_inv in h.
     destruct h as ([] & EQ & _).
-    edestruct F as [u'' TR _].
+    edestruct F as (u'' & ? & TR & ? & ?); subst.
     apply trans_chooseI21,(trans_trigger _ tt).
     rewrite EQ in TR.
     apply trans_trigger_inv in TR as ([] & _ & abs).
