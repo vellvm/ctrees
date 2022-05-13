@@ -49,6 +49,8 @@ Definition reapoff : state :=
      vis Coffee (fun _ => F))
 .
 
+Ltac etransH H := eassert (H := H _); lapply H; [ clear H | etrans ].
+
 (* TODO: this whole proof is currently unacceptable, we should tweak things until it's actually clean *)
 Theorem distinguishable : ~ (vending ~ reapoff).
 Proof.
@@ -57,20 +59,19 @@ Proof.
   destruct EQ as [F _].
   setoid_rewrite (ctree_eta vending) in F.
   cbn in F.
-  edestruct F as (u' & ? & TR & EQ & ?); [apply (trans_vis _ tt) | clear F; subst].
+  specialize (F (obs Coin tt)). etransH F.
+  intros (u' & ? & TR & EQ & ?).
   fold_bind.
   rewrite bind_ret_l in EQ.
   step in EQ; destruct EQ as [F _]; cbn in F.
   rewrite ctree_eta in TR; cbn in TR.
-  inv_trans. destruct x.
-  - inv_trans.
-    edestruct F as (u'' & ? & TR & ? & ?); subst.
-    apply trans_chooseI22,(trans_trigger _ tt).
+  inv_trans. destruct x0; inv_trans.
+  - specialize (F (obs ReqCoffee tt)). etransH F.
+    intros (u'' & ? & TR & ? & ?); subst.
     rewrite EQ in TR.
-    inv_trans. inv EQl0.
-  - inv_trans.
-    edestruct F as (u'' & ? & TR & ? & ?); subst.
-    apply trans_chooseI21,(trans_trigger _ tt).
+    inv_trans. inv EQl.
+  - specialize (F (obs ReqTea tt)). etransH F.
+    intros (u'' & ? & TR & ? & ?); subst.
     rewrite EQ in TR.
-    inv_trans. inv EQl0.
+    inv_trans. inv EQl.
 Qed.

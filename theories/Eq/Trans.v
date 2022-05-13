@@ -1407,7 +1407,7 @@ Proof.
 Qed.
 
 Lemma trans_trigger : forall {E C X Y} `{C0 -< C} (e : E X) x (k : X -> ctree E C Y),
-		transR (obs e x) (trigger e >>= k) (k x).
+		trans (obs e x) (trigger e >>= k) (k x).
 Proof.
   intros.
   unfold CTree.trigger.
@@ -1417,7 +1417,7 @@ Proof.
 Qed.
 
 Lemma trans_trigger' : forall {E C X Y} `{C0 -< C} (e : E X) x (t : ctree E C Y),
-		transR (obs e x) (trigger e;; t) t.
+		trans (obs e x) (trigger e;; t) t.
 Proof.
   intros.
   unfold CTree.trigger.
@@ -1588,7 +1588,7 @@ Create HintDb trans.
  trans_chooseV21 trans_chooseV22
  trans_chooseV31 trans_chooseV32 trans_chooseV33
  trans_chooseV41 trans_chooseV42 trans_chooseV43 trans_chooseV44
- trans_bind_l trans_bind_r
+ trans_trigger trans_bind_l trans_bind_r
   : trans.
 
 Ltac etrans := eauto with trans.
