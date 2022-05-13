@@ -211,11 +211,6 @@ Proof.
   rewrite sb_tauI; auto.
 Qed.
 
-Ltac fold_bind :=
-  repeat match goal with
-           |- context [CTree.subst ?k ?t] => fold (CTree.bind t k)
-         end.
-
 #[global] Instance guarded_equ E C X `(C1 -< C) : Proper (equ eq ==> equ eq) (@guarded_form E C X _).
 Proof.
   do 2 red.

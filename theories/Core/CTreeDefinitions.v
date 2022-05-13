@@ -294,6 +294,12 @@ Ignore the result of a tree.
 
 End CTree.
 
+Ltac fold_bind :=
+  repeat match goal with
+  | h: context [CTree.subst ?k ?t] |- _ => fold (CTree.bind t k) in h
+  | |- context [CTree.subst ?k ?t] => fold (CTree.bind t k)
+  end.
+
 (*|
 [on_left lr l t]: run a computation [t] if the first argument is an [inl l].
 [l] must be a variable (used as a pattern), free in the expression [t]:

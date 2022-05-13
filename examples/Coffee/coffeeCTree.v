@@ -58,8 +58,7 @@ Proof.
   setoid_rewrite (ctree_eta vending) in F.
   cbn in F.
   edestruct F as (u' & ? & TR & EQ & ?); [apply (trans_vis _ tt) | clear F; subst].
-  fold (@CTree.bind E (C0 +' C2) unit void (Ret tt) (fun _ : unit =>
-                                            chooseI2 (trigger ReqTea;; vis Tea (fun _ : unit => vending)) (trigger ReqCoffee;; vis Coffee (fun _ : unit => vending)))) in EQ.
+  fold_bind.
   rewrite bind_ret_l in EQ.
   step in EQ; destruct EQ as [F _]; cbn in F.
   rewrite ctree_eta in TR; cbn in TR.
