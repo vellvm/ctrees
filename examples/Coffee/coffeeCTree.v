@@ -53,7 +53,7 @@ Definition reapoff : state :=
 Theorem distinguishable : ~ (vending ~ reapoff).
 Proof.
   intros EQ.
-  step in EQ; fold (@sbisim E (C0 +' C2) void) in *.
+  step in EQ.
   destruct EQ as [F _].
   setoid_rewrite (ctree_eta vending) in F.
   cbn in F.
@@ -63,19 +63,15 @@ Proof.
   rewrite bind_ret_l in EQ.
   step in EQ; destruct EQ as [F _]; cbn in F.
   rewrite ctree_eta in TR; cbn in TR.
-  apply trans_choiceI_inv in TR as [[|] h].
-  - apply trans_trigger_inv in h.
-    destruct h as ([] & EQ & _).
+  inv_trans. destruct x.
+  - inv_trans.
     edestruct F as (u'' & ? & TR & ? & ?); subst.
     apply trans_chooseI22,(trans_trigger _ tt).
     rewrite EQ in TR.
-    apply trans_trigger_inv in TR as ([] & _ & abs).
-    inv abs.
-  - apply trans_trigger_inv in h.
-    destruct h as ([] & EQ & _).
+    inv_trans. inv EQl0.
+  - inv_trans.
     edestruct F as (u'' & ? & TR & ? & ?); subst.
     apply trans_chooseI21,(trans_trigger _ tt).
     rewrite EQ in TR.
-    apply trans_trigger_inv in TR as ([] & _ & abs).
-    inv abs.
+    inv_trans. inv EQl0.
 Qed.

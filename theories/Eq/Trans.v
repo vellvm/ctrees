@@ -1568,6 +1568,10 @@ Ltac inv_trans_one :=
   | h : trans' _ (go (ChoiceF false _ _)) _ |- _ =>
       apply trans_choiceI_inv' in h as (?x & ?TR)
 
+  (* trigger *)
+  | h : trans' _ (CTree.bind (CTree.trigger ?e) ?t) _ |- _ =>
+      apply trans_trigger_inv in h as (?x & ?EQ & ?EQl)
+
   end; try subs
 .
 
