@@ -630,6 +630,13 @@ Proof.
   exists x, x0. auto.
 Qed.
 
+Lemma sbisim_ssim_eq : forall {E C X} `{C0 -< C} (t t' : ctree E C X),
+  sbisim t t' -> ssim eq t t'.
+Proof.
+  intros. apply hsbisim_eq_sbisim in H0.
+  now apply hsbisim_ssim in H0 as H1.
+Qed.
+
 Lemma trans__trans : forall {E C X} `{C0 -< C} l
   (t t' : ctree E C X),
   trans_ l (observe t) (observe t') = trans l t t'.
