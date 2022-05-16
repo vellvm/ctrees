@@ -92,6 +92,9 @@ least annoying solution.
 	  | obs {X : Type} (e : E X) (v : X)
 	  | val {X : Type} (v : X).
 
+  Variant is_val : label -> Prop :=
+    | Is_val : forall X (x : X), is_val (val x).
+
 (*|
 The transition relation over [ctree]s.
 It can either:
@@ -195,6 +198,12 @@ library.
 
   Lemma trans__trans : forall l (t t' : S),
     trans_ l (observe t) (observe t') = trans l t t'.
+  Proof.
+    reflexivity.
+  Qed.
+
+  Lemma transR_trans : forall l (t t' : S),
+    transR l t t' = trans l t t'.
   Proof.
     reflexivity.
   Qed.
@@ -333,6 +342,21 @@ Elimination rules for [trans]
 
 
 End Trans.
+
+Definition respects_val {E F} (L : rel (@label E) (@label F)) : Prop :=
+  forall l l',
+  L l l' ->
+  is_val l <-> is_val l'.
+
+Definition respects_tau {E F} (L : rel (@label E) (@label F)) : Prop :=
+  forall l l',
+  L l l' ->
+  l = tau <-> l' = tau.
+
+Definition eq_obs {E} (L : relation (@label E)) : Prop :=
+  forall X X' e e' (x : X) (x' : X'),
+  L (obs e x) (obs e' x') ->
+  obs e x = obs e' x'.
 
 (*|
 Backward reasoning for [trans]
@@ -985,9 +1009,6 @@ trans l (t >>= k) u -> (trans l t t' /\ u ≅ t' >>= k) \/ (trans (ret x) t stuc
 l <> val x -> trans l t u -> trans l (t >>= k) (u >>= k)
 trans (val x) t stuck -> trans l (k x) u -> trans l (bind t k) u.
 |*)
-Variant is_val {E} : (@label E) -> Prop :=
-  | Is_val : forall X (x : X), is_val (val x).
-
 Lemma trans_bind_inv_aux {E C X Y} `{HasStuck : C0 -< C} l T U :
   trans_ l T U ->
   forall (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C Y),

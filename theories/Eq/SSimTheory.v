@@ -214,7 +214,7 @@ and with the argument (pointwise) on the continuation.
 The resulting enhancing function gives a valid up-to technique
 |*)
   Lemma bind_ctx_ssim_t :
-    (forall l l', L l l' -> is_val l <-> is_val l') ->
+    respects_val L ->
     bind_ctx_ssim <= sst L.
   Proof.
     intro HL.
@@ -251,6 +251,12 @@ The resulting enhancing function gives a valid up-to technique
 
 End bind.
 
+Lemma bind_ctx_ssim_eq_t {E C T X} `{C0 -< C} :
+    (bind_ctx_ssim (X := T) (Y := T) eq : mon (relation (ctree E C X))) <= sst eq.
+Proof.
+  apply bind_ctx_ssim_t. red. intros. now subst.
+Qed.
+
 Import CTree.
 Import CTreeNotations.
 
@@ -260,7 +266,7 @@ Expliciting the reasoning rule provided by the up-to principles.
 Lemma sst_clo_bind (E F C D: Type -> Type) `{C0 -< C} `{C0 -< D} (X X' Y Y' : Type) L :
   forall (t1 : ctree E C X) (t2 : ctree F D X') (k1 : X -> ctree E C Y) (k2 : X' -> ctree F D Y') RR,
 		t1 (≲L) t2 ->
-    (forall l l', L l l' -> is_val l <-> is_val l') ->
+    respects_val L ->
     (forall x y, L (val x) (val y) -> (sst L RR) (k1 x) (k2 y)) ->
     sst L RR (t1 >>= k1) (t2 >>= k2)
 .
@@ -276,7 +282,7 @@ Specializing the congruence principle for [~]
 Lemma ssim_clo_bind (E F C D: Type -> Type) `{C0 -< C} `{C0 -< D} (X X' Y Y' : Type) L :
   forall (t1 : ctree E C X) (t2 : ctree F D X') (k1 : X -> ctree E C Y) (k2 : X' -> ctree F D Y'),
 		t1 (≲L) t2 ->
-    (forall l l', L l l' -> is_val l <-> is_val l') ->
+    respects_val L ->
     (forall x x', L (val x) (val x') -> k1 x (≲L) k2 x') ->
     t1 >>= k1 (≲L) t2 >>= k2
 .
@@ -292,7 +298,7 @@ And in particular, we can justify rewriting [≲] to the left of a [bind].
 Lemma bind_ssim_cong_gen {E F C D X X' Y Y'} `{C0 -< C} `{C0 -< D} RR (L : rel _ _) :
   forall (t : ctree E C X) (t' : ctree F D X')
       (k : X -> ctree E C Y) (k' : X' -> ctree F D Y'),
-    (forall l l', L l l' -> is_val l <-> is_val l') ->
+    respects_val L ->
     ssim L t t' ->
     (forall x x', L (val x) (val x') -> sst L RR (k x) (k' x')) ->
     sst L RR (CTree.bind t k) (CTree.bind t' k').
@@ -484,7 +490,7 @@ cannot act as going under the guard.
     apply step_ss_tauI_gen.
   Qed.
 
-  Lemma step_ss_choiceI_gen' C' Z `{C0 -< C'} (c : C Z)
+  Lemma step_ss_choiceI_l_gen C' Z `{C0 -< C'} (c : C Z)
     (k : Z -> ctree E C X) (t' : ctree F C' Y) (R : rel _ _) :
     (forall x, ss L R (k x) t') ->
     ss L R (ChoiceI c k) t'.
@@ -495,18 +501,40 @@ cannot act as going under the guard.
     eexists. eexists. subst. intuition; eauto.
   Qed.
 
+  Lemma step_ss_choiceI_l C' Z `{C0 -< C'} (c : C Z)
+    (k : Z -> ctree E C X) (t' : ctree F C' Y) (R : rel _ _) :
+    (forall x, ssbt L R (k x) t') ->
+    ssbt L R (ChoiceI c k) t'.
+  Proof.
+    apply step_ss_choiceI_l_gen.
+  Qed.
+
+  Lemma step_ss_choiceI_r_gen C' Z `{C0 -< C'} :
+    forall (t : ctree E C X) (c : C' Z) (k : Z -> ctree F C' Y) x R,
+    ss L R t (k x) ->
+    ss L R t (ChoiceI c k).
+  Proof.
+    simpl. intros.
+    apply H0 in H1 as (? & ? & ? & ? & ?). subst.
+    exists x0, x1. intuition. econstructor. eauto.
+  Qed.
+
+  Lemma step_ss_choiceI_r Z : forall (t : ctree E C X) (c : D Z) (k : Z -> ctree F D Y) x R,
+    ssbt L R t (k x) ->
+    ssbt L R t (ChoiceI c k).
+  Proof.
+    intros. eapply step_ss_choiceI_r_gen. apply H.
+  Qed.
+
   Lemma step_ss_choiceI_gen C' Z Z' `{C0 -< C'} (c : C Z) (c' : C' Z')
     (k : Z -> ctree E C X) (k' : Z' -> ctree F C' Y) (R : rel _ _) :
     (forall x, exists y, ss L R (k x) (k' y)) ->
     ss L R (ChoiceI c k) (ChoiceI c' k').
   Proof.
     intros EQs.
-    apply step_ss_choiceI_gen'.
-    intros z l t' TR.
-    destruct (EQs z) as [x FF]. cbn in FF.
-    apply FF in TR; destruct TR as (u' & ? & TR' & EQ' & ?).
-    eexists. eexists. subst. intuition; eauto.
-    econstructor. apply TR'.
+    apply step_ss_choiceI_l_gen.
+    intros. destruct (EQs x) as [x' ?].
+    now apply step_ss_choiceI_r_gen with (x := x').
   Qed.
 
   Lemma step_ss_choiceI C' Z Z' `{C0 -< C'} (c : C Z) (c' : C' Z')
@@ -579,7 +607,52 @@ Inversion principles
     eplay. inv_trans. now subst.
   Qed.
 
-  Lemma sbisim_ChoiceV_inv {X Y Z Z'}
+  Lemma ssim_vis_inv_type {X X1 X2}
+        (e1 : E X1) (e2 : E X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree E C X) (x : X1):
+    Vis e1 k1 ≲ Vis e2 k2 ->
+    X1 = X2.
+  Proof.
+    intros.
+    eplay.
+    inv TR; auto.
+    Unshelve. auto.
+  Qed.
+
+  Lemma ssbt_eq_vis_inv {X Y} (e1 e2 : E Y) (k1 k2 : Y -> ctree E C X) (x : Y) R :
+    ss eq (t (ss eq) R) (Vis e1 k1) (Vis e2 k2) ->
+    e1 = e2 /\ forall x, sst eq R (k1 x) (k2 x).
+  Proof.
+    intros.
+    split.
+    - cbn in H. edestruct H as (? & ? & ? & ? & ?).
+      etrans. subst. now inv_trans.
+    - cbn. intros. edestruct H as (? & ? & ? & ? & ?).
+      etrans. subst. inv_trans. subst. apply H1.
+    Unshelve. auto.
+  Qed.
+
+  Lemma t_gfp_bt : forall {X} `{CompleteLattice X} (b : mon X),
+    weq (t b (gfp (bt b))) (gfp b).
+  Proof.
+    intros. cbn.
+    rewrite <- enhanced_gfp. rewrite t_gfp.
+    reflexivity.
+  Qed.
+
+  Lemma ssim_eq_vis_inv {X Y} (e1 e2 : E Y) (k1 k2 : Y -> ctree E C X) (x : Y) :
+    Vis e1 k1 ≲ Vis e2 k2 ->
+    e1 = e2 /\ forall x, k1 x ≲ k2 x.
+  Proof.
+    intros.
+    (* Why doesn't apply work directly here? *)
+    epose proof (proj1 (enhanced_gfp (@ss E E C C X X _ _ eq) _ _)). apply H0 in H. clear H0.
+    step in H. apply ssbt_eq_vis_inv in H; auto.
+    destruct H. split; auto.
+    intro. subst. specialize (H0 x0).
+    apply (proj1 (t_gfp_bt (@ss E E C C X X _ _ eq) _ _)) in H0. apply H0.
+  Qed.
+
+  Lemma ssim_choiceV_inv {X Y Z Z'}
         c1 c2 (k1 : X -> ctree E C Z) (k2 : Y -> ctree F D Z') :
     ChoiceV c1 k1 (≲L) ChoiceV c2 k2 ->
     (forall i1, exists i2, k1 i1 (≲L) k2 i2).
@@ -588,6 +661,36 @@ Inversion principles
     eplay.
     inv_trans.
     eexists; eauto.
+  Qed.
+
+  Lemma ss_choiceI_l_inv : forall {X Y Z}
+    (t : ctree E C X) (c : D Y) (k : Y -> ctree F D Z) L R,
+    ss L R (ChoiceI c k) t ->
+    forall x, ss L R (k x) t.
+  Proof.
+    cbn. intros.
+    eapply trans_choiceI in H0; [| reflexivity].
+    apply H in H0 as (? & ? & ? & ? & ?).
+    exists x0, x1. auto.
+  Qed.
+
+  Lemma ssim_choiceI_l_inv : forall {X Y Z}
+    (t : ctree E C X) (c : D Y) (k : Y -> ctree F D Z) L,
+    ChoiceI c k (≲L) t ->
+    forall x, k x (≲L) t.
+  Proof.
+    intros. step. step in H. eapply ss_choiceI_l_inv. apply H.
+  Qed.
+
+  (* This one isn't very convenient... *)
+  Lemma ssim_choiceI_r_inv : forall {X Y Z}
+    (t : ctree E C X) (c : D Y) (k : Y -> ctree F D Z) L,
+    ssim L t (ChoiceI c k) ->
+    forall l t', trans l t t' ->
+    exists x t'' l', trans l' (k x) t'' /\ ssim L t' t'' /\ L l l'.
+  Proof.
+    cbn. intros. step in H. apply H in H0 as (? & ? & ? & ? & ?). subst. inv_trans.
+    exists x1, x, x0. auto.
   Qed.
 
 End WithParams.
@@ -640,13 +743,6 @@ Lemma sbisim_ssim_eq : forall {E C X} `{C0 -< C} (t t' : ctree E C X),
 Proof.
   intros. apply hsbisim_eq_sbisim in H0.
   now apply hsbisim_ssim in H0 as H1.
-Qed.
-
-Lemma trans__trans : forall {E C X} `{C0 -< C} l
-  (t t' : ctree E C X),
-  trans_ l (observe t) (observe t') = trans l t t'.
-Proof.
-  reflexivity.
 Qed.
 
 Lemma ctree_C01_trans_det : forall {E X} l (t t' t'' : ctree E C01 X),
