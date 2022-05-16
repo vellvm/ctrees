@@ -1,8 +1,16 @@
+From Coq Require Import Basics.
+
 From Coinduction Require Import
      coinduction rel tactics.
 
 From ITree Require Import Core.Subevent.
-From CTree Require Import CTree Eq.Trans Eq.SBisim Eq.SSimTheory.
+From CTree Require Import
+     CTree Eq.Equ Eq.Trans Eq.SBisim Eq.SSimTheory.
+
+
+(*|
+Base coinductive definitions for execution traces and trace equivalence.
+|*)
 
 CoInductive trace {E} :=
 | Cons (l : @label E) (s : trace)
@@ -28,6 +36,39 @@ Definition tracincl {E C D X Y} `{C0 -< C} `{C0 -< D}
 Definition traceq {E C D X Y} `{C0 -< C} `{C0 -< D}
   (t : ctree E C X) (t' : ctree E D Y) :=
   tracincl t t' /\ tracincl t' t.
+
+(*|
+Instances
+|*)
+
+#[global] Instance traceq_equ : forall {E C X} `{C0 -< C} s,
+  Proper (equ eq ==> impl) (@has_trace E C X _ s).
+Proof.
+  cbn. intros. step. destruct s; auto.
+  step in H1. cbn in H1. destruct H1 as (? & ? & ?).
+  rewrite H0 in H1. exists x0. auto.
+Qed.
+
+(*|
+Tactics
+|*)
+
+Tactic Notation "__trace_play" "using" tactic(tac) :=
+  eexists; rewrite ctree_eta;
+  cbn; split; [now tac | auto].
+
+Tactic Notation "__trace_play" := __trace_play using etrans.
+
+Tactic Notation "__trace_play" "in" hyp(H) :=
+  step in H; cbn in H;
+  destruct H as (? & TR & H);
+  rewrite ctree_eta in TR; cbn in TR;
+  inv_trans; subst.
+
+(*|
+Trace inclusion is weaker than similarity,
+and trace equivalence is weaker than bisimilarity.
+|*)
 
 Lemma ssim_tracincl : forall {E C X} `{C0 -< C} (t t' : ctree E C X),
   ssim eq t t' -> tracincl t t'.
