@@ -116,10 +116,9 @@ Tactic Notation "__step_equ" :=
       unfold equ;
       step;
       fold (@equ E C R1 R2 RR)
-  | |- _ => step
   end.
 
-#[local] Tactic Notation "step" := __step_equ.
+#[local] Tactic Notation "step" := __step_equ || step.
 
 #[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
   __coinduction_equ R H.
@@ -132,7 +131,7 @@ Ltac __step_in_equ H :=
       fold (@equ E C R1 R2 RR) in H
   end.
 
-#[local] Tactic Notation "step" "in" ident(H) := __step_in_equ H.
+#[local] Tactic Notation "step" "in" ident(H) := __step_in_equ H || step in H.
 
 Module EquNotations.
 

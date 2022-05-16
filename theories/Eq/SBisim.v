@@ -159,8 +159,8 @@ Ltac fold_sbisim :=
     match goal with
     | h: context[@hsb ?E ?F ?C ?D ?X ?Y _ _ ?L] |- _ => fold (@hsbisim E F C D X Y _ _ L) in h
     | |- context[@hsb ?E ?F ?C ?D ?X ?Y _ _ ?L]      => fold (@hsbisim E F C D X Y _ _ L)
-    | h: context[@sb ?E ?C ?X] |- _ => fold (@sbisim E C X) in h
-    | |- context[@sb ?E ?C ?X]      => fold (@sbisim E C X)
+    | h: context[@sb ?E ?C ?X _] |- _ => fold (@sbisim E C X _) in h
+    | |- context[@sb ?E ?C ?X _]      => fold (@sbisim E C X _)
     | h: context[@ss ?E ?F ?C ?D ?X ?Y _ _ ?L] |- _ => fold (@ssim E F C D X Y _ _ L) in h
     | |- context[@ss ?E ?F ?C ?D ?X ?Y _ _ ?L]      => fold (@ssim E F C D X Y _ _ L)
     end.
@@ -174,20 +174,31 @@ Tactic Notation "__step_sbisim" :=
       unfold ssim;
       step;
       fold (@ssim E F C D X Y _ _ L)
+  | |- context[t (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)] =>
+      unfold ss;
+      step;
+      fold (@ss E F C D X Y _ _ L)
   | |- context[@hsbisim ?E ?F ?C ?D ?X ?Y _ _ ?L] =>
       unfold hsbisim;
       step;
       fold (@hsbisim E F C D X Y _ _ L)
+  | |- context[@hsb ?E ?F ?C ?D ?X ?Y _ _ ?L] =>
+      unfold hsb;
+      step;
+      fold (@hsb E F C D X Y _ _ L)
   | |- context[@sbisim ?E ?C ?X] =>
       unfold sbisim;
       step;
       fold (@sbisim E C X)
-  | |- _ => step
+  | |- context[@sb ?E ?C ?X] =>
+      unfold sb;
+      step;
+      fold (@sb E C X)
   end.
 
-Tactic Notation "step" := __step_sbisim || step.
+#[local] Tactic Notation "step" := __step_sbisim || step.
 
-Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
+#[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
   __coinduction_sbisim R H || coinduction R H.
 
 Ltac __step_in_sbisim H :=
@@ -206,7 +217,7 @@ Ltac __step_in_sbisim H :=
       fold (@sbisim E C X) in H
   end.
 
-Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
+#[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
 
 (*|
 The two definitions of homogeneous bisimulation are equivalent.
@@ -667,7 +678,7 @@ Ltac __playL_sbisim H :=
   let Hf := fresh "Hf" in
   destruct H as [Hf _];
   cbn in Hf; edestruct Hf as (? & ? & ?TR & ?EQ & ?);
-  subst; [etrans |].
+  clear Hf; subst; [etrans |].
 
 Ltac __eplayL_sbisim :=
   match goal with
@@ -676,24 +687,24 @@ Ltac __eplayL_sbisim :=
       let Hf := fresh "Hf" in
       destruct h as [Hf _];
       cbn in Hf; edestruct Hf as (? & ? & ?TR & ?EQ & ?);
-      subst; [etrans |]
+      clear Hf; subst; [etrans |]
   end.
 
 Ltac __playR_sbisim H :=
   step in H;
   let Hb := fresh "Hb" in
   destruct H as [_ Hb];
-  cbn in Hb; edestruct Hb;
-  [etrans |].
+  cbn in Hb; edestruct Hb as (? & ? & ?TR & ?EQ & ?);
+  clear Hb; subst; [etrans |].
 
 Ltac __eplayR_sbisim :=
   match goal with
   | h : @sbisim ?E ?C ?X _ _ _ |- _ =>
       step in h;
       let Hb := fresh "Hb" in
-      destruct h as [Hb _];
+      destruct h as [_ Hb];
       cbn in Hb; edestruct Hb as (? & ? & ?TR & ?EQ & ?);
-      subst; [etrans |]
+      clear Hb; subst; [etrans |]
   end.
 
 #[local] Tactic Notation "play" := __play_sbisim.

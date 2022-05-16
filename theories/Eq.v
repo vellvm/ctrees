@@ -19,6 +19,7 @@ From CTree.Eq Require Export
      Equ
      Trans
      SBisim
+     SSimTheory
      Visible.
 
 From CTree Require Export CTree.
@@ -43,7 +44,8 @@ The [step], [step in] and [coinduction] tactics from [coinduction]
 (*|
 Assuming a goal of the shape [t ~ u], initialize the two challenges
 |*)
-#[global] Tactic Notation "play" := __play_sbisim.
+#[global] Tactic Notation "play" := __play_sbisim || __play_ssim.
+#[global] Tactic Notation "play" "in" ident(H) := __play_ssim_in H.
 
 (*|
 Assuming an hypothesis of the shape [t ~ u], extract the forward (playL)
@@ -70,10 +72,10 @@ are identical: assumes [reflexivity] will solve the first goal, and proceed to s
 - [upto_bind with SS]: for [equ], provides explicitly the intermediate relation
 |*)
 #[global] Tactic Notation "upto_bind" :=
-  __eupto_bind_equ || __upto_bind_sbisim.
+  __eupto_bind_equ || __upto_bind_sbisim || __upto_bind_ssim.
 
 #[global] Tactic Notation "upto_bind_eq" :=
-  __upto_bind_eq_equ || __upto_bind_eq_sbisim.
+  __upto_bind_eq_equ || __upto_bind_eq_sbisim || __upto_bind_eq_ssim.
 
 #[global] Tactic Notation "upto_bind" "with" uconstr(SS) :=
   __upto_bind_equ SS.

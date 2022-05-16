@@ -24,6 +24,11 @@ Import SBisimNotations.
 (* TODO: Decide where to set this *)
 Arguments trans : simpl never.
 
+#[local] Tactic Notation "step" := __step_sbisim || step.
+#[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
+  __coinduction_sbisim R H || coinduction R H.
+#[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
+
 Section ssim_theory.
 
   Context {E F C D : Type -> Type} {X Y : Type}.
@@ -154,7 +159,7 @@ contexts.
 
 (*|
 stuckI and spinI can be simulated by any ctree.
-*)
+|*)
 
   Lemma stuckI_ss (R : rel _ _) (t : ctree F D Y) L : ss L R (stuckI : ctree E C X) t.
   Proof.
@@ -299,20 +304,20 @@ Ltac __upto_bind_ssim :=
   match goal with
     |- @ssim _ _ _ _ ?X ?X' _ _ _ (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
       apply ssim_clo_bind
-  | |- body (t (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
-      apply (ft_t (@bind_ctx_ssim_t E F C D T T' X Y _ _)), in_bind_ctx
-  | |- body (bt (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
-      apply (fbt_bt (@bind_ctx_ssim_t E F C D T T' X Y _ _)), in_bind_ctx
+  | |- body (t (@ss ?E ?E ?C ?C ?X ?X _ _ eq)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
+      apply (ft_t (@bind_ctx_ssim_eq_t E C T X _)), in_bind_ctx
+  | |- body (bt (@ss ?E ?E ?C ?C ?X ?X _ _ eq)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
+      apply (fbt_bt (@bind_ctx_ssim_eq_t E C T X _)), in_bind_ctx
   end.
 Ltac __upto_bind_eq_ssim :=
-  __upto_bind_ssim; [reflexivity | intros ?].
+  __upto_bind_ssim; [reflexivity | intros ? _ _].
 
-Ltac __play_ssim := step; cbn; intros ? ? ?TR.
+Ltac __play_ssim := step; cbn; intros ? ? ?TR ? ?.
 
 Ltac __play_ssim_in H :=
   step in H;
   cbn in H; edestruct H as (? & ? & ?TR & ?EQ & ?);
-  subst; [etrans |].
+  clear H; subst; [etrans |].
 
 Ltac __eplay_ssim :=
   match goal with
