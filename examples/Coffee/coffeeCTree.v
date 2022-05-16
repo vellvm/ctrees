@@ -12,6 +12,7 @@ From RelationAlgebra Require Import
 From CTree Require Import
 	   CTree
      Eq
+     Eq.Trace
  	   Interp.Interp.
 
 Import CTree.
@@ -49,29 +50,70 @@ Definition reapoff : state :=
      vis Coffee (fun _ => F))
 .
 
-Ltac etransH H := eassert (H := H _); lapply H; [ clear H | etrans ].
-
-(* TODO: this whole proof is currently unacceptable, we should tweak things until it's actually clean *)
-Theorem distinguishable : ~ (vending ~ reapoff).
+Theorem distinguishable : ~ (vending ≲ reapoff).
 Proof.
-  intros EQ.
-  step in EQ.
-  destruct EQ as [F _].
-  setoid_rewrite (ctree_eta vending) in F.
-  cbn in F.
-  specialize (F (obs Coin tt)). etransH F.
-  intros (u' & ? & TR & EQ & ?).
-  fold_bind.
-  rewrite bind_ret_l in EQ.
-  step in EQ; destruct EQ as [F _]; cbn in F.
-  rewrite ctree_eta in TR; cbn in TR.
-  inv_trans. destruct x0; inv_trans.
-  - specialize (F (obs ReqCoffee tt)). etransH F.
-    intros (u'' & ? & TR & ? & ?); subst.
-    rewrite EQ in TR.
-    inv_trans. inv EQl.
-  - specialize (F (obs ReqTea tt)). etransH F.
-    intros (u'' & ? & TR & ? & ?); subst.
-    rewrite EQ in TR.
-    inv_trans. inv EQl.
+  intros H.
+  setoid_rewrite ctree_eta in H. play in H.
+  setoid_rewrite bind_ret_l in EQ.
+  apply trans_choiceI_inv in TR as (? & TR). destruct x0; inv_trans.
+  - play in EQ. inv_trans. discriminate.
+  - eapply ssim_choiceI_l_inv with (x := true) in EQ.
+    play in EQ. inv_trans. discriminate.
+  Unshelve. all: auto.
+Qed.
+
+Theorem coffee_ssim : reapoff ≲ vending.
+Proof.
+  coinduction R CH.
+  setoid_rewrite ctree_eta. cbn. setoid_rewrite bind_ret_l.
+  apply step_ss_choiceI_l. intros.
+  destruct x.
+  - rewrite bind_trigger. apply step_ss_vis; auto. intros _.
+    step. apply step_ss_choiceI_r with (x := true).
+    upto_bind_eq. now apply step_ss_vis.
+  - rewrite bind_trigger. apply step_ss_vis; auto. intros _.
+    step. apply step_ss_choiceI_r with (x := false).
+    upto_bind_eq. now apply step_ss_vis.
+Qed.
+
+Tactic Notation "play" "using" tactic(tac) :=
+  __trace_play using tac.
+
+Tactic Notation "play" := __trace_play.
+
+Tactic Notation "play" "in" hyp(H) :=
+  __trace_play in H.
+
+Theorem coffee_traceq : traceq vending reapoff.
+Proof.
+  split; red; intros.
+  - red. revert s H. coinduction R CH. intros.
+    do 3 red. cbn.
+    destruct s; auto. play in H.
+    destruct s.
+    2: play; now step.
+    setoid_rewrite bind_ret_l in H.
+    play in H. destruct x2; inv_trans; subst.
+    + play using (apply trans_chooseI21; etrans).
+      step. play.
+      step. destruct s; auto. play in H. play.
+    + play using (apply trans_chooseI22; etrans).
+      step. play.
+      step. destruct s; auto.
+      play in H. play.
+  - pose proof (ssim_tracincl _ _ coffee_ssim); auto.
+    Undo.
+    red. revert s H. coinduction R CH. intros.
+    do 3 red. cbn.
+    destruct s; auto. play in H. destruct x0; inv_trans; subst.
+    + destruct s.
+      2: play; now step.
+      play in H. play.
+      step. play.
+      step. destruct s; auto. play in H. play.
+    + destruct s.
+      2: play; now step.
+      play in H. play.
+      step. play.
+      step. destruct s; auto. play in H. play.
 Qed.
