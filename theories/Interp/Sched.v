@@ -37,7 +37,7 @@ Program Definition round_robin {E} : ctree E (C01 +' Cn) ~> stateT nat (ctree E 
     fun (b : bool) T c s =>
       match c with
       | inr1 c => _
-      | _ => r <- choice b c;; ret (s, r)
+      | _ => r <- choose b c;; ret (s, r)
       end).
 Next Obligation.
   destruct c. destruct n.
@@ -55,10 +55,6 @@ Fairness? Too low level here I think? Maybe at the level of Imp.
 Prove that the original computation simulates the scheduled one?
 *)
 
-
-(* TODO: move, use globally? *)
-Notation ChoiceVF := (ChoiceF true).
-Notation ChoiceIF := (ChoiceF false).
 
 Definition guarded_form {E C X} `{C1 -< C} (t : ctree E C X) : ctree E C X :=
 	CTree.iter (fun t =>

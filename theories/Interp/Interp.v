@@ -57,7 +57,7 @@ Notation interp_ h h' t :=
 	| ChoiceF b c k => bind (h' b _ c) (fun x => tauI (interp h h' (k x)))
   end)%function.
 
-Notation interpE h := (interp h (fun b _ c => choice b c)).
+Notation interpE h := (interp h (fun b _ c => choose b c)).
 
 (* TODO [step] should refold  *)
 Lemma bind_choice {E C R S X} b (c : C X) (k : _ -> ctree E C R) (h : _ -> ctree E C S):
@@ -121,7 +121,7 @@ Section Interp.
 End Interp.
 
 Lemma interp_tau {E F C X} `{C1 -< C} (h : E ~> ctree F C) (t: ctree E C X):
-  interpE h (tauI t) ≅ tauI (tauI (interpE h t)).
+  interp h (fun b _ c => choose b c) (tauI t) ≅ tauI (tauI (interpE h t)).
 Proof.
   rewrite unfold_interp. setoid_rewrite bind_choice. cbn.
   apply equ_ChoiceF. intro.

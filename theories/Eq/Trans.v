@@ -119,7 +119,7 @@ node, labelling the transition by the returned value.
     trans_ (obs e x) (VisF e k) (observe t)
 
   | Stepval r k :
-    trans_ (val r) (RetF r) (ChoiceIF choice0 k) (* FIXME? *)
+    trans_ (val r) (RetF r) (choiceIF choice0 k)
   .
   Hint Constructors trans_ : core.
 
@@ -651,8 +651,8 @@ Structural rules
     rewrite ctree_eta, <- H4, <- ctree_eta; symmetry; auto.
   Qed.
 
-	Lemma trans_choiceI_inv' : forall {Y} l (c : C Y) k (u : ctree E C X),
-		  trans l {| _observe := ChoiceF false c k |} u ->
+	Lemma trans_choiceI_inv : forall {Y} l (c : C Y) k (u : ctree E C X),
+		  trans l (ChoiceI c k) u ->
 		  exists n, trans l (k n) u.
 	Proof.
 		intros * TR.
@@ -667,13 +667,6 @@ Structural rules
 		induction TR; intros; inv Heqox; eauto.
 	Qed.
 
-	Lemma trans_choiceI_inv : forall {Y} l (c : C Y) k (u : ctree E C X),
-		  trans l (ChoiceI c k) u ->
-		  exists n, trans l (k n) u.
-	Proof.
-    intros. eapply (trans_choiceI_inv' H).
-  Qed.
-
 (*|
 Ad-hoc rules for pre-defined finite branching
 |*)
@@ -687,8 +680,8 @@ Ad-hoc rules for pre-defined finite branching
     intros * TR; apply trans_choiceI_inv in TR as [_ TR]; auto.
   Qed.
 
-	Lemma trans_choiceV_inv' : forall {X} (c : C X) k,
-		  trans l {| _observe := ChoiceF true c k |} t' ->
+	Lemma trans_choiceV_inv : forall {X} (c : C X) k,
+		  trans l (ChoiceV c k) t' ->
 		  exists x, t' ≅ k x /\ l = tau.
 	Proof.
 		intros * TR.
@@ -697,14 +690,6 @@ Ad-hoc rules for pre-defined finite branching
         eexists; split; auto.
 	    rewrite H, ctree_eta, (ctree_eta t0), x; reflexivity.
 	Qed.
-
-	Lemma trans_choiceV_inv : forall {X} (c : C X) k,
-		  trans l (ChoiceV c k) t' ->
-		  exists x, t' ≅ k x /\ l = tau.
-	Proof.
-    intros.
-    eapply (trans_choiceV_inv' H).
-  Qed.
 
 	Lemma trans_tauV_inv `{C1 -< C} :
 		  trans l (tauV t) t' ->
@@ -1048,7 +1033,7 @@ Proof.
     + step in H0; inv H0.
     + step in H0; dependent induction H0.
       left; split; [intros abs; inv abs |].
-      exists (k1 x0); split.
+      exists (k1 x); split.
       econstructor; reflexivity.
       rewrite <- H1, <- ctree_eta, <- H.
       apply REL.
@@ -1572,22 +1557,9 @@ Ltac inv_trans_one :=
       | _ => idtac
       end
 
-  | h : trans' _ (go (ChoiceF true ?c ?k)) _ |- _ =>
-      let EQl := fresh "EQl" in
-      apply trans_choiceV_inv' in h as (?x & ?EQ & EQl);
-      match type of EQl with
-      | tau     = tau => clear EQl
-      | val _   = tau => now inv EQl
-      | obs _ _ = tau => now inv EQl
-      | _ => idtac
-      end
-
   (* ChoiceI *)
   | h : trans' _ (ChoiceI _ _) _ |- _ =>
       apply trans_choiceI_inv in h as (?x & ?TR)
-
-  | h : trans' _ (go (ChoiceF false _ _)) _ |- _ =>
-      apply trans_choiceI_inv' in h as (?x & ?TR)
 
   (* trigger *)
   | h : trans' _ (CTree.bind (CTree.trigger ?e) ?t) _ |- _ =>

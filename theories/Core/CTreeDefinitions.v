@@ -102,11 +102,19 @@ Definition observe {E C R} (t : ctree E C R) : ctree' E C R := @_observe E C R t
 
 Notation Ret x        := (go (RetF x)).
 Notation Vis e k      := (go (VisF e k)).
-Notation Choice b c k := (go (ChoiceF b (subevent _ c) k)).
-Notation ChoiceV c k  := (go (ChoiceF true (subevent _ c) k)).
-Notation ChoiceI c k  := (go (ChoiceF false (subevent _ c) k)).
-Notation ChoiceVF c   := (ChoiceF true (subevent _ c)).
-Notation ChoiceIF c   := (ChoiceF false (subevent _ c)).
+Notation Choice b c k := (go (ChoiceF b c k)).
+Notation ChoiceV c k  := (go (ChoiceF true c k)).
+Notation ChoiceI c k  := (go (ChoiceF false c k)).
+Notation ChoiceVF c   := (ChoiceF true c).
+Notation ChoiceIF c   := (ChoiceF false c).
+
+Notation vis e k := (Vis (subevent _ e) k).
+Notation choice b c k :=
+	(Choice b (subevent _ c) k).
+Notation choiceI c k := (choice false c k).
+Notation choiceV c k := (choice true c k).
+Notation choiceIF c := (ChoiceIF (subevent _ c)).
+Notation choiceVF c := (ChoiceVF (subevent _ c)).
 
 Section Choices.
 
@@ -119,48 +127,48 @@ stuck state cannot be observed, it will be indistinguishable
 from [spin] w.r.t. the bisimulations introduced.
 |*)
   Definition stuckI `{C0 -< C} : ctree E C R :=
-    ChoiceI choice0 (fun x : void => match x with end).
+    choiceI choice0 (fun x : void => match x with end).
 
   Definition stuckV `{C0 -< C} : ctree E C R :=
-    ChoiceV choice0 (fun x : void => match x with end).
+    choiceV choice0 (fun x : void => match x with end).
 
 (*|
 Guards similar to [itree]'s taus.
 |*)
   Definition tauI `{C1 -< C} t : ctree E C R :=
-    ChoiceI choice1 (fun _ => t).
+    choiceI choice1 (fun _ => t).
 
   Definition tauV `{C1 -< C} t : ctree E C R :=
-    ChoiceV choice1 (fun _ => t).
+    choiceV choice1 (fun _ => t).
 
 (*|
 Bounded choices
 |*)
   Definition chooseI2 `{C2 -< C} t u : ctree E C R :=
-    ChoiceI choice2 (fun b => if b : bool then t else u).
+    choiceI choice2 (fun b => if b : bool then t else u).
   Definition chooseV2 `{C2 -< C} t u : ctree E C R :=
-    ChoiceV choice2 (fun b => if b : bool then t else u).
+    choiceV choice2 (fun b => if b : bool then t else u).
   Definition chooseI3 `{C3 -< C} t u v : ctree E C R :=
-    ChoiceI choice3 (fun n => match n with
+    choiceI choice3 (fun n => match n with
                            | t31 => t
                            | t32 => u
                            | t33 => v
                            end).
   Definition chooseV3 `{C3 -< C} t u v : ctree E C R :=
-    ChoiceV choice3 (fun n => match n with
+    choiceV choice3 (fun n => match n with
                            | t31 => t
                            | t32 => u
                            | t33 => v
                            end).
   Definition chooseI4 `{C4 -< C} t u v w : ctree E C R :=
-    ChoiceI choice4 (fun n => match n with
+    choiceI choice4 (fun n => match n with
                            | t41 => t
                            | t42 => u
                            | t43 => v
                            | t44 => w
                            end).
   Definition chooseV4 `{C4 -< C} t u v w : ctree E C R :=
-    ChoiceV choice4 (fun n => match n with
+    choiceV choice4 (fun n => match n with
                            | t41 => t
                            | t42 => u
                            | t43 => v
@@ -171,17 +179,17 @@ Bounded choices
 Finite choice
 |*)
   Definition chooseIn `{Cn -< C} n k : ctree E C R :=
-    ChoiceI (choicen n) k.
+    choiceI (choicen n) k.
   Definition chooseVn `{Cn -< C} n k : ctree E C R :=
-    ChoiceV (choicen n) k.
+    choiceV (choicen n) k.
 
 (*|
 Countable choice
 |*)
   Definition chooseIN `{CN -< C} k : ctree E C R :=
-    ChoiceI choiceN k.
+    choiceI choiceN k.
   Definition chooseVN `{CN -< C} k : ctree E C R :=
-    ChoiceV choiceN k.
+    choiceV choiceN k.
 
 End Choices.
 
@@ -282,7 +290,7 @@ Atomic itrees triggering a single event.
 Atomic ctrees with choice.
 |*)
 
-  Definition choice {X : Type} : forall b (c : C X), ctree E C X :=
+  Definition choose {X : Type} : forall b (c : C X), ctree E C X :=
     fun b c => Choice b c (fun x => Ret x).
 
 (*|
@@ -363,7 +371,9 @@ Ltac fold_monad :=
   repeat (change (@CTree.map ?E) with (@Functor.fmap (ctree E) _)).
 
 End CTree.
-Arguments CTree.choice {E C X} b c.
+Arguments CTree.choose {E C X} b c.
+Notation trigger e := (CTree.trigger (subevent _ e)).
+Notation choose b c := (CTree.choose b (subevent _ c)).
 
 (*|
 =========
@@ -410,21 +420,7 @@ Instances
 (*   fun T => CTree.trigger. *)
 
 #[global] Instance MonadChoice_ctree {E C} : MonadChoice (ctree E C) C :=
-  fun b X => @CTree.choice E C X b.
-
-(* Notation Choice b n k := (go (ChoiceF b n k)). *)
-(* Notation ChoiceV n k := (go (ChoiceF true n k)). *)
-(* Notation ChoiceI n k := (go (ChoiceF false n k)). *)
-(* Notation ChoiceVF n k := (ChoiceF true n k). *)
-(* Notation ChoiceIF n k := (ChoiceF false n k). *)
-
-Notation trigger e :=
-	(CTree.trigger (subevent _ e)).
-Notation vis e k := (Vis (subevent _ e) k).
-Notation choice b c :=
-	(CTree.choice b (subevent _ c)).
-Notation choiceI c := (choice false c).
-Notation choiceV c := (choice true c).
+  fun b X => @CTree.choose E C X b.
 
 (*|
 ====================================

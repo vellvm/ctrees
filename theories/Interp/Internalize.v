@@ -13,7 +13,7 @@ Section Internalize.
   Context `{C1 -< C}.
 
   Definition internalize_h : ExtChoice ~> ctree E (C +' ExtChoice) :=
-    fun _ e => choice true e.
+    fun _ e => choose true e.
 
   Definition internalize_h' : ExtChoice +' E ~> ctree E (C +' ExtChoice) :=
     fun _ e => match e with
