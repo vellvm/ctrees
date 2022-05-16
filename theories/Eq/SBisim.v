@@ -1277,77 +1277,63 @@ Inversion principles
     eexists; eauto.
   Qed.
 
+  Notation inhabited X := (exists x: X, True).
+
 (*|
-Annoying case: [Vis e k ~ ChoiceV n k'] is true if [e : E void] and [n = 0].
-We rule out [n = 0] in this definition.
+Annoying case: [Vis e k ~ ChoiceV c k'] is true if [e : E void] and [c : C void].
+We rule out this case in this definition.
 |*)
-(* FIXME subevent is not powerful enough for this definition *)
-(*Definition are_bisim_incompat {E C R} (t u : ctree E C R) :=
-  match observe t, observe u with
-  | RetF _, RetF _
-  | VisF _ _, VisF _ _
-<<<<<<< HEAD
-  | ChoiceF true _ _, ChoiceF true _ _
-  | ChoiceF false _ _, _
-  | _, ChoiceF false _ _ => false
-  | ChoiceF true n _, RetF _ => true
-  | RetF _,  ChoiceF true n _ => true
-  | ChoiceF true n _, VisF _ _ => negb (Nat.eqb n O)
-  | VisF _ _, ChoiceF true n _ => negb (Nat.eqb n O)
-=======
-  | ChoiceVF _ _, ChoiceVF _ _
-  | ChoiceIF _ _, _
-  | _, ChoiceIF _ _ => false
-  | ChoiceVF n _, RetF _ => true
-  | RetF _,  ChoiceVF n _ => true
-  | ChoiceVF n _, VisF _ _ => negb (Nat.eqb n O)
-  | VisF _ _, ChoiceVF n _ => negb (Nat.eqb n O)
->>>>>>> master
-  | _, _ => true
-  end.
+  Definition are_bisim_incompat {X} (t u : ctree E C X) : Type :=
+    match observe t, observe u with
+    | RetF _, RetF _
+    | VisF _ _, VisF _ _
+    | ChoiceF true _ _, ChoiceF true _ _
+    | ChoiceF false _ _, _
+    | _, ChoiceF false _ _ => False
+    | ChoiceF true n _, RetF _ => True
+    | RetF _,  ChoiceF true n _ => True
+    | @ChoiceF _ _ _ _ X true _ _, @VisF _ _ _ _ Y _ _ =>
+        inhabited X \/ inhabited Y
+    | @VisF _ _ _ _ Y _ _, @ChoiceF _ _ _ _ X true _ _ =>
+        inhabited X \/ inhabited Y
+    | _, _ => True
+    end.
 
-Lemma sbisim_absurd {E C R} (t u : ctree E C R) :
-  are_bisim_incompat t u = true ->
-  t ~ u ->
-  False.
-Proof.
-  intros * IC EQ.
-  unfold are_bisim_incompat in IC.
-  step in EQ; destruct EQ as [Hf Hb]; cbn in Hf,Hb.
-  unfold trans, transR in Hf,Hb; cbn in Hf,Hb.
-  desobs t; desobs u; try now inv IC.
-  edestruct Hf; [apply trans_ret | inv H].
-  destruct vis; try now inv IC.
-  edestruct Hf; [apply trans_ret | inv H].
-  edestruct Hb; [apply trans_ret | inv H].
-  destruct vis; try now inv IC.
-  edestruct Hb; [apply trans_choiceV | inv H; inv IC].
-  destruct vis; try now inv IC.
-  edestruct Hb; [apply trans_ret | inv H].
-  destruct vis; try now inv IC.
-  edestruct Hf; [apply trans_choiceV | inv H; inv IC].
-  destruct vis; try now inv IC.
-  destruct vis0; try now inv IC.
-  Unshelve.
-  all:destruct n; [inv IC | exact Fin.F1].
-Qed.
+  Lemma sbisim_absurd {X} (t u : ctree E C X) :
+    are_bisim_incompat t u ->
+    t ~ u ->
+    False.
+  Proof.
+    intros * IC EQ.
+    unfold are_bisim_incompat in IC.
+    setoid_rewrite ctree_eta in EQ.
+    genobs t ot. genobs u ou.
+    destruct ot, ou;
+      (try now inv IC); (try destruct vis); (try destruct vis0);
+      try now inv IC.
+    - playL in EQ. inv_trans.
+    - playL in EQ. inv_trans.
+    - playR in EQ. inv_trans.
+    - destruct IC as [[] | []]; [ playR in EQ | playL in EQ ]; inv_trans.
+    - playR in EQ. inv_trans.
+    - destruct IC as [[] | []]; [ playL in EQ | playR in EQ ]; inv_trans.
+    Unshelve. all: auto.
+  Qed.
 
-Ltac sb_abs h :=
-  exfalso; eapply sbisim_absurd; [| eassumption]; cbn; try reflexivity.*)
+  Ltac sb_abs h :=
+    eapply sbisim_absurd; [| eassumption]; cbn; try reflexivity.
 
   Lemma sbisim_ret_vis_inv {X Y}(r : Y) (e : E X) (k : X -> ctree E C Y) :
     Ret r ~ Vis e k -> False.
   Proof.
-  (*intros * abs; sb_abs abs.
-Qed.*)
-  Admitted.
+    intros * abs. sb_abs abs.
+  Qed.
 
   Lemma sbisim_ret_ChoiceV_inv {X Y} (r : Y) (c : C X) (k : X -> ctree E C Y) :
     Ret r ~ ChoiceV c k -> False.
   Proof.
-  (*intros * abs; sb_abs abs.
-Qed.*)
-  Admitted.
+    intros * abs; sb_abs abs.
+  Qed.
 
 (*|
 For this to be absurd, we need one of the return types to be inhabited.
@@ -1356,19 +1342,16 @@ For this to be absurd, we need one of the return types to be inhabited.
         (e : E X) (k1 : X -> ctree E C Z) (c : C Y) k2 (y : Y) :
     Vis e k1 ~ ChoiceV c k2 -> False.
   Proof.
-  (*intros * INEQ abs.
-  sb_abs abs.
-  rewrite Bool.negb_true_iff, PeanoNat.Nat.eqb_neq.
-  lia.
-Qed.*)
-  Admitted.
+    intros * abs.
+    sb_abs abs. eauto.
+  Qed.
 
   Lemma sbisim_vis_ChoiceV_inv' {X Y Z}
         (e : E X) (k1 : X -> ctree E C Z) (c : C Y) k2 (x : X) :
     Vis e k1 ~ ChoiceV c k2 -> False.
   Proof.
-    intro. step in H. destruct H as [Hf Hb]. cbn in *.
-    edestruct Hf as (x' & ? & Ht & Hs & ?); [apply (@trans_vis _ _ _ _ _ _ x _) |]. subst. inv_trans.
+    intros * abs.
+    sb_abs abs. eauto.
   Qed.
 
 (*|
