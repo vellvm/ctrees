@@ -157,16 +157,17 @@ Import SBisimNotations.
 Ltac fold_sbisim :=
   repeat
     match goal with
-    | h: context[@hsb ?E ?F ?C ?D ?X ?Y _ _ ?L] |- _ => fold (@hsbisim E F C D X Y _ _ L) in h
-    | |- context[@hsb ?E ?F ?C ?D ?X ?Y _ _ ?L]      => fold (@hsbisim E F C D X Y _ _ L)
-    | h: context[@sb ?E ?C ?X _] |- _ => fold (@sbisim E C X _) in h
-    | |- context[@sb ?E ?C ?X _]      => fold (@sbisim E C X _)
-    | h: context[@ss ?E ?F ?C ?D ?X ?Y _ _ ?L] |- _ => fold (@ssim E F C D X Y _ _ L) in h
-    | |- context[@ss ?E ?F ?C ?D ?X ?Y _ _ ?L]      => fold (@ssim E F C D X Y _ _ L)
+    | h: context[gfp (@hsb ?E ?F ?C ?D ?X ?Y _ _ ?L)] |- _ => fold (@hsbisim E F C D X Y _ _ L) in h
+    | |- context[gfp (@hsb ?E ?F ?C ?D ?X ?Y _ _ ?L)]      => fold (@hsbisim E F C D X Y _ _ L)
+    | h: context[gfp (@sb ?E ?C ?X _)] |- _ => fold (@sbisim E C X _) in h
+    | |- context[gfp (@sb ?E ?C ?X _)]      => fold (@sbisim E C X _)
+    | h: context[gfp (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)] |- _ => fold (@ssim E F C D X Y _ _ L) in h
+    | |- context[gfp (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)]      => fold (@ssim E F C D X Y _ _ L)
     end.
 
 Ltac __coinduction_sbisim R H :=
-  unfold sbisim, hsbisim, ssim; apply_coinduction; fold_sbisim; intros R H.
+  (try unfold sbisim); (try unfold hsbisim); (try unfold ssim);
+  apply_coinduction; fold_sbisim; intros R H.
 
 Tactic Notation "__step_sbisim" :=
   match goal with
@@ -186,14 +187,14 @@ Tactic Notation "__step_sbisim" :=
       unfold hsb;
       step;
       fold (@hsb E F C D X Y _ _ L)
-  | |- context[@sbisim ?E ?C ?X] =>
+  | |- context[@sbisim ?E ?C ?X _] =>
       unfold sbisim;
       step;
-      fold (@sbisim E C X)
-  | |- context[@sb ?E ?C ?X] =>
+      fold (@sbisim E C X _)
+  | |- context[@sb ?E ?C ?X _] =>
       unfold sb;
       step;
-      fold (@sb E C X)
+      fold (@sb E C X _)
   end.
 
 #[local] Tactic Notation "step" := __step_sbisim || step.
@@ -203,18 +204,18 @@ Tactic Notation "__step_sbisim" :=
 
 Ltac __step_in_sbisim H :=
   match type of H with
-  | context[@ssim ?E ?F ?C ?D ?X ?Y] =>
+  | context[@ssim ?E ?F ?C ?D ?X ?Y _ _ ?L] =>
       unfold ssim in H;
       step in H;
-      fold (@ssim E F C D X Y) in H
-  | context[@hsbisim ?E ?F ?C ?D ?X ?Y] =>
+      fold (@ssim E F C D X Y _ _ L) in H
+  | context[@hsbisim ?E ?F ?C ?D ?X ?Y _ _ ?L] =>
       unfold hsbisim in H;
       step in H;
-      fold (@hsbisim E F C D X Y) in H
-  | context [@sbisim ?E ?C ?X] =>
+      fold (@hsbisim E F C D X Y _ _ L) in H
+  | context [@sbisim ?E ?C ?X _] =>
       unfold sbisim in H;
       step in H;
-      fold (@sbisim E C X) in H
+      fold (@sbisim E C X _) in H
   end.
 
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
@@ -683,11 +684,7 @@ Ltac __playL_sbisim H :=
 Ltac __eplayL_sbisim :=
   match goal with
   | h : @sbisim ?E ?C ?X _ _ _ |- _ =>
-      step in h;
-      let Hf := fresh "Hf" in
-      destruct h as [Hf _];
-      cbn in Hf; edestruct Hf as (? & ? & ?TR & ?EQ & ?);
-      clear Hf; subst; [etrans |]
+      __playL_sbisim h
   end.
 
 Ltac __playR_sbisim H :=
@@ -700,11 +697,7 @@ Ltac __playR_sbisim H :=
 Ltac __eplayR_sbisim :=
   match goal with
   | h : @sbisim ?E ?C ?X _ _ _ |- _ =>
-      step in h;
-      let Hb := fresh "Hb" in
-      destruct h as [_ Hb];
-      cbn in Hb; edestruct Hb as (? & ? & ?TR & ?EQ & ?);
-      clear Hb; subst; [etrans |]
+      __playR_sbisim h
   end.
 
 #[local] Tactic Notation "play" := __play_sbisim.

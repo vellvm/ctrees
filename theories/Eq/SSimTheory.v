@@ -318,7 +318,7 @@ Ltac __upto_bind_ssim :=
 Ltac __upto_bind_eq_ssim :=
   __upto_bind_ssim; [reflexivity | intros ? _ _].
 
-Ltac __play_ssim := step; cbn; intros ? ? ?TR ? ?.
+Ltac __play_ssim := step; cbn; intros ? ? ?TR.
 
 Ltac __play_ssim_in H :=
   step in H;
