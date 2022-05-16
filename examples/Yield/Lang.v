@@ -183,4 +183,60 @@ Section Denote1.
     - step. constructor.
   Qed.
 
+  (* not used *)
+  Lemma handler_bounded X (e : (stateE value +' spawnE) X) c :
+    choiceI_bound 1 (handler _ e c).
+  Proof.
+    destruct e; destruct s; cbn.
+    - apply bind_choiceI_bound; auto.
+      + step. constructor. intros. step. constructor.
+      + intros. step. constructor.
+    - apply bind_choiceI_bound; auto.
+      + step. constructor. intros. step. constructor.
+      + intros. step. constructor.
+    - apply bind_choiceI_bound; auto.
+      + step. constructor. intros. step. constructor.
+      + intros. step. constructor.
+  Qed.
+
+  (* TODO: clean up proof *)
+  Lemma interp_state_bounded t c :
+    choiceI_bound 1 t ->
+    choiceI_bound 1 (interp_state t c).
+  Proof.
+    unfold interp_state. unfold Interp.interp. unfold iter. unfold MonadIter_stateT0.
+    intros. unfold choiceI_bound. revert t c H. coinduction r CIH.
+    intros. cbn. unfold iter, MonadIter_ctree. rewrite unfold_iter.
+    cbn. destruct (observe t) eqn:?; cbn. 3: destruct vis.
+    - do 2 rewrite bind_ret_l. cbn. constructor.
+    - unfold CTree.map. destruct e; destruct s; cbn.
+      + rewrite bind_trigger. do 3 rewrite bind_vis. constructor. intros.
+        do 3 rewrite bind_ret_l. step. constructor; auto.
+        intros. apply CIH. step in H. unfold choiceI_bound_ in H. rewrite Heqc0 in H.
+        inversion H. invert. apply H1.
+      + rewrite bind_trigger. do 3 rewrite bind_vis. constructor. intros.
+        do 3 rewrite bind_ret_l. step. constructor; auto.
+        intros. apply CIH. step in H. unfold choiceI_bound_ in H. rewrite Heqc0 in H.
+        inversion H. invert. apply H1.
+      + rewrite bind_trigger. do 3 rewrite bind_vis. constructor. intros.
+        do 3 rewrite bind_ret_l. step. constructor; auto.
+        intros. apply CIH. step in H. unfold choiceI_bound_ in H. rewrite Heqc0 in H.
+        inversion H. invert. apply H1.
+    - unfold choice. unfold MonadChoice_ctree. unfold CTree.choice.
+      do 4 rewrite bind_choice. constructor. intros.
+      do 4 rewrite bind_ret_l. step. constructor; auto. intros. apply CIH.
+      step in H. unfold choiceI_bound_ in H. rewrite Heqc0 in H.
+      inversion H. invert. apply H1.
+    - unfold choice. unfold MonadChoice_ctree. unfold CTree.choice.
+      do 4 rewrite bind_choice. constructor.
+      2: {
+        step in H. unfold choiceI_bound_ in H. rewrite Heqc0 in H.
+        inversion H. invert. apply H3.
+      }
+      intros.
+      do 4 rewrite bind_ret_l. step. constructor; auto. intros. apply CIH.
+      step in H. unfold choiceI_bound_ in H. rewrite Heqc0 in H.
+      inversion H. invert. apply H2.
+  Qed.
+
 End Denote1.
