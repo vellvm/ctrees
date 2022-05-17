@@ -809,11 +809,12 @@ Lemma ssim_hsbisim_nequiv :
   ssim eq t1 t2 /\ ssim (flip eq) t2 t1 /\ ~ hsbisim eq t1 t2.
 Proof.
   unfold t1, t2. intuition.
-  - step. cbn. intros. inv_trans. subst.
-    exists (Ret tt), tau. intuition. rewrite EQ. reflexivity.
-  - step. cbn. intros. inv_trans; subst.
-    + exists (Ret tt), tau. intuition. rewrite EQ. reflexivity.
-    + exists (Ret tt), tau. intuition. rewrite EQ. apply stuckI_ssim.
+  - step. apply step_ss_choiceV; auto.
+    intros _. exists true. reflexivity.
+  - step. apply step_ss_choiceV; auto.
+    intro. exists tt. destruct x.
+    + reflexivity.
+    + step. apply stuckI_ss.
   - step in H. cbn in H. destruct H as [_ ?].
     specialize (H tau stuckI). lapply H; [| etrans].
     intros. destruct H0 as (? & ? & ? & ? & ?). subst.
