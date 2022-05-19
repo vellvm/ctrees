@@ -29,6 +29,15 @@ Arguments trans : simpl never.
   __coinduction_sbisim R H || coinduction R H.
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
 
+Lemma ssim_subrelation : forall {E C X} `{C0 -< C} (t t' : ctree E C X) L L',
+  subrelation L L' -> ssim L t t' -> ssim L' t t'.
+Proof.
+  intros. revert t t' H1. coinduction R CH.
+  intros. step in H1. simpl. intros.
+  cbn in H1. apply H1 in H2 as (? & ? & ? & ? & ?).
+  apply H0 in H4. exists x, x0. auto.
+Qed.
+
 Section ssim_theory.
 
   Context {E F C D : Type -> Type} {X Y : Type}.
@@ -39,35 +48,133 @@ Section ssim_theory.
   Notation ssim1  := (@ssim E E C C X X).
   Notation ssim  := (@ssim E F C D X Y).
   Notation sst L := (coinduction.t (ss L)).
+  Notation sst1 L := (coinduction.t (ss1 L)).
   Notation ssbt L := (coinduction.bt (ss L)).
+  Notation ssbt1 L := (coinduction.bt (ss1 L)).
   Notation ssT L := (coinduction.T (ss L)).
+  Notation ssT1 L := (coinduction.T (ss1 L)).
 
-  Lemma Reflexive_ss: forall L R, Reflexive L -> Reflexive R -> Reflexive (ss1 L R).
+(*|
+Various results on reflexivity and transitivity.
+|*)
+  Lemma refl_sst1: forall L, `(Reflexive L) -> const seq <= sst1 L.
+  Proof.
+    intros. apply leq_t.
+    cbn. intros. unfold seq in H0. subst. eauto.
+  Qed.
+
+  #[global] Instance Reflexive_ss1: forall L R, `(Reflexive L) -> `(Reflexive R) -> Reflexive (ss1 L R).
   Proof.
     intros L R HL HR t l t' tt'.
     exists t', l. auto.
   Qed.
 
-  #[global] Instance Reflexive_ssim: Reflexive (ssim1 eq).
+  #[global] Instance Reflexive_ssim1: Reflexive (ssim1 eq).
   Proof.
     cbn. coinduction R CH.
-    apply Reflexive_ss; auto.
+    apply Reflexive_ss1; auto.
   Qed.
 
   #[global] Instance Reflexive_ssim_flip: Reflexive (ssim1 (flip eq)).
   Proof.
     cbn. coinduction R CH.
-    apply Reflexive_ss; auto.
+    apply Reflexive_ss1; auto.
   Qed.
 
-  Lemma Transitive_ss: forall R, Transitive R -> Transitive (sse R).
+  Lemma square_sst1 : forall (L : relation label), `(Transitive L) -> square <= sst1 L.
   Proof.
-    intros R H x y z xy yz l x' xx'.
-    destruct (xy _ _ xx') as (y' & ? & yy' & x'y' & <-).
-    destruct (yz _ _ yy') as (z' & ? & zz' & y'z' & <-).
-    exists z', l. intuition. now transitivity y'.
+    intros L HL.
+    apply Coinduction.
+    intros R x z [y xy yz] l x' xx'.
+    destruct (xy _ _ xx') as (y' & ? & yy' & x'y' & ?).
+    destruct (yz _ _ yy') as (z' & ? & zz' & y'z' & ?).
+    exists z', x1. split; [ assumption |]. split; [| now transitivity x0 ].
+    apply (f_Tf (ss1 L)).
+    eexists; eauto.
   Qed.
 
+  Lemma Transitive_ss: forall L R, `(Transitive L) -> `(Transitive R) -> Transitive (ss1 L R).
+  Proof.
+    intros L R HL HR x y z xy yz l x' xx'.
+    destruct (xy _ _ xx') as (y' & ? & yy' & x'y' & ?).
+    destruct (yz _ _ yy') as (z' & ? & zz' & y'z' & ?).
+    exists z', x1. intuition. now transitivity y'. now transitivity x0.
+  Qed.
+
+  #[global] Instance PreOrder_sst1 L R `(PreOrder _ L) : PreOrder (sst1 L R).
+  Proof. apply PreOrder_t. apply refl_sst1. apply H. apply square_sst1. apply H. Qed.
+
+  Corollary PreOrder_ssim1 L: `(PreOrder L) -> PreOrder (ssim1 L).
+  Proof. apply PreOrder_sst1. Qed.
+
+  #[global] Instance PreOrder_sbt (L : relation _) R : `(PreOrder L) -> PreOrder (ssbt1 L R).
+	Proof. intro. apply rel.PreOrder_bt. now apply refl_sst1. apply square_sst1. apply H. Qed.
+
+  #[global] Instance PreOrder_sT L f R: `(PreOrder L) -> PreOrder ((T (ss1 L)) f R).
+  Proof. intro. apply rel.PreOrder_T. now apply refl_sst1. apply square_sst1. apply H. Qed.
+
+(*|
+Aggressively providing instances for rewriting hopefully faster
+[sbisim] under all [ss1]-related contexts (consequence of the transitivity
+of the companion).
+|*)
+
+  #[global] Instance sbisim_clos_ssim1_goal (L : relation _) `(PreOrder _ L) :
+    Proper (sbisim ==> sbisim ==> flip impl) (ssim1 L).
+  Proof.
+    repeat intro.
+    symmetry in H1. apply sbisim_ssim_eq in H0, H1.
+    assert (subrelation eq L). { red. intros. now subst. }
+    apply ssim_subrelation with (L' := L) in H0, H1; auto.
+    transitivity y0. transitivity y. all: auto.
+  Qed.
+
+  #[global] Instance sbisim_clos_ssim1_ctx (L : relation _) `(PreOrder _ L) :
+    Proper (sbisim ==> sbisim ==> impl) (ssim1 L).
+  Proof.
+    repeat intro. symmetry in H0, H1. eapply sbisim_clos_ssim1_goal; eauto.
+  Qed.
+
+  #[global] Instance sbisim_clos_sst1_goal (L : relation _) `(PreOrder _ L) RR :
+    Proper (sbisim ==> sbisim ==> flip impl) (sst1 L RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
+    symmetry in eq2. apply sbisim_ssim_eq in eq1, eq2.
+    assert (subrelation eq L). { red. intros. now subst. }
+    apply ssim_subrelation with (L' := L) in eq1, eq2; auto.
+    rewrite eq1. rewrite <- eq2. apply H0.
+  Qed.
+
+  #[global] Instance sbisim_clos_sst1_ctx (L : relation _) `(PreOrder _ L) RR :
+    Proper (sbisim ==> sbisim ==> impl) (sst1 L RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
+    rewrite <- eq1, <- eq2.
+    auto.
+  Qed.
+
+  #[global] Instance sbisim_clos_ssT1_goal L RR f `(PreOrder _ L) :
+    Proper (sbisim ==> sbisim ==> flip impl) (ssT1 L f RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
+    symmetry in eq2. apply sbisim_ssim_eq in eq1, eq2.
+    assert (subrelation eq L). { red. intros. now subst. }
+    apply ssim_subrelation with (L' := L) in eq1, eq2; auto.
+    rewrite eq1. rewrite <- eq2. apply H0.
+  Qed.
+
+  #[global] Instance sbisim_clos_ssT1_ctx L RR f `(PreOrder _ L) :
+    Proper (sbisim ==> sbisim ==> impl) (ssT1 L f RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
+    rewrite <- eq1, <- eq2.
+    auto.
+  Qed.
+
+(*|
+Strong simulation up-to [equ] is valid
+----------------------------------------
+|*)
   Lemma equ_clos_ss {L} : equ_clos <= t (ss L).
   Proof.
     apply Coinduction.
@@ -81,10 +188,6 @@ Section ssim_theory.
     econstructor; auto; auto.
   Qed.
 
-(*|
-Aggressively providing instances for rewriting [equ] under all [ss]-related
-contexts.
-|*)
   #[global] Instance equ_clos_ss_goal L RR :
     Proper (equ eq ==> equ eq ==> flip impl) (sst L RR).
   Proof.
@@ -356,7 +459,6 @@ Section Proof_Rules.
   Qed.
 
   Lemma step_ss_ret (x : X) (y : Y) (R : rel _ _) :
-    R stuckI stuckI ->
     L (val x) (val y) ->
     ssbt L R (Ret x : ctree E C X) (Ret y : ctree F D Y).
   Proof.
@@ -364,7 +466,7 @@ Section Proof_Rules.
     apply step_ss_ret_gen.
     - step. intros. now apply stuckI_ss.
     - typeclasses eauto.
-    - apply H0.
+    - apply H.
   Qed.
 
 (*|
@@ -695,28 +797,12 @@ Inversion principles
 
 End WithParams.
 
-Lemma ssim_subrelation : forall {E C X} `{C0 -< C} (t t' : ctree E C X) L L',
-  subrelation L L' -> ssim L t t' -> ssim L' t t'.
-Proof.
-  intros. revert t t' H1. coinduction R CH.
-  intros. step in H1. simpl. intros.
-  cbn in H1. apply H1 in H2 as (? & ? & ? & ? & ?).
-  apply H0 in H4. exists x, x0. auto.
-Qed.
-
 (*|
 A strong bisimulation gives two strong simulations,
 but two strong simulations do not always give a strong bisimulation.
 This property is true if we only allow choices with 0 or 1 branch,
 but we prove a counter-example for a ctree with a binary choice.
 |*)
-
-Lemma hsb_ss : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L RR
-  (t : ctree E C X) (t' : ctree F D Y),
-  hsb L RR t t' -> ss L RR t t'.
-Proof.
-  intros. apply H1.
-Qed.
 
 Lemma ss_hsb : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L RR
   (t : ctree E C X) (t' : ctree F D Y),
@@ -725,24 +811,6 @@ Lemma ss_hsb : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L RR
   hsb L RR t t'.
 Proof.
   split; auto.
-Qed.
-
-Lemma hsbisim_ssim : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L
-  (t : ctree E C X) (t' : ctree F D Y),
-  hsbisim L t t' -> ssim L t t'.
-Proof.
-  intros until L.
-  coinduction R CH. simpl. intros.
-  step in H1.
-  apply H1 in H2 as H3. destruct H3 as (? & ? & ? & ? & ?).
-  exists x, x0. auto.
-Qed.
-
-Lemma sbisim_ssim_eq : forall {E C X} `{C0 -< C} (t t' : ctree E C X),
-  sbisim t t' -> ssim eq t t'.
-Proof.
-  intros. apply hsbisim_eq_sbisim in H0.
-  now apply hsbisim_ssim in H0 as H1.
 Qed.
 
 Lemma ctree_C01_trans_det : forall {E X} l (t t' t'' : ctree E C01 X),

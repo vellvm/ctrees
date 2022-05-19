@@ -239,6 +239,34 @@ Proof.
       apply CH in H2. eauto.
 Qed.
 
+(*|
+A bisimulation trivially gives a simulation.
+|*)
+Lemma hsb_ss : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L RR
+  (t : ctree E C X) (t' : ctree F D Y),
+  hsb L RR t t' -> ss L RR t t'.
+Proof.
+  intros. apply H1.
+Qed.
+
+Lemma hsbisim_ssim : forall {E F C D X Y} `{C0 -< C} `{C0 -< D} L
+  (t : ctree E C X) (t' : ctree F D Y),
+  hsbisim L t t' -> ssim L t t'.
+Proof.
+  intros until L.
+  coinduction R CH. simpl. intros.
+  step in H1.
+  apply H1 in H2 as (? & ? & ? & ? & ?).
+  exists x, x0. auto.
+Qed.
+
+Lemma sbisim_ssim_eq : forall {E C X} `{C0 -< C} (t t' : ctree E C X),
+  sbisim t t' -> ssim eq t t'.
+Proof.
+  intros. apply hsbisim_eq_sbisim in H0.
+  now apply hsbisim_ssim in H0 as H1.
+Qed.
+
 Section sbisim_theory.
 
   Context {E C : Type -> Type} {X : Type} `{HasStuck : C0 -< C}.
