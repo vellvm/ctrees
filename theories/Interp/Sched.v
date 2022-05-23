@@ -3,6 +3,7 @@ From ExtLib Require Import
      Structures.Monad.
 
 From CTree Require Import
+     CTree
      Eq
      Interp.Interp.
 
@@ -18,19 +19,133 @@ Open Scope monad_scope.
   fun _ e s => v <- mtrigger _ e;; ret (s, v).
 
 Definition schedule {E C M : Type -> Type}
-           {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {FoM : MonadTrigger E M} (h : bool -> C ~> M) :
+           {FM : Functor M} {MM : Monad M}
+           {IM : MonadIter M} {FoM : MonadTrigger E M}
+           (h : bool -> C ~> M) :
 	ctree E C ~> M :=
   interp mtrigger h.
-(*fun R =>
-		iter (fun t =>
-				    match observe t with
-				    | RetF r => ret (inr r)
-				    | @ChoiceF _ _ _ _ _ _ c k => bind (h c) (fun x => ret (inl (k x)))
-				    | VisF e k => bind (mtrigger _ e) (fun x => ret (inl (k x)))
-   end).*)
 
-Definition schedule_cst {E C} `{C1 -< C} (h : bool -> C ~> ctree void1 C) : ctree E C ~> ctree E C :=
-  schedule (fun b _ c => translate (fun _ (e : void1 _) => match e with end) (h b _ c)).
+Definition schedule_cst {E} (h : forall n, fin (S n)) :
+  ctree E (C01 +' Cn) ~> ctree E (C01 +' Cn) :=
+  schedule (fun b X (c: (C01 +' Cn) X) =>
+    match c with
+    | inl1 c =>
+        match c return (ctree E (C01 +' Cn) X) with
+        | inl1 c => stuck b
+        | inr1 c => match c with choice1 =>
+            choice b choice1 (fun _ => Ret tt) end
+        end
+    | inr1 c =>
+        match c with
+        | choicen (S n) => (choice b choice1 (fun _ => Ret (h n)))
+        | choicen O => stuck b
+        end
+    end).
+
+Lemma schedule_cst_choiceI_inv : forall {E X Y} (t : ctree E _ X) h c (k : Y -> ctree E _ X),
+  schedule_cst h _ t ≅ ChoiceI c k ->
+    (is_stuck t /\ is_stuck (ChoiceI c k)) \/
+    (exists X (c : (C01 +' Cn) X) k x,
+      t ≅ ChoiceI c k /\
+      schedule_cst h _ t ≅ tauI (tauI (schedule_cst h _ (k x)))).
+Proof.
+  intros. unfold schedule_cst, schedule in H. rewrite unfold_interp in H.
+  setoid_rewrite (ctree_eta t) at 2. setoid_rewrite (ctree_eta t) at 3.
+  genobs t ot.
+  destruct ot.
+  - step in H. inv H.
+  - setoid_rewrite bind_trigger in H. { step in H. inv H. }
+  - destruct c0. destruct s. destruct c0.
+    + destruct vis. setoid_rewrite bind_choice in H.
+      step in H. inv H. left.
+      rewrite ctree_eta. rewrite <- Heqot.
+      split. apply choice0_is_stuck. setoid_rewrite <- H.
+      apply is_stuck_bind. apply choice0_is_stuck.
+    + destruct c0. setoid_rewrite bind_choice in H.
+      destruct vis. { step in H. inv H. } right.
+      do 3 eexists. exists tt. split. eauto.
+      setoid_rewrite unfold_interp at 1. cbn.
+      rewrite bind_choice. apply choice_equ. intros _.
+      rewrite bind_ret_l. reflexivity.
+    + destruct c0. destruct n.
+      * destruct vis. { step in H. inv H. }
+        rewrite ctree_eta. rewrite <- Heqot.
+        left. split.
+        -- repeat intro. apply trans_choiceI_inv in H0.
+           destruct H0. now eapply Fin.case0.
+        -- rewrite <- H. apply is_stuck_bind. apply choice0_is_stuck.
+      * right. setoid_rewrite bind_choice in H.
+        destruct vis. { step in H. inv H. }
+        do 3 eexists. exists (h n). split; eauto.
+        setoid_rewrite unfold_interp at 1. cbn.
+        rewrite bind_choice. apply choice_equ. intros _.
+        rewrite bind_ret_l. reflexivity.
+Qed.
+
+Theorem schedule_cst_refinement :
+  forall {E X} (h : forall n, fin (S n)) (t : ctree E (C01 +' Cn) X),
+  schedule_cst h _ t ≲ t.
+Proof.
+  intros until h. coinduction R CH. repeat intro.
+  do 3 red in H. remember (observe _) as os. genobs t' ot'.
+  assert (EQ : go os ≅ schedule_cst h X t \/ go os ≅ tauI (schedule_cst h X t)).
+  { left. rewrite Heqos. now rewrite <- ctree_eta. } clear Heqos.
+  apply (f_equal go) in Heqot'. eq2equ Heqot'.
+  rewrite <- ctree_eta in EQ0. setoid_rewrite <- EQ0. clear t' EQ0.
+  revert t EQ.
+  induction H; intros; subst.
+  - destruct EQ as [EQ|EQ]; symmetry in EQ.
+    apply schedule_cst_choiceI_inv in EQ as ?.
+    destruct H0.
+    + destruct H0. replace t with (observe (go t)) in H by reflexivity.
+      rewrite trans__trans in H. eapply trans_choiceI in H; eauto. now apply H1 in H.
+    + destruct H0 as (? & ? & ? & ? & ? & ?).
+      setoid_rewrite H0. rewrite EQ in H1.
+      apply equ_choice_invT in H1 as ?. destruct H2 as [-> _].
+      apply equ_choice_invE with (x := x) in H1. rewrite H1 in H. cbn in H.
+      replace t with (observe (go t)) in H by reflexivity. apply trans_tauI_inv in H.
+      specialize (IHtrans_ (x2 x3)). setoid_rewrite <- (ctree_eta (k x)) in IHtrans_.
+      lapply IHtrans_; eauto. intros (? & ? & ? & ? & ?). subst.
+      exists x4, x5. etrans.
+    + apply IHtrans_. left. apply equ_choice_invT in EQ as ?. destruct H0 as [<- _].
+      apply equ_choice_invE with (x := x) in EQ. rewrite <- ctree_eta. now rewrite EQ.
+  - destruct EQ. 2: { step in H0. inv H0. }
+    setoid_rewrite unfold_interp in H0. cbn in H0.
+    repeat break_match_in H0;
+      (try setoid_rewrite bind_choice in H0);
+      (try setoid_rewrite bind_trigger in H0);
+      (try destruct vis);
+      subst; try now step in H0; inv H0.
+    + apply equ_choice_invT in H0 as ?. destruct H1 as [-> _].
+      apply equ_choice_invE with (x := x) in H0. rewrite bind_ret_l in H0.
+      exists (k0 tt). exists tau. rewrite ctree_eta, Heqc0. split; etrans.
+      rewrite <- H, H0, <- ctree_eta, sb_tauI.
+      split; eauto.
+    + apply equ_choice_invT in H0 as ?. destruct H1 as [-> _].
+      apply equ_choice_invE with (x := x) in H0. rewrite bind_ret_l in H0.
+      exists (k0 (h n0)). exists tau. rewrite ctree_eta, Heqc0. split; etrans.
+      rewrite <- H, H0, <- ctree_eta, sb_tauI.
+      split; eauto.
+  - destruct EQ. 2: { step in H0. inv H0. }
+    setoid_rewrite unfold_interp in H0. cbn in H0.
+    destruct (observe t0) eqn:?; try (now step in H0; inv H0).
+    + setoid_rewrite bind_trigger in H0.
+      apply equ_vis_invT in H0 as ?. destruct H1.
+      apply equ_vis_invE in H0 as [-> ?].
+      exists (k0 x). eexists. split.
+      { rewrite ctree_eta, Heqc. etrans. }
+      split; auto.
+      rewrite <- H, H0, <- ctree_eta, sb_tauI. apply CH.
+    + repeat break_match_in H0; step in H0; inv H0.
+  - destruct EQ. 2: { step in H. inv H. }
+    exists stuckI. exists (val r).
+    setoid_rewrite unfold_interp in H.
+    destruct (observe t) eqn:?; try (now step in H; inv H).
+    + step in H. inv H. rewrite ctree_eta, Heqc.
+      split; etrans. split; auto.
+      step. apply is_stuck_ss. apply choice0_is_stuck.
+    + repeat break_match_in H; step in H; inv H.
+Qed.
 
 Program Definition round_robin {E} : ctree E (C01 +' Cn) ~> stateT nat (ctree E (C01 +' Cn)) :=
   schedule (
@@ -96,15 +211,6 @@ Proof.
       step; constructor; intros ?.
       rewrite bind_ret_l.
       step; constructor; auto.
-Qed.
-
-Lemma foo {E C X} `{C0 -< C} l (t t' u : ctree E C X):
-  t ~ t' ->
-  trans l t u ->
-  exists u', trans l t' u' /\ u ~ u'.
-Proof.
-  intros * EQ TR.
-  step in EQ; destruct EQ as [F _]; apply F in TR; destruct TR; eauto.
 Qed.
 
 Lemma trans_guarded_inv_strong :
@@ -186,8 +292,7 @@ Proof.
       left.
       rewrite ctree_eta, <- x, unfold_guarded_form.
       cbn.
-      rewrite subevent_subevent.
-      rewrite ! choiceStuckI_always_stuck.
+      rewrite ! choice0_always_stuck.
       reflexivity.
     + rewrite ctree_eta, <- x0 in EQ.
       now step in EQ; inv EQ.
@@ -218,7 +323,7 @@ Proof.
   inv EQ; auto.
   - cbn.
     constructor; intros ?.
-    fold_bind; rewrite ! bind_ret_l.
+    fold_subst; rewrite ! bind_ret_l.
     step; constructor; intros _.
     auto.
   - destruct b; cbn.
@@ -280,8 +385,7 @@ Proof.
     cbn; etrans.
     left.
     rewrite unfold_guarded_form, <- x; cbn.
-    rewrite subevent_subevent.
-    now rewrite ! choiceStuckI_always_stuck.
+    now rewrite ! choice0_always_stuck.
 Qed.
 
 Lemma trans_guarded :
@@ -325,17 +429,17 @@ Proof.
       split; intros ? ? TR.
       * inv_trans.
         subst.
-        eexists.
-        eapply trans_choiceV with (x := c0).
+        eexists. eexists.
+        split; [etrans |].
+        split; [| reflexivity].
         rewrite EQ.
         rewrite sb_tauI.
         apply IH.
       * cbn.
         inv_trans; subst.
-        eexists.
-        eapply trans_choiceI with (x := x).
-        2:etrans. 
-        etrans.
+        eexists. eexists.
+        split; [etrans |].
+        split; [| reflexivity ].
         rewrite sb_tauI.
         rewrite EQ; apply IH.
     + split.
@@ -343,17 +447,15 @@ Proof.
         cbn.
         inv_trans.
         edestruct trans_guarded_inv as (u' & TR' & EQ'); eauto.
-        eexists.
-        eapply trans_choiceI with (x := c0); [| reflexivity].
-        eassumption.
+        eexists. eexists.
+        split; [etrans |].
+        split; [| reflexivity].
         rewrite EQ'; auto.
       * cbn; intros ? ? TR.
         inv_trans.
         edestruct trans_guarded as (u' & TR' & EQ'); eauto.
-        eexists.
-        eapply trans_choiceI with (x := c0); [| reflexivity].
-        apply trans_tauI.
-        eauto.
+        eexists. eexists.
+        split; [etrans |].
+        split; [| reflexivity].
         rewrite EQ'; auto.
 Qed.
-

@@ -930,16 +930,9 @@ Notation "▷ e" := (subevent _ e) (at level 0).
 (*|
 Convenience: all child-less invisible choices can be proved [equ], no need to work w.r.t. a bisim
 |*)
-Lemma choiceStuckI_always_stuck : forall {E C R} `{C0 -< C} (k : _ -> ctree E C R),
-    choiceI choice0 k ≅ stuckI.
-Proof.
-  intros.
-  step.
-  constructor; intros abs; inv abs.
-Qed.
-
-Lemma choiceStuckV_always_stuck : forall {E C R} `{C0 -< C} (k : _ -> ctree E C R),
-    choiceV choice0 k ≅ stuckV.
+Lemma choice0_always_stuck : forall {E C : Type -> Type} {R} `{C0 -< C}
+    vis (k : _ -> ctree E C R),
+  choice vis choice0 k ≅ stuck vis.
 Proof.
   intros.
   step.

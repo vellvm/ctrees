@@ -261,8 +261,20 @@ Strong simulation up-to [equ] is valid
   Qed.
 
 (*|
-stuckI and spinI can be simulated by any ctree.
+stuck ctrees can be simulated by anything.
 |*)
+
+  Lemma is_stuck_ss (R : rel _ _) (t : ctree E C X) (t' : ctree F D Y) L :
+    is_stuck t -> ss L R t t'.
+  Proof.
+    repeat intro. now apply H in H0.
+  Qed.
+
+  Lemma is_stuck_ssim (t : ctree E C X) (t' : ctree F D Y) L :
+    is_stuck t -> ssim L t t'.
+  Proof.
+    intros. step. now apply is_stuck_ss.
+  Qed.
 
   Lemma stuckI_ss (R : rel _ _) (t : ctree F D Y) L : ss L R (stuckI : ctree E C X) t.
   Proof.
@@ -826,7 +838,7 @@ Proof.
     destruct c, c, x, x0. assumption.
   - rewrite <- ctree_eta. destruct c, c, x, x0. now rewrite <- H, EQ.
   - subst. rewrite <- ctree_eta. now rewrite <- H, EQ.
-  - rewrite EQ. apply choiceStuckI_always_stuck.
+  - rewrite EQ. apply choice0_always_stuck.
 Qed.
 
 Lemma ssim_hsbisim_equiv_gen : forall {E F X Y} (L : rel _ _) (t : ctree E C01 X) (t' : ctree F C01 Y),

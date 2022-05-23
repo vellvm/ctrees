@@ -876,16 +876,22 @@ Section stuck.
     rewrite H, H0; auto.
   Qed.
 
+  Lemma choice0_is_stuck b (c : C void) (k : void -> _) :
+    is_stuck (Choice b c k).
+  Proof.
+    red. intros. intro. inv H; destruct x.
+  Qed.
+
   Lemma stuckI_is_stuck :
     is_stuck stuckI.
   Proof.
-    red; intros * abs; inv abs; inv x.
+    apply choice0_is_stuck.
   Qed.
 
   Lemma stuckV_is_stuck :
     is_stuck stuckV.
   Proof.
-    red; intros * abs; inv abs; inv x.
+    apply choice0_is_stuck.
   Qed.
 
   Lemma spinI_gen_is_stuck {Y} (x : C Y) :
@@ -1116,6 +1122,18 @@ Proof.
     eapply IHTR1; eauto.
   - dependent induction Heqv.
     rewrite (ctree_eta t), <- Heqot, unfold_bind; cbn; auto.
+Qed.
+
+Lemma is_stuck_bind : forall {E C X Y} `{C0 -< C}
+    (t : ctree E C X) (k : X -> ctree E C Y),
+  is_stuck t -> is_stuck (bind t k).
+Proof.
+  repeat intro.
+  apply trans_bind_inv in H1 as [].
+  - destruct H1 as (? & ? & ? & ?).
+    now apply H0 in H2.
+  - destruct H1 as (? & ? & ?).
+    now apply H0 in H1.
 Qed.
 
 (*|

@@ -86,7 +86,9 @@ useful to setup inductions.
 |*)
 Ltac eq2equ H :=
   match type of H with
-  | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≅ t) by (subst; reflexivity); clear H
+  | ?u = ?t =>
+      let eq := fresh "EQ" in
+      assert (eq : u ≅ t) by (rewrite H; reflexivity); clear H
   end.
 
 Ltac eq2sb H :=

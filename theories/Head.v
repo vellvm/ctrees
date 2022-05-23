@@ -142,7 +142,7 @@ Proof.
   - dependent induction Heqob.
     split.
     constructor. symmetry. unfold stuckI.
-    symmetry; rewrite choiceStuckI_always_stuck; reflexivity.
+    symmetry; rewrite choice0_always_stuck; reflexivity.
 Qed.
 
 Lemma trans_get_head : forall {E C R} `{C0 -< C} (t u : ctree E C R) l,

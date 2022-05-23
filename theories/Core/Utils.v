@@ -35,6 +35,10 @@ Ltac break :=
          | h : exists x, _ |- _ => destruct h
          end.
 
+Ltac break_match_in H :=
+  match type of H with
+  | context [ match ?x with _ => _ end ] => destruct x eqn:? end.
+
 (* A smarter version of this should be part of the [coinduction] library *)
 
 (* Ltac step := *)

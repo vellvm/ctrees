@@ -126,11 +126,8 @@ Silent failure: contrary to an event-based failure, this
 stuck state cannot be observed, it will be indistinguishable
 from [spin] w.r.t. the bisimulations introduced.
 |*)
-  Definition stuckI `{C0 -< C} : ctree E C R :=
-    choiceI choice0 (fun x : void => match x with end).
-
-  Definition stuckV `{C0 -< C} : ctree E C R :=
-    choiceV choice0 (fun x : void => match x with end).
+  Definition stuck `{C0 -< C} vis : ctree E C R :=
+    choice vis choice0 (fun x : void => match x with end).
 
 (*|
 Guards similar to [itree]'s taus.
@@ -362,9 +359,6 @@ CoFixpoint spinI_gen {E C R X} (x : C X) : ctree E C R :=
 CoFixpoint spinV_gen {E C R X} (x : C X) : ctree E C R :=
 	ChoiceV x (fun _ => spinV_gen x).
 
-Ltac fold_subst :=
-  repeat (change (CTree.subst ?k ?t) with (CTree.bind t k)).
-
 Ltac fold_monad :=
   repeat (change (@CTree.bind ?E) with (@Monad.bind (ctree E) _));
   repeat (change (go (@RetF ?E _ _ _ ?r)) with (@Monad.ret (ctree E) _ _ r));
@@ -374,6 +368,8 @@ End CTree.
 Arguments CTree.choose {E C X} b c.
 Notation trigger e := (CTree.trigger (subevent _ e)).
 Notation choose b c := (CTree.choose b (subevent _ c)).
+Notation stuckI := (stuck false).
+Notation stuckV := (stuck true).
 
 (*|
 =========
@@ -470,6 +466,10 @@ Ltac simpobs := repeat match goal with [H: _ = observe _ |- _] =>
                     rewrite_everywhere_except (@eq_sym _ _ _ H) H
                 end.
 Ltac desobs x := destruct (observe x) .
+
+Ltac fold_subst :=
+  repeat (change (CTree.subst ?k ?t) with (CTree.bind t k)).
+
 
 (*|
 ==================

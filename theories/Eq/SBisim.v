@@ -1388,12 +1388,12 @@ Not fond of these two, need to give some thoughts about them
     destruct Ht as [i Ht]. exists i.
     step. split.
     - repeat intro. inv H0. exists x, (val r). split; intuition. rewrite <- Hs.
-      rewrite ctree_eta. rewrite <- H4. rewrite choiceStuckI_always_stuck. auto.
+      rewrite ctree_eta. rewrite <- H4. rewrite choice0_always_stuck. reflexivity.
     - repeat intro. eapply trans_choiceI in H0; eauto. specialize (Hb _ _ H0).
       destruct Hb as (? & ? & ? & ? & ?). subst. inv H1. exists stuckI, (val r).
       intuition.
       cbn. rewrite <- H2. symmetry. rewrite ctree_eta.
-      rewrite <- H5. rewrite choiceStuckI_always_stuck. auto.
+      rewrite <- H5. rewrite choice0_always_stuck. auto.
   Qed.
 
 (* Lemma sbisim_ChoiceI_Tau_inv {X} (k : fin 1 -> ctree E C R) t x : *)
