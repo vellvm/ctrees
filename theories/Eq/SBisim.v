@@ -1133,7 +1133,7 @@ Qed.
 
 (** For the next few lemmas, we need to know that [X] is inhabited in order to
     take a step *)
-Lemma sbisim_vis_inv_type {E R X1 X2}
+Lemma sbisim_vis_invT {E R X1 X2}
       (e1 : E X1) (e2 : E X2) (k1 : X1 -> ctree E R) (k2 : X2 -> ctree E R) (x : X1):
   Vis e1 k1 ~ Vis e2 k2 ->
   X1 = X2.
@@ -1144,7 +1144,7 @@ Proof.
   Unshelve. auto.
 Qed.
 
-Lemma sbisim_vis_inv {E R X} (e1 e2 : E X) (k1 k2 : X -> ctree E R) (x : X) :
+Lemma sbisim_vis_invE {E R X} (e1 e2 : E X) (k1 k2 : X -> ctree E R) (x : X) :
   Vis e1 k1 ~ Vis e2 k2 ->
   e1 = e2 /\ forall x, k1 x ~ k2 x.
 Proof.
