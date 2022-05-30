@@ -76,7 +76,7 @@ Proof.
   unfold Proper, respectful, impl. intros ? ?. subst. revert b.
   red. intros. revert x y H H0. coinduction r CIH. intros x y Hequ H.
   step in Hequ. step in H. cbn*.
-  red in H |- *. inversion Hequ; auto. 2: destruct b0.
+  cbn in H. red in H |- *. inversion Hequ; auto. 2: destruct b0.
   - rewrite <- H1 in H. inv H. invert.
     constructor. intros. eapply CIH. apply REL. apply H3.
   - rewrite <- H1 in H. inv H. invert.
@@ -91,7 +91,7 @@ Proof.
   unfold Proper, respectful, flip, impl. intros ? ?. subst. revert b.
   red. intros. revert x y H H0. coinduction r CIH. intros x y Hequ H.
   step in Hequ. step in H. cbn*.
-  red in H |- *. inversion Hequ; auto. 2: destruct b0.
+  cbn in H. red in H |- *. inversion Hequ; auto. 2: destruct b0.
   - rewrite <- H2 in H. inv H. invert.
     constructor. intros. eapply CIH. apply REL. apply H3.
   - rewrite <- H2 in H. inv H. invert.
@@ -279,7 +279,7 @@ Lemma bind_choiceI_bound {E R1 R2} n (t : ctree E R1) (k : R1 -> ctree E R2) :
 
 Proof.
   red. intros. revert t k H H0. coinduction r CIH. intros.
-  cbn*. step in H. red in H |- *.
+  cbn*. step in H. cbn in H. red in H |- *.
   rewrite unfold_bind.
   desobs t. 3: destruct vis.
   2, 3, 4: inv H; invert; constructor; auto.
@@ -295,7 +295,7 @@ Proof.
   cbn*. unfold iter, MonadIter_ctree. rewrite unfold_iter.
   rewrite unfold_bind.
   destruct (observe (k i)) eqn:?. 3: destruct vis.
-  2, 3, 4: pose proof (H i) as H'; step in H'; red in H';
+  2, 3, 4: pose proof (H i) as H'; step in H'; cbn in H'; red in H';
   rewrite Heqc in H'; inversion H'; invert;
   constructor; auto; intros;
   eapply ct_clo_bind; auto; intros y; destruct y; step; econstructor; eauto.

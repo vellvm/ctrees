@@ -23,6 +23,8 @@ Open Scope ctree.
 Set Implicit Arguments.
 Set Primitive Projections.
 
+#[local] Tactic Notation "step" "in" ident(H) := __step_in_equ H.
+
 Section Visible.
 
   Context {E : Type -> Type} {R : Type}.

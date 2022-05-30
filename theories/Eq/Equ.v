@@ -108,7 +108,8 @@ Tactic Notation "__step_equ" :=
   | |- context [@equ ?E ?R1 ?R2 ?RR _ _] =>
       unfold equ;
       step;
-      fold (@equ E R1 R2 RR)
+      fold (@equ E R1 R2 RR);
+      simpl body
   | |- _ => step
   end.
 
@@ -122,7 +123,8 @@ Ltac __step_in_equ H :=
   | context [@equ ?E ?R1 ?R2 ?RR _ _] =>
       unfold equ in H;
       step in H;
-      fold (@equ E R1 R2 RR) in H
+      fold (@equ E R1 R2 RR) in H;
+      simpl body in H
   end.
 
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_equ H.
