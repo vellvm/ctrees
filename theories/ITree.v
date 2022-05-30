@@ -8,7 +8,7 @@ Unset Universe Checking.
 Unset Auto Template Polymorphism.
 
 From ITree Require Import
-	   ITree Eq.Eq Interp InterpFacts.
+	   ITree Eq Interp InterpFacts.
 
 From Coq Require Import
 	   Morphisms Program.
