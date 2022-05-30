@@ -102,18 +102,31 @@ The bisimulation is then obtained by intersecting both relations.
 End StrongBisim.
 
 (*|
-The relation itself
+The relations themselves
 |*)
+Definition ssim {E X} := (gfp (@ss E X) : hrel _ _).
 Definition sbisim {E X} := (gfp (@sb E X) : hrel _ _).
 
 Module SBisimNotations.
 
+  Notation "t ≲ u" := (ssim t u) (at level 70).
   Notation "t ~ u" := (sbisim t u) (at level 70).
+
+  Notation sst := (t ss).
+  Notation ssbt := (bt ss).
+  Notation ssT := (T ss).
+  Notation ssbT := (bT ss).
+
   Notation st := (t sb).
   Notation sT := (T sb).
   Notation sbt := (bt sb).
   Notation sbT := (bT sb).
+
   (** notations  for easing readability in proofs by enhanced coinduction *)
+  Notation "t [≲] u" := (ss _ t u) (at level 79).
+  Notation "t {≲} u" := (sst _ t u) (at level 79).
+  Notation "t {{≲}} u" := (ssbt _ t u) (at level 79).
+
   Notation "t [~] u" := (st  _ t u) (at level 79).
   Notation "t {~} u" := (sbt _ t u) (at level 79).
   Notation "t {{~}} u" := (sb _ t u) (at level 79).
@@ -125,36 +138,66 @@ Import SBisimNotations.
 Ltac fold_sbisim :=
   repeat
     match goal with
-    | h: context[@sb ?E ?X] |- _ => fold (@sbisim E X) in h
-    | |- context[@sb ?E ?X]      => fold (@sbisim E X)
+    | h: context[gfp (@sb ?E ?X)] |- _ => fold (@sbisim E X) in h
+    | |- context[gfp (@sb ?E ?X)]      => fold (@sbisim E X)
+    | h: context[gfp (@ss ?E ?X)] |- _ => fold (@ssim E X) in h
+    | |- context[gfp (@ss ?E ?X)]      => fold (@ssim E X)
     end.
 
 Ltac __coinduction_sbisim R H :=
-  unfold sbisim; apply_coinduction; fold_sbisim; intros R H.
+  (try unfold sbisim);
+  (try unfold ssim);
+  apply_coinduction; fold_sbisim; intros R H.
 
 Tactic Notation "__step_sbisim" :=
   match goal with
+  | |- context[@ssim ?E ?X] =>
+      unfold ssim;
+      step;
+      fold (@ssim E X)
   | |- context[@sbisim ?E ?X] =>
       unfold sbisim;
       step;
       fold (@sbisim E X)
-  | |- _ => step
   end.
 
-#[local] Tactic Notation "step" := __step_sbisim.
+#[local] Tactic Notation "step" := __step_sbisim || step.
 
 #[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
   __coinduction_sbisim R H.
 
 Ltac __step_in_sbisim H :=
   match type of H with
+  | context [@ssim ?E ?X] =>
+      unfold ssim in H;
+      step in H;
+      fold (@ssim E X) in H
   | context [@sbisim ?E ?X] =>
       unfold sbisim in H;
       step in H;
       fold (@sbisim E X) in H
   end.
 
-#[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H.
+#[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
+
+(*|
+A bisimulation trivially gives a simulation.
+|*)
+Lemma sb_ss : forall {E X} RR (t t' : ctree E X),
+  sb RR t t' -> ss RR t t'.
+Proof.
+  intros. apply H.
+Qed.
+
+Lemma sbisim_ssim : forall {E X} (t t' : ctree E X),
+  sbisim t t' -> ssim t t'.
+Proof.
+  intros ? ?.
+  coinduction R CH. simpl. intros.
+  step in H.
+  apply H in H0 as [].
+  exists x; auto.
+Qed.
 
 Section sbisim_theory.
 
@@ -513,8 +556,14 @@ Ltac __upto_bind_sbisim :=
   | |- body (bt (@sb ?E ?X)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
       apply (fbt_bt (@bind_ctx_sbisim_t E T X)), in_bind_ctx
   end.
+
 Ltac __upto_bind_eq_sbisim :=
-  __upto_bind_sbisim; [reflexivity | intros ?].
+  match goal with
+  | |- @sbisim _ ?X (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
+      __upto_bind_sbisim; [reflexivity | intros ?]
+  | _ =>
+      __upto_bind_sbisim; [reflexivity | intros ? ? <-]
+  end.
 
 Section Ctx.
 
@@ -594,16 +643,12 @@ Ltac __playL_sbisim H :=
   let Hf := fresh "Hf" in
   destruct H as [Hf _];
   cbn in Hf; edestruct Hf as [? ?TR ?EQ];
-  [etrans |].
+  clear Hf; [etrans |].
 
 Ltac __eplayL_sbisim :=
   match goal with
   | h : @sbisim ?E ?X _ _ |- _ =>
-      step in h;
-      let Hf := fresh "Hf" in
-      destruct h as [Hf _];
-      cbn in Hf; edestruct Hf as [? ?TR ?EQ];
-      [etrans |]
+      __playL_sbisim h
   end.
 
 Ltac __playR_sbisim H :=
@@ -611,16 +656,12 @@ Ltac __playR_sbisim H :=
   let Hb := fresh "Hb" in
   destruct H as [_ Hb];
   cbn in Hb; edestruct Hb;
-  [etrans |].
+  clear Hb; [etrans |].
 
 Ltac __eplayR_sbisim :=
   match goal with
   | h : @sbisim ?E ?X _ _ |- _ =>
-      step in h;
-      let Hb := fresh "Hb" in
-      destruct h as [Hb _];
-      cbn in Hb; edestruct Hb as [? ?TR ?EQ];
-      [etrans |]
+      __playR_sbisim h
   end.
 
 #[local] Tactic Notation "play" := __play_sbisim.

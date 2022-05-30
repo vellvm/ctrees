@@ -89,7 +89,7 @@ Proof.
 	- cbn*.
     constructor; intros ?.
     step.
-    cbn.
+    cbn*.
     constructor; intros ?.
     now apply CIH.
 	- cbn.
@@ -97,9 +97,9 @@ Proof.
     constructor; intros ?.
     rewrite 2 Interp.unfold_interp.
     cbn.
-    step; cbn.
+    step; cbn*.
     constructor; intros ?.
-    step; cbn.
+    step; cbn*.
     constructor; intros ?.
     apply CIH, REL.
 Qed.

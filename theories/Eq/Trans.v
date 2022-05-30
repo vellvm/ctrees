@@ -1371,7 +1371,7 @@ Proof.
 Qed.
 
 Lemma trans_trigger : forall {E X Y} (e : E X) x (k : X -> ctree E Y),
-		transR (obs e x) (trigger e >>= k) (k x).
+		trans (obs e x) (trigger e >>= k) (k x).
 Proof.
   intros.
   unfold CTree.trigger.
@@ -1381,7 +1381,7 @@ Proof.
 Qed.
 
 Lemma trans_trigger' : forall {E X Y} (e : E X) x (t : ctree E Y),
-		transR (obs e x) (trigger e;; t) t.
+		trans (obs e x) (trigger e;; t) t.
 Proof.
   intros.
   unfold CTree.trigger.
@@ -1518,6 +1518,10 @@ Ltac inv_trans_one :=
   | h : trans' _ stuckV _ |- _ =>
       exfalso; eapply stuckV_is_stuck; now apply h
 
+  (* trigger *)
+  | h : trans' _ (CTree.bind (CTree.trigger ?e) ?t) _ |- _ =>
+      apply trans_trigger_inv in h as (?x & ?EQ & ?EQl)
+
   end; try subs
 .
 
@@ -1534,6 +1538,7 @@ Create HintDb trans.
  trans_choiceV21 trans_choiceV22
  trans_choiceV31 trans_choiceV32 trans_choiceV33
  trans_choiceV41 trans_choiceV42 trans_choiceV43 trans_choiceV44
+ trans_trigger trans_bind_l trans_bind_r
   : trans.
 
 Ltac etrans := eauto with trans.

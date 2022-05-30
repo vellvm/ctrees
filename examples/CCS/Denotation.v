@@ -352,7 +352,7 @@ Proof.
   - rewrite 2 unfold_interp, <-H0, <-H. cbn*.
     constructor; intros ?.
     step.
-    cbn; constructor; intros ?.
+    cbn*; constructor; intros ?.
     auto.
 Qed.
 
