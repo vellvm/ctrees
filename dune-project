@@ -20,5 +20,5 @@
   (coq-coinduction (>= 1.3))
   (coq-relation-algebra (>= 1.7))
   (coq-equations (>= 1.2))
-  (coq-itree (>= 4.0)))
+  (coq-itree (>= 5.0)))
 )
