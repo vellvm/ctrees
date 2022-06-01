@@ -882,6 +882,12 @@ Section stuck.
     red. intros. intro. inv H; destruct x.
   Qed.
 
+  Lemma choice_fin0_is_stuck b (c : C (fin 0)) (k : fin 0 -> _) :
+    is_stuck (Choice b c k).
+  Proof.
+    red. intros. intro. inv H; now apply case0.
+  Qed.
+
   Lemma stuckI_is_stuck :
     is_stuck stuckI.
   Proof.

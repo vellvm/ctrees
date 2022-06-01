@@ -122,8 +122,8 @@ End StrongBisim.
 (*|
 The relation itself
 |*)
-Definition sbisim {E C X} `{HasStuck : C0 -< C} := (gfp (@sb E C X _) : hrel _ _).
 Definition ssim {E F C D X Y} `{HasStuck : C0 -< C} `{HasStuck' : C0 -< D} L := (gfp (@ss E F C D X Y _ _ L) : hrel _ _).
+Definition sbisim {E C X} `{HasStuck : C0 -< C} := (gfp (@sb E C X _) : hrel _ _).
 Definition hsbisim {E F C D X Y} `{HasStuck : C0 -< C} `{HasStuck' : C0 -< D} L := (gfp (@hsb E F C D X Y _ _ L) : hrel _ _).
 
 Module SBisimNotations.
@@ -133,7 +133,7 @@ Module SBisimNotations.
   Notation ssT L := (T (ss L)).
 
   Notation "t (≲ L ) u" := (ssim L t u) (at level 70).
-  Notation "t ≲ u" := (ssim eq t u) (at level 70).
+  Notation "t ≲ u" := (ssim eq t u) (at level 70). (* FIXME we should ensure that return types are the same. *)
   Notation "t ~ u" := (sbisim t u) (at level 70).
   Notation st := (t sb).
   Notation sT := (T sb).

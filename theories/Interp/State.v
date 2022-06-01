@@ -79,6 +79,12 @@ Section State.
       | VisF e k      => h _ e s    >>= fun sx => tauI (interp_state h h' (k (snd sx)) (fst sx))
       end.
 
+  Lemma interp_interp_state (t : ctree E C R) (s : S) :
+    interp h h' t s ≅ interp_state h h' t s.
+  Proof.
+    reflexivity.
+  Qed.
+
   Lemma unfold_interp_state t s :
     interp_state h h' t s ≅ _interp_state h h' (observe t) s.
   Proof.
