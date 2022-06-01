@@ -115,24 +115,30 @@ Various results on reflexivity and transitivity.
 
 (*|
 Aggressively providing instances for rewriting hopefully faster
-[sbisim] under all [ss1]-related contexts (consequence of the transitivity
+[sbisim] under relevant [ss]-related contexts (consequence of the transitivity
 of the companion).
 |*)
 
-  #[global] Instance sbisim_clos_ssim1_goal (L : relation _) `(PreOrder _ L) :
-    Proper (sbisim ==> sbisim ==> flip impl) (ssim1 L).
+  #[global] Instance sbisim_clos_ssim_goal L :
+    Proper (sbisim ==> sbisim ==> flip impl) (ssim L).
   Proof.
-    repeat intro.
-    symmetry in H1. apply sbisim_ssim_eq in H0, H1.
-    assert (subrelation eq L). { red. intros. now subst. }
-    apply ssim_subrelation with (L' := L) in H0, H1; auto.
-    transitivity y0. transitivity y. all: auto.
+    cbn.
+    coinduction R CH. intros.
+    symmetry in H0.
+    do 2 red. cbn. intros.
+    step in H. apply H in H2 as ?. destruct H3 as (? & ? & ? & ? & ?). subst.
+    step in H1. apply H1 in H3 as (? & ? & ? & ? & ?).
+    step in H0. apply H0 in H3 as (? & ? & ? & ? & ?). subst.
+    exists x5, x6.
+    split; [assumption |].
+    split; [| assumption].
+    symmetry in H7. eapply CH; eassumption.
   Qed.
 
-  #[global] Instance sbisim_clos_ssim1_ctx (L : relation _) `(PreOrder _ L) :
-    Proper (sbisim ==> sbisim ==> impl) (ssim1 L).
+  #[global] Instance sbisim_clos_ssim_ctx L :
+    Proper (sbisim ==> sbisim ==> impl) (ssim L).
   Proof.
-    repeat intro. symmetry in H0, H1. eapply sbisim_clos_ssim1_goal; eauto.
+    repeat intro. symmetry in H, H0. eapply sbisim_clos_ssim1_goal; eauto.
   Qed.
 
   #[global] Instance sbisim_clos_sst1_goal (L : relation _) `(PreOrder _ L) RR :
