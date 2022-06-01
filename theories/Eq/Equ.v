@@ -923,8 +923,16 @@ Qed.
 (*|
 Convenience: all child-less invisible choices can be proved [equ], no need to work w.r.t. a bisim
 |*)
+Lemma choice0_always_stuck : forall {E R} vis k,
+    Choice vis 0 k ≅ @CTree.stuck E R vis.
+Proof.
+  intros.
+  step.
+  constructor; intros abs; inv abs.
+Qed.
+
 Lemma choiceI0_always_stuck : forall {E R} k,
-    ChoiceI 0 k ≅ @CTree.stuckI E R.
+    ChoiceI 0 k ≅ (CTree.stuckI : ctree E R).
 Proof.
   intros.
   step.
@@ -932,7 +940,7 @@ Proof.
 Qed.
 
 Lemma choiceV0_always_stuck : forall {E R} k,
-    ChoiceV 0 k ≅ @CTree.stuckV E R.
+    ChoiceV 0 k ≅ (CTree.stuckV : ctree E R).
 Proof.
   intros.
   step.

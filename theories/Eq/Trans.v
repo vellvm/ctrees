@@ -190,6 +190,12 @@ library.
 
 	Definition trans l : srel SS SS := {| hrel_of := transR l : hrel SS SS |}.
 
+  Lemma trans__trans : forall l t u,
+    trans_ l (observe t) (observe u) = trans l t u.
+  Proof.
+    reflexivity.
+  Qed.
+
 (*|
 Extension of [trans] with its reflexive closure, labelled by [tau].
 |*)
