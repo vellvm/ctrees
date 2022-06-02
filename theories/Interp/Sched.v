@@ -261,44 +261,14 @@ Proof.
       cbn in H0. rewrite bind_ret_l in H0.
       destruct s; destruct c0, x.
       exists (k0 tt). exists tau. rewrite ctree_eta, Heqc0. split; etrans.
-      split; auto.
-      rewrite <- ctree_eta, <- H. rewrite H0.
-      cbn.
-assert (
-  sst (@Lrr E X) R (interp_state mtrigger
-     (fun (b : bool) (X0 : Type) (c0 : (C01 +' Cn) X0) =>
-      match c0 with
-      | inl1 _ => Utils.choice b X0 c0
-      | inr1 c1 =>
-          fun s : nat =>
-          match c1 in (Cn T) return (ctree E (C01 +' Cn) (nat * T)) with
-          | choicen n0 =>
-              match n0 as n1 return (ctree E (C01 +' Cn) (nat * fin n1)) with
-              | 0 => choice b (choicen 0) (fun x : fin 0 => Ret (s, x))
-              | S n1 =>
-                  choice b choice1
-                    (fun _ : unit =>
-                     Ret (S s, Fin.of_nat_lt
-                         (le_n_S (n1 - snd (Nat.divmod s n1 0 n1)) n1
-                            (PeanoNat.Nat.le_sub_l n1
-                               (snd (Nat.divmod s n1 0 n1))))))
-              end
-          end
-      end) (k0 tt) n) (k0 tt)).
-      apply CH.
-      admit.
-      constructor.
+      split; [| constructor ].
+      rewrite <- ctree_eta, <- H, H0, sb_tauI.
+      cbn. apply CH.
     + apply equ_choice_invT in H0 as ?. destruct H1 as [-> <-].
       apply equ_choice_invE with (x := x) in H0. rewrite bind_ret_l in H0.
-      cbn in H0.
-      eexists 
-            (k0
-               (Fin.of_nat_lt
-                  (le_n_S (n1 - snd (Nat.divmod n n1 0 n1)) n1
-                     (PeanoNat.Nat.le_sub_l n1 (snd (Nat.divmod n n1 0 n1)))))).
-      exists tau. rewrite ctree_eta, Heqc0. split; etrans.
-      rewrite <- H, H0, <- ctree_eta. admit.
-      (*rewrite sb_tauI. split; eauto.*)
+      cbn in H0. eexists (k0 _).
+      exists tau. rewrite ctree_eta, Heqc0. split; etrans. split; [| constructor ].
+      rewrite <- H, H0, <- ctree_eta, sb_tauI. apply CH.
   - destruct EQ. 2: { step in H0. inv H0. }
     setoid_rewrite interp_interp_state at 1 in H0.
     rewrite unfold_interp_state in H0.
@@ -309,10 +279,8 @@ assert (
       apply equ_vis_invE in H0 as [-> ?].
       exists (k0 x). eexists. split.
       { rewrite ctree_eta, Heqc. etrans. }
-      split; auto.
-      rewrite <- H, H0, <- ctree_eta, bind_ret_l. admit.
-      (*rewrite sb_tauI. apply CH.*)
-      red. apply Rel_Obs. econstructor.
+      split; [| apply Rel_Obs; econstructor ].
+      rewrite <- H, H0, <- ctree_eta, bind_ret_l, sb_tauI. apply CH.
     + cbn in H0. repeat break_match_in H0; step in H0; inv H0.
   - destruct EQ. 2: { step in H. inv H. }
     unfold round_robin, schedule, schedule_gen in H.
@@ -326,7 +294,7 @@ assert (
       step. apply is_stuck_ss. apply choice0_is_stuck.
       constructor. reflexivity.
     + cbn in H. repeat break_match_in H; step in H; inv H.
-Admitted.
+Qed.
 
 (* TODO:
 Can we do something with a stream?
