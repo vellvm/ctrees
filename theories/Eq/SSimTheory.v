@@ -119,6 +119,19 @@ Aggressively providing instances for rewriting hopefully faster
 of the companion).
 |*)
 
+  Lemma sbisim_clos_ss : forall L, sbisim_clos <= sst L.
+  Proof.
+    intro. apply Coinduction.
+    cbn. intros.
+    destruct H.
+    step in Sbisimt. apply Sbisimt in H0 as (? & ? & ? & ? & ?). subst.
+    apply HR in H as (? & ? & ? & ? & ?).
+    step in Sbisimu. apply Sbisimu in H as (? & ? & ? & ? & ?). subst.
+    exists x3, x4. split; [assumption|]. split; [|assumption].
+    eapply (f_Tf (ss L)).
+    econstructor; eauto.
+  Qed.
+
   #[global] Instance sbisim_clos_ssim_goal L :
     Proper (sbisim ==> sbisim ==> flip impl) (ssim L).
   Proof.
@@ -138,39 +151,37 @@ of the companion).
   #[global] Instance sbisim_clos_ssim_ctx L :
     Proper (sbisim ==> sbisim ==> impl) (ssim L).
   Proof.
-    repeat intro. symmetry in H, H0. eapply sbisim_clos_ssim1_goal; eauto.
+    repeat intro. symmetry in H, H0. eapply sbisim_clos_ssim_goal; eauto.
   Qed.
 
-  #[global] Instance sbisim_clos_sst1_goal (L : relation _) `(PreOrder _ L) RR :
-    Proper (sbisim ==> sbisim ==> flip impl) (sst1 L RR).
+  #[global] Instance sbisim_clos_sst_goal L RR :
+    Proper (sbisim ==> sbisim ==> flip impl) (sst L RR).
   Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    symmetry in eq2. apply sbisim_ssim_eq in eq1, eq2.
-    assert (subrelation eq L). { red. intros. now subst. }
-    apply ssim_subrelation with (L' := L) in eq1, eq2; auto.
-    rewrite eq1. rewrite <- eq2. apply H0.
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (ft_t (sbisim_clos_ss L)). cbn.
+    econstructor; eauto.
+    now rewrite eq2.
   Qed.
 
-  #[global] Instance sbisim_clos_sst1_ctx (L : relation _) `(PreOrder _ L) RR :
-    Proper (sbisim ==> sbisim ==> impl) (sst1 L RR).
+  #[global] Instance sbisim_clos_sst_ctx L RR :
+    Proper (sbisim ==> sbisim ==> impl) (sst L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 ?.
     rewrite <- eq1, <- eq2.
     auto.
   Qed.
 
-  #[global] Instance sbisim_clos_ssT1_goal L RR f `(PreOrder _ L) :
-    Proper (sbisim ==> sbisim ==> flip impl) (ssT1 L f RR).
+  #[global] Instance sbisim_clos_ssT_goal L RR f :
+    Proper (sbisim ==> sbisim ==> flip impl) (ssT L f RR).
   Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    symmetry in eq2. apply sbisim_ssim_eq in eq1, eq2.
-    assert (subrelation eq L). { red. intros. now subst. }
-    apply ssim_subrelation with (L' := L) in eq1, eq2; auto.
-    rewrite eq1. rewrite <- eq2. apply H0.
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (fT_T (sbisim_clos_ss L)). cbn.
+    econstructor; eauto.
+    now rewrite eq2.
   Qed.
 
-  #[global] Instance sbisim_clos_ssT1_ctx L RR f `(PreOrder _ L) :
-    Proper (sbisim ==> sbisim ==> impl) (ssT1 L f RR).
+  #[global] Instance sbisim_clos_ssT_ctx L RR f :
+    Proper (sbisim ==> sbisim ==> impl) (ssT L f RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 ?.
     rewrite <- eq1, <- eq2.
@@ -194,14 +205,14 @@ Strong simulation up-to [equ] is valid
     econstructor; auto; auto.
   Qed.
 
-  #[global] Instance equ_clos_ss_goal L RR :
+  #[global] Instance equ_clos_sst_goal L RR :
     Proper (equ eq ==> equ eq ==> flip impl) (sst L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (ft_t equ_clos_ss); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_clos_ss_ctx L RR :
+  #[global] Instance equ_clos_sst_ctx L RR :
     Proper (equ eq ==> equ eq ==> impl) (sst L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.

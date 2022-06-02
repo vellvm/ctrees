@@ -499,6 +499,22 @@ Hence [equ eq] is a included in [sbisim]
 
 End sbisim_theory.
 
+
+(* Up-to-bisimulation enhancing function *)
+Variant sbisim_clos_body {E F C D X1 X2} `{C0 -< C} `{C0 -< D} (R : rel (ctree E C X1) (ctree F D X2)) : (rel (ctree E C X1) (ctree F D X2)) :=
+  | Sbisim_clos : forall t t' u' u
+                 (Sbisimt : t ~ t')
+                 (HR : R t' u')
+                 (Sbisimu : u' ~ u),
+      sbisim_clos_body R t u.
+
+Program Definition sbisim_clos {E F C D X1 X2} `{C0 -< C} `{C0 -< D} : mon (rel (ctree E C X1) (ctree F D X2)) :=
+  {| body := @sbisim_clos_body E F C D X1 X2 _ _ |}.
+Next Obligation.
+  destruct H2.
+  econstructor; eauto.
+Qed.
+
 (*|
 Up-to [bind] context bisimulations
 ----------------------------------
