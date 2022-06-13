@@ -36,18 +36,14 @@ Section State.
            {FM : Functor M} {MM : Monad M}
            {IM : MonadIter M}{MC: MonadChoice M} (h : E ~> stateT S M) :
     ctree E ~> stateT S M := interp h.
-  Variant stateE : Type -> Type :=
-  | Get : stateE S
-  | Put : S -> stateE unit.
 
-  Definition get {E} `{stateE -< E} : ctree E S := trigger Get.
-  Definition put {E} `{stateE -< E} : S -> ctree E unit := fun s => trigger (Put s).
+  Notation stateE := (stateE S).
 
   Definition h_state {E} : stateE ~> stateT S (ctree E) :=
     fun _ e s =>
       match e with
-      | Get => Ret (s, s)
-      | Put s' => Ret (s', tt)
+      | Get _ => Ret (s, s)
+      | Put _ s' => Ret (s', tt)
       end.
 
   Definition pure_state {S E} : E ~> stateT S (ctree E)
@@ -138,10 +134,9 @@ Section State.
   Proof.
     unfold CTree.trigger. rewrite interp_state_vis; cbn.
     upto_bind_eq.
-    (* TODO: why is this rewrite so slow?
-       TODO: proof system for [equ] similar to the one for [sbisim]
-     *)
-    setoid_rewrite interp_state_ret.
+    (* TODO: proof system for [equ] similar to the one for [sbisim] *)
+    apply choice_equ. intros _.
+    rewrite interp_state_ret.
     now destruct x1.
   Qed.
 

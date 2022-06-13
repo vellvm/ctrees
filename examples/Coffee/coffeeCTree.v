@@ -103,19 +103,4 @@ Proof.
       step. destruct s; auto.
       play in H. play.
   - pose proof (ssim_tracincl _ _ coffee_ssim); auto.
-    Undo.
-    red. revert s H. coinduction R CH. intros.
-    do 3 red. cbn.
-    destruct s; auto. play in H. apply trans_choiceI_inv in TR as [].
-    destruct x0; inv_trans; subst.
-    + destruct s.
-      2: play; now step.
-      play in H. play.
-      step. play.
-      step. destruct s; auto. play in H. play.
-    + destruct s.
-      2: play; now step.
-      play in H. play.
-      step. play.
-      step. destruct s; auto. play in H. play.
 Qed.
