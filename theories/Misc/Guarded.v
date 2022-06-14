@@ -52,15 +52,6 @@ Proof.
       step; constructor; auto.
 Qed.
 
-Lemma foo {E X} l (t t' u : ctree E X):
-  t ~ t' ->
-  trans l t u ->
-  exists u', trans l t' u' /\ u ~ u'.
-Proof.
-  intros * EQ TR.
-  step in EQ; destruct EQ as [F _]; apply F in TR; destruct TR; eauto.
-Qed.
-
 Lemma trans_guarded_inv_strong :
   forall {E X} (t u v : ctree E X) l,
     (v ≅ guarded_form t \/ v ≅ TauI (guarded_form t)) ->
