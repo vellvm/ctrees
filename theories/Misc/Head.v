@@ -343,3 +343,29 @@ Proof.
     + do 2 constructor; auto.
     + constructor; intros ?; auto.
 Qed.
+
+Definition run_head {E X} (hd : @head E X) : ctree E X :=
+  match hd with
+  | HRet r => Ret r
+  | @HChoice _ _ n k => ChoiceV n k
+  | HVis e k => Vis e k
+  end.
+
+Lemma get_run_head {E X} : forall (t : ctree E X),
+    t ≅ get_head t >>= run_head.
+Proof.
+  coinduction r cih.
+  intros t.
+  rewrite (ctree_eta t) at 1.
+  rewrite unfold_get_head.
+  desobs t.
+  - rewrite bind_ret_l; reflexivity.
+  - rewrite bind_ret_l; reflexivity.
+  - destruct vis.
+    + rewrite bind_ret_l; reflexivity.
+    + rewrite bind_choice; constructor; intros.
+      apply cih.
+Qed.
+
+
+
