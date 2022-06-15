@@ -892,6 +892,54 @@ Proof.
   now cbn; rewrite bind_choice.
 Qed.
 
+Lemma vis_equ_bind {E X Y Z} :
+  forall (t : ctree E X) (e : E Z) k (k' : X -> ctree E Y),
+  x <- t;; k' x ≅ Vis e k ->
+  (exists r, t ≅ Ret r) \/
+  exists k0, t ≅ Vis e k0 /\ forall x, k x ≅ x <- k0 x;; k' x.
+Proof.
+  intros.
+  destruct (observe t) eqn:?.
+  - left. exists r. rewrite ctree_eta, Heqc. reflexivity.
+  - rewrite (ctree_eta t), Heqc, bind_vis in H.
+    apply equ_vis_invT in H as ?. subst.
+    pose proof (equ_vis_invE _ _ _ _ H). destruct H0. subst.
+    right. exists k0. split.
+    + rewrite (ctree_eta t), Heqc. reflexivity.
+    + cbn in H1. symmetry in H1. apply H1.
+  - rewrite (ctree_eta t), Heqc, bind_choice in H. step in H. inv H.
+Qed.
+
+Lemma choice_equ_bind {E X Y} :
+  forall (t : ctree E X) b n k (k' : X -> ctree E Y),
+  x <- t;; k' x ≅ Choice b (S n) k ->
+  (exists r, t ≅ Ret r) \/
+  exists k0, t ≅ Choice b (S n) k0 /\ forall x, k x ≅ x <- k0 x;; k' x.
+Proof.
+  intros.
+  destruct (observe t) eqn:?.
+  - left. exists r. rewrite ctree_eta, Heqc. reflexivity.
+  - rewrite (ctree_eta t), Heqc, bind_vis in H. step in H. inv H.
+  - rewrite (ctree_eta t), Heqc, bind_choice in H.
+    apply equ_choice_invT in H as ?. destruct H0 as [-> ->].
+    pose proof (equ_choice_invE _ _ H).
+    right. exists k0. split.
+    + rewrite (ctree_eta t), Heqc. reflexivity.
+    + cbn in H0. symmetry in H0. apply H0.
+Qed.
+
+Lemma ret_equ_bind {E X Y} :
+  forall (t : ctree E Y) (k : Y -> ctree E X) r,
+  x <- t;; k x ≅ Ret r ->
+  exists r1, t ≅ Ret r1 /\ k r1 ≅ Ret r.
+Proof.
+  intros. setoid_rewrite (ctree_eta t) in H. setoid_rewrite (ctree_eta t).
+  destruct (observe t) eqn:?.
+  - rewrite bind_ret_l in H. eauto.
+  - rewrite bind_vis in H. step in H. inv H.
+  - rewrite bind_choice in H. step in H. inv H.
+Qed.
+
 (*|
 Map
 |*)
