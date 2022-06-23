@@ -290,8 +290,21 @@ Section Denote1.
       rewrite bind_choice. step. constructor. intros. inv i.
   Qed.
 
-  (*
-  Lemma schedule_order (t1 t2 : ctree (parE value) unit) :
+  Equations p : fin 2 -> fin 2 :=
+    p Fin.F1 := Fin.FS Fin.F1;
+    p (Fin.FS Fin.F1) := Fin.F1.
+
+  Lemma p_inverse : forall i, p (p i) = i.
+  Proof.
+    intros. dependent destruction i.
+    - simp p; auto.
+    - dependent destruction i. simp p; auto. inv i.
+  Qed.
+
+
+  Lemma schedule_order (t1 t2 : ctree (parE value) unit)
+    (Hbound1 : choiceI_bound 1 t1)
+    (Hbound2 : choiceI_bound 1 t2) :
     ChoiceV 2 (fun i' : fin 2 =>
                  schedule 2
                           (cons_vec t1 (fun _ => t2))
@@ -302,52 +315,19 @@ Section Denote1.
                           (Some i')).
   Proof.
     apply sb_choiceV; intros i.
-    - dependent destruction i.
-      + exists (Fin.FS Fin.F1). rewrite schedule_perm_2; auto.
-        intros. exfalso. dependent destruction i; auto.
-        dependent destruction i; auto. inv i.
-      + exists (Fin.F1). rewrite schedule_perm_2; auto.
-        intros. exfalso. dependent destruction i0; auto.
-        dependent destruction i; try inv i.
-        dependent destruction i0; try inv i0. auto.
-    - dependent destruction i.
-      + exists (Fin.FS Fin.F1). rewrite schedule_perm_2; auto.
-        intros. exfalso. dependent destruction i; auto.
-        dependent destruction i; auto. inv i.
-      + exists (Fin.F1). rewrite schedule_perm_2; auto.
-        intros. exfalso. dependent destruction i0; auto.
-        dependent destruction i; try inv i.
-        dependent destruction i0; try inv i0. auto.
+    - exists (p i).
+      apply (@schedule_permutation value) with (q:=p);
+        try solve [intros i0; dependent destruction i0; simp cons_vec];
+        try solve [apply p_inverse];
+        try solve [ intros i0; dependent destruction i0;
+                    [| dependent destruction i0; [| inv i0]]; simp p; simp cons_vec; auto].
+    - exists (p i). symmetry.
+      apply (@schedule_permutation value) with (q:=p);
+        try solve [intros i0; dependent destruction i0; simp cons_vec];
+        try solve [apply p_inverse];
+        try solve [ intros i0; dependent destruction i0;
+                    [| dependent destruction i0; [| inv i0]]; simp p; simp cons_vec; auto].
   Qed.
-
-  (*   (* permutation lemma would solve immediately *) *)
-  (*   revert t1 t2. *)
-  (*   coinduction r CIH. intros. *)
-  (*   apply step_sb_choiceV; intros i. *)
-  (*   - dependent destruction i. *)
-  (*     + exists (Fin.FS Fin.F1). *)
-  (*       do 2 rewrite rewrite_schedule. simp schedule_match. simp cons_vec. *)
-  (*       destruct (observe t1); cbn. *)
-  (*       * step. apply step_sb_tauI. rewrite remove_vec_1, remove_vec_2. reflexivity. *)
-  (*       * destruct e; [destruct y | destruct s; [destruct s |]]. *)
-  (*         -- setoid_rewrite <- (bind_ret_l tt (fun _ => schedule _ _ _)). *)
-  (*            do 2 rewrite <- bind_tauI. *)
-  (*            apply st_clo_bind; auto. (* TODO: put into separate lemma *) *)
-  (*            intros. *)
-  (*            do 2 rewrite rewrite_schedule. simp schedule_match. *)
-  (*            rewrite replace_vec_1, replace_vec_2. *)
-  (*            apply CIH. *)
-  (*         -- rewrite replace_vec_1, replace_vec_2. *)
-  (*            setoid_rewrite <- (bind_ret_l tt (fun _ => schedule _ _ _)). *)
-  (*            do 2 rewrite <- bind_tauV. *)
-  (*            apply st_clo_bind; auto. *)
-  (*            intros. admit. (* permutation lemma? *) *)
-  (*         -- do 2 rewrite <- bind_trigger. *)
-  (*            apply st_clo_bind; auto. *)
-  (*            intros. *)
-  (*            rewrite replace_vec_1, replace_vec_2. *)
-  (*            admit. (* also permutation lemma *) *)
-  (* Admitted. *)
 
   Lemma commut_spawns t1 t2 :
     schedule_denot' (Seq (Spawn t1) (Spawn t2)) ~
@@ -356,8 +336,14 @@ Section Denote1.
     unfold schedule_denot'.
     do 2 rewrite schedule_spawns.
     apply sb_tauV. apply sb_tauV. apply sb_tauI_lr.
+
     do 2 rewrite rewrite_schedule. simp schedule_match.
+
     apply schedule_order.
+    - apply bind_choiceI_bound. apply denote_stmt_bounded.
+      intros. step. constructor; auto. intros. step. constructor.
+    - apply bind_choiceI_bound. apply denote_stmt_bounded.
+      intros. step. constructor; auto. intros. step. constructor.
   Qed.
-*)
+
 End Denote1.

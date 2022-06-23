@@ -1,6 +1,7 @@
 From Coq Require Import
      Program
      List
+     Logic.FinFun
      Logic.FunctionalExtensionality
      Logic.IndefiniteDescription
      micromega.Lia
@@ -1443,10 +1444,42 @@ Section parallel.
     | FS p', FS q' => order p' q'
     end.
 
+  (** General order lemmas *)
+
   Lemma order_reflexive {n} (p : fin n) :
     order p p = EQ.
   Proof.
     depind p; auto.
+  Qed.
+
+  Lemma order_transitive {m n o} (p : fin m) (q : fin n) (r : fin o) l :
+    order p q = l ->
+    order q r = l ->
+    order p r = l.
+  Proof.
+    destruct l.
+    {
+      revert n o q r.
+      depind p; intros; auto.
+      - dependent destruction q; auto. dependent destruction r; auto. inv H0.
+      - dependent destruction q; auto; [inv H |].
+        dependent destruction r; auto. cbn in *. eapply IHp; eauto.
+    }
+    {
+      revert n o q r.
+      depind p; intros; auto.
+      - dependent destruction q; auto. dependent destruction r; auto.
+      - dependent destruction q; auto; [inv H |].
+        dependent destruction r; auto. cbn in *. eapply IHp; eauto.
+    }
+    {
+      revert n o q r.
+      depind p; intros; auto.
+      - dependent destruction q; auto. dependent destruction r; auto. inv H.
+      - dependent destruction q.
+        + dependent destruction r; auto; inv H0.
+        + dependent destruction r; auto. cbn in *. eapply IHp; eauto.
+    }
   Qed.
 
   Lemma order_flip {m n} (p : fin m) (q : fin n) :
@@ -1474,7 +1507,8 @@ Section parallel.
     f_equal. auto.
   Qed.
 
-  Lemma order_e_FS {m n} (p : fin m) (q : fin n) :
+
+  Lemma order_EQ_FS {m n} (p : fin m) (q : fin n) :
     order p q = EQ -> order (FS p) q = GT.
   Proof.
     revert n q.
@@ -1483,7 +1517,7 @@ Section parallel.
     - intros. dependent destruction q. inv H. cbn in H. apply IHp; auto.
   Qed.
 
-  Lemma order_g_FS {m n} (p : fin m) (q : fin n) :
+  Lemma order_GT_FS {m n} (p : fin m) (q : fin n) :
     order p q = GT -> order (FS p) q = GT.
   Proof.
     revert n q.
@@ -1492,13 +1526,7 @@ Section parallel.
     - intros. dependent destruction q; auto. cbn in H. apply IHp; auto.
   Qed.
 
-  Lemma order_L_R {n} (i : fin n) :
-    order i (L_R 1 i) = EQ.
-  Proof.
-    induction i; auto.
-  Qed.
-
-  Lemma order_FS {n} (i : fin n) :
+  Lemma order_FS_LT {n} (i : fin n) :
     order i (FS i) = LT.
   Proof.
     induction i; auto.
@@ -1510,7 +1538,7 @@ Section parallel.
   (*   apply order_flip; apply order_FS. *)
   (* Qed. *)
 
-  Lemma order_FS_g {m n} (p : fin m) (q : fin n) :
+  Lemma order_FS_GT_inv {m n} (p : fin m) (q : fin n) :
     order (FS p) q = GT ->
     order p q = EQ \/ order p q = GT.
   Proof.
@@ -1524,33 +1552,12 @@ Section parallel.
   Qed.
 
   Lemma order_cases {m n} (p : fin m) (q : fin n) :
-    order p q = LT \/ order p q = EQ \/ order p q = GT.
-  Proof.
-    destruct (order p q); intuition.
-  Qed.
-
-  Lemma order_cases' {m n} (p : fin m) (q : fin n) :
     {order p q = LT} + {order p q = EQ} + {order p q = GT}.
   Proof.
     destruct (order p q); intuition.
   Qed.
 
-  Lemma ltb_L_R m n (p : fin m) (q : fin n) : order p q = order (L_R 1 p) q.
-  Proof.
-    intros. revert n q. depind p.
-    - reflexivity.
-    - dependent destruction q.
-      + reflexivity.
-      + cbn. rewrite IHp. reflexivity.
-  Qed.
-
-
-  (* p is not the highest possible value, so it can be seen as a value of type fin (S n) *)
-  (* Equations cons_vec {n : nat} (t : thread) (v : vec n) : vec (S n) := *)
-  (*   cons_vec t v F1      := t; *)
-  (*   cons_vec t v (FS i)  := v i. *)
-  (* Transparent cons_vec. *)
-
+  (** For converting a value of type [fin (S (S n))] into one of type [fin (S n)] *)
   Equations not_highest {n} (p q : fin (S (S n))) (H: order p q = LT) : fin (S n) :=
     not_highest F1 q H := F1 ;
     not_highest (FS p') F1 H := _;
@@ -1567,27 +1574,6 @@ Section parallel.
     auto.
   Defined.
 
-  (* Definition not_highest {n} (p q : fin (S (S n))) (H: order p q = l) : fin (S n). *)
-  (*   remember (S n). remember (S n0). revert n n0 Heqn0 Heqn1 H. *)
-  (*   (* depind p. *) *)
-  (*   induction p; intros; subst; auto. *)
-  (*   - subst. apply F1. *)
-  (*   - (* remember (S n). destruct q. inv H. *) *)
-  (*     (* subst. apply FS. destruct n. *) *)
-  (*     (* + cbn in H. depind p. depind q. inv H. inv IHq. *) *)
-
-  (*     (* inv Heqn1. eapply IHp; eauto. *) *)
-
-  (*     destruct n. *)
-  (*     + cbn in H. Show Proof. *)
-  (*       remember (S n0). *)
-  (*       destruct q; inv H; auto. inv Heqn1. eapply IHp; eauto. *)
-  (*       (* dependent destruction q; inv H. Show Proof. eapply IHp; eauto. *) *)
-  (*       (* dependent destruction p; dependent destruction q; inv H1; inv q. *) *)
-  (*     + Show Proof. simpl in H. remember (S n0). destruct q. inv H. *)
-  (*       inv Heqn1. eapply IHp; eauto. *)
-  (* Defined. *)
-
   (* not used *)
   Lemma not_highest_FS {n} (p q : fin (S (S n))) H H' :
     (not_highest (FS p) (FS q) H) = FS (not_highest p q H').
@@ -1595,7 +1581,7 @@ Section parallel.
     simp not_highest. f_equal. f_equal. apply proof_irrelevance.
   Qed.
 
-  Lemma order_not_highest_equal {n} (p q r : fin (S (S n))) H :
+  Lemma order_not_highest {n} (p q r : fin (S (S n))) H :
     order p r = order (not_highest p q H) r.
   Proof.
     depind p.
@@ -1607,7 +1593,7 @@ Section parallel.
         cbn in *. dependent destruction r; auto.
   Qed.
 
-  Lemma order_not_highest {n} (p q : fin (S (S n))) H :
+  Lemma order_not_highest_EQ {n} (p q : fin (S (S n))) H :
     order (not_highest p q H) p = EQ.
   Proof.
     depind p; auto.
@@ -1620,19 +1606,12 @@ Section parallel.
       + simp not_highest. cbn. apply IHp; auto.
   Qed.
 
-  (* view a [fin n] as a [fin (S n)] *)
+  (** view a [fin n] as a [fin (S n)] *)
   Equations fin_S {n} (i : fin n) : fin (S n) :=
     fin_S F1 := F1;
     fin_S (FS i') := FS (fin_S i').
-  (* Proof. *)
-  (*   depind i. *)
-  (*   - apply F1. *)
-  (*   - apply FS. apply IHi. *)
-  (* Defined. *)
 
-  (* Lemma fin_S_not_highest *)
-
-  Lemma order_fin_S_equal {n} (i : fin n) : order i (fin_S i) = EQ.
+  Lemma order_fin_S_EQ {n} (i : fin n) : order i (fin_S i) = EQ.
   Proof.
     depind i; auto.
   Qed.
@@ -1668,7 +1647,7 @@ Section parallel.
     - simp not_highest. f_equal. auto.
   Qed.
 
-  (* p is greater than another value, so we can subtract one *)
+  (** p is greater than another value, so we can subtract one *)
   Equations subtract_one {n} (p q : fin (S n)) (H: order p q = GT) : fin n :=
   subtract_one F1 q H := _;
   subtract_one (FS p') q H := p'.
@@ -1690,15 +1669,15 @@ Section parallel.
     - reflexivity.
   Qed.
 
-  Lemma subtract_one_order {n} (p q : fin (S n)) (H : order p q = GT) :
+  Lemma order_subtract_one_GT {n} (p q : fin (S n)) (H : order p q = GT) :
     order p (subtract_one p q H) = GT.
   Proof.
     dependent destruction p.
     - dependent destruction q; inv H.
-    - destruct n. inv p. rewrite subtract_one_FS. apply order_flip. apply order_FS.
+    - destruct n. inv p. rewrite subtract_one_FS. apply order_flip. apply order_FS_LT.
   Qed.
 
-  Lemma subtract_one_order_g {n} (p q r : fin (S n)) H :
+  Lemma order_subtract_one_GT_inv {n} (p q r : fin (S n)) H :
     order p q = GT ->
     order (subtract_one p r H) q = EQ \/ order (subtract_one p r H) q = GT.
   Proof.
@@ -1706,10 +1685,10 @@ Section parallel.
     dependent destruction p.
     - dependent destruction q; inv H0.
     - destruct n. inv p.
-      rewrite subtract_one_FS. apply order_FS_g; auto.
+      rewrite subtract_one_FS. apply order_FS_GT_inv; auto.
   Qed.
 
-  Lemma subtract_one_l {n} (p q r : fin (S n)) H :
+  Lemma order_subtract_one_LT_inv {n} (p q r : fin (S n)) H :
      order (subtract_one p r H) q = LT ->
      order p q = EQ \/ order p q = LT.
   Proof.
@@ -1721,10 +1700,11 @@ Section parallel.
     dependent destruction p. dependent destruction q; auto.
     cbn in H0.
     eapply (IHp q (fin_S p) _ _). Unshelve.
-    - rewrite <- order_flip. rewrite <- order_fin_S. apply order_FS.
+    - rewrite <- order_flip. rewrite <- order_fin_S. apply order_FS_LT.
     - rewrite subtract_one_FS. auto.
   Qed.
 
+  (** lemmas about remove_vec and order *)
   Lemma remove_vec_index_before' {n} (v : vec (S n)) i j
     (Hj : order j i = LT) :
     v (fin_S j) = remove_vec v i j.
@@ -1755,14 +1735,14 @@ Section parallel.
     destruct n. inv j. cbn in *. rewrite <- IHj; auto.
   Qed.
 
-  Require Import Coq.Logic.FinFun.
-  (* Require Import Coq.Classes.Morphisms. *)
-
   (* why.. *)
   Instance test: subrelation eq (flip impl).
   Proof.
     repeat intro. subst. auto.
   Qed.
+
+  Ltac cases a b name := destruct (order_cases a b) as [[name | name] | name].
+
 
   (* Definition remove_at_permutation {n} (p : fin (S (S n)) -> fin (S (S n))) *)
   (*            (r : fin (S (S n))) *)
@@ -1794,147 +1774,87 @@ Section parallel.
              (Hp : Injective p)
     :
     { p' : (fin (S n) -> fin (S n)) &
-             (forall i, match (order_cases' i r) with
+             (forall i, match (order_cases i r) with
                    | inleft (left Hi) =>
                        (* i < r *)
                        let pi := p (fin_S i) in
-                       match (order_cases' pi r) with
-                       | inleft (left Hpi) => (* p i < r *)
+                       match (order_cases pi (p r)) with
+                       | inleft (left Hpi) => (* p i < p r *)
                            p' i = not_highest _ _ Hpi
-                       | inleft (right Hpi) => (* p i = r *)
-                           let ppi := p pi in
-                           match (order_cases' ppi r) with
-                           | inleft (left Hppi) =>
-                               p' i = not_highest _ _ Hppi
-                           | inleft (right Hppi) => False
-                           | inright Hppi =>
-                               p' i = subtract_one _ _ Hppi
-                           end
-                       | inright Hpi => (* p i > r *)
+                       | inleft (right Hpi) => (* p i = p r *)
+                           False
+                       | inright Hpi => (* p i > p r *)
                            p' i = subtract_one _ _ Hpi
                        end
                    | _(* inleft (right Hi) *) =>
                        (* i >= r *)
                        let pi := p (FS i) in
-                       match (order_cases' pi r) with
-                       | inleft (left Hpi) => (* p (i + 1) < r *)
+                       match (order_cases pi (p r)) with
+                       | inleft (left Hpi) => (* p (i + 1) < p r *)
                            p' i = not_highest _ _ Hpi
-                       | inleft (right Hpi) => (* p (i + 1) = r *)
-                           let ppi := p pi in
-                           match (order_cases' ppi r) with
-                           | inleft (left Hppi) =>
-                               p' i = not_highest _ _ Hppi
-                           | inleft (right Hppi) => False
-                           | inright Hppi =>
-                               p' i = subtract_one _ _ Hppi
-                           end
-                       | inright Hpi => (* p (i + 1) > r *)
+                       | inleft (right Hpi) => (* p (i + 1) = p r *)
+                           False
+                       | inright Hpi => (* p (i + 1) > p r *)
                            p' i = subtract_one _ _ Hpi
                        end
-                   (* | inright Hi => *)
-                   (*     (* i > r *) *)
-                   (*     let pi := p (FS i) in *)
-                   (*     match (order_cases' pi r) with *)
-                   (*     | inleft (left Hpi) => (* p i < r *) *)
-                   (*         p' i = not_highest _ _ Hpi *)
-                   (*     | inleft (right Hpi) => (* p i = r *) *)
-                   (*         let ppi := p pi in *)
-                   (*         match (order_cases' ppi r) with *)
-                   (*         | inleft (left Hppi) => *)
-                   (*             p' i = not_highest _ _ Hppi *)
-                   (*         | inleft (right Hppi) => False *)
-                   (*         | inright Hppi => *)
-                   (*             p' i = subtract_one _ _ Hppi *)
-                   (*         end *)
-                   (*     | inright Hpi => (* p i > r *) *)
-                   (*         p' i = subtract_one _ _ Hpi *)
-                   (*     end *)
                    end)
     }.
   Proof.
     eexists. Unshelve.
     2: {
       intro i.
-      destruct (order_cases' i r) as [[Hi | Hi] | Hi].
+      cases i r Hi.
       - (* i < r *)
         remember (p (fin_S i)) as pi.
-        destruct (order_cases' pi r) as [[Hpi | Hpi] | Hpi].
-        + (* p i < r *)
+        cases pi (p r) Hpi.
+        + (* p i < p r *)
           apply (not_highest _ _ Hpi).
-        + (* p i = r, return p (p i) *)
-          remember (p pi) as ppi.
-          destruct (order_cases' ppi r) as [[Hppi | Hppi] | Hppi].
-          * apply (not_highest _ _ Hppi).
-          * (* impossible since p should be an injection: p i = r = p (p i), but i < p i *)
-            apply order_eq in Hpi, Hppi. subst. apply Hp in Hppi. rewrite Hppi in Hi.
-            rewrite order_fin_S_equal in Hi. inv Hi.
-          * apply (subtract_one _ _ Hppi).
-        + (* p i > r *)
+        + (* p i = p r, contradiction *)
+          apply order_eq in Hpi. subst. apply Hp in Hpi. rewrite <- Hpi in Hi.
+          rewrite order_fin_S_EQ in Hi. inv Hi.
+        + (* p i > p r *)
           apply (subtract_one _ _ Hpi).
       - (* i = r *)
         remember (p (FS i)) as pi.
-        destruct (order_cases' pi r) as [[Hpi | Hpi] | Hpi].
-        + (* p (i + 1) < r *)
+        cases pi (p r) Hpi.
+        + (* p (i + 1) < p r *)
           apply (not_highest _ _ Hpi).
-        + (* p (i + 1) = r, return p (p (i + 1)) *)
-          remember (p pi) as ppi.
-          destruct (order_cases' ppi r) as [[Hppi | Hppi] | Hppi].
-          * apply (not_highest _ _ Hppi).
-          * (* impossible since p should be an injection:
-               p (i + 1) = r = p (p (i + 1)), but i = r < i + 1 *)
-            apply order_eq in Hpi, Hppi. subst. apply Hp in Hppi. rewrite Hppi in Hi.
-            rewrite order_FS in Hi. inv Hi.
-          * apply (subtract_one _ _ Hppi).
-        + (* p i > r *)
+        + (* p (i + 1) = p r, contradiction *)
+          apply order_eq in Hpi. subst. apply Hp in Hpi. rewrite <- Hpi in Hi.
+          rewrite order_FS_LT in Hi. inv Hi.
+        + (* p i > p r *)
           apply (subtract_one _ _ Hpi).
       - (* i > r *)
         remember (p (FS i)) as pi.
-        destruct (order_cases' pi r) as [[Hpi | Hpi] | Hpi].
-        + (* p (i + 1) < r *)
+        cases pi (p r) Hpi.
+        + (* p (i + 1) < p r *)
           apply (not_highest _ _ Hpi).
-        + (* p (i + 1) = r, return p (p (i + 1)) *)
-          remember (p pi) as ppi.
-          destruct (order_cases' ppi r) as [[Hppi | Hppi] | Hppi].
-          * apply (not_highest _ _ Hppi).
-          * (* impossible since p should be an injection:
-               p (i + 1) = r = p (p (i + 1)), but i > r -> i + 1 > r *)
-            apply order_eq in Hpi, Hppi. subst. apply Hp in Hppi. rewrite Hppi in Hi.
-            rewrite order_FS in Hi. inv Hi.
-          * apply (subtract_one _ _ Hppi).
-        + (* p i > r *)
+        + (* p (i + 1) = p r, contradiction *)
+          apply order_eq in Hpi. subst. apply Hp in Hpi. rewrite <- Hpi in Hi.
+          rewrite order_FS_LT in Hi. inv Hi.
+        + (* p i > p r *)
           apply (subtract_one _ _ Hpi).
     }
     intro i. cbn.
-    (* remember (order i r). *)
-    (* dependent destruction (order_cases i r)). *)
-    destruct (order_cases' i r) as [[Hi | Hi] | Hi].
+    cases i r Hi.
     - (* i < r *)
       set (pi := p (fin_S i)).
-      destruct (order_cases' pi r) as [[Hpi | Hpi] | Hpi]; auto.
-      (* p i = r *)
-      set (ppi := p pi).
-      destruct (order_cases' ppi r) as [[Hppi | Hppi] | Hppi]; auto.
-      (* p p i = r, contradiction *)
-      apply order_eq in Hpi, Hppi. subst. apply Hp in Hppi. rewrite Hppi in Hi.
-      rewrite order_fin_S_equal in Hi. inv Hi.
+      cases pi (p r) Hpi; auto.
+      (* equals case is a contradiction *)
+      apply order_eq in Hpi. subst. apply Hp in Hpi. rewrite <- Hpi in Hi.
+      rewrite order_fin_S_EQ in Hi. inv Hi.
     - (* i = r *)
       set (pi := p (FS i)).
-      destruct (order_cases' pi r) as [[Hpi | Hpi] | Hpi]; auto.
-      (* p i = r *)
-      set (ppi := p pi).
-      destruct (order_cases' ppi r) as [[Hppi | Hppi] | Hppi]; auto.
-      (* p p i = r, contradiction *)
-      apply order_eq in Hpi, Hppi. subst. apply Hp in Hppi. rewrite Hppi in Hi.
-      rewrite order_FS in Hi. inv Hi.
+      cases pi (p r) Hpi; auto.
+      (* equals case is a contradiction *)
+      apply order_eq in Hpi. subst pi. apply Hp in Hpi. rewrite <- Hpi in Hi.
+      rewrite order_FS_LT in Hi. inv Hi.
     - (* i > r *)
       set (pi := p (FS i)).
-      destruct (order_cases' pi r) as [[Hpi | Hpi] | Hpi]; auto.
-      (* p i = r *)
-      set (ppi := p pi).
-      destruct (order_cases' ppi r) as [[Hppi | Hppi] | Hppi]; auto.
-      (* p p i = r, contradiction *)
-      apply order_eq in Hpi, Hppi. subst. apply Hp in Hppi. rewrite Hppi in Hi.
-      rewrite order_FS in Hi. inv Hi.
+      cases pi (p r) Hpi; auto.
+      (* equals case is a contradiction *)
+      apply order_eq in Hpi. subst pi. apply Hp in Hpi. rewrite <- Hpi in Hi.
+      rewrite order_FS_LT in Hi. inv Hi.
   Qed.
 
   Lemma bijective_injective {n} (p q : fin n -> fin n)
@@ -1944,6 +1864,7 @@ Section parallel.
     intros i1 i2 ?. apply (f_equal q) in H. do 2 rewrite Hqp in H. auto.
   Qed.
 
+  (*
   Lemma remove_at_permutation_correct {n} (p q : fin (S (S n)) -> fin (S (S n))) r
         (Hpq : forall i, p (q i) = i)
         (Hqp : forall i, q (p i) = i) :
@@ -2353,45 +2274,252 @@ Section parallel.
             rewrite Hq. rewrite subtract_one_FS. reflexivity.
     }
   Qed.
+*)
 
-  Ltac cases a b name := destruct (order_cases' a b) as [[name | name] | name].
-
-
-  (* TODO: fix so its remove (p r) for q. How was this true for the prev defn???
-   I thikn it's because removing at i means that anything going to i before goes to
-   p i now, which is basically equivalent? i and p i are "next" to each other so it
-   was also correct. *)
   Lemma remove_at_permutation_correct' {n} (p q : fin (S (S n)) -> fin (S (S n))) r
         (Hpq : forall i, p (q i) = i)
-        (Hqp : forall i, q (p i) = i) :
-    let p' := projT1 (remove_at_permutation p r (bijective_injective _ _ Hqp)) in
-    let q' := projT1 (remove_at_permutation q (p r) (bijective_injective _ _ Hpq)) in
-    (forall i, p' (q' i) = i).
+        (Hqp : forall i, q (p i) = i)
+        Hinjp Hinjq :
+    let p' := projT1 (remove_at_permutation p r Hinjp) in
+    let q' := projT1 (remove_at_permutation q (p r) Hinjq) in
+    (forall i, p' (q' i) = i) /\ (forall i, q' (p' i) = i).
   Proof.
     destruct (remove_at_permutation p r _) as (p' & Hp).
     destruct (remove_at_permutation q (p r) _) as (q' & Hq).
-    cbn in *. intro i.
-    specialize (Hq i).
-    cases i (p r) Hi.
-    - (* i < p r *)
-      cases (q (fin_S i)) (p r) Hqi.
-      + (* q i < p r *)
-        rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-        rewrite fin_S_not_highest in Hp. rewrite Hpq in Hp.
-        cases (not_highest (q (fin_S i)) (p r) Hqi) r Hqi'.
-        * (* q i < r *)
-          cases (fin_S i) r Hi'.
-          -- (* i < r *)
+    cbn in *. split.
+    {
+      intro i.
+      specialize (Hq i). rewrite Hqp in Hq.
+      cases i (p r) Hi.
+      - (* i < p r *)
+        cases (q (fin_S i)) r Hqi; try contradiction.
+        + (* q i < r *)
+          specialize (Hp (q' i)). rewrite Hq in *.
+          rewrite fin_S_not_highest, Hpq in Hp.
+          cases (not_highest (q (fin_S i)) r Hqi) r Hqi'.
+          2, 3: rewrite <- order_not_highest in Hqi'; rewrite Hqi in Hqi'; inv Hqi'.
+          cases (fin_S i) (p r) Hi'.
+          2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
+          rewrite Hp. rewrite not_highest_fin_S. reflexivity.
+        + (* q i > r *)
+          specialize (Hp (q' i)). rewrite Hq in *.
+          rewrite FS_subtract_one in Hp. rewrite Hpq in Hp.
+          cases (subtract_one (q (fin_S i)) r Hqi) r Hqi'.
+          1: { (* q i - 1 < r not possible *)
+            pose proof Hqi as Hqi''. eapply order_subtract_one_GT_inv in Hqi''.
+            destruct Hqi'' as [Hqi'' | Hqi'']; rewrite Hqi' in Hqi''; inv Hqi''.
+          }
+          * (* q i - 1 = r *)
+            cases (fin_S i) (p r) Hi'.
+            2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
             rewrite Hp. rewrite not_highest_fin_S. reflexivity.
-          -- (* i = r *)
-            cases (p (fin_S i)) r Hpi; try contradiction.
-            ++ (* p i < r *)
-              (* contradiction: i < p i < i *)
-              admit.
-            ++ (* p i > r *)
-              (* p i > i > q i*)
-              rewrite Hp.
-  Admitted.
+          * (* q i - 1 > r *)
+            cases (fin_S i) (p r) Hi'.
+            2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
+            rewrite Hp. rewrite not_highest_fin_S. reflexivity.
+      - (* i = p r *)
+        cases (q (FS i)) r Hqi; try contradiction.
+        + (* q (i + 1) < r *)
+          specialize (Hp (q' i)). rewrite Hq in *.
+          rewrite fin_S_not_highest, Hpq in Hp.
+          cases (not_highest (q (FS i)) r Hqi) r Hqi'.
+          2, 3: rewrite <- order_not_highest in Hqi'; rewrite Hqi in Hqi'; inv Hqi'.
+          cases (FS i) (p r) Hi'; try contradiction.
+          1: { (* i + 1 < p r is not possible *)
+            rewrite order_fin_S in Hi. apply order_eq in Hi. pose proof Hi' as Hi''.
+            rewrite <- Hi in Hi''. rewrite order_flip in Hi''. rewrite <- order_fin_S in Hi''.
+            rewrite order_FS_LT in Hi''. inv Hi''.
+          }
+          (* i + 1 > p r *)
+          rewrite Hp. rewrite subtract_one_FS. reflexivity.
+        + (* q (i + 1) > r *)
+          specialize (Hp (q' i)). rewrite Hq in *.
+          rewrite FS_subtract_one, Hpq in Hp.
+          cases (subtract_one (q (FS i)) r Hqi) r Hqi'.
+          1: { (* q (i + 1) - 1 < r not possible *)
+            apply order_subtract_one_LT_inv in Hqi'.
+            destruct Hqi' as [Hqi' | Hqi']; rewrite Hqi in Hqi'; inv Hqi'.
+          }
+          * (* q (i + 1) - 1 = r *)
+            cases (FS i) (p r) Hi'; try contradiction.
+            1: { (* i + 1 < p r not possible *)
+              rewrite order_fin_S in Hi. apply order_eq in Hi. pose proof Hi' as Hi''.
+              rewrite <- Hi in Hi''. rewrite order_flip in Hi''.
+              rewrite <- order_fin_S in Hi''. rewrite order_FS_LT in Hi''. inv Hi''.
+            }
+            (* i + 1 > p r *)
+            rewrite Hp. rewrite subtract_one_FS. reflexivity.
+          * (* q (i + 1) - 1 > r *)
+            cases (FS i) (p r) Hi'; try contradiction.
+            1: { (* i + 1 < p r not possible *)
+              rewrite order_fin_S in Hi. apply order_eq in Hi. pose proof Hi' as Hi''.
+              rewrite <- Hi in Hi''. rewrite order_flip in Hi''.
+              rewrite <- order_fin_S in Hi''. rewrite order_FS_LT in Hi''. inv Hi''.
+            }
+            (* i + 1 > p r *)
+            rewrite Hp. rewrite subtract_one_FS. reflexivity.
+      - (* i > p r *)
+        cases (q (FS i)) r Hqi; try contradiction.
+        + (* q (i + 1) < r *)
+          specialize (Hp (q' i)). rewrite Hq in *.
+          rewrite fin_S_not_highest, Hpq in Hp.
+          cases (not_highest (q (FS i)) r Hqi) r Hqi'.
+          2, 3: rewrite <- order_not_highest in Hqi'; rewrite Hqi in Hqi'; inv Hqi'.
+          cases (FS i) (p r) Hi'; try contradiction.
+          1: { (* i + 1 < p r is not possible *)
+            pose proof Hi' as Hi''. apply order_flip in Hi''.
+            apply order_GT_FS in Hi''. cbn in Hi''.
+            pose proof (order_transitive _ _ _ _ Hi Hi'').
+            rewrite order_reflexive in H. inv H.
+          }
+          (* i + 1 > p r *)
+          rewrite Hp. rewrite subtract_one_FS. reflexivity.
+        + (* q (i + 1) > r *)
+          specialize (Hp (q' i)). rewrite Hq in *.
+          rewrite FS_subtract_one, Hpq in Hp.
+          cases (subtract_one (q (FS i)) r Hqi) r Hqi'.
+          1: { (* q (i + 1) - 1 < r not possible *)
+            apply order_subtract_one_LT_inv in Hqi'.
+            destruct Hqi' as [Hqi' | Hqi']; rewrite Hqi in Hqi'; inv Hqi'.
+          }
+          * (* q (i + 1) - 1 = r *)
+            cases (FS i) (p r) Hi'; try contradiction.
+            1: { (* i + 1 < p r not possible *)
+              pose proof Hi' as Hi''. apply order_flip in Hi''.
+              apply order_GT_FS in Hi''. cbn in Hi''.
+              pose proof (order_transitive _ _ _ _ Hi Hi'').
+              rewrite order_reflexive in H. inv H.
+            }
+            (* i + 1 > p r *)
+            rewrite Hp. rewrite subtract_one_FS. reflexivity.
+          * (* q (i + 1) - 1 > r *)
+            cases (FS i) (p r) Hi'; try contradiction.
+            1: { (* i + 1 < p r not possible *)
+              pose proof Hi' as Hi''. apply order_flip in Hi''.
+              apply order_GT_FS in Hi''. cbn in Hi''.
+              pose proof (order_transitive _ _ _ _ Hi Hi'').
+              rewrite order_reflexive in H. inv H.
+            }
+            (* i + 1 > p r *)
+            rewrite Hp. rewrite subtract_one_FS. reflexivity.
+    }
+    {
+      intro i.
+      specialize (Hp i).
+      cases i r Hi.
+      - (* i < r *)
+        cases (p (fin_S i)) (p r) Hpi; try contradiction.
+        + (* p i < p r *)
+          specialize (Hq (p' i)). rewrite Hp in *.
+          rewrite fin_S_not_highest in Hq. do 2 rewrite Hqp in Hq.
+          cases (not_highest (p (fin_S i)) (p r) Hpi) (p r) Hpi'.
+          2, 3: rewrite <- order_not_highest in Hpi'; rewrite Hpi in Hpi'; inv Hpi'.
+          cases (fin_S i) r Hi'.
+          2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
+          rewrite Hq. rewrite not_highest_fin_S. reflexivity.
+        + (* p i > p r *)
+          specialize (Hq (p' i)). rewrite Hp in *.
+          rewrite FS_subtract_one in Hq. do 2 rewrite Hqp in Hq.
+          cases (subtract_one (p (fin_S i)) (p r) Hpi) (p r) Hpi'.
+          1: { (* p i - 1 < p r not possible *)
+            pose proof Hpi as Hpi''. eapply order_subtract_one_GT_inv in Hpi''.
+            destruct Hpi'' as [Hpi'' | Hpi'']; rewrite Hpi' in Hpi''; inv Hpi''.
+          }
+          * (* p i - 1 = r *)
+            cases (fin_S i) r Hi'.
+            2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
+            rewrite Hq. rewrite not_highest_fin_S. reflexivity.
+          * (* p i - 1 > r *)
+            cases (fin_S i) r Hi'.
+            2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
+            rewrite Hq. rewrite not_highest_fin_S. reflexivity.
+      - (* i = r *)
+        cases (p (FS i)) (p r) Hpi; try contradiction.
+        + (* p (i + 1) < p r *)
+          specialize (Hq (p' i)). rewrite Hp in *.
+          rewrite fin_S_not_highest in Hq. do 2 rewrite Hqp in Hq.
+          cases (not_highest (p (FS i)) (p r) Hpi) (p r) Hpi'.
+          2, 3: rewrite <- order_not_highest in Hpi'; rewrite Hpi in Hpi'; inv Hpi'.
+          cases (FS i) r Hi'; try contradiction.
+          1: { (* i + 1 < r is not possible *)
+            rewrite order_fin_S in Hi. apply order_eq in Hi. pose proof Hi' as Hi''.
+            rewrite <- Hi in Hi''. rewrite order_flip in Hi''. rewrite <- order_fin_S in Hi''.
+            rewrite order_FS_LT in Hi''. inv Hi''.
+          }
+          (* i + 1 > r *)
+          rewrite Hq. rewrite subtract_one_FS. reflexivity.
+        + (* p (i + 1) > r *)
+          specialize (Hq (p' i)). rewrite Hp in *.
+          rewrite FS_subtract_one in Hq. do 2 rewrite Hqp in Hq.
+          cases (subtract_one (p (FS i)) (p r) Hpi) (p r) Hpi'.
+          1: { (* p (i + 1) - 1 < p r not possible *)
+            apply order_subtract_one_LT_inv in Hpi'.
+            destruct Hpi' as [Hpi' | Hpi']; rewrite Hpi in Hpi'; inv Hpi'.
+          }
+          * (* p (i + 1) - 1 = p r *)
+            cases (FS i) r Hi'; try contradiction.
+            1: { (* i + 1 < r not possible *)
+              rewrite order_fin_S in Hi. apply order_eq in Hi. pose proof Hi' as Hi''.
+              rewrite <- Hi in Hi''. rewrite order_flip in Hi''.
+              rewrite <- order_fin_S in Hi''. rewrite order_FS_LT in Hi''. inv Hi''.
+            }
+            (* i + 1 > r *)
+            rewrite Hq. rewrite subtract_one_FS. reflexivity.
+          * (* p (i + 1) - 1 > p r *)
+            cases (FS i) r Hi'; try contradiction.
+            1: { (* i + 1 < r not possible *)
+              rewrite order_fin_S in Hi. apply order_eq in Hi. pose proof Hi' as Hi''.
+              rewrite <- Hi in Hi''. rewrite order_flip in Hi''.
+              rewrite <- order_fin_S in Hi''. rewrite order_FS_LT in Hi''. inv Hi''.
+            }
+            (* i + 1 > r *)
+            rewrite Hq. rewrite subtract_one_FS. reflexivity.
+      - (* i > r *)
+        cases (p (FS i)) (p r) Hpi; try contradiction.
+        + (* p (i + 1) < p r *)
+          specialize (Hq (p' i)). rewrite Hp in *.
+          rewrite fin_S_not_highest in Hq. do 2 rewrite Hqp in Hq.
+          cases (not_highest (p (FS i)) (p r) Hpi) (p r) Hpi'.
+          2, 3: rewrite <- order_not_highest in Hpi'; rewrite Hpi in Hpi'; inv Hpi'.
+          cases (FS i) r Hi'; try contradiction.
+          1: { (* i + 1 < r is not possible *)
+            pose proof Hi' as Hi''. apply order_flip in Hi''.
+            apply order_GT_FS in Hi''. cbn in Hi''.
+            pose proof (order_transitive _ _ _ _ Hi Hi'').
+            rewrite order_reflexive in H. inv H.
+          }
+          (* i + 1 > r *)
+          rewrite Hq. rewrite subtract_one_FS. reflexivity.
+        + (* p (i + 1) > p r *)
+          specialize (Hq (p' i)). rewrite Hp in *.
+          rewrite FS_subtract_one in Hq. do 2 rewrite Hqp in Hq.
+          cases (subtract_one (p (FS i)) (p r) Hpi) (p r) Hpi'.
+          1: { (* p (i + 1) - 1 < p r not possible *)
+            apply order_subtract_one_LT_inv in Hpi'.
+            destruct Hpi' as [Hpi' | Hpi']; rewrite Hpi in Hpi'; inv Hpi'.
+          }
+          * (* p (i + 1) - 1 = p r *)
+            cases (FS i) r Hi'; try contradiction.
+            1: { (* i + 1 < r not possible *)
+              pose proof Hi' as Hi''. apply order_flip in Hi''.
+              apply order_GT_FS in Hi''. cbn in Hi''.
+              pose proof (order_transitive _ _ _ _ Hi Hi'').
+              rewrite order_reflexive in H. inv H.
+            }
+            (* i + 1 > r *)
+            rewrite Hq. rewrite subtract_one_FS. reflexivity.
+          * (* p (i + 1) - 1 > p r *)
+            cases (FS i) r Hi'; try contradiction.
+            1: { (* i + 1 < r not possible *)
+              pose proof Hi' as Hi''. apply order_flip in Hi''.
+              apply order_GT_FS in Hi''. cbn in Hi''.
+              pose proof (order_transitive _ _ _ _ Hi Hi'').
+              rewrite order_reflexive in H. inv H.
+            }
+            (* i + 1 > r *)
+            rewrite Hq. rewrite subtract_one_FS. reflexivity.
+    }
+  Qed.
 
   Lemma remove_at_permutation_vectors {n} (v1 v2 : vec (S (S n))) i p q Hp Hq p' q'
         (Hp' : p' = projT1 (remove_at_permutation p i Hp))
@@ -2402,77 +2530,95 @@ Section parallel.
         (Hqp' : forall i, q' (p' i) = i)
         (Hsb1 : forall i, v1 i ~ v2 (p i))
         (Hsb2 : forall i, v2 i ~ v1 (q i)) :
-    forall j : fin (S n),
-      remove_vec v1 i j ~
-      remove_vec v2 (p i) (p' j).
+    (forall j, remove_vec v1 i j ~ remove_vec v2 (p i) (p' j)) /\
+    (forall j, remove_vec v2 (p i) j ~ remove_vec v1 i (q' j)).
   Proof.
-    intros. subst. destruct (remove_at_permutation p) as (p' & Hp'). cbn in *.
-    destruct (remove_at_permutation q) as (q' & Hq'). cbn in *.
-    specialize (Hp' j).
-    cases j i Hj.
-    - (* j < i *)
-      rewrite <- remove_vec_index_before'; auto.
-      cases (p (fin_S j)) i Hpj.
-      + (* p j < i *)
-        cases (p' j) (p i) Hpjpi.
-        * (* p j < p i *)
-          rewrite <- remove_vec_index_before'; auto.
-          rewrite Hp'. rewrite fin_S_not_highest. apply Hsb1.
-        * (* p j = p i, contradiction since j < i *)
-          rewrite Hp' in Hpjpi. rewrite <- order_not_highest_equal in Hpjpi.
-          apply order_eq in Hpjpi. apply Hp in Hpjpi. subst.
-          rewrite order_fin_S_equal in Hj. inv Hj.
-        * (* p j > p i *)
-          (* (so p i < p j < i) *)
-          rewrite <- remove_vec_index_after'; auto. rewrite Hp'.
-          apply (f_equal q') in Hp'. rewrite Hqp' in Hp'.
-          (*
-          rewrite Hp' at 2. rewrite Hpq'.
-          specialize (Hq' (not_highest (p (fin_S j)) i Hpj)).
-          rewrite fin_S_not_highest in Hq'. rewrite Hqp in Hq'.
-          cases (not_highest (p (fin_S j)) i Hpj) (p i) Hpjpi'.
-          1, 2: rewrite Hp', Hpq' in Hpjpi; rewrite Hpjpi in Hpjpi'; inv Hpjpi'.
-          cases (q (FS (not_highest (p (fin_S j)) i Hpj))) (p i) Hqpj.
-          -- (* q (p j + 1) < p i *)
-            rewrite Hp' at 1. rewrite Hq'. rewrite fin_S_not_highest.
-            symmetry. apply Hsb2.
-          -- (* q (p j + 1) = p i *)
-            (* so p j + 1 = p (p i) *)
-            apply order_eq in Hqpj. apply (f_equal p) in Hqpj. rewrite Hpq in Hqpj.
-            rewrite Hqpj in Hq'. do 2 rewrite Hqp in Hq'.
-            cases i (p i) Hi; try contradiction.
-            ++ admit. (* contradiction *)
-            ++ rewrite Hq' in Hp'.
-               clear Hpjpi.
-               clear Hpjpi'.
-               clear Hqpj. clear Hq'.
-               revert Hpj. rewrite Hp'. intros. rewrite Hq'.
-              (* q (q (p j + 1)) < p i *)
-              (* so q (q (p (p i))) = i < p i, contradiction *)
-              rewrite Hp' at 1. rewrite Hq'. rewrite Hqp'. rewrite fin_S_not_highest.
-
-            symmetry. apply Hsb2.
-          --
-          destruct (order_cases' (fin_S j) i) as [[Hj' | Hj'] | Hj'].
-          2, 3: rewrite order_fin_S in Hj; rewrite Hj' in Hj; inv Hj.
-          rewrite Hq' in Hp'.
-          rewrite Hp' at 1. rewrite fin_S_not_highest. rewrite Hq'.
-          revert Hpj. rewrite Hp' in *. rewrite Hp'.
-
-      + apply order_eq in Hpj. rewrite Hpj in Hp'.
-        destruct (order_cases' (p i) i) as [[Hpi | Hpi] | Hpi]; try contradiction.
-        * rewrite Hp' in *. rewrite <- order_not_highest_equal in Hp'j.
-          rewrite order_reflexive in Hp'j. inv Hp'j.
-        * apply (f_equal q') in Hp'. rewrite Hqp' in Hp'.
-          rewrite Hp' in *. rewrite Hpq' in *.
-          specialize (Hq' (subtract_one (p i) i Hpi)).
-      + apply (f_equal q') in Hp'. rewrite Hqp' in Hp'.
-        rewrite Hp' in *. rewrite Hpq' in *.
-          specialize (Hq' (subtract_one (p i) i Hpi)). admit.
-      +
+    split; intros j.
+    {
+      subst. destruct (remove_at_permutation p) as (p' & Hp'). cbn in *.
+      destruct (remove_at_permutation q) as (q' & Hq'). cbn in *. clear Hq'.
+      specialize (Hp' j).
+      cases j i Hj.
+      - (* j < i *)
+        rewrite <- remove_vec_index_before'; auto.
+        cases (p (fin_S j)) (p i) Hpj; try contradiction.
+        + (* p j < p i *)
+          rewrite <- remove_vec_index_before'; rewrite Hp'.
+          2: rewrite <- order_not_highest; auto.
+          rewrite fin_S_not_highest. auto.
+        + (* p j > p i *)
+          pose proof Hpj as Hpj'.
+          apply (order_subtract_one_GT_inv _ _ _ Hpj) in Hpj'.
+          destruct Hpj'; [rewrite <- remove_vec_index_eq' | rewrite <- remove_vec_index_after'];
+            rewrite Hp'; auto; rewrite FS_subtract_one; auto.
+      - (* j = i *)
+        rewrite <- remove_vec_index_eq'; auto.
+        cases (p (FS j)) (p i) Hpj; try contradiction.
+        + (* p (j + 1) < p i *)
+          rewrite <- remove_vec_index_before'; rewrite Hp'.
+          2: rewrite <- order_not_highest; auto.
+          rewrite fin_S_not_highest. auto.
+        + (* p (j + 1) > p i *)
+          pose proof Hpj as Hpj'.
+          apply (order_subtract_one_GT_inv _ _ _ Hpj) in Hpj'.
+          destruct Hpj'; [rewrite <- remove_vec_index_eq' | rewrite <- remove_vec_index_after'];
+            rewrite Hp'; auto; rewrite FS_subtract_one; auto.
+      - (* j > i *)
+        rewrite <- remove_vec_index_after'; auto.
+        cases (p (FS j)) (p i) Hpj; try contradiction.
+        + (* p (j + 1) < p i *)
+          rewrite <- remove_vec_index_before'; rewrite Hp'.
+          2: rewrite <- order_not_highest; auto.
+          rewrite fin_S_not_highest. auto.
+        + (* p (j + 1) > p i *)
+          pose proof Hpj as Hpj'.
+          apply (order_subtract_one_GT_inv _ _ _ Hpj) in Hpj'.
+          destruct Hpj'; [rewrite <- remove_vec_index_eq' | rewrite <- remove_vec_index_after'];
+            rewrite Hp'; auto; rewrite FS_subtract_one; auto.
+    }
+    {
+      subst. destruct (remove_at_permutation p) as (p' & Hp'). cbn in *. clear Hp'.
+      destruct (remove_at_permutation q) as (q' & Hq'). cbn in *.
+      specialize (Hq' j). rewrite Hqp in Hq'.
+      cases j (p i) Hj.
+      - (* j < p i *)
+        rewrite <- remove_vec_index_before'; auto.
+        cases (q (fin_S j)) i Hqj; try contradiction.
+        + (* q j < i *)
+          rewrite <- remove_vec_index_before'; rewrite Hq'.
+          2: rewrite <- order_not_highest; auto.
+          rewrite fin_S_not_highest. auto.
+        + (* q j > i *)
+          pose proof Hqj as Hqj'.
+          apply (order_subtract_one_GT_inv _ _ _ Hqj) in Hqj'.
+          destruct Hqj'; [rewrite <- remove_vec_index_eq' | rewrite <- remove_vec_index_after'];
+            rewrite Hq'; auto; rewrite FS_subtract_one; auto.
+      - (* j = p i *)
+        rewrite <- remove_vec_index_eq'; auto.
+        cases (q (FS j)) i Hqj; try contradiction.
+        + (* q (j + 1) < i *)
+          rewrite <- remove_vec_index_before'; rewrite Hq'.
+          2: rewrite <- order_not_highest; auto.
+          rewrite fin_S_not_highest. auto.
+        + (* q (j + 1) > i *)
+          pose proof Hqj as Hqj'.
+          apply (order_subtract_one_GT_inv _ _ _ Hqj) in Hqj'.
+          destruct Hqj'; [rewrite <- remove_vec_index_eq' | rewrite <- remove_vec_index_after'];
+            rewrite Hq'; auto; rewrite FS_subtract_one; auto.
+      - (* j > p i *)
+        rewrite <- remove_vec_index_after'; auto.
+        cases (q (FS j)) i Hqj; try contradiction.
+        + (* q (j + 1) < i *)
+          rewrite <- remove_vec_index_before'; rewrite Hq'.
+          2: rewrite <- order_not_highest; auto.
+          rewrite fin_S_not_highest. auto.
+        + (* q (j + 1) > i *)
+          pose proof Hqj as Hqj'.
+          apply (order_subtract_one_GT_inv _ _ _ Hqj) in Hqj'.
+          destruct Hqj'; [rewrite <- remove_vec_index_eq' | rewrite <- remove_vec_index_after'];
+            rewrite Hq'; auto; rewrite FS_subtract_one; auto.
+    }
   Qed.
-           *)
-  Abort.
 
   Lemma schedule_permutation n (v1 v2 : vec n) i (p q : fin n -> fin n)
         (Hbound1 : forall i, choiceI_bound 1 (v1 i))
@@ -2495,16 +2641,28 @@ Section parallel.
     - apply trans_schedule_thread_tau_some in Ht; auto.
       decompose [or] Ht; clear Ht.
       + (* thread is finished *)
+        assert (Hinjp : Injective p) by (eapply bijective_injective; eauto).
+        assert (Hinjq : Injective q) by (eapply bijective_injective; eauto).
         destruct H as (n' & i' & Ht & ? & Hequ). subst.
+        pose proof (remove_at_permutation_correct' _ _ i Hpq Hqp Hinjp Hinjq) as (Hpq' & Hqp').
+        edestruct (@remove_at_permutation_vectors) as (Hpq'' & Hqp''); eauto.
+
         pose proof (Hsb1 i). step in H. destruct H as [Hf _].
         edestruct Hf as [? ? ?]; eauto.
         eapply trans_thread_schedule_val_SS in H.
         eexists. apply H. rewrite Hequ.
-        pose proof (@remove_at_permutation_correct _ _ _ i Hpq Hqp) as (Hpq' & Hqp').
+
+        (* pose proof (remove_at_permutation_correct' _ _ (p i) Hqp Hpq Hinjq Hinjp) as Hqp'. *)
+        (* rewrite (Hqp i) in Hqp'. *)
+        (* destruct (remove_at_permutation p i _) as (p' & Hp') eqn:?. *)
+        (* destruct (remove_at_permutation q (p i) _) as (q' & Hq'). cbn in *. *)
+        (* rewrite (Hqp i) in Hqp'. rewrite Heqs in Hpq'. cbn in Hqp'. *)
+
         eapply CIH; clear CIH; cbn; try solve [apply remove_vec_choiceI_bound; auto].
-        apply Hpq'. apply Hqp'.
-        * admit. (* eapply remove_at_permutation_vectors; eauto. *)
-        * admit. (* intros. destruct (remove_at_permutation q) as (q' & Hq'). cbn in *. *)
+        * apply Hpq'.
+        * apply Hqp'.
+        * apply Hpq''.
+        * apply Hqp''.
       + (* tau step *)
         destruct n; try inv i.
         destruct H0 as (t' & Ht & Hbound & Hequ).
@@ -2622,7 +2780,7 @@ Section parallel.
       pose proof (trans_schedule_thread_val _ _ _ _ Ht) as Hv1.
       edestruct Hf; eauto.
       apply trans_thread_schedule_val_1 in H0. eexists; eauto. rewrite H. reflexivity.
-  Abort.
+  Qed.
 
   (*
   Lemma schedule_perm_2 n (v1 v2 : vec n) i1 i2
