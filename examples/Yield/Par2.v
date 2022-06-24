@@ -36,6 +36,10 @@ From CTree Require Import
 Import ListNotations.
 Import CTreeNotations.
 
+
+(** [choiceI_bound] gives a bound on the arity of ChoiceI nodes.
+    To be replaced eventually with generalized choice types. *)
+
 Variant choiceI_boundF {E R} b (choiceI_bound : ctree E R -> Prop) :
   ctree' E R -> Prop :=
   | bound_Ret r : choiceI_boundF b choiceI_bound (RetF r)
@@ -101,7 +105,7 @@ Proof.
     constructor; auto. intros. eapply CIH. apply REL. apply H4.
 Qed.
 
-Lemma choiceI_step {E R} n k x :
+Lemma choiceI_bound_1_inv {E R} n k x :
   choiceI_bound 1 (ChoiceI n k : ctree E R) ->
   n = 1%nat /\ choiceI_bound 1 (k x).
 Proof.
@@ -310,7 +314,9 @@ Proof.
 Qed.
 
 (* TODO move this *)
-Lemma sbisim_vis_visible {E R X} (t2 : ctree E R) (e : E X) k1 (Hin: inhabited X) (Hbound : choiceI_bound 1 t2) :
+Lemma sbisim_vis_visible {E R X} (t2 : ctree E R) (e : E X) k1
+      (Hin: inhabited X)
+      (Hbound : choiceI_bound 1 t2) :
   Vis e k1 ~ t2 ->
   exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ~ k2 x).
 Proof.
@@ -330,7 +336,7 @@ Proof.
   edestruct (Hf (obs e x)). constructor. reflexivity.
   destruct a. clear H0 Hb.
   dependent induction H.
-  - edestruct @choiceI_step as (? & Hbound').
+  - edestruct @choiceI_bound_1_inv as (? & Hbound').
     {
       assert (t2 ≅ ChoiceI n k).
       rewrite ctree_eta. rewrite <- x. reflexivity.
@@ -364,7 +370,10 @@ Proof.
     + intros. destruct Hf. destruct a. cbn. auto.
 Qed.
 
-Lemma sbisim_visible {E R X} (t1 t2 : ctree E R) (e : E X) k1 (Hin: inhabited X) (Hbound1 : choiceI_bound 1 t1) (Hbound2 : choiceI_bound 1 t2):
+Lemma sbisim_visible {E R X} (t1 t2 : ctree E R) (e : E X) k1
+      (Hin: inhabited X)
+      (Hbound1 : choiceI_bound 1 t1)
+      (Hbound2 : choiceI_bound 1 t2):
   t1 ~ t2 ->
   visible t1 (Vis e k1) ->
   exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ~ k2 x).
@@ -372,7 +381,7 @@ Proof.
   unfold trans; intros. cbn in *. red in H0. remember (observe t1). remember (observe (Vis e k1)).
   revert X t1 e k1 t2 H Heqc Heqc0 Hin Hbound1 Hbound2.
   induction H0; intros; auto.
-  - edestruct @choiceI_step as (? & Hbound1').
+  - edestruct @choiceI_bound_1_inv as (? & Hbound1').
     {
       assert (t1 ≅ ChoiceI n k).
       rewrite ctree_eta. rewrite <- Heqc. reflexivity.
@@ -390,7 +399,7 @@ Proof.
   - inv Heqc0.
 Qed.
 
-
+(** Events used to model yields and spawns in our language *)
 Variant yieldE : Type -> Type :=
 | Yield : yieldE unit.
 
@@ -415,6 +424,7 @@ Section parallel.
     Symmetric (@vec_relation n P).
   Proof. repeat intro. auto. Qed.
 
+  (** Removing an element from a [vec] *)
   Definition remove_front_vec {n : nat} (v : vec (S n)) : vec n :=
     fun i => v (FS i).
 
@@ -554,6 +564,8 @@ Section parallel.
     subst. apply remove_vec; eauto.
   Defined.
 
+
+  (** Replacing an element in a [vec] *)
   Definition replace_vec {n : nat} (v : vec n) (i : fin n) (t : thread) : vec n :=
     fun i' => if Fin.eqb i i' then t else v i'.
 
@@ -628,6 +640,7 @@ Section parallel.
   (*   apply Fin.eqb_eq in Heqb. subst. auto. *)
   (* Qed. *)
 
+  (** Adding an element to the front of a [vec] *)
   Equations cons_vec {n : nat} (t : thread) (v : vec n) : vec (S n) :=
     cons_vec t v F1      := t;
     cons_vec t v (FS i)  := v i.
@@ -706,11 +719,13 @@ Section parallel.
   (*   unfold append_vec. repeat intro. *)
   (* Qed. *)
 
+  (** Scheduling a thread pool *)
+  (* TODO: change return type to completed? This will simplify some lemmas too *)
   Equations schedule_match
-             (schedule : forall (n : nat), vec n -> option (fin n) -> thread)
+             (schedule : forall (n : nat), vec n -> option (fin n) -> completed)
              (n : nat)
              (v: vec n)
-    : option (fin n) -> thread :=
+    : option (fin n) -> completed :=
     (* If no thread is focused, and there are none left in the pool, we are done *)
     schedule_match schedule 0 v None :=
       Ret tt;
@@ -743,9 +758,9 @@ Section parallel.
                   (* The [i] here means that we don't yield at a spawn *)
                   (Some (FS i))); (* view [i] as a [fin (n + 1)] *)
 
-        (* todo *)
+        (* State events are not touched in scheduling *)
         schedule_match _ _ _ _ (VisF (inr1 (inr1 s)) k) :=
-        (Vis (inr1 (inr1 s)) (fun x => (schedule (S n) (replace_vec v i (k x)) (Some i))));
+        (Vis s (fun x => (schedule (S n) (replace_vec v i (k x)) (Some i))));
 
       }.
   (* Transparent schedule_match. *)
@@ -882,11 +897,10 @@ Section parallel.
   Qed.
 
   (** [schedule] transitions with an [obs] *)
-  Lemma trans_schedule_obs {X} n v o (e : parE config X) (x : X) t :
+  Lemma trans_schedule_obs {X} n v o (e : stateE config X) (x : X) t :
     trans (obs e x) (schedule n v o) t ->
-    (exists k i s, o = Some i /\
-                e = inr1 (inr1 s) /\
-                visible (v i) (Vis (inr1 (inr1 s)) k) /\
+    (exists k i, o = Some i /\
+                visible (v i) (Vis (inr1 (inr1 e)) k) /\
                 t ≅ schedule n (replace_vec v i (k x)) o).
   Proof.
     unfold trans; intro. destruct o as [i |].
@@ -903,13 +917,13 @@ Section parallel.
     - rewrite <- ctree_eta in Hequ.
       apply ChoiceI_schedule_inv in Hequ. destruct Hequ as [? | [? | ?]].
       + destruct H0 as (k' & Hvic & Hk).
-        edestruct IHtrans_ as (k'' & i' & se & ? & ? & ? & ?); auto.
+        edestruct IHtrans_ as (k'' & i' & ? & ? & ?); auto.
         * rewrite Hk. reflexivity.
         * inv H0.
-          exists k'', i', se. split; [| split; [| split]]; auto.
+          exists k'', i'. split; [| split]; auto.
           -- rewrite Hvic. cbn. red. cbn. econstructor.
-             rewrite replace_vec_eq in H2. apply H2.
-          -- rewrite replace_vec_twice in H3. apply H3.
+             rewrite replace_vec_eq in H1. apply H1.
+          -- rewrite replace_vec_twice in H2. apply H2.
       + destruct H0 as (k' & Hvic & ? & Hk). subst.
         setoid_rewrite Hk in H.
         destruct n'; inv H.
@@ -921,11 +935,12 @@ Section parallel.
       simp schedule_match in Hequ.
       destruct (observe (v i)) eqn:Hv.
       + destruct r. destruct n'; step in Hequ; inv Hequ.
-      + destruct e; [destruct y | destruct s; [destruct s |]]; try solve [step in Hequ; inv Hequ].
+      + destruct e; [destruct y | destruct s; [destruct s |]];
+          try solve [step in Hequ; inv Hequ].
         cbn in *.
         pose proof (equ_vis_invT _ _ _ _ Hequ). subst.
         destruct (equ_vis_invE _ _ _ _ Hequ). subst.
-        exists k0, i, s. split; [| split; [| split]]; auto.
+        exists k0, i. split; [| split]; auto.
         * cbn. red. rewrite Hv. constructor. reflexivity.
         * rewrite ctree_eta. rewrite <- Heq. rewrite <- ctree_eta. rewrite <- H. apply H1.
       + step in Hequ; inv Hequ.
@@ -1121,7 +1136,7 @@ Section parallel.
     remember (observe (v i)). remember (observe (Vis _ k)).
     revert v i i' k Heqc Heqc0 Hbound.
     induction H; intros; subst; try inv Heqc0.
-    - edestruct @choiceI_step as (? & Hbound').
+    - edestruct @choiceI_bound_1_inv as (? & Hbound').
       {
         assert (v i ≅ ChoiceI n0 k).
         rewrite ctree_eta. rewrite <- Heqc. reflexivity.
@@ -1151,7 +1166,7 @@ Section parallel.
     remember (observe (v i)). remember (observe (Vis _ k)).
     revert v i k Heqc Heqc0 Hbound.
     induction H; intros; subst; try inv Heqc0.
-    - edestruct @choiceI_step as (? & Hbound').
+    - edestruct @choiceI_bound_1_inv as (? & Hbound').
       {
         assert (v i ≅ ChoiceI n0 k).
         rewrite ctree_eta. rewrite <- Heqc. reflexivity.
@@ -1168,16 +1183,17 @@ Section parallel.
       apply replace_vec_vec_relation; repeat intro; auto.
   Qed.
 
-  Lemma visible_stateE_trans_schedule {X} n v i (s : stateE config X) k x (Hbound : choiceI_bound 1 (v i)) :
+  Lemma visible_stateE_trans_schedule {X} n v i (s : stateE config X) k x
+        (Hbound : choiceI_bound 1 (v i)) :
     visible (v i) (Vis (inr1 (inr1 s)) k) ->
-    trans (obs (inr1 (inr1 s)) x) (schedule (S n) v (Some i))
+    trans (obs s x) (schedule (S n) v (Some i))
           (schedule (S n) (replace_vec v i (k x)) (Some i)).
   Proof.
     intros. cbn in *. red in H |- *. red.
     remember (observe (v i)). remember (observe (Vis _ k)).
     revert v i k Heqc Heqc0 Hbound.
     induction H; intros; subst; try inv Heqc0.
-    - edestruct @choiceI_step as (? & Hbound').
+    - edestruct @choiceI_bound_1_inv as (? & Hbound').
       {
         assert (v i ≅ ChoiceI n0 k).
         rewrite ctree_eta. rewrite <- Heqc. reflexivity.
@@ -1266,7 +1282,7 @@ Section parallel.
         * rewrite rewrite_schedule. simp schedule_match. econstructor; eauto.
         * rewrite Hequ. apply CIH; auto.
     - apply trans_schedule_obs in Ht.
-      destruct Ht as (k & i & s & ? & ? & Hvis & Hequ). subst.
+      destruct Ht as (k & i & ? & Hvis & Hequ). subst.
       destruct n; try inv i.
       pose proof (Hv i) as (Hsb & Hbound1 & Hbound2).
       pose proof Hvis as Hvis'.
@@ -1323,79 +1339,6 @@ Section parallel.
     split. apply of_nat_lt_sig1_neq_2. apply of_nat_lt_sig1_neq_1.
   Qed.
 
-  (* Definition permutation_from_nat {n} (p q : nat -> nat) *)
-  (*            (Hp : forall i, i < n -> p i < n) *)
-  (*            (Hq : forall i, i < n -> q i < n) *)
-  (*            (Hpq : forall i, i < n -> p (q i) = i) *)
-  (*            (Hqp : forall i, i < n -> q (p i) = i) : *)
-  (*   { x : (fin n -> fin n) * (fin n -> fin n) & *)
-  (*           (forall i, (fst x) ((snd x) i) = i) & *)
-  (*           (forall i, (snd x) ((fst x) i) = i) }. *)
-  (* Proof. *)
-  (*   eexists. Unshelve. *)
-  (*   3: { *)
-  (*     split. *)
-  (*     - intro i. destruct (to_nat i). *)
-  (*       pose proof (Hp x l). *)
-  (*       apply (of_nat_lt H). *)
-  (*     - intro i. destruct (to_nat i). *)
-  (*       pose proof (Hq x l). *)
-  (*       apply (of_nat_lt H). *)
-  (*   } *)
-  (*   - cbn. intros. destruct (to_nat i). *)
-  (*     rewrite to_nat_of_nat. *)
-  (*     erewrite of_nat_ext. *)
-  (*     unfold of_nat_lt. *)
-  (*     (* generalize dependent x. *) *)
-  (*     rewrite (Hpq x l). *)
-  (*     revert (p (q x)). erewrite (Hpq x). *)
-  (* Qed. *)
-
-  (*
-  Definition permutation_to_nat {n} (p q : fin n -> fin n)
-        (Hpq : forall i, p (q i) = i)
-        (Hqp : forall i, q (p i) = i) :
-    { x : (nat -> nat) * (nat -> nat) &
-            (forall i, i < n -> (fst x) i < n) /\ (forall i, i < n -> (snd x) i < n) /\
-            (forall i, i < n -> (fst x) ((snd x) i) = i) /\ (forall i, i < n -> (snd x) ((fst x) i) = i) }.
-  Proof.
-    eexists. Unshelve.
-    2: {
-      split.
-      - clear q Hpq Hqp. intro i'.
-        destruct (Compare_dec.lt_dec i' n).
-        + pose proof (of_nat_lt l) as i.
-          pose proof (p i) as pi.
-          destruct (to_nat pi). apply x.
-        + apply i'.
-      - clear p Hpq Hqp. intro i'.
-        destruct (Compare_dec.lt_dec i' n).
-        + pose proof (of_nat_lt l) as i.
-          pose proof (q i) as qi.
-          destruct (to_nat qi). apply x.
-        + apply i'.
-    }
-    cbn. split; [| split; [| split]].
-    - intros.
-      destruct (Compare_dec.lt_dec i n); try contradiction.
-      destruct (to_nat (q (of_nat_lt l))) eqn:?.
-      destruct (to_nat (p (of_nat_lt l))) eqn:?. auto.
-    - intros.
-      destruct (Compare_dec.lt_dec i n); try contradiction.
-      destruct (to_nat (q (of_nat_lt l))) eqn:?.
-      destruct (to_nat (p (of_nat_lt l))) eqn:?. auto.
-    - intros i Hi.
-      destruct (Compare_dec.lt_dec i n); try contradiction. clear Hi. rename l into Hi.
-      destruct (to_nat (q (of_nat_lt Hi))) as (qi' & Hqi) eqn:?.
-      destruct (Compare_dec.lt_dec qi' n); try contradiction.
-      rewrite (of_nat_ext _ Hqi). clear l.
-      destruct (to_nat (p (of_nat_lt Hqi))) as (pqi' & Hpqi) eqn:?.
-
-      pose proof Heqs as ?. apply (f_equal from_nat_) in H.
-      (* unfold to_nat in Heqs. *)
-      pose proof (Hpq (of_nat_lt Hi)). rewrite <- H in Heqs.
-  Qed. *)
-
   Definition cons_permutation {n} (p : fin n -> fin n) :
     {
       p' : (fin (S n) -> fin (S n)) &
@@ -1429,11 +1372,6 @@ Section parallel.
       + rewrite Hp2, Hq2, Hqp. auto.
   Qed.
 
-  (* Inductive lt {m n} : fin (S m) -> fin (S n) -> Prop := *)
-  (* | lt_base : forall i, lt F1 (FS i) *)
-  (* | lt_ind : forall i j, lt i j -> lt (FS i) (FS j) *)
-  (* . *)
-
   Variant ordering := LT | EQ | GT.
 
   Fixpoint order {m n} (p : fin m) (q : fin n) : ordering :=
@@ -1444,7 +1382,7 @@ Section parallel.
     | FS p', FS q' => order p' q'
     end.
 
-  (** General order lemmas *)
+  (** General [order] lemmas *)
 
   Lemma order_reflexive {n} (p : fin n) :
     order p p = EQ.
@@ -1735,39 +1673,7 @@ Section parallel.
     destruct n. inv j. cbn in *. rewrite <- IHj; auto.
   Qed.
 
-  (* why.. *)
-  Instance test: subrelation eq (flip impl).
-  Proof.
-    repeat intro. subst. auto.
-  Qed.
-
   Ltac cases a b name := destruct (order_cases a b) as [[name | name] | name].
-
-
-  (* Definition remove_at_permutation {n} (p : fin (S (S n)) -> fin (S (S n))) *)
-  (*            (r : fin (S (S n))) *)
-  (*            (Hp : Injective p) *)
-  (*   : fin (S n) -> fin (S n). *)
-  (*   intro i. *)
-  (*   destruct (order_cases' i r) as [[Hi | Hi] | Hi]. *)
-  (*   - (* i < r *) *)
-  (*     remember (p (fin_S i)) as pi. *)
-  (*     destruct (order_cases' pi r) as [[Hpi | Hpi] | Hpi]. *)
-  (*     + (* p i < r *) *)
-  (*       apply (not_highest _ _ Hpi). *)
-  (*     + (* p i = r, return p (p i) *) *)
-  (*       remember (p pi) as ppi. *)
-  (*       destruct (order_cases' ppi r) as [[Hppi | Hppi] | Hppi]. *)
-  (*       * apply (not_highest _ _ Hppi). *)
-  (*       * (* impossible since p should be an injection: p i = r = p (p i), but i < p i *) *)
-  (*         apply order_eq in Hpi, Hppi. subst. apply Hp in Hppi. rewrite Hppi in Hi. *)
-  (*         rewrite order_fin_S_equal in Hi. inv Hi. *)
-  (*       * apply (subtract_one _ _ Hppi). *)
-  (*     + (* p i > r *) *)
-  (*       apply (subtract_one _ _ Hpi). *)
-  (*   - apply F1. *)
-  (*   - apply F1. *)
-  (* Defined. *)
 
   Definition remove_at_permutation {n} (p : fin (S (S n)) -> fin (S (S n)))
              (r : fin (S (S n)))
@@ -1864,419 +1770,7 @@ Section parallel.
     intros i1 i2 ?. apply (f_equal q) in H. do 2 rewrite Hqp in H. auto.
   Qed.
 
-  (*
   Lemma remove_at_permutation_correct {n} (p q : fin (S (S n)) -> fin (S (S n))) r
-        (Hpq : forall i, p (q i) = i)
-        (Hqp : forall i, q (p i) = i) :
-    let p' := projT1 (remove_at_permutation p r (bijective_injective _ _ Hqp)) in
-    let q' := projT1 (remove_at_permutation q r (bijective_injective _ _ Hpq)) in
-    (forall i, p' (q' i) = i) /\ (forall i, q' (p' i) = i).
-  Proof.
-    destruct (remove_at_permutation p r _) as (p' & Hp).
-    destruct (remove_at_permutation q r _) as (q' & Hq).
-    cbn in *. split.
-    {
-      intro i.
-      specialize (Hq i).
-      destruct (order_cases' i r) as [[Hi | Hi] | Hi].
-      - (* i < r *)
-        destruct (order_cases' (q (fin_S i)) r) as [[Hqi | Hqi] | Hqi].
-        + (* q i < r *)
-          rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-          rewrite fin_S_not_highest in Hp. rewrite Hpq in Hp.
-          destruct (order_cases' (not_highest (q (fin_S i)) r Hqi) r) as [[Hqi' | Hqi'] | Hqi'].
-          2, 3: erewrite <- order_not_highest_equal in Hqi'; rewrite Hqi in Hqi'; inv Hqi'.
-          destruct (order_cases' (fin_S i) r) as [[Hi' | Hi'] | Hi'].
-          2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
-          rewrite Hp. rewrite not_highest_fin_S. reflexivity.
-        + (* q i = r, so we apply q again *)
-          destruct (order_cases' (q (q (fin_S i))) r) as [[Hqqi | Hqqi] | Hqqi].
-          * (* q (q i) < r *)
-            rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-            rewrite fin_S_not_highest in Hp. do 2 rewrite Hpq in Hp.
-            destruct (order_cases' (not_highest (q (q (fin_S i))) r Hqqi) r) as
-              [[Hqqi' | Hqqi'] | Hqqi'].
-            2, 3: erewrite <- order_not_highest_equal in Hqqi'; rewrite Hqqi in Hqqi'; inv Hqqi'.
-            destruct (order_cases' (q (fin_S i)) r) as [[Hqi' | Hqi'] | Hqi'].
-            1, 3: rewrite Hqi' in Hqi; inv Hqi.
-            destruct (order_cases' (fin_S i) r) as [[Hi' | Hi'] | Hi'].
-            2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hp. rewrite not_highest_fin_S. reflexivity.
-          * (* q (q i) = r *)
-            contradiction.
-          * (* q (q i) > r *)
-            rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-            rewrite FS_subtract_one in Hp. do 2 rewrite Hpq in Hp.
-            destruct (order_cases' (subtract_one (q (q (fin_S i))) r Hqqi) r) as
-              [[Hqqis | Hqqis] | Hqqis].
-            -- (* q (q i) - 1 < r *)
-              (* contradiction *)
-              apply (subtract_one_l) in Hqqis.
-              destruct Hqqis as [Hqqis | Hqqis]; rewrite Hqqi in Hqqis; inv Hqqis.
-            -- (* q (q i) - 1 = r *)
-              destruct (order_cases' (q (fin_S i)) r) as [[Hqi' | Hqi'] | Hqi'].
-              1, 3: rewrite Hqi' in Hqi; inv Hqi. clear Hqi'.
-              destruct (order_cases' (fin_S i) r) as [[Hi' | Hi'] | Hi'].
-              2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
-              rewrite Hp. rewrite not_highest_fin_S. reflexivity.
-            -- (* q (q i) - 1 > r, same as above *)
-              destruct (order_cases' (q (fin_S i)) r) as [[Hqi' | Hqi'] | Hqi'].
-              1, 3: rewrite Hqi' in Hqi; inv Hqi. clear Hqi'.
-              destruct (order_cases' (fin_S i) r) as [[Hi' | Hi'] | Hi'].
-              2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
-              rewrite Hp. rewrite not_highest_fin_S. reflexivity.
-        + (* q i > r *)
-          rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-          rewrite FS_subtract_one in Hp. rewrite Hpq in Hp.
-          destruct (order_cases' (subtract_one (q (fin_S i)) r Hqi) r) as
-            [[Hqis | Hqis] | Hqis].
-          * (* q i - 1 < r *)
-            (* contradiction *)
-            apply (subtract_one_l) in Hqis.
-            destruct Hqis as [Hqis | Hqis]; rewrite Hqi in Hqis; inv Hqis.
-          * (* q i - 1 = r *)
-            destruct (order_cases' (fin_S i) r) as [[Hi' | Hi'] | Hi'].
-            2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hp. rewrite not_highest_fin_S. reflexivity.
-          * (* q i - 1 > r *)
-            destruct (order_cases' (fin_S i) r) as [[Hi' | Hi'] | Hi'].
-            2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hp. rewrite not_highest_fin_S. reflexivity.
-      - (* i = r *)
-        destruct (order_cases' (q (FS i)) r) as [[Hqi | Hqi] | Hqi].
-        + (* q (i + 1) < r *)
-          rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-          rewrite fin_S_not_highest in Hp. rewrite Hpq in Hp.
-          destruct (order_cases' (not_highest (q (FS i)) r Hqi) r) as [[Hqi' | Hqi'] | Hqi'].
-          2, 3: erewrite <- order_not_highest_equal in Hqi'; rewrite Hqi in Hqi'; inv Hqi'.
-          destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-          1, 2: apply order_e_FS in Hi; rewrite Hi' in Hi; inv Hi.
-          rewrite Hp. rewrite subtract_one_FS. reflexivity.
-        + (* q (i + 1) = r *)
-          destruct (order_cases' (q (q (FS i))) r) as [[Hqqi | Hqqi] | Hqqi].
-          * (* q (q (i + 1)) < r *)
-            rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-            rewrite fin_S_not_highest in Hp. do 2 rewrite Hpq in Hp.
-            destruct (order_cases' (not_highest (q (q (FS i))) r Hqqi) r) as
-              [[Hqqi' | Hqqi'] | Hqqi'].
-            2, 3: erewrite <- order_not_highest_equal in Hqqi'; rewrite Hqqi in Hqqi'; inv Hqqi'.
-            destruct (order_cases' (q (FS i)) r) as [[Hqi' | Hqi'] | Hqi'].
-            1, 3: rewrite Hqi' in Hqi; inv Hqi.
-            destruct (order_cases' (FS i) r) as [[Hio | Hio] | Hio].
-            { apply order_e_FS in Hi. rewrite Hio in Hi. inv Hi. }
-            { contradiction. }
-            rewrite Hp. rewrite subtract_one_FS. reflexivity.
-          * (* q (q (i + 1)) = r *)
-            contradiction.
-          * (* q (q (i + 1)) > r *)
-            rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-            rewrite FS_subtract_one in Hp. do 2 rewrite Hpq in Hp.
-            destruct (order_cases' (subtract_one (q (q (FS i))) r Hqqi) r) as
-              [[Hqqis | Hqqis] | Hqqis].
-            -- (* (q (q (i + 1))) - 1 < r *)
-              apply (subtract_one_l) in Hqqis.
-              destruct Hqqis as [Hqqis | Hqqis]; rewrite Hqqi in Hqqis; inv Hqqis.
-            -- (* (q (q (i + 1))) - 1 = r *)
-              destruct (order_cases' (q (FS i)) r) as [[Hqi' | Hqi'] | Hqi'].
-              1, 3: rewrite Hqi' in Hqi; inv Hqi. clear Hqi'.
-              destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-              { apply order_e_FS in Hi. rewrite Hi' in Hi. inv Hi. }
-              { contradiction. }
-              rewrite Hp. rewrite subtract_one_FS. reflexivity.
-            -- (* (q (q (i + 1))) - 1 > r *)
-              destruct (order_cases' (q (FS i)) r) as [[Hqi' | Hqi'] | Hqi'].
-              1, 3: rewrite Hqi' in Hqi; inv Hqi. clear Hqi'.
-              destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-              { apply order_e_FS in Hi. rewrite Hi' in Hi. inv Hi. }
-              { contradiction. }
-              rewrite Hp. rewrite subtract_one_FS. reflexivity.
-        + (* q (i + 1) > r *)
-          rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-          rewrite FS_subtract_one in Hp. rewrite Hpq in Hp.
-          destruct (order_cases' (subtract_one (q (FS i)) r Hqi) r) as
-            [[Hqis | Hqis] | Hqis].
-          * (* (q (i + 1)) - 1 < r *)
-            (* contradiction *)
-            apply subtract_one_l in Hqis.
-            destruct Hqis as [Hqis | Hqis]; rewrite Hqi in Hqis; inv Hqis.
-          * (* (q (i + 1)) - 1 = r *)
-            destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-            1, 2: apply order_e_FS in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hp. rewrite subtract_one_FS. reflexivity.
-          * (* (q (i + 1)) - 1 > r *)
-            destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-            1, 2: apply order_e_FS in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hp. rewrite subtract_one_FS. reflexivity.
-      - (* i > r *)
-        (* exactly the same as prev case *)
-        destruct (order_cases' (q (FS i)) r) as [[Hqi | Hqi] | Hqi].
-        + (* q (i + 1) < r *)
-          rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-          rewrite fin_S_not_highest in Hp. rewrite Hpq in Hp.
-          destruct (order_cases' (not_highest (q (FS i)) r Hqi) r) as [[Hqi' | Hqi'] | Hqi'].
-          2, 3: erewrite <- order_not_highest_equal in Hqi'; rewrite Hqi in Hqi'; inv Hqi'.
-          destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-          1, 2: apply order_g_FS in Hi; rewrite Hi' in Hi; inv Hi.
-          rewrite Hp. rewrite subtract_one_FS. reflexivity.
-        + (* q (i + 1) = r *)
-          destruct (order_cases' (q (q (FS i))) r) as [[Hqqi | Hqqi] | Hqqi].
-          * (* q (q (i + 1)) < r *)
-            rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-            rewrite fin_S_not_highest in Hp. do 2 rewrite Hpq in Hp.
-            destruct (order_cases' (not_highest (q (q (FS i))) r Hqqi) r) as
-              [[Hqqi' | Hqqi'] | Hqqi'].
-            2, 3: erewrite <- order_not_highest_equal in Hqqi'; rewrite Hqqi in Hqqi'; inv Hqqi'.
-            destruct (order_cases' (q (FS i)) r) as [[Hqi' | Hqi'] | Hqi'].
-            1, 3: rewrite Hqi' in Hqi; inv Hqi.
-            destruct (order_cases' (FS i) r) as [[Hio | Hio] | Hio].
-            { apply order_g_FS in Hi. rewrite Hio in Hi. inv Hi. }
-            { contradiction. }
-            rewrite Hp. rewrite subtract_one_FS. reflexivity.
-          * (* q (q (i + 1)) = r *)
-            contradiction.
-          * (* q (q (i + 1)) > r *)
-            rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-            rewrite FS_subtract_one in Hp. do 2 rewrite Hpq in Hp.
-            destruct (order_cases' (subtract_one (q (q (FS i))) r Hqqi) r) as
-              [[Hqqis | Hqqis] | Hqqis].
-            -- (* (q (q (i + 1))) - 1 < r *)
-              apply (subtract_one_l) in Hqqis.
-              destruct Hqqis as [Hqqis | Hqqis]; rewrite Hqqi in Hqqis; inv Hqqis.
-            -- (* (q (q (i + 1))) - 1 = r *)
-              destruct (order_cases' (q (FS i)) r) as [[Hqi' | Hqi'] | Hqi'].
-              1, 3: rewrite Hqi' in Hqi; inv Hqi. clear Hqi'.
-              destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-              { apply order_g_FS in Hi. rewrite Hi' in Hi. inv Hi. }
-              { contradiction. }
-              rewrite Hp. rewrite subtract_one_FS. reflexivity.
-            -- (* (q (q (i + 1))) - 1 > r *)
-              destruct (order_cases' (q (FS i)) r) as [[Hqi' | Hqi'] | Hqi'].
-              1, 3: rewrite Hqi' in Hqi; inv Hqi. clear Hqi'.
-              destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-              { apply order_g_FS in Hi. rewrite Hi' in Hi. inv Hi. }
-              { contradiction. }
-              rewrite Hp. rewrite subtract_one_FS. reflexivity.
-        + (* q (i + 1) > r *)
-          rewrite Hq. specialize (Hp (q' i)). rewrite Hq in Hp.
-          rewrite FS_subtract_one in Hp. rewrite Hpq in Hp.
-          destruct (order_cases' (subtract_one (q (FS i)) r Hqi) r) as
-            [[Hqis | Hqis] | Hqis].
-          * (* (q (i + 1)) - 1 < r *)
-            (* contradiction *)
-            apply subtract_one_l in Hqis.
-            destruct Hqis as [Hqis | Hqis]; rewrite Hqi in Hqis; inv Hqis.
-          * (* (q (i + 1)) - 1 = r *)
-            destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-            1, 2: apply order_g_FS in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hp. rewrite subtract_one_FS. reflexivity.
-          * (* (q (i + 1)) - 1 > r *)
-            destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-            1, 2: apply order_g_FS in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hp. rewrite subtract_one_FS. reflexivity.
-    }
-    {
-      intro i.
-      specialize (Hp i).
-      destruct (order_cases' i r) as [[Hi | Hi] | Hi].
-      - (* i < r *)
-        destruct (order_cases' (p (fin_S i)) r) as [[Hpi | Hpi] | Hpi].
-        + (* p i < r *)
-          rewrite Hp. specialize (Hq (p' i)). rewrite Hp in Hq.
-          rewrite fin_S_not_highest in Hq. rewrite Hqp in Hq.
-          destruct (order_cases' (not_highest (p (fin_S i)) r Hpi) r) as [[Hpi' | Hpi'] | Hpi'].
-          2, 3: erewrite <- order_not_highest_equal in Hpi'; rewrite Hpi in Hpi'; inv Hpi'.
-          destruct (order_cases' (fin_S i) r) as [[Hi' | Hi'] | Hi'].
-          2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
-          rewrite Hq. rewrite not_highest_fin_S. reflexivity.
-        + (* p i = r, so we apply p again *)
-          destruct (order_cases' (p (p (fin_S i))) r) as [[Hppi | Hppi] | Hppi].
-          * (* p (p i) < r *)
-            rewrite Hp. specialize (Hq (p' i)). rewrite Hp in Hq.
-            rewrite fin_S_not_highest in Hq. do 2 rewrite Hqp in Hq.
-            destruct (order_cases' (not_highest (p (p (fin_S i))) r Hppi) r) as
-              [[Hppi' | Hppi'] | Hppi'].
-            2, 3: erewrite <- order_not_highest_equal in Hppi'; rewrite Hppi in Hppi'; inv Hppi'.
-            destruct (order_cases' (p (fin_S i)) r) as [[Hpi' | Hpi'] | Hpi'].
-            1, 3: rewrite Hpi' in Hpi; inv Hpi.
-            destruct (order_cases' (fin_S i) r) as [[Hi' | Hi'] | Hi'].
-            2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hq. rewrite not_highest_fin_S. reflexivity.
-          * (* p (p i) = r *)
-            contradiction.
-          * (* p (p i) > r *)
-            rewrite Hp. specialize (Hq (p' i)). rewrite Hp in Hq.
-            rewrite FS_subtract_one in Hq. do 2 rewrite Hqp in Hq.
-            destruct (order_cases' (subtract_one (p (p (fin_S i))) r Hppi) r) as
-              [[Hppis | Hppis] | Hppis].
-            -- (* p (p i) - 1 < r *)
-              (* contradiction *)
-              apply (subtract_one_l) in Hppis.
-              destruct Hppis as [Hppis | Hppis]; rewrite Hppi in Hppis; inv Hppis.
-            -- (* p (p i) - 1 = r *)
-              destruct (order_cases' (p (fin_S i)) r) as [[Hpi' | Hpi'] | Hpi'].
-              1, 3: rewrite Hpi' in Hpi; inv Hpi. clear Hpi'.
-              destruct (order_cases' (fin_S i) r) as [[Hi' | Hi'] | Hi'].
-              2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
-              rewrite Hq. rewrite not_highest_fin_S. reflexivity.
-            -- (* p (p i) - 1 > r, same as above *)
-              destruct (order_cases' (p (fin_S i)) r) as [[Hpi' | Hpi'] | Hpi'].
-              1, 3: rewrite Hpi' in Hpi; inv Hpi. clear Hpi'.
-              destruct (order_cases' (fin_S i) r) as [[Hi' | Hi'] | Hi'].
-              2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
-              rewrite Hq. rewrite not_highest_fin_S. reflexivity.
-        + (* p i > r *)
-          rewrite Hp. specialize (Hq (p' i)). rewrite Hp in Hq.
-          rewrite FS_subtract_one in Hq. rewrite Hqp in Hq.
-          destruct (order_cases' (subtract_one (p (fin_S i)) r Hpi) r) as
-            [[Hpis | Hpis] | Hpis].
-          * (* p i - 1 < r *)
-            (* contradiction *)
-            apply (subtract_one_l) in Hpis.
-            destruct Hpis as [Hpis | Hpis]; rewrite Hpi in Hpis; inv Hpis.
-          * (* p i - 1 = r *)
-            destruct (order_cases' (fin_S i) r) as [[Hi' | Hi'] | Hi'].
-            2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hq. rewrite not_highest_fin_S. reflexivity.
-          * (* p i - 1 > r *)
-            destruct (order_cases' (fin_S i) r) as [[Hi' | Hi'] | Hi'].
-            2, 3: rewrite order_fin_S in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hq. rewrite not_highest_fin_S. reflexivity.
-      - (* i = r *)
-        destruct (order_cases' (p (FS i)) r) as [[Hpi | Hpi] | Hpi].
-        + (* p (i + 1) < r *)
-          rewrite Hp. specialize (Hq (p' i)). rewrite Hp in Hq.
-          rewrite fin_S_not_highest in Hq. rewrite Hqp in Hq.
-          destruct (order_cases' (not_highest (p (FS i)) r Hpi) r) as [[Hpi' | Hpi'] | Hpi'].
-          2, 3: erewrite <- order_not_highest_equal in Hpi'; rewrite Hpi in Hpi'; inv Hpi'.
-          destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-          1, 2: apply order_e_FS in Hi; rewrite Hi' in Hi; inv Hi.
-          rewrite Hq. rewrite subtract_one_FS. reflexivity.
-        + (* p (i + 1) = r *)
-          destruct (order_cases' (p (p (FS i))) r) as [[Hppi | Hppi] | Hppi].
-          * (* p (p (i + 1)) < r *)
-            rewrite Hp. specialize (Hq (p' i)). rewrite Hp in Hq.
-            rewrite fin_S_not_highest in Hq. do 2 rewrite Hqp in Hq.
-            destruct (order_cases' (not_highest (p (p (FS i))) r Hppi) r) as
-              [[Hppi' | Hppi'] | Hppi'].
-            2, 3: erewrite <- order_not_highest_equal in Hppi'; rewrite Hppi in Hppi'; inv Hppi'.
-            destruct (order_cases' (p (FS i)) r) as [[Hpi' | Hpi'] | Hpi'].
-            1, 3: rewrite Hpi' in Hpi; inv Hpi.
-            destruct (order_cases' (FS i) r) as [[Hio | Hio] | Hio].
-            { apply order_e_FS in Hi. rewrite Hio in Hi. inv Hi. }
-            { contradiction. }
-            rewrite Hq. rewrite subtract_one_FS. reflexivity.
-          * (* p (p (i + 1)) = r *)
-            contradiction.
-          * (* p (p (i + 1)) > r *)
-            rewrite Hp. specialize (Hq (p' i)). rewrite Hp in Hq.
-            rewrite FS_subtract_one in Hq. do 2 rewrite Hqp in Hq.
-            destruct (order_cases' (subtract_one (p (p (FS i))) r Hppi) r) as
-              [[Hppis | Hppis] | Hppis].
-            -- (* (p (p (i + 1))) - 1 < r *)
-              apply (subtract_one_l) in Hppis.
-              destruct Hppis as [Hppis | Hppis]; rewrite Hppi in Hppis; inv Hppis.
-            -- (* (p (p (i + 1))) - 1 = r *)
-              destruct (order_cases' (p (FS i)) r) as [[Hpi' | Hpi'] | Hpi'].
-              1, 3: rewrite Hpi' in Hpi; inv Hpi. clear Hpi'.
-              destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-              { apply order_e_FS in Hi. rewrite Hi' in Hi. inv Hi. }
-              { contradiction. }
-              rewrite Hq. rewrite subtract_one_FS. reflexivity.
-            -- (* (p (p (i + 1))) - 1 > r *)
-              destruct (order_cases' (p (FS i)) r) as [[Hpi' | Hpi'] | Hpi'].
-              1, 3: rewrite Hpi' in Hpi; inv Hpi. clear Hpi'.
-              destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-              { apply order_e_FS in Hi. rewrite Hi' in Hi. inv Hi. }
-              { contradiction. }
-              rewrite Hq. rewrite subtract_one_FS. reflexivity.
-        + (* p (i + 1) > r *)
-          rewrite Hp. specialize (Hq (p' i)). rewrite Hp in Hq.
-          rewrite FS_subtract_one in Hq. rewrite Hqp in Hq.
-          destruct (order_cases' (subtract_one (p (FS i)) r Hpi) r) as
-            [[Hpis | Hpis] | Hpis].
-          * (* (p (i + 1)) - 1 < r *)
-            (* contradiction *)
-            apply subtract_one_l in Hpis.
-            destruct Hpis as [Hpis | Hpis]; rewrite Hpi in Hpis; inv Hpis.
-          * (* (p (i + 1)) - 1 = r *)
-            destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-            1, 2: apply order_e_FS in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hq. rewrite subtract_one_FS. reflexivity.
-          * (* (p (i + 1)) - 1 > r *)
-            destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-            1, 2: apply order_e_FS in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hq. rewrite subtract_one_FS. reflexivity.
-      - (* i > r *)
-        (* exactly the same as prev case *)
-        destruct (order_cases' (p (FS i)) r) as [[Hpi | Hpi] | Hpi].
-        + (* p (i + 1) < r *)
-          rewrite Hp. specialize (Hq (p' i)). rewrite Hp in Hq.
-          rewrite fin_S_not_highest in Hq. rewrite Hqp in Hq.
-          destruct (order_cases' (not_highest (p (FS i)) r Hpi) r) as [[Hpi' | Hpi'] | Hpi'].
-          2, 3: erewrite <- order_not_highest_equal in Hpi'; rewrite Hpi in Hpi'; inv Hpi'.
-          destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-          1, 2: apply order_g_FS in Hi; rewrite Hi' in Hi; inv Hi.
-          rewrite Hq. rewrite subtract_one_FS. reflexivity.
-        + (* p (i + 1) = r *)
-          destruct (order_cases' (p (p (FS i))) r) as [[Hppi | Hppi] | Hppi].
-          * (* p (p (i + 1)) < r *)
-            rewrite Hp. specialize (Hq (p' i)). rewrite Hp in Hq.
-            rewrite fin_S_not_highest in Hq. do 2 rewrite Hqp in Hq.
-            destruct (order_cases' (not_highest (p (p (FS i))) r Hppi) r) as
-              [[Hppi' | Hppi'] | Hppi'].
-            2, 3: erewrite <- order_not_highest_equal in Hppi'; rewrite Hppi in Hppi'; inv Hppi'.
-            destruct (order_cases' (p (FS i)) r) as [[Hpi' | Hpi'] | Hpi'].
-            1, 3: rewrite Hpi' in Hpi; inv Hpi.
-            destruct (order_cases' (FS i) r) as [[Hio | Hio] | Hio].
-            { apply order_g_FS in Hi. rewrite Hio in Hi. inv Hi. }
-            { contradiction. }
-            rewrite Hq. rewrite subtract_one_FS. reflexivity.
-          * (* p (p (i + 1)) = r *)
-            contradiction.
-          * (* p (p (i + 1)) > r *)
-            rewrite Hp. specialize (Hq (p' i)). rewrite Hp in Hq.
-            rewrite FS_subtract_one in Hq. do 2 rewrite Hqp in Hq.
-            destruct (order_cases' (subtract_one (p (p (FS i))) r Hppi) r) as
-              [[Hppis | Hppis] | Hppis].
-            -- (* (p (p (i + 1))) - 1 < r *)
-              apply (subtract_one_l) in Hppis.
-              destruct Hppis as [Hppis | Hppis]; rewrite Hppi in Hppis; inv Hppis.
-            -- (* (p (p (i + 1))) - 1 = r *)
-              destruct (order_cases' (p (FS i)) r) as [[Hpi' | Hpi'] | Hpi'].
-              1, 3: rewrite Hpi' in Hpi; inv Hpi. clear Hpi'.
-              destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-              { apply order_g_FS in Hi. rewrite Hi' in Hi. inv Hi. }
-              { contradiction. }
-              rewrite Hq. rewrite subtract_one_FS. reflexivity.
-            -- (* (p (p (i + 1))) - 1 > r *)
-              destruct (order_cases' (p (FS i)) r) as [[Hpi' | Hpi'] | Hpi'].
-              1, 3: rewrite Hpi' in Hpi; inv Hpi. clear Hpi'.
-              destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-              { apply order_g_FS in Hi. rewrite Hi' in Hi. inv Hi. }
-              { contradiction. }
-              rewrite Hq. rewrite subtract_one_FS. reflexivity.
-        + (* p (i + 1) > r *)
-          rewrite Hp. specialize (Hq (p' i)). rewrite Hp in Hq.
-          rewrite FS_subtract_one in Hq. rewrite Hqp in Hq.
-          destruct (order_cases' (subtract_one (p (FS i)) r Hpi) r) as
-            [[Hpis | Hpis] | Hpis].
-          * (* (p (i + 1)) - 1 < r *)
-            (* contradiction *)
-            apply subtract_one_l in Hpis.
-            destruct Hpis as [Hpis | Hpis]; rewrite Hpi in Hpis; inv Hpis.
-          * (* (p (i + 1)) - 1 = r *)
-            destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-            1, 2: apply order_g_FS in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hq. rewrite subtract_one_FS. reflexivity.
-          * (* (p (i + 1)) - 1 > r *)
-            destruct (order_cases' (FS i) r) as [[Hi' | Hi'] | Hi'].
-            1, 2: apply order_g_FS in Hi; rewrite Hi' in Hi; inv Hi.
-            rewrite Hq. rewrite subtract_one_FS. reflexivity.
-    }
-  Qed.
-*)
-
-  Lemma remove_at_permutation_correct' {n} (p q : fin (S (S n)) -> fin (S (S n))) r
         (Hpq : forall i, p (q i) = i)
         (Hqp : forall i, q (p i) = i)
         Hinjp Hinjq :
@@ -2644,20 +2138,13 @@ Section parallel.
         assert (Hinjp : Injective p) by (eapply bijective_injective; eauto).
         assert (Hinjq : Injective q) by (eapply bijective_injective; eauto).
         destruct H as (n' & i' & Ht & ? & Hequ). subst.
-        pose proof (remove_at_permutation_correct' _ _ i Hpq Hqp Hinjp Hinjq) as (Hpq' & Hqp').
+        pose proof (remove_at_permutation_correct _ _ i Hpq Hqp Hinjp Hinjq) as (Hpq' & Hqp').
         edestruct (@remove_at_permutation_vectors) as (Hpq'' & Hqp''); eauto.
 
         pose proof (Hsb1 i). step in H. destruct H as [Hf _].
         edestruct Hf as [? ? ?]; eauto.
         eapply trans_thread_schedule_val_SS in H.
         eexists. apply H. rewrite Hequ.
-
-        (* pose proof (remove_at_permutation_correct' _ _ (p i) Hqp Hpq Hinjq Hinjp) as Hqp'. *)
-        (* rewrite (Hqp i) in Hqp'. *)
-        (* destruct (remove_at_permutation p i _) as (p' & Hp') eqn:?. *)
-        (* destruct (remove_at_permutation q (p i) _) as (q' & Hq'). cbn in *. *)
-        (* rewrite (Hqp i) in Hqp'. rewrite Heqs in Hpq'. cbn in Hqp'. *)
-
         eapply CIH; clear CIH; cbn; try solve [apply remove_vec_choiceI_bound; auto].
         * apply Hpq'.
         * apply Hqp'.
@@ -2747,7 +2234,7 @@ Section parallel.
         }
         rewrite Hp2. apply visible_spawn_trans_schedule; auto.
     - apply trans_schedule_obs in Ht.
-      destruct Ht as (k & i' & s & ? & ? & Hvis & Hequ). inv H. rename i' into i.
+      destruct Ht as (k & i' & ? & Hvis & Hequ). inv H. rename i' into i.
       destruct n; try inv i.
       pose proof Hvis as Hvis'.
       eapply sbisim_visible in Hvis'. 5: apply Hsb1. all: eauto.
@@ -2781,1462 +2268,4 @@ Section parallel.
       edestruct Hf; eauto.
       apply trans_thread_schedule_val_1 in H0. eexists; eauto. rewrite H. reflexivity.
   Qed.
-
-  (*
-  Lemma schedule_perm_2 n (v1 v2 : vec n) i1 i2
-        (Hbound1 : forall i, choiceI_bound 1 (v1 i))
-        (Hbound2 : forall i, choiceI_bound 1 (v2 i)) :
-    (i1 = i2 /\ forall i, v1 i ~ v2 i) \/
-      (i1 = i2 /\
-         exists i3 i4,
-           i3 <> i4 /\
-             i1 <> i3 /\
-             i1 <> i4 /\
-             v1 i3 ~ v2 i4 /\
-             v2 i3 ~ v1 i4 /\
-             (forall i, i <> i3 -> i <> i4 -> v1 i ~ v2 i)) \/
-      (i1 <> i2 /\
-         v1 i1 ~ v2 i2 /\
-         v2 i1 ~ v1 i2 /\
-         (forall i, i <> i1 -> i <> i2 -> v1 i ~ v2 i)) ->
-    schedule n v1 (Some i1) ~ schedule n v2 (Some i2).
-  Proof.
-    revert n v1 v2 i1 i2 Hbound1 Hbound2.
-    coinduction r CIH.
-    symmetric using idtac.
-    {
-      intros. apply H; auto. decompose [or] H0; clear H0.
-      - left. destruct H1. split; auto. symmetry. auto.
-      - right. left. destruct H2 as (? & i3 & i4 & ? & ? & ? & ? & ? & ?). subst.
-        split; auto. exists i4, i3. split; [| split; [| split]]; auto.
-        split; [| split]; symmetry; auto.
-      - right. right. destruct H2 as (? & ? & ? & ?).
-        split; auto. split; [| split]; symmetry; auto.
-    }
-    intros n v1 v2 i1 i2 Hbound1 Hbound2 Hi l t Ht. cbn in *.
-    destruct l.
-    - apply trans_schedule_thread_tau_some in Ht; auto.
-      decompose [or] Ht; clear Ht.
-      + (* thread is finished *)
-        destruct H as (n' & i & Ht & ? & Hequ). subst.
-        destruct Hi as [
-            (? & Hv) | [
-              (? & i3 & i4 & Hneq1 & Hneq2 & Hneq3 & Hi1sb & Hi2sb & Hothers) |
-              (Hneq & Hi1sb & Hi2sb & Hothers)]].
-        * (* no swapped elements *)
-          subst. pose proof (Hv i2). step in H. destruct H as [Hf _].
-          edestruct Hf as [? ? ?]; eauto.
-          eapply trans_thread_schedule_val_SS in H.
-          eexists. apply H. rewrite Hequ. apply CIH; cbn.
-          admit. admit.
-          left. split; eauto.
-          intros. apply remove_vec_vec_relation; auto.
-        * (* swapped elements are elsewhere in v: i3 and i4 *)
-          subst. pose proof (Hothers i2 Hneq2 Hneq3).
-          step in H. destruct H as [Hf _].
-          edestruct Hf as [? ? ?]; eauto.
-          rewrite <- (of_nat_to_nat_inv i) in Hequ. rewrite <- (of_nat_to_nat_inv i2) in Hequ.
-          destruct (to_nat i) as [i' Hi'] eqn:Hi.
-          destruct (to_nat i2) as [i2' Hi2'] eqn:Hi2. cbn in Hequ.
-          destruct (to_nat i3) as [i3' Hi3'] eqn:Hi3.
-          destruct (to_nat i4) as [i4' Hi4'] eqn:Hi4.
-          assert (i3' < i2' \/ i3' > i2').
-          {
-            rewrite <- (of_nat_to_nat_inv i3) in Hneq2. rewrite Hi3 in Hneq2.
-            rewrite <- (of_nat_to_nat_inv i2) in Hneq2. rewrite Hi2 in Hneq2. cbn in Hneq2.
-            rewrite <- of_nat_lt_sig1_neq in Hneq2. lia.
-          }
-          assert (i4' < i2' \/ i4' > i2').
-          {
-            rewrite <- (of_nat_to_nat_inv i4) in Hneq3. rewrite Hi4 in Hneq3.
-            rewrite <- (of_nat_to_nat_inv i2) in Hneq3. rewrite Hi2 in Hneq3. cbn in Hneq3.
-            rewrite <- of_nat_lt_sig1_neq in Hneq3. lia.
-          }
-          destruct H1, H2.
-          (* TODO: clean up all this copy and paste *)
-          (* i3' < i2', i4' < i2' *)
-          {
-            assert (Hneq4: i3' <> i4').
-            {
-              rewrite of_nat_lt_sig1_neq.
-              rewrite <- (of_nat_to_nat_inv i3) in Hneq1. rewrite Hi3 in Hneq1.
-              rewrite <- (of_nat_to_nat_inv i4) in Hneq1. rewrite Hi4 in Hneq1.
-              apply Hneq1.
-            }
-            destruct (PeanoNat.Nat.eq_dec i' i3'); [| destruct (PeanoNat.Nat.eq_dec i' i4')].
-            {
-              (* we are going to i3' next *)
-              subst. rename Hi' into Hi3''.
-              assert (Hi4'' : i4' < S n') by lia.
-              apply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi4'')) in H.
-              eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-              right. right. split.
-              {
-                intro. eapply f_equal in H3. do 2 rewrite to_nat_of_nat in H3.
-                inv H3. contradiction.
-              }
-              split; [| split].
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                do 2 (erewrite <- remove_vec_index_before; eauto).
-                rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                apply Hi1sb.
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                do 2 (erewrite <- remove_vec_index_before; eauto).
-                rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                apply Hi2sb.
-              - intros.
-                destruct (to_nat i0) as [i0' Hi0'] eqn:Hi0.
-                rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                rewrite <- (of_nat_to_nat_inv i0). rewrite Hi0. cbn.
-                rewrite <- (of_nat_to_nat_inv i0) in H3, H4. rewrite Hi0 in H3, H4. cbn in *.
-                assert (i0' < i2' \/ i0' = i2' \/ i0' > i2') by lia.
-                destruct H5 as [? | [? | ?]].
-                + assert (Hi0'' : i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  rewrite <- of_nat_lt_sig1_neq in H3.
-                  rewrite <- of_nat_lt_sig1_neq in H4.
-                  do 2 (erewrite <- remove_vec_index_before; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3. cbn.
-                    rewrite <- of_nat_lt_sig1_neq. auto.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4. cbn.
-                    rewrite <- of_nat_lt_sig1_neq. auto.
-                + subst. rename i2' into i0'.
-                  assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_after; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-            }
-            {
-              (* we are going to i4' next *)
-              subst. rename Hi' into Hi4''.
-              assert (Hi3'' : i3' < S n') by lia.
-              apply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi3'')) in H.
-              eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-              right. right. split.
-              {
-                intro. eapply f_equal in H3. do 2 rewrite to_nat_of_nat in H3.
-                inv H3. contradiction.
-              }
-              split; [| split].
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                do 2 (erewrite <- remove_vec_index_before; eauto).
-                rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                symmetry. apply Hi2sb.
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                do 2 (erewrite <- remove_vec_index_before; eauto).
-                rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                symmetry. apply Hi1sb.
-              - intros.
-                destruct (to_nat i0) as [i0' Hi0'] eqn:Hi0.
-                rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                rewrite <- (of_nat_to_nat_inv i0). rewrite Hi0. cbn.
-                rewrite <- (of_nat_to_nat_inv i0) in H3, H4. rewrite Hi0 in H3, H4. cbn in *.
-                assert (i0' < i2' \/ i0' = i2' \/ i0' > i2') by lia.
-                destruct H5 as [? | [? | ?]].
-                + assert (Hi0'' : i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  rewrite <- of_nat_lt_sig1_neq in H3.
-                  rewrite <- of_nat_lt_sig1_neq in H4.
-                  do 2 (erewrite <- remove_vec_index_before; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3. cbn.
-                    rewrite <- of_nat_lt_sig1_neq. auto.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4. cbn.
-                    rewrite <- of_nat_lt_sig1_neq. auto.
-                + subst. rename i2' into i0'.
-                  assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_after; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-            }
-            {
-              (* we are going to i', which is not one of the swapped elements *)
-              assert (Hi3'' : i3' < S n') by lia.
-              assert (Hi4'' : i4' < S n') by lia.
-              apply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi')) in H.
-              eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-              right. left. split; auto.
-              exists (of_nat_lt Hi3''), (of_nat_lt Hi4'').
-              split; [| split; [| split]]; try solve [rewrite <- of_nat_lt_sig1_neq; auto].
-              split; [| split].
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                do 2 (erewrite <- remove_vec_index_before; eauto).
-                rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                apply Hi1sb.
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                do 2 (erewrite <- remove_vec_index_before; eauto).
-                rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                apply Hi2sb.
-              - intros.
-                destruct (to_nat i0) as [i0' Hi0'] eqn:Hi0.
-                rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                rewrite <- (of_nat_to_nat_inv i0). rewrite Hi0. cbn.
-                rewrite <- (of_nat_to_nat_inv i0) in H3, H4. rewrite Hi0 in H3, H4. cbn in *.
-                assert (i0' < i2' \/ i0' = i2' \/ i0' > i2') by lia.
-                destruct H5 as [? | [? | ?]].
-                + assert (Hi0'' : i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  rewrite <- of_nat_lt_sig1_neq in H3.
-                  rewrite <- of_nat_lt_sig1_neq in H4.
-                  do 2 (erewrite <- remove_vec_index_before; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3. cbn.
-                    rewrite <- of_nat_lt_sig1_neq. auto.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4. cbn.
-                    rewrite <- of_nat_lt_sig1_neq. auto.
-                + subst. rename i2' into i0'.
-                  assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_after; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-            }
-          }
-          (* i3' < i2', i4' > i2' *)
-          {
-            destruct i4'. inv H2.
-            assert (Hneq4: i3' <> i4').
-            {
-              rewrite <- (of_nat_to_nat_inv i3) in Hneq1. rewrite Hi3 in Hneq1.
-              rewrite <- (of_nat_to_nat_inv i4) in Hneq1. rewrite Hi4 in Hneq1.
-              rewrite <- of_nat_lt_sig1_neq in Hneq1. cbn in Hneq1. lia.
-            }
-
-            destruct (PeanoNat.Nat.eq_dec i' i3'); [| destruct (PeanoNat.Nat.eq_dec i' i4')].
-            {
-              (* we are going to i3' next *)
-              subst. rename Hi' into Hi3''.
-              (* destruct i4'. inv H2. (* subtract i4' by one *) *)
-              assert (Hi4'' : i4' < S n') by lia.
-              apply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi4'')) in H.
-              eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-              right. right. split.
-              {
-                intro. eapply f_equal in H3. do 2 rewrite to_nat_of_nat in H3.
-                inv H3. contradiction.
-              }
-              split; [| split].
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                erewrite <- remove_vec_index_before; eauto.
-                assert (i4' = i2' \/ i4' > i2') by lia. destruct H3.
-                + subst. erewrite <- remove_vec_index_eq; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                erewrite <- remove_vec_index_before; eauto.
-                assert (i4' = i2' \/ i4' > i2') by lia. destruct H3.
-                + subst. erewrite <- remove_vec_index_eq; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-              - intros.
-                destruct (to_nat i0) as [i0' Hi0'] eqn:Hi0.
-                rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                rewrite <- (of_nat_to_nat_inv i0). rewrite Hi0. cbn.
-                rewrite <- (of_nat_to_nat_inv i0) in H3, H4. rewrite Hi0 in H3, H4. cbn in *.
-                assert (i0' < i2' \/ i0' = i2' \/ i0' > i2') by lia.
-                destruct H5 as [? | [? | ?]].
-                + assert (Hi0'' : i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  rewrite <- of_nat_lt_sig1_neq in H3.
-                  rewrite <- of_nat_lt_sig1_neq in H4.
-                  do 2 (erewrite <- remove_vec_index_before; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3. cbn.
-                    rewrite <- of_nat_lt_sig1_neq. auto.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + subst. rename i2' into i0'.
-                  assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_after; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-            }
-            {
-              (* we are going to i4' next *)
-              subst. rename Hi' into Hi4''.
-              assert (Hi3'' : i3' < S n') by lia.
-              apply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi3'')) in H.
-              eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-              right. right. split.
-              {
-                intro. eapply f_equal in H3. do 2 rewrite to_nat_of_nat in H3.
-                inv H3. contradiction.
-              }
-              split; [| split].
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                assert (i4' = i2' \/ i4' > i2') by lia. destruct H3.
-                + subst. erewrite <- remove_vec_index_eq; eauto.
-                  erewrite <- remove_vec_index_before; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  symmetry. eapply Hi2sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  erewrite <- remove_vec_index_before; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  symmetry. apply Hi2sb.
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                assert (i4' = i2' \/ i4' > i2') by lia. destruct H3.
-                + subst. erewrite <- remove_vec_index_eq; eauto.
-                  erewrite <- remove_vec_index_before; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  symmetry. eapply Hi1sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  erewrite <- remove_vec_index_before; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  symmetry. eapply Hi1sb.
-              - intros.
-                destruct (to_nat i0) as [i0' Hi0'] eqn:Hi0.
-                rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                rewrite <- (of_nat_to_nat_inv i0). rewrite Hi0. cbn.
-                rewrite <- (of_nat_to_nat_inv i0) in H3, H4. rewrite Hi0 in H3, H4. cbn in *.
-                assert (i0' < i2' \/ i0' = i2' \/ i0' > i2') by lia.
-                destruct H5 as [? | [? | ?]].
-                + assert (Hi0'' : i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  rewrite <- of_nat_lt_sig1_neq in H3.
-                  rewrite <- of_nat_lt_sig1_neq in H4.
-                  do 2 (erewrite <- remove_vec_index_before; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3. cbn.
-                    rewrite <- of_nat_lt_sig1_neq. auto.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + subst. rename i2' into i0'.
-                  assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_after; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-            }
-            {
-              (* we are going to i', which is not one of the swapped elements *)
-              assert (Hi3'' : i3' < S n') by lia.
-              assert (Hi4'' : i4' < S n') by lia.
-              apply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi')) in H.
-              eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-              right. left. split; auto.
-              exists (of_nat_lt Hi3''), (of_nat_lt Hi4'').
-              split; [| split; [| split]]; try solve [rewrite <- of_nat_lt_sig1_neq; auto].
-              split; [| split].
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                erewrite <- remove_vec_index_before; eauto.
-                assert (i4' = i2' \/ i4' > i2') by lia. destruct H3.
-                + subst. erewrite <- remove_vec_index_eq; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                erewrite <- remove_vec_index_before; eauto.
-                assert (i4' = i2' \/ i4' > i2') by lia. destruct H3.
-                + subst. erewrite <- remove_vec_index_eq; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-                + subst. erewrite <- remove_vec_index_after; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-              - intros.
-                destruct (to_nat i0) as [i0' Hi0'] eqn:Hi0.
-                rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                rewrite <- (of_nat_to_nat_inv i0). rewrite Hi0. cbn.
-                rewrite <- (of_nat_to_nat_inv i0) in H3, H4. rewrite Hi0 in H3, H4. cbn in *.
-                assert (i0' < i2' \/ i0' = i2' \/ i0' > i2') by lia.
-                destruct H5 as [? | [? | ?]].
-                + assert (Hi0'' : i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  rewrite <- of_nat_lt_sig1_neq in H3.
-                  rewrite <- of_nat_lt_sig1_neq in H4.
-                  do 2 (erewrite <- remove_vec_index_before; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3. cbn.
-                    rewrite <- of_nat_lt_sig1_neq. auto.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + subst. rename i2' into i0'.
-                  assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_after; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-            }
-          }
-          (* i3' > i2', i4' < i2' *)
-          {
-            destruct i3'. inv H1.
-            assert (Hneq4: i3' <> i4').
-            {
-              rewrite <- (of_nat_to_nat_inv i3) in Hneq1. rewrite Hi3 in Hneq1.
-              rewrite <- (of_nat_to_nat_inv i4) in Hneq1. rewrite Hi4 in Hneq1.
-              rewrite <- of_nat_lt_sig1_neq in Hneq1. cbn in Hneq1. lia.
-            }
-            destruct (PeanoNat.Nat.eq_dec i' i3'); [| destruct (PeanoNat.Nat.eq_dec i' i4')].
-            {
-              (* we are going to i3' next *)
-              subst. rename Hi' into Hi3''.
-              assert (Hi4'' : i4' < S n') by lia.
-              apply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi4'')) in H.
-              eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-              right. right. split.
-              {
-                intro. eapply f_equal in H3. do 2 rewrite to_nat_of_nat in H3.
-                inv H3. contradiction.
-              }
-              split; [| split].
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                assert (i3' = i2' \/ i3' > i2') by lia. destruct H3.
-                + erewrite <- remove_vec_index_eq; eauto.
-                  erewrite <- remove_vec_index_before; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  erewrite <- remove_vec_index_before; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                assert (i3' = i2' \/ i3' > i2') by lia. destruct H3.
-                + erewrite <- remove_vec_index_eq; eauto.
-                  erewrite <- remove_vec_index_before; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  erewrite <- remove_vec_index_before; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-              - intros.
-                destruct (to_nat i0) as [i0' Hi0'] eqn:Hi0.
-                rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                rewrite <- (of_nat_to_nat_inv i0). rewrite Hi0. cbn.
-                rewrite <- (of_nat_to_nat_inv i0) in H3, H4. rewrite Hi0 in H3, H4. cbn in *.
-                assert (i0' < i2' \/ i0' = i2' \/ i0' > i2') by lia.
-                destruct H5 as [? | [? | ?]].
-                + assert (Hi0'' : i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  rewrite <- of_nat_lt_sig1_neq in H3.
-                  rewrite <- of_nat_lt_sig1_neq in H4.
-                  do 2 (erewrite <- remove_vec_index_before; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4. cbn.
-                    rewrite <- of_nat_lt_sig1_neq. auto.
-                + subst. rename i2' into i0'.
-                  assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_after; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-            }
-            {
-              (* we are going to i4' next *)
-              subst. rename Hi' into Hi4''.
-              assert (Hi3'' : i3' < S n') by lia.
-              apply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi3'')) in H.
-              eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-              right. right. split.
-              {
-                intro. eapply f_equal in H3. do 2 rewrite to_nat_of_nat in H3.
-                inv H3. contradiction.
-              }
-              split; [| split].
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                erewrite <- remove_vec_index_before; eauto.
-                assert (i3' = i2' \/ i3' > i2') by lia. destruct H3.
-                + subst. erewrite <- remove_vec_index_eq; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  symmetry. apply Hi2sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  symmetry. apply Hi2sb.
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                erewrite <- remove_vec_index_before; eauto.
-                assert (i3' = i2' \/ i3' > i2') by lia. destruct H3.
-                + subst. erewrite <- remove_vec_index_eq; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  symmetry. apply Hi1sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  symmetry. apply Hi1sb.
-              - intros.
-                destruct (to_nat i0) as [i0' Hi0'] eqn:Hi0.
-                rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                rewrite <- (of_nat_to_nat_inv i0). rewrite Hi0. cbn.
-                rewrite <- (of_nat_to_nat_inv i0) in H3, H4. rewrite Hi0 in H3, H4. cbn in *.
-                assert (i0' < i2' \/ i0' = i2' \/ i0' > i2') by lia.
-                destruct H5 as [? | [? | ?]].
-                + assert (Hi0'' : i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  rewrite <- of_nat_lt_sig1_neq in H3.
-                  rewrite <- of_nat_lt_sig1_neq in H4.
-                  do 2 (erewrite <- remove_vec_index_before; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4. cbn.
-                    rewrite <- of_nat_lt_sig1_neq. auto.
-                + subst. rename i2' into i0'.
-                  assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq in H4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_after; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq in H4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-            }
-            {
-              (* we are going to i', which is not one of the swapped elements *)
-              assert (Hi3'' : i3' < S n') by lia.
-              assert (Hi4'' : i4' < S n') by lia.
-              apply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi')) in H.
-              eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-              right. left. split; auto.
-              exists (of_nat_lt Hi3''), (of_nat_lt Hi4'').
-              split; [| split; [| split]]; try solve [rewrite <- of_nat_lt_sig1_neq; auto].
-              split; [| split].
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                assert (i3' = i2' \/ i3' > i2') by lia. destruct H3.
-                + subst. erewrite <- remove_vec_index_eq; eauto.
-                  erewrite <- remove_vec_index_before; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  erewrite <- remove_vec_index_before; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                assert (i3' = i2' \/ i3' > i2') by lia. destruct H3.
-                + subst. erewrite <- remove_vec_index_eq; eauto.
-                  erewrite <- remove_vec_index_before; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  erewrite <- remove_vec_index_before; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-              - intros.
-                destruct (to_nat i0) as [i0' Hi0'] eqn:Hi0.
-                rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                rewrite <- (of_nat_to_nat_inv i0). rewrite Hi0. cbn.
-                rewrite <- (of_nat_to_nat_inv i0) in H3, H4. rewrite Hi0 in H3, H4. cbn in *.
-                assert (i0' < i2' \/ i0' = i2' \/ i0' > i2') by lia.
-                destruct H5 as [? | [? | ?]].
-                + assert (Hi0'' : i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  rewrite <- of_nat_lt_sig1_neq in H3.
-                  rewrite <- of_nat_lt_sig1_neq in H4.
-                  do 2 (erewrite <- remove_vec_index_before; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4. cbn.
-                    rewrite <- of_nat_lt_sig1_neq. auto.
-                + subst. rename i2' into i0'.
-                  assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_after; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-            }
-          }
-          (* i3' > i2', i4' > i2' *)
-          {
-            destruct i3'. inv H1.
-            destruct i4'. inv H2.
-            assert (Hneq4: i3' <> i4').
-            {
-              rewrite <- (of_nat_to_nat_inv i3) in Hneq1. rewrite Hi3 in Hneq1.
-              rewrite <- (of_nat_to_nat_inv i4) in Hneq1. rewrite Hi4 in Hneq1.
-              rewrite <- of_nat_lt_sig1_neq in Hneq1. cbn in Hneq1. lia.
-            }
-
-            destruct (PeanoNat.Nat.eq_dec i' i3'); [| destruct (PeanoNat.Nat.eq_dec i' i4')].
-            {
-              (* we are going to i3' next *)
-              subst. rename Hi' into Hi3''.
-              (* destruct i4'. inv H2. (* subtract i4' by one *) *)
-              assert (Hi4'' : i4' < S n') by lia.
-              apply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi4'')) in H.
-              eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-              right. right. split.
-              {
-                intro. eapply f_equal in H3. do 2 rewrite to_nat_of_nat in H3.
-                inv H3. contradiction.
-              }
-              split; [| split].
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                assert (i3' = i2' \/ i3' > i2') by lia.
-                assert (i4' = i2' \/ i4' > i2') by lia. destruct H3, H4.
-                + do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-                + erewrite <- remove_vec_index_eq; eauto.
-                  erewrite <- remove_vec_index_after; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  erewrite <- remove_vec_index_eq; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-                + do 2 (erewrite <- remove_vec_index_after; eauto).
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                assert (i3' = i2' \/ i3' > i2') by lia.
-                assert (i4' = i2' \/ i4' > i2') by lia. destruct H3, H4.
-                + do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-                + erewrite <- remove_vec_index_eq; eauto.
-                  erewrite <- remove_vec_index_after; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  erewrite <- remove_vec_index_eq; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-                + do 2 (erewrite <- remove_vec_index_after; eauto).
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-              - intros.
-                destruct (to_nat i0) as [i0' Hi0'] eqn:Hi0.
-                rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                rewrite <- (of_nat_to_nat_inv i0). rewrite Hi0. cbn.
-                rewrite <- (of_nat_to_nat_inv i0) in H3, H4. rewrite Hi0 in H3, H4. cbn in *.
-                assert (i0' < i2' \/ i0' = i2' \/ i0' > i2') by lia.
-                destruct H5 as [? | [? | ?]].
-                + assert (Hi0'' : i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  rewrite <- of_nat_lt_sig1_neq in H3.
-                  rewrite <- of_nat_lt_sig1_neq in H4.
-                  do 2 (erewrite <- remove_vec_index_before; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + subst. rename i2' into i0'.
-                  assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_after; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-            }
-            {
-              (* we are going to i4' next *)
-              subst. rename Hi' into Hi4''.
-              assert (Hi3'' : i3' < S n') by lia.
-              apply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi3'')) in H.
-              eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-              right. right. split.
-              {
-                intro. eapply f_equal in H3. do 2 rewrite to_nat_of_nat in H3.
-                inv H3. contradiction.
-              }
-              split; [| split].
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                assert (i4' = i2' \/ i4' > i2') by lia.
-                assert (i3' = i2' \/ i3' > i2') by lia. destruct H3, H4.
-                + do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  symmetry. eapply Hi2sb.
-                + erewrite <- remove_vec_index_eq; eauto.
-                  erewrite <- remove_vec_index_after; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  symmetry. eapply Hi2sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  erewrite <- remove_vec_index_eq; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  symmetry. eapply Hi2sb.
-                + do 2 (erewrite <- remove_vec_index_after; eauto).
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  symmetry. eapply Hi2sb.
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                assert (i4' = i2' \/ i4' > i2') by lia.
-                assert (i3' = i2' \/ i3' > i2') by lia. destruct H3, H4.
-                + do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  symmetry. eapply Hi1sb.
-                + erewrite <- remove_vec_index_eq; eauto.
-                  erewrite <- remove_vec_index_after; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  symmetry. eapply Hi1sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  erewrite <- remove_vec_index_eq; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  symmetry. eapply Hi1sb.
-                + do 2 (erewrite <- remove_vec_index_after; eauto).
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  symmetry. eapply Hi1sb.
-              - intros.
-                destruct (to_nat i0) as [i0' Hi0'] eqn:Hi0.
-                rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                rewrite <- (of_nat_to_nat_inv i0). rewrite Hi0. cbn.
-                rewrite <- (of_nat_to_nat_inv i0) in H3, H4. rewrite Hi0 in H3, H4. cbn in *.
-                assert (i0' < i2' \/ i0' = i2' \/ i0' > i2') by lia.
-                destruct H5 as [? | [? | ?]].
-                + assert (Hi0'' : i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  rewrite <- of_nat_lt_sig1_neq in H3.
-                  rewrite <- of_nat_lt_sig1_neq in H4.
-                  do 2 (erewrite <- remove_vec_index_before; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + subst. rename i2' into i0'.
-                  assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq in H4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_after; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq in H4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-            }
-            {
-              (* we are going to i', which is not one of the swapped elements *)
-              assert (Hi3'' : i3' < S n') by lia.
-              assert (Hi4'' : i4' < S n') by lia.
-              apply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi')) in H.
-              eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-              right. left. split; auto.
-              exists (of_nat_lt Hi3''), (of_nat_lt Hi4'').
-              split; [| split; [| split]]; try solve [rewrite <- of_nat_lt_sig1_neq; auto].
-              split; [| split].
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                assert (i3' = i2' \/ i3' > i2') by lia.
-                assert (i4' = i2' \/ i4' > i2') by lia. destruct H3, H4.
-                + do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-                + erewrite <- remove_vec_index_eq; eauto.
-                  erewrite <- remove_vec_index_after; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  erewrite <- remove_vec_index_eq; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-                + do 2 (erewrite <- remove_vec_index_after; eauto).
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi1sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi1sb.
-                  rewrite Hi3, Hi4 in Hi1sb. cbn in Hi1sb.
-                  apply Hi1sb.
-              - rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2. cbn.
-                assert (i3' = i2' \/ i3' > i2') by lia.
-                assert (i4' = i2' \/ i4' > i2') by lia. destruct H3, H4.
-                + do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-                + erewrite <- remove_vec_index_eq; eauto.
-                  erewrite <- remove_vec_index_after; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-                + erewrite <- remove_vec_index_after; eauto.
-                  erewrite <- remove_vec_index_eq; eauto.
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-                + do 2 (erewrite <- remove_vec_index_after; eauto).
-                  rewrite <- (of_nat_to_nat_inv i3) in Hi2sb.
-                  rewrite <- (of_nat_to_nat_inv i4) in Hi2sb.
-                  rewrite Hi3, Hi4 in Hi2sb. cbn in Hi2sb.
-                  apply Hi2sb.
-              - intros.
-                destruct (to_nat i0) as [i0' Hi0'] eqn:Hi0.
-                rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-                rewrite <- (of_nat_to_nat_inv i0). rewrite Hi0. cbn.
-                rewrite <- (of_nat_to_nat_inv i0) in H3, H4. rewrite Hi0 in H3, H4. cbn in *.
-                assert (i0' < i2' \/ i0' = i2' \/ i0' > i2') by lia.
-                destruct H5 as [? | [? | ?]].
-                + assert (Hi0'' : i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  rewrite <- of_nat_lt_sig1_neq in H3.
-                  rewrite <- of_nat_lt_sig1_neq in H4.
-                  do 2 (erewrite <- remove_vec_index_before; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + subst. rename i2' into i0'.
-                  assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_eq; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                + assert (Hi0'' : S i0' < S (S n')) by lia.
-                  specialize (Hothers (of_nat_lt Hi0'')).
-                  do 2 (erewrite <- remove_vec_index_after; eauto).
-                  eapply Hothers; eauto.
-                  * rewrite <- (of_nat_to_nat_inv i3). rewrite Hi3.
-                    rewrite <- of_nat_lt_sig1_neq in H3.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-                  * rewrite <- (of_nat_to_nat_inv i4). rewrite Hi4.
-                    rewrite <- of_nat_lt_sig1_neq in H4.
-                    rewrite <- of_nat_lt_sig1_neq. cbn. lia.
-            }
-          }
-        * (* the finished thread is one of the swapped threads. this can lead to there still being 2 swapped threads, or no swapped threads, depending on the positions of the two threads *)
-          rewrite <- (of_nat_to_nat_inv i) in Hequ. rewrite <- (of_nat_to_nat_inv i1) in Hequ.
-          destruct (to_nat i) as [i' Hi'] eqn:Hi.
-          destruct (to_nat i1) as [i1' Hi1'] eqn:Hi1. cbn in Hequ.
-          destruct (to_nat i2) as [i2' Hi2'] eqn:Hi2.
-          pose proof Hi1sb.
-          step in H. destruct H as [Hf _].
-          edestruct Hf as [? ? ?]; eauto.
-          assert (i1' <> i2') by admit.
-          assert (i1' = S i2' \/ i2' =  S i1' \/ S i1' < i2' \/ S i2' < i1') by lia.
-          destruct H2 as [? | [? | [? | ?]]].
-          -- (* | i2 | i1 |, no more swapped elements *)
-            subst.
-            assert (i' < i2' \/ i' = i2' \/ i' > i2') by lia. destruct H2.
-            ++ eapply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi')) in H.
-               eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-               left. split; auto.
-               intros. rewrite <- (of_nat_to_nat_inv i2). rewrite Hi2.
-             assert (i4' < i2' \/ i4' > i2').
-             cbn.
-          -- (* | i1 | i2 |, no more swapped elements *)
-          -- (* | i1 | ... | i2 |, still swapped elements *)
-          -- (* | i2 | ... | i1 | *)
-
-          (* copy struct from prev case, do case analysis on top level, then
-             do case analysis here on what i is *)
-
-          eapply trans_thread_schedule_val_SS with (i':=(of_nat_lt Hi')) in H.
-          eexists. apply H. rewrite Hequ. apply CIH; clear CIH. admit. admit.
-
-
-          (* we just removed one of the swapped ones, so now it can either be all in order or there can still be one swapped.... *)
-          (* right. left. split; auto.  *)
-          left. split; eauto.
-          intros. admit.
-      + (* tau step *)
-        destruct n; try inv i1.
-        destruct H0 as (t' & Ht & Hbound & Hequ).
-        destruct Hi as [
-            (? & Hv) | [
-              (? & i3 & i4 & Hneq1 & Hneq2 & Hneq3 & Hi1sb & Hi2sb & Hothers) |
-              (Hneq & Hi1sb & Hi2sb & Hothers)]].
-        * subst. pose proof (Hv i2). step in H. destruct H as [Hf _].
-          edestruct Hf as [? ? ?]; eauto.
-          epose proof (trans_choiceI_bound _ _ _ _ _ H).
-          apply trans_thread_schedule_tau in H.
-          eexists; eauto. rewrite Hequ. apply CIH. admit. admit.
-          left. split; auto.
-          intros. destruct (Fin.eq_dec i i2).
-          -- subst. do 2 rewrite replace_vec_eq. auto.
-          -- do 2 (rewrite replace_vec_neq; auto).
-        * subst. epose proof (Hothers i2 _ _); eauto. step in H. destruct H as [Hf _].
-          edestruct Hf as [? ? ?]; eauto.
-          epose proof (trans_choiceI_bound _ _ _ _ _ H).
-          apply trans_thread_schedule_tau in H.
-          eexists; eauto. rewrite Hequ. apply CIH. admit. admit.
-          right. left. split; auto. exists i3, i4. split; [| split; [| split]]; auto.
-          split; [| split].
-          -- do 2 (rewrite replace_vec_neq; auto).
-          -- do 2 (rewrite replace_vec_neq; auto).
-          -- intros. destruct (Fin.eq_dec i i2).
-             ++ subst. do 2 rewrite replace_vec_eq; auto.
-             ++ do 2 (rewrite replace_vec_neq; auto); auto.
-        * step in Hi1sb. destruct Hi1sb as [Hf _].
-          edestruct Hf as [? ? ?]; eauto.
-          epose proof (trans_choiceI_bound _ _ _ _ _ H).
-          apply trans_thread_schedule_tau in H.
-          eexists; eauto. rewrite Hequ. apply CIH. admit. admit.
-          right. right. split; auto.
-          split; [| split].
-          -- do 2 rewrite replace_vec_eq; auto.
-          -- do 2 (rewrite replace_vec_neq; auto).
-          -- intros. do 2 (rewrite replace_vec_neq; auto).
-      + (* The thread yields *)
-        destruct H as (k & Hvis & i' & Hequ).
-        destruct Hi as [
-            (? & Hv) | [
-              (? & i3 & i4 & Hneq1 & Hneq2 & Hneq3 & Hi1sb & Hi2sb & Hothers) |
-              (Hneq & Hi1sb & Hi2sb & Hothers)]].
-        * subst. destruct n; try inv i2.
-          pose proof Hvis as Hvis'.
-          eapply sbisim_visible in Hvis'. 5: apply Hv. all: auto.
-          destruct Hvis' as (k' & Hvis' & Hk).
-          exists (schedule (S n) (replace_vec v2 i2 (k' tt)) (Some i')).
-          2: { rewrite Hequ. apply CIH. admit. admit.
-               left. split; auto. intros.
-               apply replace_vec_vec_relation; auto.
-          }
-          apply visible_yield_trans_schedule; auto.
-        * subst. destruct n; try inv i2.
-          pose proof Hvis as Hvis'.
-          eapply sbisim_visible in Hvis'. 5: apply Hothers; auto. all: auto.
-          destruct Hvis' as (k' & Hvis' & Hk).
-          destruct (Fin.eq_dec i' i3); [| destruct (Fin.eq_dec i' i4)]; subst.
-          -- (* we are going to i3 *)
-            exists (schedule (S n) (replace_vec v2 i2 (k' tt)) (Some i4)).
-            2: { rewrite Hequ. apply CIH. admit. admit.
-                 right. right. split; auto. split; [| split]; auto.
-                 - do 2 (rewrite replace_vec_neq; auto).
-                 - do 2 (rewrite replace_vec_neq; auto).
-                 - intros. destruct (Fin.eq_dec i2 i).
-                   + subst. do 2 (rewrite replace_vec_eq; auto).
-                   + do 2 (rewrite replace_vec_neq; auto).
-            }
-          apply visible_yield_trans_schedule; auto.
-          -- (* we are going to i4 *)
-            exists (schedule (S n) (replace_vec v2 i2 (k' tt)) (Some i3)).
-            2: { rewrite Hequ. apply CIH. admit. admit.
-                 right. right. split; auto. split; [| split]; auto.
-                 - do 2 (rewrite replace_vec_neq; auto). symmetry; auto.
-                 - do 2 (rewrite replace_vec_neq; auto). symmetry; auto.
-                 - intros. destruct (Fin.eq_dec i2 i).
-                   + subst. do 2 (rewrite replace_vec_eq; auto).
-                   + do 2 (rewrite replace_vec_neq; auto).
-            }
-            apply visible_yield_trans_schedule; auto.
-          -- (* we are not going to a swapped element *)
-            exists (schedule (S n) (replace_vec v2 i2 (k' tt)) (Some i')).
-            2: { rewrite Hequ. apply CIH. admit. admit.
-                 right. left. split; auto. exists i3, i4. split; [| split; [| split]]; auto.
-                 split; [| split]; auto.
-                 - do 2 (rewrite replace_vec_neq; auto).
-                 - do 2 (rewrite replace_vec_neq; auto).
-                 - intros. destruct (Fin.eq_dec i2 i).
-                   + subst. do 2 (rewrite replace_vec_eq; auto).
-                   + do 2 (rewrite replace_vec_neq; auto).
-            }
-            apply visible_yield_trans_schedule; auto.
-        * destruct n; try inv i2.
-          pose proof Hvis as Hvis'.
-          eapply sbisim_visible in Hvis'. 5: apply Hi1sb. all: auto.
-          destruct Hvis' as (k' & Hvis' & Hk).
-          destruct (Fin.eq_dec i' i1); [| destruct (Fin.eq_dec i' i2)]; subst.
-          -- (* going to i1 *)
-            exists (schedule (S n) (replace_vec v2 i2 (k' tt)) (Some i2)).
-            2: { rewrite Hequ. apply CIH. admit. admit.
-                 right. right. split; auto. split; [| split]; auto.
-                 - do 2 (rewrite replace_vec_eq; auto).
-                 - do 2 (rewrite replace_vec_neq; auto).
-                 - intros. do 2 (rewrite replace_vec_neq; auto).
-            }
-            apply visible_yield_trans_schedule; auto.
-          -- (* going to i2 *)
-            exists (schedule (S n) (replace_vec v2 i2 (k' tt)) (Some i1)).
-            2: { rewrite Hequ. apply CIH. admit. admit.
-                 right. right. split; auto. split; [| split]; auto.
-                 - do 2 (rewrite replace_vec_neq; auto). symmetry; auto.
-                 - do 2 (rewrite replace_vec_eq; auto). symmetry; auto.
-                 - intros. do 2 (rewrite replace_vec_neq; auto).
-            }
-            apply visible_yield_trans_schedule; auto.
-          -- (* not going to a swapped element *)
-            exists (schedule (S n) (replace_vec v2 i2 (k' tt)) (Some i')).
-            2: { rewrite Hequ. apply CIH. admit. admit.
-                 right. left. split; auto. exists i1, i2. split; [| split; [| split]]; auto.
-                 split; [| split]; auto.
-                 - do 2 (rewrite replace_vec_eq; auto).
-                 - do 2 (rewrite replace_vec_neq; auto).
-                 - intros. do 2 (rewrite replace_vec_neq; auto).
-            }
-            apply visible_yield_trans_schedule; auto.
-      + (* the thread spawns a new thread *)
-        destruct H as (k & Hvis & Hequ).
-        destruct Hi as [
-            (? & Hv) | [
-              (? & i3 & i4 & Hneq1 & Hneq2 & Hneq3 & Hi1sb & Hi2sb & Hothers) |
-              (Hneq & Hi1sb & Hi2sb & Hothers)]].
-        * subst.
-          destruct n; try inv i2.
-          pose proof Hvis as Hvis'.
-          eapply sbisim_visible in Hvis'. 5: apply Hv. all: eauto.
-          2: { constructor. apply true. }
-          destruct Hvis' as (k' & ? & ?).
-          exists (schedule (S (S n))
-                      (cons_vec (k' true)
-                                (replace_vec v2 i2 (k' false)))
-                      (Some (Fin.FS i2))).
-          2: { rewrite Hequ. apply CIH. admit. admit.
-               left. split; auto. intros.
-               apply cons_vec_vec_relation; auto.
-               apply replace_vec_vec_relation; auto.
-          }
-          apply visible_spawn_trans_schedule; auto.
-        * subst.
-          destruct n; try inv i2.
-          pose proof Hvis as Hvis'.
-          eapply sbisim_visible in Hvis'. 5: apply Hothers; auto. all: eauto.
-          2: { constructor. apply true. }
-          destruct Hvis' as (k' & ? & ?).
-          exists (schedule (S (S n))
-                      (cons_vec (k' true)
-                                (replace_vec v2 i2 (k' false)))
-                      (Some (Fin.FS i2))).
-          2: { rewrite Hequ. apply CIH. admit. admit.
-               right. left. split; auto. exists (FS i3), (FS i4).
-               split; [| split; [| split]]; auto. admit. admit. admit.
-               split; [| split].
-               - simp cons_vec. do 2 (rewrite replace_vec_neq; auto).
-               - simp cons_vec. do 2 (rewrite replace_vec_neq; auto).
-               - intros. dependent destruction i; simp cons_vec.
-                 destruct (Fin.eq_dec i2 i).
-                 + subst. do 2 (rewrite replace_vec_eq; auto).
-                 + do 2 (rewrite replace_vec_neq; auto). apply Hothers. admit. admit.
-          }
-          apply visible_spawn_trans_schedule; auto.
-        * destruct n; try inv i2.
-          pose proof Hvis as Hvis'.
-          eapply sbisim_visible in Hvis'. 5: apply Hi1sb. all: eauto.
-          2: { constructor. apply true. }
-          destruct Hvis' as (k' & ? & ?).
-          exists (schedule (S (S n))
-                      (cons_vec (k' true)
-                                (replace_vec v2 i2 (k' false)))
-                      (Some (Fin.FS i2))).
-          2: { rewrite Hequ. apply CIH. admit. admit.
-               right. right. split. admit.
-               split; [| split].
-               - simp cons_vec. do 2 (rewrite replace_vec_eq; auto).
-               - simp cons_vec. do 2 (rewrite replace_vec_neq; auto).
-               - intros. dependent destruction i; simp cons_vec.
-                 assert (i <> i1) by admit.
-                 assert (i <> i2) by admit.
-                 do 2 (rewrite replace_vec_neq; auto).
-          }
-          apply visible_spawn_trans_schedule; auto.
-    - apply trans_schedule_obs in Ht.
-      destruct Ht as (k & i & s & ? & ? & Hvis & Hequ). inv H.
-      destruct n; try inv i.
-      pose proof Hvis as Hvis'.
-      destruct Hi as [
-          (? & Hv) | [
-            (? & i3 & i4 & Hneq1 & Hneq2 & Hneq3 & Hi1 & Hi2 & Hothers) |
-            (Hneq & Hi1 & Hi2 & Hothers)]].
-      + subst. pose proof (Hv i2).
-        eapply sbisim_visible in Hvis'. 5: apply Hv. all: eauto.
-        destruct Hvis' as (k' & ? & ?).
-        exists (schedule (S n) (replace_vec v2 i2 (k' v)) (Some i2)).
-        2: { rewrite Hequ. apply CIH; clear CIH. admit. admit.
-             left. split; auto.
-             intros. destruct (Fin.eq_dec i2 i).
-             - subst. do 2 rewrite replace_vec_eq; auto.
-             - do 2 (rewrite replace_vec_neq; auto).
-        }
-        eapply visible_stateE_trans_schedule in H0; eauto.
-      + subst. eapply sbisim_visible in Hvis'. 5: apply Hothers; auto. all: auto.
-        destruct Hvis' as (k' & ? & ?).
-        exists (schedule (S n) (replace_vec v2 i2 (k' v)) (Some i2)).
-        2: { rewrite Hequ. apply CIH; clear CIH. admit. admit.
-             right. left. split; auto.
-             exists i3, i4. split; [| split; [| split]]; auto.
-             split; [| split].
-             - do 2 (rewrite replace_vec_neq; auto).
-             - do 2 (rewrite replace_vec_neq; auto).
-             - intros. destruct (Fin.eq_dec i2 i).
-               + subst. do 2 rewrite replace_vec_eq; auto.
-               + do 2 (rewrite replace_vec_neq; auto).
-        }
-        eapply visible_stateE_trans_schedule in H; eauto.
-      + eapply sbisim_visible in Hvis'. 5: apply Hi1. all: auto.
-        destruct Hvis' as (k' & ? & ?).
-        exists (schedule (S n) (replace_vec v2 i2 (k' v)) (Some i2)).
-        2: { rewrite Hequ. apply CIH; clear CIH. admit. admit.
-             right. right. split; auto. split; [| split].
-             - do 2 rewrite replace_vec_eq; auto.
-             - do 2 (rewrite replace_vec_neq; auto).
-             - intros. do 2 (rewrite replace_vec_neq; auto).
-        }
-        eapply visible_stateE_trans_schedule in H; eauto.
-    - pose proof (trans_schedule_val_1 _ _ _ _ _ Ht). subst.
-      pose proof (trans_val_inv Ht).
-      destruct Hi as [
-          (? & Hv) | [
-            (? & i3 & i4 & Hneq1 & Hneq2 & Hneq3 & Hi1 & Hi2 & Hothers) |
-            (Hneq & Hi1 & Hi2 & Hothers)]].
-      + subst. pose proof (Hv i2). step in H0.
-        destruct H0 as [Hf _].
-        pose proof (trans_schedule_thread_val _ _ _ _ Ht) as Hv1.
-        edestruct Hf; eauto.
-        apply trans_thread_schedule_val_1 in H0. eexists; eauto. rewrite H. reflexivity.
-      + subst. specialize (Hothers i2 Hneq2 Hneq3). step in Hothers.
-        destruct Hothers as [Hf _].
-        pose proof (trans_schedule_thread_val _ _ _ _ Ht) as Hv1.
-        edestruct Hf; eauto.
-        apply trans_thread_schedule_val_1 in H0. eexists; eauto. rewrite H. reflexivity.
-      + step in Hi1. destruct Hi1 as [Hf _].
-        pose proof (trans_schedule_thread_val _ _ _ _ Ht) as Hv1.
-        edestruct Hf; eauto.
-        apply trans_thread_schedule_val_1 in H0. eexists; eauto. rewrite H. reflexivity.
-  Admitted.
-
-
-  Lemma schedule_perm_2 n (v1 v2 : vec n) i1 i2 :
-    v1 i1 ~ v2 i2 ->
-    v2 i1 ~ v1 i2 ->
-    (forall i, i <> i1 -> i <> i2 -> v1 i ~ v2 i) ->
-    schedule n v1 (Some i1) ~ schedule n v2 (Some i2).
-  Proof.
-    revert n v1 v2 i1 i2.
-    coinduction r CIH.
-    symmetric using idtac. { intros. apply H; symmetry; auto. }
-    intros n v1 v2 i1 i2 Hi1 Hi2 Hothers l t Ht. cbn in *.
-    destruct l.
-    - apply trans_schedule_thread_tau_some in Ht. 2: admit.
-      decompose [or] Ht; clear Ht.
-      + destruct H as (n' & i & Ht & ? & Hequ). subst.
-        step in Hi1. destruct Hi1 as [Hf _].
-        edestruct Hf as [? ? ?]; eauto.
-        eapply trans_thread_schedule_val_SS in H.
-        eexists. apply H. rewrite Hequ. apply CIH; cbn.
-        * admit.
-        * admit.
-        * intros. admit.
-      + destruct n; try inv i1.
-        destruct H0 as (t' & Ht & Hbound & Hequ).
-        step in Hi1. destruct Hi1 as [Hf _].
-        edestruct Hf as [? ? ?]; eauto.
-        epose proof (trans_choiceI_bound _ _ _ _ _ H).
-        apply trans_thread_schedule_tau in H.
-        eexists; eauto. rewrite Hequ. apply CIH.
-        * do 2 rewrite replace_vec_eq. auto.
-        * destruct (Fin.eq_dec i1 i2).
-          -- subst. do 2 rewrite replace_vec_eq. symmetry. auto.
-          -- do 2 (rewrite replace_vec_neq; auto).
-        * intros. do 2 (rewrite replace_vec_neq; auto).
-      + destruct H as (k & Hvis & i' & Hequ).
-        pose proof Hvis as Hvis'.
-        eapply sbisim_visible in Hvis'; eauto. 2, 3: admit.
-        destruct Hvis' as (k' & ? & ?).
-        destruct (Fin.eq_dec i' i1); [| destruct (Fin.eq_dec i' i2)]; subst.
-        { (* i1 = i' *)
-          exists (schedule n (replace_vec v2 i2 (k' tt)) (Some i2)).
-          2: {
-            rewrite Hequ. apply CIH.
-            - do 2 rewrite replace_vec_eq; auto.
-            - destruct (Fin.eq_dec i1 i2); subst.
-              + do 2 rewrite replace_vec_eq. symmetry; auto.
-              + do 2 (rewrite replace_vec_neq; auto).
-            - intros. do 2 (rewrite replace_vec_neq; auto).
-          }
-          destruct n; try inv i1.
-          apply visible_yield_trans_schedule; auto. admit.
-        }
-        { (* i1 <> i' = i2 *)
-          exists (schedule n (replace_vec v2 i2 (k' tt)) (Some i1)).
-          2: {
-            rewrite Hequ. apply CIH.
-            - do 2 (rewrite replace_vec_neq; auto). symmetry; auto.
-            - do 2 rewrite replace_vec_eq. symmetry; auto.
-            - intros. do 2 (rewrite replace_vec_neq; auto).
-          }
-          destruct n; try inv i1.
-          apply visible_yield_trans_schedule; auto. admit.
-        }
-        { (* i1 <> i' <> i2 *)
-          exists (schedule n (replace_vec v2 i2 (k' tt)) (Some i')).
-          2: {
-            rewrite Hequ. apply CIH.
-            - do 2 (rewrite replace_vec_neq; auto).
-            - do 2 (rewrite replace_vec_neq; auto). symmetry; auto.
-            - intros. destruct (Fin.eq_dec i i1); destruct (Fin.eq_dec i i2); subst.
-              + do 2 (rewrite replace_vec_eq; auto).
-              + rewrite replace_vec_eq. rewrite replace_vec_neq; auto.
-              + do 2 (rewrite replace_vec_eq; auto).
-              + do 2 (rewrite replace_vec_eq; auto).
-          }
-          destruct n; try inv i1.
-          apply visible_yield_trans_schedule; auto. admit.
-
-        }
-        destruct n; try inv i1.
-        apply visible_yield_trans_schedule; auto. admit.
-      +  destruct H as (k & Hvis & Hequ).
-         pose proof Hvis as Hvis'.
-         eapply sbisim_visible in Hvis'; eauto.
-         2: { constructor. apply true. }
-         2, 3: admit.
-         destruct Hvis' as (k' & ? & ?).
-         exists (schedule (S n)
-                     (cons_vec (k' true)
-                               (replace_vec v2 i2 (k' false)))
-                     (Some (Fin.FS i2))).
-         2: { rewrite Hequ. apply CIH.
-              - admit.
-              - admit.
-              - intros. admit.
-         }
-         destruct n; try inv i1.
-         apply visible_spawn_trans_schedule; auto. admit.
-    - apply trans_schedule_obs in Ht.
-      destruct Ht as (k & i & s & ? & ? & Hvis & Hequ). inv H.
-      destruct n; try inv i.
-      pose proof Hvis as Hvis'.
-      eapply sbisim_visible in Hvis'; eauto. 2, 3: admit.
-      destruct Hvis' as (k' & ? & ?).
-      exists (schedule (S n) (replace_vec v2 i2 (k' v)) (Some i2)).
-      2: { rewrite Hequ. apply CIH.
-           admit. admit. admit.
-      }
-      eapply visible_stateE_trans_schedule in H; eauto. admit.
-    - pose proof (trans_schedule_val_1 _ _ _ _ _ Ht). subst.
-      pose proof (trans_val_inv Ht).
-      step in Hi1. destruct Hi1 as [Hf _].
-      pose proof (trans_schedule_thread_val _ _ _ _ Ht) as Hv1.
-      edestruct Hf; eauto.
-      apply trans_thread_schedule_val_1 in H0. eexists; eauto. rewrite H. reflexivity.
-  Admitted.
-*)
 End parallel.

@@ -260,12 +260,14 @@ Section Denote1.
   Qed.
 
   Lemma schedule_spawns t1 t2 :
-    (schedule 1 (fun _ : fin 1 => denote_imp' (Seq (Spawn t1) (Spawn t2))) (Some Fin.F1)) ≅
-    TauV (TauV (TauI (schedule 2
-                               (cons_vec
-                                  (CTree.bind (denote_imp' t2) (fun _ => ChoiceI 0 (fun _ => ret tt)))
-                                  (fun _ => CTree.bind (denote_imp' t1) (fun _ => ChoiceI 0 (fun _ => ret tt))))
-                               None))).
+    (schedule 1 (fun _ : fin 1 => denote_imp' (Seq (Spawn t1) (Spawn t2))) (Some Fin.F1))
+      ≅
+     TauV (TauV (TauI
+     (schedule 2
+               (cons_vec
+                  (CTree.bind (denote_imp' t2) (fun _ => ChoiceI 0 (fun _ => ret tt)))
+                  (fun _ => CTree.bind (denote_imp' t1) (fun _ => ChoiceI 0 (fun _ => ret tt))))
+               None))).
   Proof.
     rewrite rewrite_schedule. simp schedule_match.
     cbn. CTree.fold_subst.
@@ -301,7 +303,6 @@ Section Denote1.
     - dependent destruction i. simp p; auto. inv i.
   Qed.
 
-
   Lemma schedule_order (t1 t2 : ctree (parE value) unit)
     (Hbound1 : choiceI_bound 1 t1)
     (Hbound2 : choiceI_bound 1 t2) :
@@ -314,19 +315,12 @@ Section Denote1.
                           (cons_vec t2 (fun _ => t1))
                           (Some i')).
   Proof.
-    apply sb_choiceV; intros i.
-    - exists (p i).
+    apply sb_choiceV; intros i; exists (p i); [| symmetry];
       apply (@schedule_permutation value) with (q:=p);
-        try solve [intros i0; dependent destruction i0; simp cons_vec];
-        try solve [apply p_inverse];
-        try solve [ intros i0; dependent destruction i0;
-                    [| dependent destruction i0; [| inv i0]]; simp p; simp cons_vec; auto].
-    - exists (p i). symmetry.
-      apply (@schedule_permutation value) with (q:=p);
-        try solve [intros i0; dependent destruction i0; simp cons_vec];
-        try solve [apply p_inverse];
-        try solve [ intros i0; dependent destruction i0;
-                    [| dependent destruction i0; [| inv i0]]; simp p; simp cons_vec; auto].
+      try solve [intros i0; dependent destruction i0; simp cons_vec];
+      try solve [apply p_inverse];
+      try solve [ intros i0; dependent destruction i0;
+                  [| dependent destruction i0; [| inv i0]]; simp p; simp cons_vec; auto].
   Qed.
 
   Lemma commut_spawns t1 t2 :
