@@ -61,6 +61,7 @@ Inductive stmt : Type :=
 | While  (t : expr) (b : stmt)   (* while (t) { b } *)
 | Spawn  (t : stmt)              (* spawn t *)
 | Skip                           (* ; *)
+| YieldS
 .
 
 Variant ImpState : Type -> Type :=
@@ -68,6 +69,9 @@ Variant ImpState : Type -> Type :=
 | SetVar (x : var) (v : value) : ImpState unit.
 
 Section Denote1.
+  Definition is_true (v : value) : bool := if (v =? 0)%nat then false else true.
+
+(*
   Fixpoint denote_expr (e : expr) : ctree (spawnE +' stateE value) value :=
     match e with
     | Var v     => trigger (Get _)
@@ -79,8 +83,6 @@ Section Denote1.
 
   Definition while (step : ctree (spawnE +' stateE value) (unit + unit)) : ctree (spawnE +' stateE value) unit :=
     CTree.iter (fun _ => step) tt.
-
-  Definition is_true (v : value) : bool := if (v =? 0)%nat then false else true.
 
   Fixpoint denote_imp (s : stmt) : ctree (spawnE +' stateE value) unit :=
     match s with
@@ -103,9 +105,9 @@ Section Denote1.
         | false => ret tt
         end
     | Skip => ret tt
-
     (* | Atomic t => translate ... (denote_imp t) *)
     end.
+ *)
 
 
   Definition while' (step : ctree (parE value) (unit + unit)) : ctree (parE value) unit :=
@@ -139,13 +141,14 @@ Section Denote1.
         | false => ret tt
         end
     | Skip => ret tt
-
+    | YieldS => trigger Yield
     (* | Atomic t => translate ... (denote_imp t) *)
     end.
 
-  Definition schedule_denot' (t : stmt) : thread :=
+  Definition schedule_denot' (t : stmt) : completed :=
     schedule 1 (fun _ => denote_imp' t) (Some Fin.F1).
 
+  (*
   Definition h_state : forall X, stateE value X -> ctree (parE value) X :=
     fun _ e =>
       match e with
@@ -171,7 +174,7 @@ Section Denote1.
 
   Definition schedule_denot (t : stmt) : thread :=
     schedule 1 (fun _ => interp_state (denote_imp t)) (Some Fin.F1).
-
+   *)
   Lemma denote_expr_bounded e :
     choiceI_bound 1 (denote_expr' e).
   Proof.
@@ -202,7 +205,7 @@ Section Denote1.
     - apply bind_choiceI_bound; auto.
     - apply bind_choiceI_bound. apply denote_expr_bounded.
       intros. step. step in IHt1. step in IHt2. destruct (is_true x); auto.
-    - unfold while. apply iter_choiceI_bound; auto.
+    - unfold while'. apply iter_choiceI_bound; auto.
       intros. apply bind_choiceI_bound. apply denote_expr_bounded.
       intros. destruct (is_true x).
       + apply bind_choiceI_bound; auto.
@@ -215,8 +218,10 @@ Section Denote1.
           intros. step. constructor; auto. intros. step. constructor.
         * step. constructor.
     - step. constructor.
+    - step. constructor. intros. step. constructor.
   Qed.
 
+  (*
   (* TODO: clean up proof *)
   Lemma interp_state_bounded t :
     choiceI_bound 1 t ->
@@ -258,7 +263,7 @@ Section Denote1.
       step in H. cbn in H. unfold choiceI_bound_ in H. rewrite Heqc in H.
       inversion H. invert. apply H2.
   Qed.
-
+   *)
   Lemma schedule_spawns t1 t2 :
     (schedule 1 (fun _ : fin 1 => denote_imp' (Seq (Spawn t1) (Spawn t2))) (Some Fin.F1))
       ≅
@@ -280,7 +285,7 @@ Section Denote1.
     rewrite rewrite_schedule. simp schedule_match. simp cons_vec. cbn.
     step. constructor. intros _.
 
-    apply equ_schedule. intro.
+    apply equ_schedule. intro i.
     dependent destruction i.
     - simp remove_vec. simp cons_vec. CTree.fold_subst.
       rewrite bind_ret_l. reflexivity.

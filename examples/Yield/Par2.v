@@ -401,10 +401,10 @@ Qed.
 
 (** Events used to model yields and spawns in our language *)
 Variant yieldE : Type -> Type :=
-| Yield : yieldE unit.
+  | Yield : yieldE unit.
 
 Variant spawnE : Type -> Type :=
-| Spawn : spawnE bool.
+  | Spawn : spawnE bool.
 
 Section parallel.
   Context {config : Type}.
@@ -417,23 +417,29 @@ Section parallel.
 
   Definition vec n := fin n -> thread.
 
-  Definition vec_relation {n : nat} (P : rel _ _) (v1 v2 : vec n) : Prop :=
-    forall i, P (v1 i) (v2 i).
+  (* Definition vec_relation {n : nat} (P : rel _ _) (v1 v2 : vec n) : Prop := *)
+  (*   forall i, P (v1 i) (v2 i). *)
 
-  Instance vec_relation_symmetric n (P : rel _ _) `{@Symmetric _ P} :
-    Symmetric (@vec_relation n P).
-  Proof. repeat intro. auto. Qed.
+  (* Instance vec_relation_symmetric n (P : rel _ _) `{@Symmetric _ P} : *)
+  (*   Symmetric (@vec_relation n P). *)
+  (* Proof. repeat intro. auto. Qed. *)
 
   (** Removing an element from a [vec] *)
   Definition remove_front_vec {n : nat} (v : vec (S n)) : vec n :=
     fun i => v (FS i).
 
-  Lemma remove_front_vec_vec_relation n P (v1 v2 : vec (S n)) :
-    vec_relation P v1 v2 ->
-    vec_relation P (remove_front_vec v1) (remove_front_vec v2).
+  #[global] Instance remove_front_vec_relation n P :
+    Proper (pwr P ==> pwr P) (@remove_front_vec n).
   Proof.
     repeat intro. apply H.
   Qed.
+
+  (* Lemma remove_front_vec_vec_relation n P (v1 v2 : vec (S n)) : *)
+  (*   vec_relation P v1 v2 -> *)
+  (*   vec_relation P (remove_front_vec v1) (remove_front_vec v2). *)
+  (* Proof. *)
+  (*   repeat intro. apply H. *)
+  (* Qed. *)
 
   Lemma remove_front_vec_choiceI_bound n n' (v : vec (S n)) :
     (forall i, choiceI_bound n' (v i)) ->
@@ -448,16 +454,26 @@ Section parallel.
     remove_vec v (FS i) (FS i') := remove_vec (remove_front_vec v) i i'.
   Transparent remove_vec.
 
-  Lemma remove_vec_vec_relation n P (v1 v2 : vec (S n)) i :
-    vec_relation P v1 v2 ->
-    vec_relation P (remove_vec v1 i) (remove_vec v2 i).
+  #[global] Instance remove_vec_relation n P :
+    Proper (pwr P ==> eq ==> pwr P) (@remove_vec n).
   Proof.
-    intros.
-    depind i; [apply remove_front_vec_vec_relation; auto |].
-    repeat intro. destruct i0; cbn; auto.
+    intros v1 v2 Pv ? i ?. subst.
+    depind i; [apply remove_front_vec_relation; auto |].
+    intro i'. destruct i'; cbn; auto.
     apply IHi; auto.
-    repeat intro. apply remove_front_vec_vec_relation; auto.
+    repeat intro. apply remove_front_vec_relation; auto.
   Qed.
+
+  (* Lemma remove_vec_vec_relation n P (v1 v2 : vec (S n)) i : *)
+  (*   vec_relation P v1 v2 -> *)
+  (*   vec_relation P (remove_vec v1 i) (remove_vec v2 i). *)
+  (* Proof. *)
+  (*   intros. *)
+  (*   depind i; [apply remove_front_vec_vec_relation; auto |]. *)
+  (*   repeat intro. destruct i0; cbn; auto. *)
+  (*   apply IHi; auto. *)
+  (*   repeat intro. apply remove_front_vec_vec_relation; auto. *)
+  (* Qed. *)
 
   Lemma remove_vec_choiceI_bound n n' (v : vec (S n)) i' :
     (forall i, choiceI_bound n' (v i)) ->
@@ -569,6 +585,12 @@ Section parallel.
   Definition replace_vec {n : nat} (v : vec n) (i : fin n) (t : thread) : vec n :=
     fun i' => if Fin.eqb i i' then t else v i'.
 
+  Lemma replace_vec_unary t1 t2 :
+    replace_vec (fun _: fin 1 => t1) F1 t2 = (fun _ => t2).
+  Proof.
+    apply functional_extensionality. intros. dependent destruction x; auto. inv x.
+  Qed.
+
   Lemma remove_front_vec_replace_vec n (v : vec (S n)) i t :
     remove_front_vec (replace_vec v (FS i) t) =
       replace_vec (remove_front_vec v) i t.
@@ -590,13 +612,19 @@ Section parallel.
     subst. cbn. eapply remove_vec_replace_vec_eq.
   Qed.
 
-  Lemma replace_vec_vec_relation n P (v1 v2 : vec n) i t1 t2 :
-    vec_relation P v1 v2 ->
-    P t1 t2 ->
-    vec_relation P (replace_vec v1 i t1) (replace_vec v2 i t2).
+  #[global] Instance replace_vec_relation n P :
+    Proper (pwr P ==> eq ==> P ==> pwr P) (@replace_vec n).
   Proof.
-    unfold replace_vec. repeat intro. destruct (Fin.eqb i i0); auto.
+    unfold replace_vec. repeat intro. subst. destruct (Fin.eqb y0 a); auto.
   Qed.
+
+  (* Lemma replace_vec_vec_relation n P (v1 v2 : vec n) i t1 t2 : *)
+  (*   vec_relation P v1 v2 -> *)
+  (*   P t1 t2 -> *)
+  (*   vec_relation P (replace_vec v1 i t1) (replace_vec v2 i t2). *)
+  (* Proof. *)
+  (*   unfold replace_vec. repeat intro. destruct (Fin.eqb i i0); auto. *)
+  (* Qed. *)
 
   Lemma replace_vec_choiceI_bound n n' (v : vec n) i' t :
     (forall i, choiceI_bound n' (v i)) ->
@@ -646,12 +674,18 @@ Section parallel.
     cons_vec t v (FS i)  := v i.
   Transparent cons_vec.
 
-  Lemma cons_vec_vec_relation n P (v1 v2 : vec n) t1 t2 :
-    vec_relation P v1 v2 ->
-    P t1 t2 ->
-    vec_relation P (cons_vec t1 v1) (cons_vec t2 v2).
+  (* Lemma cons_vec_vec_relation n P (v1 v2 : vec n) t1 t2 : *)
+  (*   vec_relation P v1 v2 -> *)
+  (*   P t1 t2 -> *)
+  (*   vec_relation P (cons_vec t1 v1) (cons_vec t2 v2). *)
+  (* Proof. *)
+  (*   unfold cons_vec. repeat intro. depind i; cbn; auto. *)
+  (* Qed. *)
+
+  #[global] Instance cons_vec_relation n P :
+    Proper (P ==> pwr P ==> pwr P) (@cons_vec n).
   Proof.
-    unfold cons_vec. repeat intro. depind i; cbn; auto.
+    unfold cons_vec. repeat intro. depind a; cbn; auto.
   Qed.
 
   Lemma cons_vec_choiceI_bound n n' (v : vec n) t :
@@ -772,7 +806,7 @@ Section parallel.
   Qed.
 
   #[global] Instance equ_schedule n :
-    Proper ((vec_relation (equ eq)) ==> pwr (equ eq)) (schedule n).
+    Proper ((pwr (equ eq)) ==> pwr (equ eq)) (schedule n).
   Proof.
     cbn. revert n.
     coinduction r CIH. intros n v1 v2 Hv i.
@@ -785,17 +819,17 @@ Section parallel.
     step in H. cbn. inv H; eauto. 2: destruct e. 3: destruct s. all: cbn.
     - clear H1 H2. destruct y; cbn in *; auto.
       constructor. intros. apply CIH.
-      apply remove_vec_vec_relation; auto.
+      apply remove_vec_relation; auto.
     - clear H1 H2. destruct y.
       constructor. intros. eapply CIH.
-      apply replace_vec_vec_relation; auto.
+      apply replace_vec_relation; auto.
     - destruct s. constructor. intros. eapply CIH.
-      apply cons_vec_vec_relation; auto.
-      apply replace_vec_vec_relation; auto.
+      apply cons_vec_relation; auto.
+      apply replace_vec_relation; auto.
     - constructor. intros. apply CIH.
-      apply replace_vec_vec_relation; auto.
+      apply replace_vec_relation; auto.
     - constructor. intros. apply CIH.
-      apply replace_vec_vec_relation; auto.
+      apply replace_vec_relation; auto.
   Qed.
 
   (** Helper lemmas for dealing with [schedule] *)
@@ -1123,7 +1157,7 @@ Section parallel.
       pose proof (ctree_eta t).
       rewrite Heq in H0. clear Heq. rename H0 into Heq. rewrite <- ctree_eta in Heq.
       apply equ_schedule. (* TODO: some instance is missing *)
-      apply replace_vec_vec_relation; repeat intro; try reflexivity.
+      apply replace_vec_relation; repeat intro; try reflexivity.
       rewrite <- Heq. rewrite <- REL. auto.
   Qed.
 
@@ -1150,8 +1184,8 @@ Section parallel.
       rewrite rewrite_schedule at 1. simp schedule_match.
       rewrite <- Heqc. econstructor. constructor.
       rewrite rewrite_schedule at 1. simp schedule_match.
-      econstructor. eapply equ_schedule.
-      apply replace_vec_vec_relation; repeat intro; auto.
+      econstructor. apply equ_schedule.
+      apply replace_vec_relation; repeat intro; auto.
   Qed.
 
   Lemma visible_spawn_trans_schedule n v i k (Hbound : choiceI_bound 1 (v i)) :
@@ -1179,8 +1213,8 @@ Section parallel.
     - invert.
       rewrite rewrite_schedule at 1. simp schedule_match.
       rewrite <- Heqc. econstructor. apply F1. apply equ_schedule.
-      apply cons_vec_vec_relation; auto.
-      apply replace_vec_vec_relation; repeat intro; auto.
+      apply cons_vec_relation; auto.
+      apply replace_vec_relation; repeat intro; auto.
   Qed.
 
   Lemma visible_stateE_trans_schedule {X} n v i (s : stateE config X) k x
@@ -1206,110 +1240,7 @@ Section parallel.
     - invert.
       rewrite rewrite_schedule at 1. simp schedule_match.
       rewrite <- Heqc. econstructor. apply equ_schedule.
-      apply replace_vec_vec_relation; repeat intro; auto.
-  Qed.
-
-  #[global] Instance sbisim_schedule n :
-    Proper (vec_relation (fun x y => sbisim x y /\ choiceI_bound 1 x /\ choiceI_bound 1 y) ==> eq ==> sbisim) (schedule n).
-  Proof.
-    repeat intro. subst. revert n x y y0 H. cbn in *.
-    coinduction r CIH.
-    symmetric using idtac.
-    {
-      intros. apply H. repeat intro. split; [symmetry | split]; apply H0.
-    }
-    intros n v1 v2 o Hv l t Ht. cbn in *.
-    destruct l.
-    - destruct o as [i |].
-      + apply trans_schedule_thread_tau_some in Ht. 2: apply Hv.
-        decompose [or] Ht; clear Ht.
-        * destruct H as (n' & o & Ht & ? & Hequ). subst.
-          pose proof (Hv i) as (Hsb & _). step in Hsb. destruct Hsb as [Hf _].
-          edestruct Hf as [? ? ?]; eauto.
-          eapply trans_thread_schedule_val_SS in H.
-          eexists. apply H. rewrite Hequ. eapply CIH.
-          cbn. apply remove_vec_vec_relation; auto.
-        * destruct n; try inv i.
-          destruct H0 as (t' & Ht & Hbound & Hequ).
-          pose proof (Hv i) as (Hsb & Hbound1 & Hbound2). step in Hsb. destruct Hsb as [Hf _].
-          edestruct Hf as [? ? ?]; eauto.
-          pose proof (trans_choiceI_bound _ _ _ _ _ Hbound2 H).
-          apply trans_thread_schedule_tau in H.
-          eexists; eauto. rewrite Hequ. apply CIH.
-          apply replace_vec_vec_relation; auto.
-        * destruct H as (k & Hvis & i' & Hequ).
-          pose proof (Hv i) as (Hsb & Hbound1 & Hbound2).
-          pose proof Hvis as Hvis'.
-          eapply sbisim_visible in Hvis'; eauto. destruct Hvis' as (k' & ? & ?).
-          exists (schedule n (replace_vec v2 i (k' tt)) (Some i')).
-          2: {
-            rewrite Hequ. apply CIH. apply replace_vec_vec_relation; auto.
-            intros; split; [| split]; auto.
-            - pose proof (visible_choiceI_bound _ _ _ _ _ Hbound1 Hvis).
-              step in H1. inv H1. invert. auto.
-            - pose proof (visible_choiceI_bound _ _ _ _ _ Hbound2 H).
-              step in H1. inv H1. invert. auto.
-          }
-          destruct n; try inv i.
-          apply visible_yield_trans_schedule; auto.
-        * destruct H as (k & Hvis & Hequ).
-          pose proof (Hv i) as (Hsb & Hbound1 & Hbound2).
-          pose proof Hvis as Hvis'.
-          eapply sbisim_visible in Hvis'; eauto.
-          2: { constructor. apply true. }
-          destruct Hvis' as (k' & ? & ?).
-          exists (schedule (S n)
-                      (cons_vec (k' true)
-                                (replace_vec v2 i (k' false)))
-                      (Some (FS i))).
-          2: { rewrite Hequ. apply CIH. apply cons_vec_vec_relation; auto.
-               - apply replace_vec_vec_relation; auto; split; auto. split.
-                 + pose proof (visible_choiceI_bound _ _ _ _ _ Hbound1 Hvis).
-                   step in H1. inv H1. invert. auto.
-                 + pose proof (visible_choiceI_bound _ _ _ _ _ Hbound2 H).
-                   step in H1. inv H1. invert. auto.
-               - split; auto. split.
-                 + pose proof (visible_choiceI_bound _ _ _ _ _ Hbound1 Hvis).
-                   step in H1. inv H1. invert. auto.
-                 + pose proof (visible_choiceI_bound _ _ _ _ _ Hbound2 H).
-                   step in H1. inv H1. invert. auto.
-          }
-          destruct n; try inv i.
-          apply visible_spawn_trans_schedule; auto.
-      + apply trans_schedule_thread_tau_none in Ht.
-        destruct Ht as (n' & i & ? & Hequ). subst.
-        exists (schedule (S n') v2 (Some i)).
-        * rewrite rewrite_schedule. simp schedule_match. econstructor; eauto.
-        * rewrite Hequ. apply CIH; auto.
-    - apply trans_schedule_obs in Ht.
-      destruct Ht as (k & i & ? & Hvis & Hequ). subst.
-      destruct n; try inv i.
-      pose proof (Hv i) as (Hsb & Hbound1 & Hbound2).
-      pose proof Hvis as Hvis'.
-      eapply sbisim_visible in Hvis'; eauto.
-      destruct Hvis' as (k' & ? & ?).
-      exists (schedule (S n) (replace_vec v2 i (k' v)) (Some i)).
-      2: { rewrite Hequ. apply CIH. apply replace_vec_vec_relation; auto.
-           split; [| split]; auto.
-           - pose proof (visible_choiceI_bound _ _ _ _ _ Hbound1 Hvis).
-             step in H1. inv H1. invert. auto.
-           - pose proof (visible_choiceI_bound _ _ _ _ _ Hbound2 H).
-             step in H1. inv H1. invert. auto.
-      }
-      eapply visible_stateE_trans_schedule in H; eauto.
-    - destruct o as [i |].
-      + pose proof (trans_schedule_val_1 _ _ _ _ _ Ht). subst.
-        pose proof (trans_val_inv Ht).
-        specialize (Hv i). destruct Hv as (Hsb & _). step in Hsb. destruct Hsb as [Hf Hb].
-        pose proof (trans_schedule_thread_val _ _ _ _ Ht) as Hv1.
-        edestruct Hf; eauto.
-        apply trans_thread_schedule_val_1 in H0. eexists; eauto. rewrite H. reflexivity.
-      + rewrite rewrite_schedule in Ht.
-        destruct n; [| inv Ht].
-        destruct (trans_ret_inv Ht). inv H0. apply inj_pair2 in H3. subst.
-        exists CTree.stuckI.
-        * rewrite rewrite_schedule. constructor.
-        * rewrite H. reflexivity.
+      apply replace_vec_relation; repeat intro; auto.
   Qed.
 
   Lemma of_nat_lt_sig1_neq_1 n1 n2 n (H1 : n1 < n) (H2 : n2 < n) :
@@ -2268,4 +2199,17 @@ Section parallel.
       edestruct Hf; eauto.
       apply trans_thread_schedule_val_1 in H0. eexists; eauto. rewrite H. reflexivity.
   Qed.
+
+  Definition perm_id {n} : fin n -> fin n := fun i => i.
+
+  Lemma sbisim_schedule n (v1 v2 : vec n) i
+        (Hbound1 : forall i, choiceI_bound 1 (v1 i))
+        (Hbound2 : forall i, choiceI_bound 1 (v2 i))
+        (Hsb : forall i, v1 i ~ v2 i) :
+    schedule n v1 (Some i) ~ schedule n v2 (Some i).
+  Proof.
+    replace i with (perm_id i) at 2; auto.
+    eapply schedule_permutation; auto. symmetry. auto.
+  Qed.
+
 End parallel.
