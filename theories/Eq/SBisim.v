@@ -1224,12 +1224,17 @@ Qed.
 Lemma sbisim_ChoiceV_inv {E R}
       n1 n2 (k1 : fin n1 -> ctree E R) (k2 : fin n2 -> ctree E R) :
   ChoiceV n1 k1 ~ ChoiceV n2 k2 ->
-  (forall i1, exists i2, k1 i1 ~ k2 i2).
+  (forall i1, exists i2, k1 i1 ~ k2 i2) /\ (forall i2, exists i1, k1 i1 ~ k2 i2).
 Proof.
-  intros EQ i1.
-  eplayL.
-  inv_trans.
-  eexists; eauto.
+  intros EQ; split.
+  - intros i1.
+    eplayL.
+    inv_trans.
+    eexists; eauto.
+  - intros i2.
+    eplayR.
+    inv_trans.
+    eexists; eauto.
 Qed.
 
 (*|
