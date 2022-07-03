@@ -1160,6 +1160,25 @@ Proof.
 Qed.
 
 (*|
+ChoiceV2 is commutative and "almost" idempotent
+|*)
+Lemma choiceV2_commut {E X} : forall (t u : ctree E X),
+	  choiceV2 t u ~ choiceV2 u t.
+Proof.
+  intros.
+  play; inv_trans; subst.
+  all:eexists; [| rewrite EQ; reflexivity]; etrans.
+Qed.
+
+Lemma choiceV2_idem {E X} : forall (t : ctree E X),
+	  choiceV2 t t ~ TauV t.
+Proof.
+  intros.
+  play; inv_trans; subst.
+  all:eexists; [| rewrite EQ; reflexivity]; etrans.
+Qed.
+
+(*|
 Inversion principles
 --------------------
 |*)
