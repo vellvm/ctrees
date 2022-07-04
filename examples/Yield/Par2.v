@@ -754,7 +754,6 @@ Section parallel.
   (* Qed. *)
 
   (** Scheduling a thread pool *)
-  (* TODO: change return type to completed? This will simplify some lemmas too *)
   Equations schedule_match
              (schedule : forall (n : nat), vec n -> option (fin n) -> completed)
              (n : nat)
@@ -789,8 +788,8 @@ Section parallel.
                   (S (S n))
                   (* Note that [cons_vec] puts the new thread on the front of the vector *)
                   (cons_vec (k true) (replace_vec v i (k false)))
-                  (* The [i] here means that we don't yield at a spawn *)
-                  (Some (FS i))); (* view [i] as a [fin (n + 1)] *)
+                  (* We stay with the old thread; we don't yield at a spawn *)
+                  (Some (FS i)));
 
         (* State events are not touched in scheduling *)
         schedule_match _ _ _ _ (VisF (inr1 (inr1 s)) k) :=

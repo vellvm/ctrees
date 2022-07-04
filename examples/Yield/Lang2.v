@@ -59,9 +59,9 @@ Inductive stmt : Type :=
 | Seq    (a b : stmt)            (* a ; b *)
 | If     (i : expr) (t e : stmt) (* if (i) then { t } else { e } *)
 | While  (t : expr) (b : stmt)   (* while (t) { b } *)
-| Spawn  (t : stmt)              (* spawn t *)
+| Spawn  (t1 t2 : stmt)          (* spawn t1; continue t2 *)
 | Skip                           (* ; *)
-| YieldS
+| YieldS                         (* yield *)
 .
 
 Variant ImpState : Type -> Type :=
@@ -70,45 +70,6 @@ Variant ImpState : Type -> Type :=
 
 Section Denote1.
   Definition is_true (v : value) : bool := if (v =? 0)%nat then false else true.
-
-(*
-  Fixpoint denote_expr (e : expr) : ctree (spawnE +' stateE value) value :=
-    match e with
-    | Var v     => trigger (Get _)
-    | Lit n     => ret n
-    | Plus a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l + r)
-    | Minus a b => l <- denote_expr a ;; r <- denote_expr b ;; ret (l - r)
-    | Mult a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l * r)
-    end.
-
-  Definition while (step : ctree (spawnE +' stateE value) (unit + unit)) : ctree (spawnE +' stateE value) unit :=
-    CTree.iter (fun _ => step) tt.
-
-  Fixpoint denote_imp (s : stmt) : ctree (spawnE +' stateE value) unit :=
-    match s with
-    | Assign x e =>  v <- denote_expr e ;; trigger (Put _ v)
-    | Seq a b    =>  denote_imp a ;; denote_imp b
-    | If i t e   =>
-      v <- denote_expr i ;;
-      if is_true v then denote_imp t else denote_imp e
-
-    | While t b =>
-      while (v <- denote_expr t ;;
-	         if is_true v
-             then denote_imp b ;; ret (inl tt)
-             else ret (inr tt))
-
-    | Spawn t =>
-        b <- trigger Par2.Spawn;;
-        match b with
-        | true => denote_imp t;; ChoiceI 0 (fun _ => ret tt) (* force the thread to halt here *)
-        | false => ret tt
-        end
-    | Skip => ret tt
-    (* | Atomic t => translate ... (denote_imp t) *)
-    end.
- *)
-
 
   Definition while' (step : ctree (parE value) (unit + unit)) : ctree (parE value) unit :=
     CTree.iter (fun _ => step) tt.
@@ -120,9 +81,10 @@ Section Denote1.
     | Minus a b => l <- denote_expr' a ;; r <- denote_expr' b ;; ret (l - r)
     | Mult a b  => l <- denote_expr' a ;; r <- denote_expr' b ;; ret (l * r)
     end.
+
   Fixpoint denote_imp' (s : stmt) : ctree (parE value) unit :=
     match s with
-    | Assign x e =>  v <- denote_expr' e ;; x <- trigger (Put _ v) ;; trigger Yield ;; ret x
+    | Assign x e =>  v <- denote_expr' e ;; x <- trigger (Put _ v) ;; ret x
     | Seq a b    =>  denote_imp' a ;; denote_imp' b
     | If i t e   =>
       v <- denote_expr' i ;;
@@ -134,15 +96,14 @@ Section Denote1.
              then denote_imp' b ;; ret (inl tt)
              else ret (inr tt))
 
-    | Spawn t =>
+    | Spawn t1 t2 =>
         b <- trigger Par2.Spawn;;
         match b with
-        | true => denote_imp' t;; ChoiceI 0 (fun _ => ret tt) (* force the thread to halt here *)
-        | false => ret tt
+        | true => denote_imp' t1
+        | false => denote_imp' t2
         end
     | Skip => ret tt
     | YieldS => trigger Yield
-    (* | Atomic t => translate ... (denote_imp t) *)
     end.
 
   Definition schedule_denot' (t : stmt) : completed :=
@@ -200,7 +161,7 @@ Section Denote1.
     induction t; cbn.
     - apply bind_choiceI_bound. apply denote_expr_bounded. intros.
       step. rewrite bind_trigger. constructor. intros.
-      step. rewrite bind_trigger. constructor. intros.
+      (* step. rewrite bind_trigger. constructor. intros. *)
       step. constructor.
     - apply bind_choiceI_bound; auto.
     - apply bind_choiceI_bound. apply denote_expr_bounded.
@@ -213,10 +174,7 @@ Section Denote1.
       + step. constructor.
     - apply bind_choiceI_bound.
       + intros. step. constructor. intros. step. constructor.
-      + intros. destruct x.
-        * apply bind_choiceI_bound; auto.
-          intros. step. constructor; auto. intros. step. constructor.
-        * step. constructor.
+      + intros. destruct x; auto.
     - step. constructor.
     - step. constructor. intros. step. constructor.
   Qed.
@@ -265,13 +223,13 @@ Section Denote1.
   Qed.
    *)
   Lemma schedule_spawns t1 t2 :
-    (schedule 1 (fun _ : fin 1 => denote_imp' (Seq (Spawn t1) (Spawn t2))) (Some Fin.F1))
+    (schedule 1 (fun _ : fin 1 => denote_imp' (Spawn t1 (Spawn t2 Skip))) (Some Fin.F1))
       ≅
      TauV (TauV (TauI
      (schedule 2
                (cons_vec
-                  (CTree.bind (denote_imp' t2) (fun _ => ChoiceI 0 (fun _ => ret tt)))
-                  (fun _ => CTree.bind (denote_imp' t1) (fun _ => ChoiceI 0 (fun _ => ret tt))))
+                  (denote_imp' t2)
+                  (fun _ => denote_imp' t1))
                None))).
   Proof.
     rewrite rewrite_schedule. simp schedule_match.
@@ -292,9 +250,10 @@ Section Denote1.
     - dependent destruction i; [| inv i].
       simp remove_vec. simp cons_vec.
       unfold remove_front_vec. simp cons_vec. cbn. simp cons_vec.
-      rewrite bind_ret_l. rewrite bind_bind.
-      eapply equ_clo_bind; auto. intros; subst.
-      rewrite bind_choice. step. constructor. intros. inv i.
+      rewrite bind_ret_l. reflexivity.
+      (* rewrite bind_bind. *)
+      (* eapply equ_clo_bind; auto. intros; subst. *)
+      (* rewrite bind_choice. step. constructor. intros. inv i. *)
   Qed.
 
   Equations p : fin 2 -> fin 2 :=
@@ -329,20 +288,15 @@ Section Denote1.
   Qed.
 
   Lemma commut_spawns t1 t2 :
-    schedule_denot' (Seq (Spawn t1) (Spawn t2)) ~
-    schedule_denot' (Seq (Spawn t2) (Spawn t1)).
+    schedule_denot' (Spawn t1 (Spawn t2 Skip)) ~
+    schedule_denot' (Spawn t2 (Spawn t1 Skip)).
   Proof.
     unfold schedule_denot'.
     do 2 rewrite schedule_spawns.
     apply sb_tauV. apply sb_tauV. apply sb_tauI_lr.
 
     do 2 rewrite rewrite_schedule. simp schedule_match.
-
-    apply schedule_order.
-    - apply bind_choiceI_bound. apply denote_stmt_bounded.
-      intros. step. constructor; auto. intros. step. constructor.
-    - apply bind_choiceI_bound. apply denote_stmt_bounded.
-      intros. step. constructor; auto. intros. step. constructor.
+    apply schedule_order; apply denote_stmt_bounded.
   Qed.
 
 End Denote1.
