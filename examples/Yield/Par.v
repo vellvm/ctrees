@@ -417,13 +417,6 @@ Section parallel.
 
   Definition vec n := fin n -> thread.
 
-  (* Definition vec_relation {n : nat} (P : rel _ _) (v1 v2 : vec n) : Prop := *)
-  (*   forall i, P (v1 i) (v2 i). *)
-
-  (* Instance vec_relation_symmetric n (P : rel _ _) `{@Symmetric _ P} : *)
-  (*   Symmetric (@vec_relation n P). *)
-  (* Proof. repeat intro. auto. Qed. *)
-
   (** Removing an element from a [vec] *)
   Definition remove_front_vec {n : nat} (v : vec (S n)) : vec n :=
     fun i => v (FS i).
@@ -433,13 +426,6 @@ Section parallel.
   Proof.
     repeat intro. apply H.
   Qed.
-
-  (* Lemma remove_front_vec_vec_relation n P (v1 v2 : vec (S n)) : *)
-  (*   vec_relation P v1 v2 -> *)
-  (*   vec_relation P (remove_front_vec v1) (remove_front_vec v2). *)
-  (* Proof. *)
-  (*   repeat intro. apply H. *)
-  (* Qed. *)
 
   Lemma remove_front_vec_brD_bound n n' (v : vec (S n)) :
     (forall i, brD_bound n' (v i)) ->
@@ -463,17 +449,6 @@ Section parallel.
     apply IHi; auto.
     repeat intro. apply remove_front_vec_relation; auto.
   Qed.
-
-  (* Lemma remove_vec_vec_relation n P (v1 v2 : vec (S n)) i : *)
-  (*   vec_relation P v1 v2 -> *)
-  (*   vec_relation P (remove_vec v1 i) (remove_vec v2 i). *)
-  (* Proof. *)
-  (*   intros. *)
-  (*   depind i; [apply remove_front_vec_vec_relation; auto |]. *)
-  (*   repeat intro. destruct i0; cbn; auto. *)
-  (*   apply IHi; auto. *)
-  (*   repeat intro. apply remove_front_vec_vec_relation; auto. *)
-  (* Qed. *)
 
   Lemma remove_vec_brD_bound n n' (v : vec (S n)) i' :
     (forall i, brD_bound n' (v i)) ->
@@ -618,14 +593,6 @@ Section parallel.
     unfold replace_vec. repeat intro. subst. destruct (Fin.eqb y0 a); auto.
   Qed.
 
-  (* Lemma replace_vec_vec_relation n P (v1 v2 : vec n) i t1 t2 : *)
-  (*   vec_relation P v1 v2 -> *)
-  (*   P t1 t2 -> *)
-  (*   vec_relation P (replace_vec v1 i t1) (replace_vec v2 i t2). *)
-  (* Proof. *)
-  (*   unfold replace_vec. repeat intro. destruct (Fin.eqb i i0); auto. *)
-  (* Qed. *)
-
   Lemma replace_vec_brD_bound n n' (v : vec n) i' t :
     (forall i, brD_bound n' (v i)) ->
     brD_bound n' t ->
@@ -674,14 +641,6 @@ Section parallel.
     cons_vec t v (FS i)  := v i.
   Transparent cons_vec.
 
-  (* Lemma cons_vec_vec_relation n P (v1 v2 : vec n) t1 t2 : *)
-  (*   vec_relation P v1 v2 -> *)
-  (*   P t1 t2 -> *)
-  (*   vec_relation P (cons_vec t1 v1) (cons_vec t2 v2). *)
-  (* Proof. *)
-  (*   unfold cons_vec. repeat intro. depind i; cbn; auto. *)
-  (* Qed. *)
-
   #[global] Instance cons_vec_relation n P :
     Proper (P ==> pwr P ==> pwr P) (@cons_vec n).
   Proof.
@@ -725,33 +684,6 @@ Section parallel.
     - reflexivity.
     - dependent destruction i; [| inv i]. cbn. simp cons_vec. reflexivity.
   Qed.
-
-
-
-  (* Program Definition append_vec {n : nat} (v : vec n) (t : thread) : vec (S n) := *)
-  (*   fun i => let i' := Fin.to_nat i in *)
-  (*         match PeanoNat.Nat.eqb (`i') n with *)
-  (*         | true => t *)
-  (*         | false => v (@Fin.of_nat_lt (`i') _ _) *)
-  (*         end. *)
-  (* Next Obligation. *)
-  (*   (* why is the space after ` necessary...... *) *)
-  (*   assert ((` (Fin.to_nat i)) <> n). *)
-  (*   { *)
-  (*     pose proof (Bool.reflect_iff _ _ (PeanoNat.Nat.eqb_spec (` (Fin.to_nat i)) n)). *)
-  (*     intro. rewrite H in H0. rewrite H0 in Heq_anonymous. inv Heq_anonymous. *)
-  (*   } *)
-  (*   pose proof (proj2_sig (Fin.to_nat i)). *)
-  (*   simpl in H0. lia. *)
-  (* Defined. *)
-
-  (* Lemma append_vec_vec_relation n P (v1 v2 : vec n) t1 t2 : *)
-  (*   vec_relation P v1 v2 -> *)
-  (*   (forall x, P (t1 x) (t2 x)) -> *)
-  (*   vec_relation P (append_vec v1 t1) (append_vec v2 t2). *)
-  (* Proof. *)
-  (*   unfold append_vec. repeat intro. *)
-  (* Qed. *)
 
   (** Scheduling a thread pool *)
   Equations schedule_match
