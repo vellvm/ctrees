@@ -62,7 +62,7 @@ Inductive stmt : Type :=
 | Seq    (a b : stmt)            (* a ; b *)
 | If     (i : expr) (t e : stmt) (* if (i) then { t } else { e } *)
 | While  (t : expr) (b : stmt)   (* while (t) { b } *)
-| Spawn  (t1 t2 : stmt)          (* spawn t1; continue t2 *)
+| Fork  (t1 t2 : stmt)           (* fork the current thread, first doing t1 in the inactive thread and t2 in the active thread *)
 | Skip                           (* ; *)
 | YieldS                         (* yield *)
 .
@@ -74,43 +74,44 @@ Variant ImpState : Type -> Type :=
 Section Denote1.
   Definition is_true (v : value) : bool := if (v =? 0)%nat then false else true.
 
-  Definition while' (step : ctree (parE value) (unit + unit)) : ctree (parE value) unit :=
+  Definition while (step : ctree (parE value) (unit + unit)) : ctree (parE value) unit :=
     CTree.iter (fun _ => step) tt.
-  Fixpoint denote_expr' (e : expr) : ctree (parE value) value :=
+
+  Fixpoint denote_expr (e : expr) : ctree (parE value) value :=
     match e with
     | Var v     => x <- trigger (Get _) ;; trigger Yield;; ret x
     | Lit n     => ret n
-    | Plus a b  => l <- denote_expr' a ;; r <- denote_expr' b ;; ret (l + r)%nat
-    | Minus a b => l <- denote_expr' a ;; r <- denote_expr' b ;; ret (l - r)
-    | Mult a b  => l <- denote_expr' a ;; r <- denote_expr' b ;; ret (l * r)
+    | Plus a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l + r)%nat
+    | Minus a b => l <- denote_expr a ;; r <- denote_expr b ;; ret (l - r)
+    | Mult a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l * r)
     end.
 
-  Fixpoint denote_imp' (s : stmt) : ctree (parE value) unit :=
+  Fixpoint denote_imp (s : stmt) : ctree (parE value) unit :=
     match s with
-    | Assign x e =>  v <- denote_expr' e ;; x <- trigger (Put _ v) ;; ret x
-    | Seq a b    =>  denote_imp' a ;; denote_imp' b
+    | Assign x e =>  v <- denote_expr e ;; x <- trigger (Put _ v) ;; ret x
+    | Seq a b    =>  denote_imp a ;; denote_imp b
     | If i t e   =>
-      v <- denote_expr' i ;;
-      if is_true v then denote_imp' t else denote_imp' e
+        v <- denote_expr i ;;
+        if is_true v then denote_imp t else denote_imp e
 
     | While t b =>
-      while' (v <- denote_expr' t ;;
-	         if is_true v
-             then denote_imp' b ;; ret (inl tt)
-             else ret (inr tt))
+        while (v <- denote_expr t ;;
+	           if is_true v
+               then denote_imp b ;; ret (inl tt)
+               else ret (inr tt))
 
-    | Spawn t1 t2 =>
-        b <- trigger Par.Spawn;;
+    | Fork t1 t2 =>
+        b <- trigger Spawn;;
         match b with
-        | true => denote_imp' t1
-        | false => denote_imp' t2
+        | true => denote_imp t1
+        | false => denote_imp t2
         end
     | Skip => ret tt
     | YieldS => trigger Yield
     end.
 
-  Definition schedule_denot' (t : stmt) : completed :=
-    schedule 1 (fun _ => denote_imp' t) (Some Fin.F1).
+  Definition schedule_denot (t : stmt) : completed :=
+    schedule 1 (fun _ => denote_imp t) (Some Fin.F1).
 
   (*
   Definition h_state : forall X, stateE value X -> ctree (parE value) X :=
@@ -140,7 +141,7 @@ Section Denote1.
     schedule 1 (fun _ => interp_state (denote_imp t)) (Some Fin.F1).
    *)
   Lemma denote_expr_bounded e :
-    brD_bound 1 (denote_expr' e).
+    brD_bound 1 (denote_expr e).
   Proof.
     induction e; cbn; unfold trigger; auto.
     - step. rewrite bind_vis. constructor. intros.
@@ -158,8 +159,8 @@ Section Denote1.
       intros. step. constructor.
   Qed.
 
-  Lemma denote_stmt_bounded t :
-    brD_bound 1 (denote_imp' t).
+  Lemma denote_imp_bounded t :
+    brD_bound 1 (denote_imp t).
   Proof.
     induction t; cbn.
     - apply bind_brD_bound. apply denote_expr_bounded. intros.
@@ -169,7 +170,7 @@ Section Denote1.
     - apply bind_brD_bound; auto.
     - apply bind_brD_bound. apply denote_expr_bounded.
       intros. step. step in IHt1. step in IHt2. destruct (is_true x); auto.
-    - unfold while'. apply iter_brD_bound; auto.
+    - unfold while. apply iter_brD_bound; auto.
       intros. apply bind_brD_bound. apply denote_expr_bounded.
       intros. destruct (is_true x).
       + apply bind_brD_bound; auto.
@@ -225,14 +226,14 @@ Section Denote1.
       inversion H. invert. apply H2.
   Qed.
    *)
-  Lemma schedule_spawns t1 t2 :
-    (schedule 1 (fun _ : fin 1 => denote_imp' (Spawn t1 (Spawn t2 Skip))) (Some Fin.F1))
+  Lemma schedule_forks t1 t2 :
+    (schedule 1 (fun _ : fin 1 => denote_imp (Fork t1 (Fork t2 Skip))) (Some Fin.F1))
       ≅
      Step (Step (Guard
      (schedule 2
                (cons_vec
-                  (denote_imp' t2)
-                  (fun _ => denote_imp' t1))
+                  (denote_imp t2)
+                  (fun _ => denote_imp t1))
                None))).
   Proof.
     rewrite rewrite_schedule. simp schedule_match.
@@ -270,16 +271,20 @@ Section Denote1.
     - dependent destruction i. simp p; auto. inv i.
   Qed.
 
-  Lemma schedule_order (t1 t2 : ctree (parE value) unit)
+  Lemma schedule_order (t1 t1' t2 t2' : ctree (parE value) unit)
     (Hbound1 : brD_bound 1 t1)
-    (Hbound2 : brD_bound 1 t2) :
+    (Hbound2 : brD_bound 1 t2)
+    (Hbound1' : brD_bound 1 t1')
+    (Hbound2' : brD_bound 1 t2')
+    (Ht1 : t1 ~ t1')
+    (Ht2 : t2 ~ t2') :
     BrS 2 (fun i' : fin 2 =>
                  schedule 2
                           (cons_vec t1 (fun _ => t2))
                           (Some i')) ~
     BrS 2 (fun i' : fin 2 =>
                  schedule 2
-                          (cons_vec t2 (fun _ => t1))
+                          (cons_vec t2' (fun _ => t1'))
                           (Some i')).
   Proof.
     apply sb_brS; intros i; exists (p i); [| symmetry];
@@ -287,30 +292,32 @@ Section Denote1.
       try solve [intros i0; dependent destruction i0; simp cons_vec];
       try solve [apply p_inverse];
       try solve [ intros i0; dependent destruction i0;
-                  [| dependent destruction i0; [| inv i0]]; simp p; simp cons_vec; auto].
+                  [| dependent destruction i0; [| inv i0]]; simp p; simp cons_vec; auto];
+      try solve [ intros i0; dependent destruction i0;
+                  [| dependent destruction i0; [| inv i0]]; simp p; simp cons_vec; symmetry; auto].
   Qed.
 
-  Lemma commut_spawns t1 t2 :
-    schedule_denot' (Spawn t1 (Spawn t2 Skip)) ~
-    schedule_denot' (Spawn t2 (Spawn t1 Skip)).
+  Lemma commut_forks s1 s2 :
+    schedule_denot (Fork s1 (Fork s2 Skip)) ~
+    schedule_denot (Fork s2 (Fork s1 Skip)).
   Proof.
-    unfold schedule_denot'.
-    do 2 rewrite schedule_spawns.
+    unfold schedule_denot.
+    do 2 rewrite schedule_forks.
     apply sb_step. apply sb_step. apply sb_guard_lr.
 
     do 2 rewrite rewrite_schedule. simp schedule_match.
-    apply schedule_order; apply denote_stmt_bounded.
+    apply schedule_order; try solve [apply denote_imp_bounded]; reflexivity.
   Qed.
 
   (* we need 2 yields here since spawning also emits a tau *)
-  (* [| spawn s skip |] = tau tau s
+  (* [| fork s skip |] = tau tau s
      (tau at spawn, tau when main thread ends, continue with s) *)
   (* [| yield; yield; s |] = tau tau s *)
-  Lemma yield_spawn s :
-    schedule_denot' (Seq YieldS (Seq YieldS s)) ~
-    schedule_denot' (Spawn s Skip).
+  Lemma yield_fork s :
+    schedule_denot (Seq YieldS (Seq YieldS s)) ~
+    schedule_denot (Fork s Skip).
   Proof.
-    unfold schedule_denot'.
+    unfold schedule_denot.
 
     cbn.
     do 2 rewrite rewrite_schedule. simp schedule_match.
@@ -335,15 +342,15 @@ Section Denote1.
     rewrite replace_vec_unary.
 
     eapply sbisim_schedule.
-    - intro. rewrite bind_ret_l. apply denote_stmt_bounded.
-    - intro. rewrite bind_ret_l. apply denote_stmt_bounded.
+    - intro. rewrite bind_ret_l. apply denote_imp_bounded.
+    - intro. rewrite bind_ret_l. apply denote_imp_bounded.
     - intros. do 2 rewrite bind_ret_l. reflexivity.
   Qed.
 
-  Lemma spawn_skip_equ s :
-    schedule_denot' (Spawn s Skip) ≅ Step (Guard (Step (schedule_denot' s))).
+  Lemma fork_skip_equ s :
+    schedule_denot (Fork s Skip) ≅ Step (Guard (Step (schedule_denot s))).
   Proof.
-    unfold schedule_denot'. cbn.
+    unfold schedule_denot. cbn.
 
     rewrite rewrite_schedule. simp schedule_match.
     cbn. CTree.fold_subst.
@@ -362,9 +369,9 @@ Section Denote1.
   Qed.
 
   Lemma yield_equ s :
-    schedule_denot' (Seq YieldS s) ≅ Guard (Step (schedule_denot' s)).
+    schedule_denot (Seq YieldS s) ≅ Guard (Step (schedule_denot s)).
   Proof.
-    unfold schedule_denot'. cbn.
+    unfold schedule_denot. cbn.
 
     rewrite rewrite_schedule. simp schedule_match.
     cbn. CTree.fold_subst.
@@ -378,25 +385,51 @@ Section Denote1.
     apply equ_schedule. repeat intro. rewrite bind_ret_l. reflexivity.
   Qed.
 
-  Lemma spawn_skip_yield s :
-    schedule_denot' (Spawn s Skip) ≈
-    schedule_denot' (Seq YieldS s).
+  Lemma fork_skip_yield s :
+    schedule_denot (Fork s Skip) ≈
+    schedule_denot (Seq YieldS s).
   Proof.
-    rewrite spawn_skip_equ, yield_equ.
+    rewrite fork_skip_equ, yield_equ.
     rewrite guard_wb. rewrite step_wb.
     rewrite guard_wb. rewrite step_wb.
     reflexivity.
   Qed.
 
   Lemma spawn_skip s :
-    schedule_denot' (Spawn s Skip) ≈
-    schedule_denot' s.
+    schedule_denot (Fork s Skip) ≈
+    schedule_denot s.
   Proof.
-    rewrite spawn_skip_equ.
+    rewrite fork_skip_equ.
     rewrite step_wb.
     rewrite guard_wb.
     rewrite step_wb.
     reflexivity.
+  Qed.
+
+  Lemma while_true_unfold_sbisim s1 :
+    denote_imp (While (Lit 1%nat) s1) ~ denote_imp s1;; denote_imp (While (Lit 1%nat) s1).
+  Proof.
+    cbn. unfold while. rewrite unfold_iter at 1.
+    rewrite bind_ret_l. unfold is_true.
+    assert ((1 =? 0)%nat = false) by reflexivity.
+    rewrite H. rewrite bind_bind.
+    apply sbisim_clo_bind. reflexivity.
+    intros _. rewrite bind_ret_l. apply sb_guard.
+  Qed.
+
+
+  Lemma commut_forks_unfold s :
+    schedule_denot (Fork (While (Lit 1%nat) YieldS) (Fork s Skip)) ~
+    schedule_denot (Fork s (Fork (Seq YieldS (While (Lit 1%nat) YieldS)) Skip)).
+  Proof.
+    unfold schedule_denot.
+    do 2 rewrite schedule_forks.
+    apply sb_step. apply sb_step. apply sb_guard_lr.
+
+    do 2 rewrite rewrite_schedule. simp schedule_match.
+
+    apply schedule_order; try solve [apply denote_imp_bounded]; try reflexivity.
+    apply while_true_unfold_sbisim.
   Qed.
 
 End Denote1.
