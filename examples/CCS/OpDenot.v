@@ -370,7 +370,6 @@ Proof.
   red; intros; edestruct F; eauto.
 Qed.
 
-(* Naming *)
 Lemma embed_sound : forall t u, Operational.bisim t u -> ⟦t⟧ ~ ⟦u⟧.
 Proof.
   intros * BIS.
@@ -400,7 +399,6 @@ Proof.
     eapply cross_model_compose; eauto.
 Qed.
 
-(* Naming really, these make no sense *)
 Lemma embed_complete : forall t u, ⟦t⟧ ~ ⟦u⟧ -> Operational.bisim t u.
 Proof.
   intros * BIS.
@@ -430,9 +428,8 @@ Proof.
     eapply cross_model_compose'; eauto.
 Qed.
 
-Theorem what_should_this_be_named : forall t u, ⟦t⟧ ~ ⟦u⟧ <-> Operational.bisim t u.
+Theorem equiv_bisims : forall t u, ⟦t⟧ ~ ⟦u⟧ <-> Operational.bisim t u.
 Proof.
   intros; split; eauto using embed_complete, embed_sound.
 Qed.
 
-(* bisim_sem ⟦u⟧ ⟦v⟧ <-> bisim_op u v *)
