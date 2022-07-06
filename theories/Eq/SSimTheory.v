@@ -733,18 +733,8 @@ End WithParams.
 (*|
 A strong bisimulation gives two strong simulations,
 but two strong simulations do not always give a strong bisimulation.
-This property is true if we only allow brs with 0 or 1 branch,
-but we prove a counter-example for a ctree with a binary br.
+We prove a counter-example for a ctree with a binary br.
 |*)
-
-Lemma ss_sb : forall {E X} RR
-  (t t' : ctree E X),
-  ss RR t t' ->
-  ss (flip RR) t' t ->
-  sb RR t t'.
-Proof.
-  split; auto.
-Qed.
 
 #[local] Definition t1 : ctree void1 unit :=
   Step (Ret tt).
