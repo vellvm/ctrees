@@ -111,7 +111,6 @@ Proof.
 Qed.
 
 (* Note: this is specialized to [ctree F] as target monad. *)
-(* TODO: Incorporate Irene's work to generalize *)
 Lemma interp_bind {E F R S} (h : E ~> ctree F) (t : ctree E R) (k : R -> ctree _ S) :
   interp h (t >>= k) ≅ interp h t >>= (fun x => interp h (k x)).
 Proof.
