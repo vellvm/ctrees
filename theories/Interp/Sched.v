@@ -154,25 +154,30 @@ Proof.
     + repeat break_match_in H; step in H; inv H.
 Qed.
 
-Set Typeclasses Depth 6.
-Program Definition round_robin {E} : ctree E (C01 +' Cn) ~> stateT nat (ctree E (C01 +' Cn)) :=
+Program Definition schedule_state {E St} (f : St -> forall n, St * fin (S n)) :
+    ctree E (C01 +' Cn) ~> stateT St (ctree E (C01 +' Cn)) :=
   schedule (
     fun (b : bool) T (c : Cn T) s =>
-    match c, T return (ctree E (C01 +' Cn) (nat * T)) with
+    match c, T return (ctree E (C01 +' Cn) (St * T)) with
       | choicen (S n), T =>
-          choice b choice1 (fun _ => Ret (S s, @Fin.of_nat_lt (Nat.modulo s (S n)) (S n) (le_n_S _ _ (PeanoNat.Nat.le_sub_l _ _))))
+          choice b choice1 (fun _ => Ret (f s n))
       | c, T => choice b c (fun x => Ret (s, x))
       end).
-Unset Typeclasses Depth.
 
-Lemma round_robin_choiceI_inv : forall {E X Y} (t : ctree E _ X) n c (k : Y -> ctree E _ (nat * X)),
-  round_robin _ t n ≅ ChoiceI c k ->
+Program Definition round_robin {E} :
+    ctree E (C01 +' Cn) ~> stateT nat (ctree E (C01 +' Cn)) :=
+  schedule_state (fun s n =>
+    (S s, @Fin.of_nat_lt (Nat.modulo s (S n)) (S n) (le_n_S _ _ (PeanoNat.Nat.le_sub_l _ _)))).
+
+Lemma round_robin_choiceI_inv :
+  forall {E St X Y} f (t : ctree E _ X) s c (k : Y -> ctree E _ (St * X)),
+  schedule_state f _ t s ≅ ChoiceI c k ->
     (is_stuck t /\ is_stuck (ChoiceI c k)) \/
-    (exists X (c : (C01 +' Cn) X) k x n',
+    (exists X (c : (C01 +' Cn) X) k x s',
       t ≅ ChoiceI c k /\
-      round_robin _ t n ≅ tauI (tauI (round_robin _ (k x) n'))).
+      schedule_state f _ t s ≅ tauI (tauI (schedule_state f _ (k x) s'))).
 Proof.
-  intros. unfold round_robin, schedule, schedule_gen in H.
+  intros. unfold schedule_state, schedule, schedule_gen in H.
   setoid_rewrite interp_interp_state in H. rewrite unfold_interp_state in H.
   setoid_rewrite (ctree_eta t) at 2. setoid_rewrite (ctree_eta t) at 3.
   genobs t ot.
@@ -182,19 +187,19 @@ Proof.
     { step in H. inv H. }
   - destruct c0. do 2 setoid_rewrite bind_choice in H.
     apply equ_choice_invT in H as H'. destruct H' as [-> ->].
-    destruct s; destruct c0.
+    destruct s0; destruct c0.
     + left.
       rewrite ctree_eta. rewrite <- Heqot.
       split. apply choice0_is_stuck. setoid_rewrite <- H.
       apply choice0_is_stuck.
     + right.
-      do 3 eexists. exists tt. exists n. split. eauto.
-      unfold round_robin, schedule, schedule_gen.
+      do 3 eexists. exists tt. exists s. split. eauto.
+      unfold schedule_state, schedule, schedule_gen.
       setoid_rewrite interp_interp_state at 1. rewrite unfold_interp_state. cbn.
       rewrite bind_bind. setoid_rewrite bind_choice.
       apply choice_equ. intros [].
       rewrite 2 bind_ret_l. reflexivity.
-    + destruct c0. destruct n0.
+    + destruct c0. destruct n.
       * destruct vis. { step in H. inv H. }
         rewrite ctree_eta. rewrite <- Heqot.
         left. split.
@@ -203,8 +208,8 @@ Proof.
         -- rewrite <- H. apply is_stuck_bind. apply choice_fin0_is_stuck.
       * right. setoid_rewrite bind_choice in H.
         destruct vis. { step in H. inv H. }
-        do 4 eexists. exists (S n). split; eauto.
-        unfold round_robin, schedule, schedule_gen.
+        do 4 eexists. exists (fst (f s n)). split; eauto.
+        unfold schedule_state, schedule, schedule_gen.
         setoid_rewrite interp_interp_state at 1. rewrite unfold_interp_state. cbn.
         rewrite bind_choice. apply choice_equ. intros _.
         rewrite bind_ret_l. cbn. unfold interp_state. reflexivity.
@@ -216,20 +221,20 @@ Variant lift_val_rel {E X Y} (R : rel X Y): @label E -> @label E -> Prop :=
 | Rel_Obs : forall {X X'} e e' (x : X) (x' : X'), obs e x = obs e' x' -> lift_val_rel R (obs e x) (obs e' x')
 .
 
-Definition Rrr {X} (p : nat * X) (x : X) := snd p = x.
-Definition Lrr {E X} := @lift_val_rel E _ X Rrr.
+Definition Rrr {St X} (p : St * X) (x : X) := snd p = x.
+Definition Lrr {St E X} := @lift_val_rel E _ X (@Rrr St X).
 
-Theorem round_robin_refinement :
-  forall {E X} (t : ctree E (C01 +' Cn) X) n,
-  round_robin _ t n (≲@Lrr E X) t.
+Theorem schedule_state_refinement :
+  forall {E X St} f (t : ctree E (C01 +' Cn) X) (s : St),
+  schedule_state f _ t s (≲@Lrr St E X) t.
 Proof.
-  intros ? ?. coinduction R CH. repeat intro.
+  intros ? ? ? ?. coinduction R CH. repeat intro.
   do 3 red in H. remember (observe _) as os. genobs t' ot'.
-  assert (EQ : go os ≅ round_robin X t n \/ go os ≅ tauI (round_robin X t n)).
+  assert (EQ : go os ≅ schedule_state f X t s \/ go os ≅ tauI (schedule_state f X t s)).
   { left. rewrite Heqos. now rewrite <- ctree_eta. } clear Heqos.
   apply (f_equal go) in Heqot'. eq2equ Heqot'.
   rewrite <- ctree_eta in EQ0. setoid_rewrite <- EQ0. clear t' EQ0.
-  revert t n EQ.
+  revert t s EQ.
   induction H; intros; subst.
   - destruct EQ as [EQ|EQ]; symmetry in EQ.
     apply round_robin_choiceI_inv in EQ as ?.
@@ -259,7 +264,7 @@ Proof.
       apply equ_choice_invE with (x := x) in H0.
       rewrite bind_bind in H0. rewrite bind_ret_l in H0.
       cbn in H0. rewrite bind_ret_l in H0.
-      destruct s; destruct c0, x.
+      destruct s0; destruct c0, x.
       exists (k0 tt). exists tau. rewrite ctree_eta, Heqc0. split; etrans.
       split; [| constructor ].
       rewrite <- ctree_eta, <- H, H0, sb_tauI.
@@ -294,6 +299,13 @@ Proof.
       step. apply is_stuck_ss. apply choice0_is_stuck.
       constructor. reflexivity.
     + cbn in H. repeat break_match_in H; step in H; inv H.
+Qed.
+
+Theorem round_robin_refinement :
+  forall {E X} (t : ctree E (C01 +' Cn) X) n,
+  round_robin _ t n (≲@Lrr nat E X) t.
+Proof.
+  intros. apply schedule_state_refinement.
 Qed.
 
 (* TODO:
