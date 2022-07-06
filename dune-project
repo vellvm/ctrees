@@ -5,7 +5,6 @@
 (license "GPLv3")
 (authors "REDACTED")
 (maintainers "REDACTED")
-(source (github redacted))
 
 (generate_opam_files true)
 

@@ -3,11 +3,9 @@ opam-version: "2.0"
 version: "0.1"
 synopsis:
   "Library for representing recursive, non-deterministic and impure programs with equational reasoning"
-maintainer: ["Yannick Zakowski"]
-authors: ["Paul He" "Ludovic Henrio" "Yannick Zakowski" "Steve Zdancewic"]
+maintainer: ["REDACTED"]
+authors: ["REDACTED"]
 license: "GPLv3"
-homepage: "https://github.com/vellvm/ctrees"
-bug-reports: "https://github.com/vellvm/ctrees/issues"
 depends: [
   "dune" {>= "2.9"}
   "coq" {>= "8.15"}
@@ -34,4 +32,3 @@ build: [
   ]
   ["dune" "install" "-p" name "--create-install-files" name]
 ]
-dev-repo: "git+https://github.com/vellvm/ctrees.git"
