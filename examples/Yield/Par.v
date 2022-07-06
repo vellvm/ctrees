@@ -407,13 +407,13 @@ Variant spawnE : Type -> Type :=
   | Spawn : spawnE bool.
 
 Section parallel.
-  Context {config : Type}.
+  Context {E : Type -> Type}.
 
-  Definition parE s := yieldE +' spawnE +' stateE s.
+  Definition parE := yieldE +' spawnE +' E.
 
-  Definition thread := ctree (parE config) unit.
+  Definition thread := ctree parE unit.
 
-  Definition completed := ctree (stateE config) unit.
+  Definition completed := ctree E unit.
 
   Definition vec n := fin n -> thread.
 
@@ -930,7 +930,7 @@ Section parallel.
   Qed.
 
   (** [schedule] transitions with an [obs] *)
-  Lemma trans_schedule_obs {X} n v o (e : stateE config X) (x : X) t :
+  Lemma trans_schedule_obs {X} n v o (e : E X) (x : X) t :
     trans (obs e x) (schedule n v o) t ->
     (exists k i, o = Some i /\
                 visible (v i) (Vis (inr1 (inr1 e)) k) /\
@@ -1216,7 +1216,7 @@ Section parallel.
       apply replace_vec_relation; repeat intro; auto.
   Qed.
 
-  Lemma visible_stateE_trans_schedule {X} n v i (s : stateE config X) k x
+  Lemma visible_stateE_trans_schedule {X} n v i (s : E X) k x
         (Hbound : brD_bound 1 (v i)) :
     visible (v i) (Vis (inr1 (inr1 s)) k) ->
     trans (obs s x) (schedule (S n) v (Some i))

@@ -22,7 +22,8 @@ From ITree Require Import
      ITree
      Basics.CategoryKleisli
      Events.State
-     Events.StateFacts.
+     Events.StateFacts
+     Events.MapDefault.
 
 From Coinduction Require Import
 	coinduction rel tactics.
@@ -30,7 +31,8 @@ From Coinduction Require Import
 From CTree Require Import
      CTree
      Eq
-     Eq.WBisim.
+     Eq.WBisim
+     Interp.
 
 From CTreeYield Require Import
      Par.
@@ -67,28 +69,28 @@ Inductive stmt : Type :=
 | YieldS                         (* yield *)
 .
 
-Variant ImpState : Type -> Type :=
-| GetVar (x : var) : ImpState value
-| SetVar (x : var) (v : value) : ImpState unit.
+Variant MemE : Type -> Type :=
+| rd (x : var) : MemE value
+| wr (x : var) (v : value) : MemE unit.
 
 Section Denote1.
   Definition is_true (v : value) : bool := if (v =? 0)%nat then false else true.
 
-  Definition while (step : ctree (parE value) (unit + unit)) : ctree (parE value) unit :=
+  Definition while (step : ctree (@parE MemE) (unit + unit)) : ctree (@parE MemE) unit :=
     CTree.iter (fun _ => step) tt.
 
-  Fixpoint denote_expr (e : expr) : ctree (parE value) value :=
+  Fixpoint denote_expr (e : expr) : ctree (@parE MemE) value :=
     match e with
-    | Var v     => x <- trigger (Get _) ;; trigger Yield;; ret x
+    | Var v     => x <- trigger (rd v) ;; trigger Yield;; ret x
     | Lit n     => ret n
     | Plus a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l + r)%nat
     | Minus a b => l <- denote_expr a ;; r <- denote_expr b ;; ret (l - r)
     | Mult a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l * r)
     end.
 
-  Fixpoint denote_imp (s : stmt) : ctree (parE value) unit :=
+  Fixpoint denote_imp (s : stmt) : ctree parE unit :=
     match s with
-    | Assign x e =>  v <- denote_expr e ;; x <- trigger (Put _ v) ;; ret x
+    | Assign x e =>  v <- denote_expr e ;; u <- trigger (wr x v) ;; ret u
     | Seq a b    =>  denote_imp a ;; denote_imp b
     | If i t e   =>
         v <- denote_expr i ;;
@@ -110,36 +112,40 @@ Section Denote1.
     | YieldS => trigger Yield
     end.
 
-  Definition schedule_denot (t : stmt) : completed :=
+  Definition interp_concurrency (t : stmt) : completed :=
     schedule 1 (fun _ => denote_imp t) (Some Fin.F1).
 
-  (*
-  Definition h_state : forall X, stateE value X -> ctree (parE value) X :=
-    fun _ e =>
-      match e with
-      | Get _ => x <- trigger (Get _) ;; trigger Yield ;; Ret x
-      | Put _ s' => x <- trigger (Put _ s') ;; trigger Yield ;; Ret x
-      end.
-
-  #[global] Instance MonadBr_stateT {M S} {MM : Monad M} {AM : Utils.MonadBr M}
-    : Utils.MonadBr (Monads.stateT S M) :=
+  (* specific case for ctree rather than generic monad M *)
+  #[global] Instance MonadBr_stateT {S E} : Utils.MonadBr (Monads.stateT S (ctree E)) :=
     fun b n s =>
-      f <- br b n;;
+      f <- mbr b n;;
       ret (s, f).
 
-  Definition handler : forall X, (spawnE +' stateE value) X -> ctree (parE value) X :=
-    (fun X (e : (spawnE +' stateE value) X) =>
-       match e with
-       | inl1 e' => trigger e'
-       | inr1 e' => h_state _ e'
-       end).
+  Definition handle_MemE : MemE ~> ctree (mapE var 0%nat) :=
+    fun _ e =>
+      match e with
+      | rd x => trigger (LookupDef x)
+      | wr x v => trigger (Insert x v)
+      end.
 
-  Definition interp_state (t : ctree (spawnE +' stateE value) unit) : thread :=
-    Interp.interp handler t.
+  (* list of key value pairs *)
+  Definition env := alist var value.
 
-  Definition schedule_denot (t : stmt) : thread :=
-    schedule 1 (fun _ => interp_state (denote_imp t)) (Some Fin.F1).
-   *)
+  Definition handle_map {d : value} : mapE var d ~> Monads.stateT env (ctree void1) :=
+    fun _ e s =>
+      match e with
+      | Insert k v => Ret (Maps.add k v s, tt)
+      | LookupDef k => Ret (s, lookup_default k d s)
+      | Remove k => Ret (Maps.remove k s, tt)
+      end.
+
+  Definition interp_map {d : value} : ctree (mapE var d) ~> Monads.stateT env (ctree void1) :=
+    interp handle_map.
+
+  Definition interp_MemE (t : stmt) : Monads.stateT env (ctree void1) unit :=
+    let t' := interp handle_MemE (interp_concurrency t) in
+    interp_map _ t'.
+
   Lemma denote_expr_bounded e :
     brD_bound 1 (denote_expr e).
   Proof.
@@ -271,7 +277,7 @@ Section Denote1.
     - dependent destruction i. simp p; auto. inv i.
   Qed.
 
-  Lemma schedule_order (t1 t1' t2 t2' : ctree (parE value) unit)
+  Lemma schedule_order (t1 t1' t2 t2' : ctree (@parE MemE) unit)
     (Hbound1 : brD_bound 1 t1)
     (Hbound2 : brD_bound 1 t2)
     (Hbound1' : brD_bound 1 t1')
@@ -288,7 +294,7 @@ Section Denote1.
                           (Some i')).
   Proof.
     apply sb_brS; intros i; exists (p i); [| symmetry];
-      apply (@schedule_permutation value) with (q:=p);
+      apply schedule_permutation with (q:=p);
       try solve [intros i0; dependent destruction i0; simp cons_vec];
       try solve [apply p_inverse];
       try solve [ intros i0; dependent destruction i0;
@@ -298,10 +304,10 @@ Section Denote1.
   Qed.
 
   Lemma commut_forks s1 s2 :
-    schedule_denot (Fork s1 (Fork s2 Skip)) ~
-    schedule_denot (Fork s2 (Fork s1 Skip)).
+    interp_concurrency (Fork s1 (Fork s2 Skip)) ~
+    interp_concurrency (Fork s2 (Fork s1 Skip)).
   Proof.
-    unfold schedule_denot.
+    unfold interp_concurrency.
     do 2 rewrite schedule_forks.
     apply sb_step. apply sb_step. apply sb_guard_lr.
 
@@ -314,10 +320,10 @@ Section Denote1.
      (tau at spawn, tau when main thread ends, continue with s) *)
   (* [| yield; yield; s |] = tau tau s *)
   Lemma yield_fork s :
-    schedule_denot (Seq YieldS (Seq YieldS s)) ~
-    schedule_denot (Fork s Skip).
+    interp_concurrency (Seq YieldS (Seq YieldS s)) ~
+    interp_concurrency (Fork s Skip).
   Proof.
-    unfold schedule_denot.
+    unfold interp_concurrency.
 
     cbn.
     do 2 rewrite rewrite_schedule. simp schedule_match.
@@ -348,9 +354,9 @@ Section Denote1.
   Qed.
 
   Lemma fork_skip_equ s :
-    schedule_denot (Fork s Skip) ≅ Step (Guard (Step (schedule_denot s))).
+    interp_concurrency (Fork s Skip) ≅ Step (Guard (Step (interp_concurrency s))).
   Proof.
-    unfold schedule_denot. cbn.
+    unfold interp_concurrency. cbn.
 
     rewrite rewrite_schedule. simp schedule_match.
     cbn. CTree.fold_subst.
@@ -369,9 +375,9 @@ Section Denote1.
   Qed.
 
   Lemma yield_equ s :
-    schedule_denot (Seq YieldS s) ≅ Guard (Step (schedule_denot s)).
+    interp_concurrency (Seq YieldS s) ≅ Guard (Step (interp_concurrency s)).
   Proof.
-    unfold schedule_denot. cbn.
+    unfold interp_concurrency. cbn.
 
     rewrite rewrite_schedule. simp schedule_match.
     cbn. CTree.fold_subst.
@@ -386,8 +392,8 @@ Section Denote1.
   Qed.
 
   Lemma fork_skip_yield s :
-    schedule_denot (Fork s Skip) ≈
-    schedule_denot (Seq YieldS s).
+    interp_concurrency (Fork s Skip) ≈
+    interp_concurrency (Seq YieldS s).
   Proof.
     rewrite fork_skip_equ, yield_equ.
     rewrite guard_wb. rewrite step_wb.
@@ -396,8 +402,7 @@ Section Denote1.
   Qed.
 
   Lemma spawn_skip s :
-    schedule_denot (Fork s Skip) ≈
-    schedule_denot s.
+    interp_concurrency (Fork s Skip) ≈ interp_concurrency s.
   Proof.
     rewrite fork_skip_equ.
     rewrite step_wb.
@@ -419,10 +424,10 @@ Section Denote1.
 
 
   Lemma commut_forks_unfold s :
-    schedule_denot (Fork (While (Lit 1%nat) YieldS) (Fork s Skip)) ~
-    schedule_denot (Fork s (Fork (Seq YieldS (While (Lit 1%nat) YieldS)) Skip)).
+    interp_concurrency (Fork (While (Lit 1%nat) YieldS) (Fork s Skip)) ~
+    interp_concurrency (Fork s (Fork (Seq YieldS (While (Lit 1%nat) YieldS)) Skip)).
   Proof.
-    unfold schedule_denot.
+    unfold interp_concurrency.
     do 2 rewrite schedule_forks.
     apply sb_step. apply sb_step. apply sb_guard_lr.
 
