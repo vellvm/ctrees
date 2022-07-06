@@ -609,22 +609,22 @@ Inverting equalities between labels
 |*)
 
   Lemma val_eq_invT : forall X Y x y, @val E X x = @val E Y y -> X = Y.
-    intros * EQ.
+    clear C HasStuck. intros * EQ.
     now dependent induction EQ.
   Qed.
 
   Lemma val_eq_inv : forall X x y, @val E X x = val y -> x = y.
-    intros * EQ.
+    clear C HasStuck. intros * EQ.
     now dependent induction EQ.
   Qed.
 
   Lemma obs_eq_invT : forall X Y e1 e2 v1 v2, @obs E X e1 v1 = @obs E Y e2 v2 -> X = Y.
-    intros * EQ.
+    clear C HasStuck. intros * EQ.
     now dependent induction EQ.
   Qed.
 
   Lemma obs_eq_inv : forall X e1 e2 v1 v2, @obs E X e1 v1 = @obs E X e2 v2 -> e1 = e2 /\ v1 = v2.
-    intros * EQ.
+    clear C HasStuck. intros * EQ.
     now dependent induction EQ.
   Qed.
 
