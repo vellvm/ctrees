@@ -2,8 +2,7 @@
 ==============
 Syntax for ccs
 ==============
-Traditional syntax for ccs with explicit prefix by tau for convenience.
-No recursion nor replication at the moment, todo.
+Traditional syntax for ccs with replication and explicit prefix by tau for convenience.
 
 .. coq:: none
 |*)
@@ -51,7 +50,6 @@ End Channels.
 
 Section Syntax.
 
-  (* We consider CCS with guarded choice for now *)
   Inductive term : Type :=
   | DoneT : term
   | TauT (P : term)
@@ -70,7 +68,6 @@ Module CCSNotations.
   Infix "=?" := eqb_action : term_scope.
   Notation "0" := DoneT : term_scope.
   Notation "a · P" := (ActionT a P) (at level 10) : term_scope.
-  (* Notation "τ ⋅ P" := (TauT P) (at level 10) : term_scope. *)
   Notation "P ∥ Q" := (ParaT P Q) (at level 29, left associativity) : term_scope.
   Notation "P ⊕ Q" := (PlusT P Q) (at level 28, left associativity) : term_scope.
   Notation "P ∖ c" := (RestrictT c P) (at level 10) : term_scope.

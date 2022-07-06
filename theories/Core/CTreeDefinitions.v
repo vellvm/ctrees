@@ -53,17 +53,6 @@ indexed event and non-deterministically continuing indexed by the
 value returned by the environment
 - A (finite) internal non-deterministic branching
 
-TODO YZ:
-
-- Do we want to name the sources of the brs?
-  For instance if we want to support simultaneously different schedulers for different kind of non-determinism in a language.
-- Do we want non-finite internal branching? Indexed by arbitrary types?
-- Or crazier, do we want non-uniform branching, modelling non-uniform random brs for instance?
-- Could ctrees be parameterized by:
-
-  + a bound on nested brs before reaching a Vis/Ret
-  + a general domain of br events
-
 .. coq::
 |*)
 

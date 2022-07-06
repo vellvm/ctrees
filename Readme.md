@@ -1,15 +1,10 @@
 # Concurrent Interaction Trees
-[![Docker CI](https://github.com/vellvm/ctrees/workflows/Docker%20CI/badge.svg?branch=master)](https://github.com/vellvm/ctrees/actions?query=workflow:"Docker%20CI")
 
-We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support for internal non-determinism.
+This development is a companion to the POPL'23 submission "Choice Trees -- Representing Nondeterministic, Recursive, and Impure Programs in Coq".
 
 ## Meta
 
-- Author(s):
-  - Paul He
-  - Ludovic Henrio
-  - Yannick Zakowski
-  - Steve Zdancewic
+- Author(s): REDACTED
 - License: MIT License
 - Compatible Coq versions: 8.15
 - Additional dependencies:
@@ -39,7 +34,7 @@ opam install coq-equations
 ### Obtaining the project
 
 ```shell
-git clone https://github.com/vellvm/ctrees
+git clone https://github.com/redacted
 cd ctrees
 ```
 

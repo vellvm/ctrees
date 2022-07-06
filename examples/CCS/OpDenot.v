@@ -315,7 +315,6 @@ Proof.
   intros []; auto.
 Qed.
 
-(* Naming *)
 Lemma cross_model_compose : forall T t u U,
     bisimilar t T ->
     Operational.bisim t u ->

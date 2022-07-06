@@ -3,10 +3,9 @@
 (name coq-ctree)
 
 (license "GPLv3")
-(authors "Paul He" "Ludovic Henrio" "Yannick Zakowski" "Steve Zdancewic")
-(maintainers "Yannick Zakowski")
-(source (github vellvm/ctrees))
-(bug_reports "https://github.com/vellvm/ctrees/issues")
+(authors "REDACTED")
+(maintainers "REDACTED")
+(source (github redacted))
 
 (generate_opam_files true)
 

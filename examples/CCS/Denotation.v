@@ -40,8 +40,7 @@ Open Scope ctree_scope.
 Event signature
 ---------------
 Processes must at least be able to perform actions.
-We do not encode tau steps as events but rather directly as
-unary visible br nodes.
+We do not encode tau steps as events but rather directly as unary stepping branches.
 |*)
 
 Variant ActionE : Type -> Type :=
@@ -66,7 +65,6 @@ Section Combinators.
 
 	Definition plus (P Q : ccs) : ccs := brD2 P Q.
 
-  (* Stuck? Failure event? *)
   Definition h_new (c : chan) : ActionE ~> ctree ccsE :=
     fun _ e => let '(Act a) := e in
             match a with
@@ -187,7 +185,6 @@ Module CCSNotationsSem.
 
   Notation "0" := nil: ccs_scope.
   Infix "+" := plus (at level 50, left associativity) : ccs_scope.
-  (* Infix "∥" := communicating (at level 29, left associativity). *)
   Infix "∥" := para (at level 29, left associativity) : ccs_scope.
   Notation "! x" := (bang x) : ccs_scope.
 
@@ -1479,8 +1476,6 @@ Module DenNotations.
   Notation "'deadP' e" :=  (inr1 (inr1 e)) (at level 10).
 
   Notation "⟦ t ⟧" := (model t).
-  (* Notation "P '⊢' a '→ccs' Q" := (step_ccs P a Q) (at level 50). *)
-  (* Notation "P '⊢' a '→sem' Q" := (step_sem P a Q) (at level 50). *)
 
 End DenNotations.
 
