@@ -16,21 +16,21 @@ Open Scope monad_scope.
 
 Definition schedule {E M : Type -> Type}
 					 {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {FoM : MonadTrigger E M}
-           {CM : MonadChoice M}
+           {CM : MonadBr M}
            (h : bool -> forall n, M (fin n)) :
 	ctree E ~> M :=
   fun R =>
 		iter (fun t =>
 				    match observe t with
 				    | RetF r => ret (inr r)
-				    | @ChoiceF _ _ _ b n k =>
+				    | @BrF _ _ _ b n k =>
                 bind (h b n) (fun x => ret (inl (k x)))
 				    | VisF e k => bind (mtrigger _ e) (fun x => ret (inl (k x)))
 				    end).
 
 Variant pureb {E X} (rec : ctree E X -> Prop) : ctree' E X -> Prop :=
   | pure_ret   (v : X) : pureb rec (RetF v)
-  | pure_delay n k (REC: forall v, rec (k v)) : pureb rec (ChoiceIF n k).
+  | pure_delay n k (REC: forall v, rec (k v)) : pureb rec (BrDF n k).
 #[global] Hint Constructors equb: core.
 
 Definition pureb_ {E X} rec (t : ctree E X) := pureb rec (observe t).
@@ -70,7 +70,7 @@ Definition schedule_cst {E} (h : bool -> forall n, fin (S n)) : ctree E ~> ctree
   schedule (fun b n =>
     match n with
     | O => CTree.stuck b
-    | S n => Choice b 1 (fun _ => Ret (h b n))
+    | S n => Br b 1 (fun _ => Ret (h b n))
     end).
 
 Definition round_robin {E} : ctree E ~> stateT nat (ctree E).
@@ -95,7 +95,7 @@ Theorem schedule_cst_refinement :
 Proof.
   intros until h. coinduction R CH. repeat intro.
   do 3 red in H. remember (observe _) as os. genobs t' ot'.
-  assert (EQ : go os ≅ schedule_cst h X t \/ go os ≅ TauI (schedule_cst h X t)).
+  assert (EQ : go os ≅ schedule_cst h X t \/ go os ≅ Guard (schedule_cst h X t)).
   { left. rewrite Heqos. now rewrite <- ctree_eta. } clear Heqos.
   apply (f_equal go) in Heqot'. eq2equ Heqot'.
   rewrite <- ctree_eta in EQ0.
@@ -116,40 +116,40 @@ Proof.
       change t with (observe (go t)) in H.
       rewrite trans__trans in H.
       destruct n0.
-      * setoid_rewrite bind_choice in EQ.
-        apply equ_choice_invT in EQ as ?. destruct H0 as [<- _].
+      * setoid_rewrite bind_br in EQ.
+        apply equ_br_invT in EQ as ?. destruct H0 as [<- _].
         now eapply Fin.case0.
-      * setoid_rewrite bind_choice in EQ.
-        apply equ_choice_invT in EQ as ?. destruct H0 as [<- _].
+      * setoid_rewrite bind_br in EQ.
+        apply equ_br_invT in EQ as ?. destruct H0 as [<- _].
         destruct vis. { step in EQ. inv EQ. }
-        simple eapply equ_choice_invE with (x := x) in EQ.
+        simple eapply equ_br_invE with (x := x) in EQ.
         rewrite bind_ret_l in EQ.
         lapply (IHtrans_ (k0 (h false n0))).
         -- intro. destruct H0 as (? & ? & ?).
            etrans.
         -- right. rewrite <- ctree_eta. now rewrite <- EQ.
     + apply IHtrans_. left.
-      apply equ_choice_invT in EQ as ?. destruct H0 as [<- _]. rewrite <- ctree_eta.
-      simple apply equ_choice_invE with (x := x) in EQ. now rewrite EQ.
+      apply equ_br_invT in EQ as ?. destruct H0 as [<- _]. rewrite <- ctree_eta.
+      simple apply equ_br_invE with (x := x) in EQ. now rewrite EQ.
   - destruct EQ. 2: { step in H0. inv H0. }
     setoid_rewrite unfold_iter in H0. cbn in H0.
     destruct (observe t0) eqn:?;
-      (try setoid_rewrite bind_choice in H0);
+      (try setoid_rewrite bind_br in H0);
       (try setoid_rewrite bind_trigger in H0);
       (try destruct vis);
       subst; try now step in H0; inv H0.
     rewrite bind_bind in H0.
     destruct n0.
-    + setoid_rewrite bind_choice in H0.
-      apply equ_choice_invT in H0 as ?. destruct H1 as [-> _].
+    + setoid_rewrite bind_br in H0.
+      apply equ_br_invT in H0 as ?. destruct H1 as [-> _].
       now eapply Fin.case0.
-    + rewrite bind_choice in H0.
+    + rewrite bind_br in H0.
       do 2 setoid_rewrite bind_ret_l in H0.
-      apply equ_choice_invT in H0 as ?. destruct H1 as [-> _].
-      simple apply equ_choice_invE with (x := x) in H0.
+      apply equ_br_invT in H0 as ?. destruct H1 as [-> _].
+      simple apply equ_br_invE with (x := x) in H0.
       exists (k0 (h true n0)).
       rewrite ctree_eta, Heqc. split; etrans.
-      rewrite <- H, H0, <- ctree_eta, sb_tauI.
+      rewrite <- H, H0, <- ctree_eta, sb_guard.
       apply CH.
     + destruct n0; step in H0; inv H0.
   - destruct EQ. 2: { step in H0. inv H0. }
@@ -162,13 +162,13 @@ Proof.
     setoid_rewrite bind_ret_l in H0.
     exists (k0 x). eexists.
     { rewrite ctree_eta, Heqc. etrans. }
-    rewrite <- H, H0, <- ctree_eta, sb_tauI. apply CH.
+    rewrite <- H, H0, <- ctree_eta, sb_guard. apply CH.
   - destruct EQ. 2: { step in H. inv H. }
-    exists CTree.stuckI.
+    exists CTree.stuckD.
     setoid_rewrite unfold_iter in H.
     destruct (observe t) eqn:?;
       try ((try destruct n); now step in H; inv H).
     setoid_rewrite bind_ret_l in H.
     + step in H. inv H. rewrite ctree_eta, Heqc.
-      split; etrans. rewrite choice0_always_stuck. reflexivity.
+      split; etrans. rewrite br0_always_stuck. reflexivity.
 Qed.

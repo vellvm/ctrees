@@ -4,20 +4,20 @@ From ExtLib Require Import
 
 From CTree Require Import
      Eq.
-(* Import ITree.Basics.Basics.Monads. *)
+
 Import MonadNotation.
 Open Scope monad_scope.
-Notation ChoiceVF := (ChoiceF true).
-Notation ChoiceIF := (ChoiceF false).
+Notation BrSF := (BrF true).
+Notation BrDF := (BrF false).
 
 Definition guarded_form {E X} (t : ctree E X) : ctree E X :=
 	CTree.iter (fun t =>
 				        match observe t with
 				        | RetF r => ret (inr r)
-				        | ChoiceIF n k =>
-                    ChoiceI n (fun x => ret (inl (k x)))
-				        | ChoiceVF n k =>
-                    ChoiceI n (fun x => TauV (ret (inl (k x))))
+				        | BrDF n k =>
+                    BrD n (fun x => ret (inl (k x)))
+				        | BrSF n k =>
+                    BrD n (fun x => Step (ret (inl (k x))))
 				        | VisF e k => bind (mtrigger _ e) (fun x => ret (inl (k x)))
 				        end) t.
 
@@ -25,11 +25,11 @@ Lemma unfold_guarded_form {E X} (t : ctree E X) :
   guarded_form t ≅
   match observe t with
 	| RetF r => ret r
-	| ChoiceIF n k =>
-      ChoiceI n (fun x => TauI (guarded_form (k x)))
-	| ChoiceVF n k =>
-      ChoiceI n (fun x => TauV (TauI (guarded_form (k x))))
-	| VisF e k => bind (mtrigger _ e) (fun x => TauI (guarded_form (k x)))
+	| BrDF n k =>
+      BrD n (fun x => Guard (guarded_form (k x)))
+	| BrSF n k =>
+      BrD n (fun x => Step (Guard (guarded_form (k x))))
+	| VisF e k => bind (mtrigger _ e) (fun x => Guard (guarded_form (k x)))
 	end.
 Proof.
   unfold guarded_form at 1.
@@ -41,12 +41,12 @@ Proof.
     rewrite bind_ret_l.
     reflexivity.
   - destruct vis.
-    + rewrite bind_choice.
+    + rewrite bind_br.
       step; constructor; intros ?.
-      rewrite bind_tauV; step; constructor; intros ?.
+      rewrite bind_Step; step; constructor; intros ?.
       rewrite bind_ret_l.
       step; constructor; auto.
-    + rewrite bind_choice.
+    + rewrite bind_br.
       step; constructor; intros ?.
       rewrite bind_ret_l.
       step; constructor; auto.
@@ -54,10 +54,10 @@ Qed.
 
 Lemma trans_guarded_inv_strong :
   forall {E X} (t u v : ctree E X) l,
-    (v ≅ guarded_form t \/ v ≅ TauI (guarded_form t)) ->
+    (v ≅ guarded_form t \/ v ≅ Guard (guarded_form t)) ->
     trans l v u ->
     exists t', trans l t t'
-          /\ (u ≅ guarded_form t' \/ u ≅ TauI (guarded_form t')).
+          /\ (u ≅ guarded_form t' \/ u ≅ Guard (guarded_form t')).
 Proof.
   intros * EQ TR.
   revert t EQ.
@@ -68,29 +68,29 @@ Proof.
       setoid_rewrite (ctree_eta t).
       desobs t; try now step in EQ; inv EQ.
       destruct vis.
-      * pose proof equ_choice_invT _ _ EQ as [<- _].
-        apply equ_choice_invE with (x := x0) in EQ .
+      * pose proof equ_br_invT _ _ EQ as [<- _].
+        apply equ_br_invE with (x := x0) in EQ .
         rewrite EQ in TR.
-        apply trans_tauV_inv in TR as [EQ' ->].
+        apply trans_step_inv in TR as [EQ' ->].
         eexists; split; eauto.
         etrans.
 
-      * pose proof equ_choice_invT _ _ EQ as [<- _].
-        apply equ_choice_invE with (x := x0) in EQ .
+      * pose proof equ_br_invT _ _ EQ as [<- _].
+        apply equ_br_invE with (x := x0) in EQ .
         specialize (IHTR _ _ eq_refl eq_refl).
         edestruct IHTR as (t' & ? & ?); eauto.
         exists t'.
         split.
-        eapply trans_choiceI with (x := x0); eauto.
+        eapply trans_brD with (x := x0); eauto.
         eauto.
 
     + rewrite ctree_eta, <- x in EQ.
-      pose proof equ_choice_invT _ _ EQ as [-> _].
-      apply equ_choice_invE with (x := x0) in EQ .
+      pose proof equ_br_invT _ _ EQ as [-> _].
+      apply equ_br_invE with (x := x0) in EQ .
       specialize (IHTR _ _ eq_refl eq_refl).
       edestruct IHTR as (t' & ? & ?); eauto.
 
-  - (* G(t) ≅ ChoiceV k : absurd *)
+  - (* G(t) ≅ BrS k : absurd *)
     intros ? [EQ | EQ].
     + rewrite ctree_eta, <- x1, unfold_guarded_form in EQ.
       desobs t0; try now step in EQ; inv EQ.
@@ -98,7 +98,7 @@ Proof.
     + rewrite ctree_eta, <- x1 in EQ.
       now step in EQ; inv EQ.
 
-  - (* G(t) ≅ Vis e k : t ≅ Vis e k', k x ≅ TauI (G (k' x)) *)
+  - (* G(t) ≅ Vis e k : t ≅ Vis e k', k x ≅ Guard (G (k' x)) *)
     intros ? [EQ | EQ].
     + setoid_rewrite (ctree_eta t0).
       rewrite ctree_eta, <- x1, unfold_guarded_form in EQ.
@@ -131,7 +131,7 @@ Proof.
       left.
       rewrite ctree_eta, <- x, unfold_guarded_form.
       cbn.
-      rewrite ! choiceI0_always_stuck.
+      rewrite ! brD0_always_stuck.
       reflexivity.
     + rewrite ctree_eta, <- x0 in EQ.
       now step in EQ; inv EQ.
@@ -148,7 +148,7 @@ Proof.
   left; eauto.
   exists t'; split; auto.
   destruct EQ as [EQ |EQ]; rewrite EQ; auto.
-  rewrite sb_tauI; auto.
+  rewrite sb_guard; auto.
 Qed.
 
 Ltac fold_bind :=
@@ -188,7 +188,7 @@ Lemma trans_guarded_strong :
     exists u',
       trans l (guarded_form t) u'
       /\ (u' ≅ guarded_form u
-         \/ u' ≅ TauI (guarded_form u)).
+         \/ u' ≅ Guard (guarded_form u)).
 Proof.
   intros * TR.
   (* revert t EQ. *)
@@ -198,12 +198,12 @@ Proof.
     edestruct IHTR as (u' & TR' & EQ'); eauto.
     setoid_rewrite unfold_guarded_form at 1; rewrite <- x.
     exists u'; split.
-    eapply trans_choiceI with (x := x0); [| reflexivity].
-    now apply trans_tauI.
+    eapply trans_brD with (x := x0); [| reflexivity].
+    now apply trans_guard.
     auto.
   - setoid_rewrite unfold_guarded_form at 1; rewrite <- x1.
     eexists; split.
-    eapply trans_choiceI with (x := x0); [| reflexivity].
+    eapply trans_brD with (x := x0); [| reflexivity].
     etrans.
     right.
     step; constructor; intros ?.
@@ -229,7 +229,7 @@ Proof.
     cbn; etrans.
     left.
     rewrite unfold_guarded_form, <- x; cbn.
-    now rewrite ! choiceI0_always_stuck.
+    now rewrite ! brD0_always_stuck.
 Qed.
 
 Lemma trans_guarded :
@@ -243,7 +243,7 @@ Proof.
   edestruct trans_guarded_strong as (u' & TR' & EQ'); eauto.
   exists u'; split; auto.
   destruct EQ' as [EQ' | EQ']; rewrite EQ'; auto.
-  now rewrite sb_tauI.
+  now rewrite sb_guard.
 Qed.
 
 (* TODO: define properly the set of tactics in [sbisim] and kill this.
@@ -251,8 +251,8 @@ Qed.
  *)
 Ltac sret  := apply step_sb_ret.
 Ltac svis  := apply step_sb_vis.
-Ltac stauv := apply step_sb_tauV.
-Ltac sstep := sret || svis || stauv.
+Ltac sStep := apply step_sb_step.
+Ltac sstep := sret || svis || sStep.
 
 Lemma guarded_is_bisimilar {E X} : forall (t : ctree E X),
     guarded_form t ~ t.
@@ -266,7 +266,7 @@ Proof.
   - cbn*.
     unfold mtrigger; rewrite bind_trigger.
     sstep; intros ?.
-    rewrite sb_tauI.
+    rewrite sb_guard.
     apply IH.
   - destruct vis.
     + cbn.
@@ -274,17 +274,17 @@ Proof.
       * inv_trans.
         subst.
         eexists.
-        eapply trans_choiceV with (x := n0).
+        eapply trans_brS with (x := n0).
         rewrite EQ.
-        rewrite sb_tauI.
+        rewrite sb_guard.
         apply IH.
       * cbn.
         inv_trans; subst.
         eexists.
-        eapply trans_choiceI with (x := n0).
+        eapply trans_brD with (x := n0).
         2:etrans.
         etrans.
-        rewrite sb_tauI.
+        rewrite sb_guard.
         rewrite EQ; apply IH.
     + split.
       * intros ? ? TR.
@@ -292,16 +292,15 @@ Proof.
         inv_trans.
         edestruct trans_guarded_inv as (u' & TR' & EQ'); eauto.
         eexists.
-        eapply trans_choiceI with (x := n0); [| reflexivity].
+        eapply trans_brD with (x := n0); [| reflexivity].
         eassumption.
         rewrite EQ'; auto.
       * cbn; intros ? ? TR.
         inv_trans.
         edestruct trans_guarded as (u' & TR' & EQ'); eauto.
         eexists.
-        eapply trans_choiceI with (x := n0); [| reflexivity].
-        apply trans_tauI.
+        eapply trans_brD with (x := n0); [| reflexivity].
+        apply trans_guard.
         eauto.
         rewrite EQ'; auto.
 Qed.
-

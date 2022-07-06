@@ -9,12 +9,11 @@ Notation fin := Fin.t.
 Ltac next := unfold bt; cbn.
 Tactic Notation "cbn*" := next.
 
-(* TODO: move *)
 Polymorphic Class MonadTrigger (E : Type -> Type) (M : Type -> Type) : Type :=
   mtrigger : forall X, E X -> M X.
 
-Polymorphic Class MonadChoice (M : Type -> Type) : Type :=
-  choice : forall (b : bool) (n: nat), M (Fin.t n).
+Polymorphic Class MonadBr (M : Type -> Type) : Type :=
+  mbr : forall (b : bool) (n: nat), M (Fin.t n).
 
 Notation rel X Y := (X -> Y -> Prop).
 
@@ -36,11 +35,6 @@ Ltac break :=
 
 (* A smarter version of this should be part of the [coinduction] library *)
 
-(* Ltac step := *)
-(*   match goal with *)
-(*   | |- gfp _ _ _ => tactics.step *)
-(*   | |- _ => red; tactics.step *)
-(*   end. *)
 Ltac step_ :=
   match goal with
   | |- gfp ?b ?x ?y => apply (proj2 (gfp_fp b x y))

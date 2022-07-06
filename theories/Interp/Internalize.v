@@ -5,25 +5,24 @@ Set Implicit Arguments.
 Set Contextual Implicit.
 
 Import CTreeNotations.
-(* Import CTreeNotations. *)
 
 Section Internalize.
   Variable E : Type -> Type.
 
-  Variant ExtChoice : Type -> Type :=
-    | ext_chose n : ExtChoice (Fin.t n).
+  Variant ExtBr : Type -> Type :=
+    | ext_chose n : ExtBr (Fin.t n).
   Arguments ext_chose n : clear implicits.
 
-  Definition internalize_h {E} : ExtChoice ~> ctree E :=
-    fun _ '(ext_chose n) => CTree.choice true n.
+  Definition internalize_h {E} : ExtBr ~> ctree E :=
+    fun _ '(ext_chose n) => CTree.br true n.
 
-  Definition internalize_h' {E} : ExtChoice +' E ~> ctree E :=
+  Definition internalize_h' {E} : ExtBr +' E ~> ctree E :=
     fun _ e => match e with
             | inl1 e => internalize_h e
             | inr1 e => trigger e
             end.
 
-  Definition internalize : ctree (ExtChoice +' E) ~> ctree E :=
+  Definition internalize : ctree (ExtBr +' E) ~> ctree E :=
     interp internalize_h'.
 
   Lemma internalize_ret {R} (r : R) : internalize (Ret r) ≅ Ret r.

@@ -21,7 +21,7 @@ Definition h_embed {E} : E ~> ctree E :=
   fun _ e => CTree.trigger e.
 Definition embed' {E} : itree E ~> ctree E := interp h_embed.
 
-Definition embed {E} : itree (ExtChoice +' E) ~> ctree E :=
+Definition embed {E} : itree (ExtBr +' E) ~> ctree E :=
   fun _ t => internalize (embed' t).
 
 Notation "t '-' l '→' u" := (trans l t u)
@@ -40,7 +40,7 @@ Notation "t '-' l '→' u" := (transR l t u)
 #[local] Notation iVis e k  := (Vis e k).
 #[local] Notation iTau t    := (Tau t).
 #[local] Notation cRet x    := (CTreeDefinitions.Ret x).
-#[local] Notation cTauI t   := (CTreeDefinitions.TauI t).
+#[local] Notation cGuard t   := (CTreeDefinitions.Guard t).
 #[local] Notation cVis e k  := (CTreeDefinitions.Vis e k).
 
 (** Unfolding of [interp]. *)
@@ -48,8 +48,8 @@ Definition _interp {E F R} (f : E ~> ctree F) (ot : itreeF E R _)
   : ctree F R :=
   match ot with
   | RetF r => CTreeDefinitions.Ret r
-  | TauF t => cTauI (interp f t)
-  | VisF e k => CTree.bind (f _ e) (fun x => cTauI (interp f (k x)))
+  | TauF t => cGuard (interp f t)
+  | VisF e k => CTree.bind (f _ e) (fun x => cGuard (interp f (k x)))
   end.
 
 Lemma unfold_interp_ctree {E F X} (h: E ~> ctree F) (t : itree E X):
@@ -109,12 +109,12 @@ From Coq Require Import Datatypes.
 Notation embed_ t :=
   match iobserve t with
   | RetF r => cRet r
-  | TauF t => cTauI (cTauI (embed t))
+  | TauF t => cGuard (cGuard (embed t))
   | VisF (inl1 e) k =>
       match e,k with
-      | ext_chose n, k => ChoiceV n (fun x => cTauI (cTauI (cTauI (embed (k x)))))
+      | ext_chose n, k => BrS n (fun x => cGuard (cGuard (cGuard (embed (k x)))))
       end
-  | VisF (inr1 e) k => CTreeDefinitions.vis e (fun x => cTauI (cTauI (cTauI (embed (k x)))))
+  | VisF (inr1 e) k => CTreeDefinitions.vis e (fun x => cGuard (cGuard (cGuard (embed (k x)))))
   end.
 
 Lemma unfold_embed {E X} (t : itree (_ +' E) X) : (embed t ≅ embed_ t)%ctree.
@@ -155,9 +155,9 @@ Proof.
       auto.
 Qed.
 
-Lemma trans_embed_inv E X : forall (t1 : itree (ExtChoice +' E) X) l t2',
+Lemma trans_embed_inv E X : forall (t1 : itree (ExtBr +' E) X) l t2',
     trans l (embed t1) t2' ->
-    (exists r : X, (t2' ≅ CTree.stuckI)%ctree /\ l = val r)
+    (exists r : X, (t2' ≅ CTree.stuckD)%ctree /\ l = val r)
     \/ exists t2, (t2' ~ embed t2)%ctree.
 Proof.
   unfold trans.
@@ -165,9 +165,9 @@ Proof.
   cbn in TR; red in TR.
   remember (embed t1) as et1.
   cut (
-      ((et1 ≅ embed t1)%ctree \/ (et1 ≅ cTauI (embed t1))%ctree) ->
-      (exists r : X, (t2' ≅ CTree.stuckI)%ctree /\ l = val r)
-      \/ exists t2 : itree (ExtChoice +' E) X, t2' ~ embed t2).
+      ((et1 ≅ embed t1)%ctree \/ (et1 ≅ cGuard (embed t1))%ctree) ->
+      (exists r : X, (t2' ≅ CTree.stuckD)%ctree /\ l = val r)
+      \/ exists t2 : itree (ExtBr +' E) X, t2' ~ embed t2).
   intros H; eapply H; eauto; left; subst; auto.
   clear Heqet1.
   revert t1.
@@ -208,7 +208,7 @@ Proof.
       step in EQ; dependent induction EQ.
       setoid_rewrite (REL x0).
       right.
-      eexists; rewrite !sb_tauI.
+      eexists; rewrite !sb_guard.
       reflexivity.
     + rewrite (ctree_eta et1), <- x1 in EQ;
         clear et1 x1.
@@ -231,14 +231,14 @@ Proof.
       step in EQ; dependent induction EQ.
       setoid_rewrite (REL x0).
       right; eexists.
-      rewrite !sb_tauI.
+      rewrite !sb_guard.
       reflexivity.
     + rewrite (ctree_eta et1), <- x1 in EQ;
         clear et1 x1.
       step in EQ; inv EQ.
 
   - intros * EQ.
-    assert (t2' ≅ Choice false 0 k)%ctree by (step; now rewrite x).
+    assert (t2' ≅ Br false 0 k)%ctree by (step; now rewrite x).
     setoid_rewrite H.
     clear t2' x H.
     destruct EQ as [EQ | EQ].
@@ -248,7 +248,7 @@ Proof.
       destruct (iobserve t1) eqn:EQ1; try now step in EQ; inv EQ.
       * dependent induction EQ.
         left; eexists; split; eauto.
-        rewrite choiceI0_always_stuck; reflexivity.
+        rewrite brD0_always_stuck; reflexivity.
       * destruct e; [destruct e |]; step in EQ; inv EQ.
     + step in EQ; rewrite <- x0 in EQ; inv EQ.
 Qed.
@@ -275,7 +275,7 @@ Qed.
 
 Lemma embed_trans_productive_aux E X : forall l t (T u : ctree E X),
     trans l T u ->
-    (equ eq T (embed t) \/ equ eq T (cTauI (embed t))) ->
+    (equ eq T (embed t) \/ equ eq T (cGuard (embed t))) ->
     productive t.
 Proof.
   intros * TR EQ.
@@ -375,7 +375,7 @@ Proof.
         edestruct IHEUTT; try reflexivity.
         eexists.
         rewrite unfold_embed, <- Heqou.
-        apply trans_tauI, trans_tauI.
+        apply trans_guard, trans_guard.
         eauto.
         eauto.
     + intros.
@@ -383,7 +383,7 @@ Proof.
       rewrite unfold_embed in TR; cbn in TR.
       destruct e.
       * destruct e.
-        apply trans_choiceV_inv in TR; destruct TR as (? & EQ' & ->).
+        apply trans_brS_inv in TR; destruct TR as (? & EQ' & ->).
         punfold EUTT; cbn in EUTT; red in EUTT.
         remember (iobserve (iVis (inl1 (ext_chose n)) k)) as ot;
           remember (iobserve u) as ou.
@@ -395,14 +395,14 @@ Proof.
            rewrite unfold_embed, <- Heqou.
            etrans.
            rewrite EQ'.
-           rewrite !sb_tauI.
+           rewrite !sb_guard.
            apply CIH.
            pclearbot; apply REL.
         ** intros.
            edestruct IHEUTT; try reflexivity.
            eexists.
            rewrite unfold_embed, <- Heqou.
-           apply trans_tauI, trans_tauI.
+           apply trans_guard, trans_guard.
            eauto.
            eauto.
       * apply trans_vis_inv in TR; destruct TR as (? & EQ' & ->).
@@ -417,20 +417,20 @@ Proof.
            rewrite unfold_embed, <- Heqou.
            etrans.
            rewrite EQ'.
-           rewrite !sb_tauI.
+           rewrite !sb_guard.
            apply CIH.
            pclearbot; apply REL.
         ** intros.
            edestruct IHEUTT; try reflexivity.
            eexists.
            rewrite unfold_embed, <- Heqou.
-           apply trans_tauI, trans_tauI.
+           apply trans_guard, trans_guard.
            eauto.
            eauto.
     + intros.
       rewrite EQ in EUTT,TR.
       rewrite unfold_embed in TR; cbn in TR.
-      do 2 apply trans_tauI_inv in TR.
+      do 2 apply trans_guard_inv in TR.
       apply IHPROD.
       auto.
       rewrite tau_eutt in EUTT; auto.
@@ -446,7 +446,7 @@ Definition partial_inject {E X} : ctree E X -> itree E (option X) :=
 	cofix _inject t :=
 	 match CTreeDefinitions.observe t with
 	| CTreeDefinitions.RetF x => Ret (Some x)
-	| @ChoiceF _ _ _ _ n t =>
+	| @BrF _ _ _ _ n t =>
 		(match n as x return n = x -> itree E (option X) with
 					 | O => fun _ => Ret None
 					 | 1 => fun pf => eq_rect_r
@@ -476,7 +476,7 @@ Variant is_detF {E X} (is_det : ctree E X -> Prop) : ctree E X -> Prop :=
 	is_detF is_det (CTreeDefinitions.Vis e k)
 | Tau_det : forall t,
 	(is_det t) ->
-	is_detF is_det (CTreeDefinitions.TauI t)
+	is_detF is_det (CTreeDefinitions.Guard t)
 .
 
 Definition is_det {E X} := paco1 (@is_detF E X) bot1.

@@ -36,7 +36,7 @@ Qed.
 
 Lemma trans_nil_inv : forall l p, ~ trans l nil p.
 Proof.
-  intros * abs; eapply stuckV_is_stuck; apply abs.
+  intros * abs; eapply stuckS_is_stuck; apply abs.
 Qed.
 
 Definition ι : option action -> @label ccsE :=
@@ -113,7 +113,7 @@ Proof.
     apply trans_prefix.
     cbn in *; eauto.
   - step in HR; edestruct HR as [[? TR EQ] _].
-    cbn; apply trans_tauV.
+    cbn; apply trans_step.
     cbn in *; eauto.
   - edestruct IHTR as (q1 & TR1 & EQ1); eauto.
     step in HR; edestruct HR as [[q' TR' EQ'] _].
@@ -157,7 +157,7 @@ Proof.
   unfold bisim_model; red.
   induction P; intros * HR TR; copy TR; step in HR; destruct HR as [_ B]; apply B in TR as [? TR' EQ']; clear B; cbn in *.
   - exfalso; eapply trans_nil_inv,TR'.
-  - apply trans_tauV_inv in TR' as [EQ ->].
+  - apply trans_step_inv in TR' as [EQ ->].
     eexists; split; [constructor |].
     rewrite <- EQ',EQ; auto.
   - apply trans_prefix_inv in TR' as [EQ ->].
@@ -202,7 +202,7 @@ Proof.
     apply SRes; auto.
     rewrite use_channel_can_comm.
     destruct l; auto; destruct e; auto.
-    rewrite <- EQ',EQ,sb_tauI, <-EQ''; auto.
+    rewrite <- EQ',EQ,sb_guard, <-EQ''; auto.
   - trans_parabang_invT TR'.
     + edestruct IHP as (P' & STEP & EQ''); [reflexivity | apply TRp' |].
       exists (P' ∥ !P); split.

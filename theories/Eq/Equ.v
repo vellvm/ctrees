@@ -50,9 +50,9 @@ pattern-matching is not allowed on [ctree].
   | Eq_Vis {X} (e : E X) k1 k2
       (REL : forall x, eq (k1 x) (k2 x)) :
       equb eq (VisF e k1) (VisF e k2)
-  | Eq_Choice b {n} (k1 : Fin.t n -> _) (k2 : Fin.t n -> _)
+  | Eq_Br b {n} (k1 : Fin.t n -> _) (k2 : Fin.t n -> _)
               (REL : forall i, eq (k1 i) (k2 i)) :
-      equb eq (ChoiceF b n k1) (ChoiceF b n k2)
+      equb eq (BrF b n k1) (BrF b n k2)
   .
   Hint Constructors equb: core.
 
@@ -204,8 +204,8 @@ to be closed by reflexivity in effect: the companion is always reflexive.
 			destruct (Vis_eq2 H2) as [-> ->].
 			constructor. intro x0. now exists (k2 x0).
 		- rewrite <- H in H2.
-			destruct (Choice_eq1 H2); subst.
-			destruct (Choice_eq2 H2).
+			destruct (Br_eq1 H2); subst.
+			destruct (Br_eq2 H2).
 			constructor. intros i. now (exists (k0 i)).
 	Qed.
 
@@ -321,16 +321,16 @@ Proof.
 	auto.
 Qed.
 
-Lemma equ_choice_invT {E S b b' n m} (k1 : _ -> ctree E S) k2 :
-  Choice b n k1 ≅ Choice b' m k2 ->
+Lemma equ_br_invT {E S b b' n m} (k1 : _ -> ctree E S) k2 :
+  Br b n k1 ≅ Br b' m k2 ->
   n = m /\ b = b'.
 Proof.
   intros EQ; step in EQ.
 	dependent destruction EQ; auto.
 Qed.
 
-Lemma equ_choice_invE {E S b n} (k1 : _ -> ctree E S) k2 :
-  Choice b n k1 ≅ Choice b n k2 ->
+Lemma equ_br_invE {E S b n} (k1 : _ -> ctree E S) k2 :
+  Br b n k1 ≅ Br b n k2 ->
   forall x, k1 x ≅ k2 x.
 Proof.
   intros EQ; step in EQ.
@@ -355,16 +355,16 @@ Proof.
 	dependent destruction H; dependent destruction H4; auto.
 Qed.
 
-Lemma equb_choice_invT {E S b b' n m} (k1 : _ -> ctree E S) k2 :
-  equb eq (equ eq) (ChoiceF b n k1) (ChoiceF b' m k2) ->
+Lemma equb_br_invT {E S b b' n m} (k1 : _ -> ctree E S) k2 :
+  equb eq (equ eq) (BrF b n k1) (BrF b' m k2) ->
   n = m /\ b = b'.
 Proof.
   intros EQ.
 	dependent induction EQ; auto.
 Qed.
 
-Lemma equb_choice_invE {E S b n} (k1 : _ -> ctree E S) k2 :
-  equb eq (equ eq) (ChoiceF b n k1) (ChoiceF b n k2) ->
+Lemma equb_br_invE {E S b n} (k1 : _ -> ctree E S) k2 :
+  equb eq (equ eq) (BrF b n k1) (BrF b n k2) ->
   forall x, equ eq (k1 x) (k2 x).
 Proof.
   intros EQ.
@@ -378,7 +378,7 @@ Proper Instances
 TODO: step back and think a bit better about those
 
 equ eq       ==> going (equ eq)  observe
-∀(equ eq)    ==> going (equ eq)  ChoiceF
+∀(equ eq)    ==> going (equ eq)  BrF
 ∀(equ eq)    ==> going (equ eq)  VisF
 observing eq --> equ eq
 going(equ)   ==> eq ==> fimpl    equb eq (t_equ eq r)
@@ -393,8 +393,8 @@ Proof.
   now step.
 Qed.
 
-#[global] Instance equ_ChoiceF {E R} b n :
-  Proper (pointwise_relation _ (equ eq) ==> going (equ eq)) (@ChoiceF E R _ b n).
+#[global] Instance equ_BrF {E R} b n :
+  Proper (pointwise_relation _ (equ eq) ==> going (equ eq)) (@BrF E R _ b n).
 Proof.
   constructor. red in H. step. econstructor; eauto.
 Qed.
@@ -795,16 +795,16 @@ Proof.
   now step.
 Qed.
 
-Lemma unfold_spinI {E R} : @spinI E R ≅ TauI spinI.
+Lemma unfold_spinD {E R} : @spinD E R ≅ Guard spinD.
 Proof.
-  exact (ctree_eta spinI).
+  exact (ctree_eta spinD).
 Qed.
 
 Notation bind_ t k :=
   match observe t with
   | RetF r => k%function r
   | VisF e ke => Vis e (fun x => bind (ke x) k)
-  | ChoiceF b n ke => Choice b n (fun x => bind (ke x) k)
+  | BrF b n ke => Br b n (fun x => bind (ke x) k)
   end.
 
 Lemma unfold_bind {E R S} (t : ctree E R) (k : R -> ctree E S)
@@ -816,7 +816,7 @@ Qed.
 Notation iter_ step i :=
   (lr <- step%function i;;
    match lr with
-   | inl l => TauI (iter step l)
+   | inl l => Guard (iter step l)
    | inr r => Ret r
    end)%ctree.
 
@@ -874,22 +874,22 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma bind_choice {E X Y} b n (k : _ -> ctree E X) (g : X -> ctree E Y):
-  Choice b n k >>= g ≅ Choice b n (fun x => k x >>= g).
+Lemma bind_br {E X Y} b n (k : _ -> ctree E X) (g : X -> ctree E Y):
+  Br b n k >>= g ≅ Br b n (fun x => k x >>= g).
 Proof.
   now rewrite unfold_bind.
 Qed.
 
-Lemma bind_tauV {E X Y} (t : ctree E X) (g : X -> ctree E Y):
-  TauV t >>= g ≅ TauV (t >>= g).
+Lemma bind_Step {E X Y} (t : ctree E X) (g : X -> ctree E Y):
+  Step t >>= g ≅ Step (t >>= g).
 Proof.
-  now cbn; rewrite bind_choice.
+  now cbn; rewrite bind_br.
 Qed.
 
-Lemma bind_tauI {E X Y} (t : ctree E X) (g : X -> ctree E Y):
-  TauI t >>= g ≅ TauI (t >>= g).
+Lemma bind_Guard {E X Y} (t : ctree E X) (g : X -> ctree E Y):
+  Guard t >>= g ≅ Guard (t >>= g).
 Proof.
-  now cbn; rewrite bind_choice.
+  now cbn; rewrite bind_br.
 Qed.
 
 Lemma vis_equ_bind {E X Y Z} :
@@ -907,22 +907,22 @@ Proof.
     right. exists k0. split.
     + rewrite (ctree_eta t), Heqc. reflexivity.
     + cbn in H1. symmetry in H1. apply H1.
-  - rewrite (ctree_eta t), Heqc, bind_choice in H. step in H. inv H.
+  - rewrite (ctree_eta t), Heqc, bind_br in H. step in H. inv H.
 Qed.
 
-Lemma choice_equ_bind {E X Y} :
+Lemma br_equ_bind {E X Y} :
   forall (t : ctree E X) b n k (k' : X -> ctree E Y),
-  x <- t;; k' x ≅ Choice b (S n) k ->
+  x <- t;; k' x ≅ Br b (S n) k ->
   (exists r, t ≅ Ret r) \/
-  exists k0, t ≅ Choice b (S n) k0 /\ forall x, k x ≅ x <- k0 x;; k' x.
+  exists k0, t ≅ Br b (S n) k0 /\ forall x, k x ≅ x <- k0 x;; k' x.
 Proof.
   intros.
   destruct (observe t) eqn:?.
   - left. exists r. rewrite ctree_eta, Heqc. reflexivity.
   - rewrite (ctree_eta t), Heqc, bind_vis in H. step in H. inv H.
-  - rewrite (ctree_eta t), Heqc, bind_choice in H.
-    apply equ_choice_invT in H as ?. destruct H0 as [-> ->].
-    pose proof (equ_choice_invE _ _ H).
+  - rewrite (ctree_eta t), Heqc, bind_br in H.
+    apply equ_br_invT in H as ?. destruct H0 as [-> ->].
+    pose proof (equ_br_invE _ _ H).
     right. exists k0. split.
     + rewrite (ctree_eta t), Heqc. reflexivity.
     + cbn in H0. symmetry in H0. apply H0.
@@ -937,7 +937,7 @@ Proof.
   destruct (observe t) eqn:?.
   - rewrite bind_ret_l in H. eauto.
   - rewrite bind_vis in H. step in H. inv H.
-  - rewrite bind_choice in H. step in H. inv H.
+  - rewrite bind_br in H. step in H. inv H.
 Qed.
 
 (*|
@@ -969,35 +969,35 @@ Proof.
 Qed.
 
 (*|
-Convenience: all child-less invisible choices can be proved [equ], no need to work w.r.t. a bisim
+Convenience: all child-less invisible brs can be proved [equ], no need to work w.r.t. a bisim
 |*)
-Lemma choice0_always_stuck : forall {E R} vis k,
-    Choice vis 0 k ≅ @CTree.stuck E R vis.
+Lemma br0_always_stuck : forall {E R} vis k,
+    Br vis 0 k ≅ @CTree.stuck E R vis.
 Proof.
   intros.
   step.
   constructor; intros abs; inv abs.
 Qed.
 
-Lemma choiceI0_always_stuck : forall {E R} k,
-    ChoiceI 0 k ≅ (CTree.stuckI : ctree E R).
+Lemma brD0_always_stuck : forall {E R} k,
+    BrD 0 k ≅ (CTree.stuckD : ctree E R).
 Proof.
   intros.
   step.
   constructor; intros abs; inv abs.
 Qed.
 
-Lemma choiceV0_always_stuck : forall {E R} k,
-    ChoiceV 0 k ≅ (CTree.stuckV : ctree E R).
+Lemma brS0_always_stuck : forall {E R} k,
+    BrS 0 k ≅ (CTree.stuckS : ctree E R).
 Proof.
   intros.
   step.
   constructor; intros abs; inv abs.
 Qed.
 
-Lemma choice_equ: forall (E: Type -> Type) R b n (k k': fin n -> ctree E R),
+Lemma br_equ: forall (E: Type -> Type) R b n (k k': fin n -> ctree E R),
     (forall t, k t ≅ k' t) ->
-    Choice b n k ≅ Choice b n k'.
+    Br b n k ≅ Br b n k'.
 Proof.
   intros E R b n k k' EQ.
   step; econstructor; auto.

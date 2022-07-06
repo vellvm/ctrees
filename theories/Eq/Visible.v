@@ -38,11 +38,11 @@ Section Visible.
   Inductive visible_ : hrel S' S' :=
   | VisibleI {n} (x : Fin.t n) k t :
     visible_ (observe (k x)) t ->
-    visible_ (ChoiceF false n k) t
+    visible_ (BrF false n k) t
 
   | VisibleV {n} (x : Fin.t n) k1 k2 :
     (forall x, k1 x ≅ k2 x) ->
-    visible_ (ChoiceF true n k1) (ChoiceF true n k2)
+    visible_ (BrF true n k1) (BrF true n k2)
 
   | VisibleVis {X} (e : E X) k1 k2 :
     (forall x, k1 x ≅ k2 x) ->

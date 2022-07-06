@@ -96,11 +96,11 @@ Section Semantics.
              then denote_imp b ;; ret (inl tt)
              else ret (inr tt))
 
-    | Branch a b => choiceI2 (denote_imp a) (denote_imp b)
+    | Branch a b => brD2 (denote_imp a) (denote_imp b)
 
     | Skip => ret tt
 
-    | Block => CTree.stuckI
+    | Block => CTree.stuckD
 
     end.
 
@@ -122,20 +122,20 @@ Section Theory.
   Lemma branch_commut : forall (a b : stmt),
       ⟦Branch a b⟧ ~ ⟦Branch b a⟧.
   Proof.
-    intros; apply choiceI2_commut.
+    intros; apply brD2_commut.
   Qed.
 
   Lemma branch_assoc : forall (a b c : stmt),
       ⟦Branch a (Branch b c)⟧ ~ ⟦Branch (Branch a b) c⟧.
   Proof.
     intros; cbn.
-    now rewrite choiceI2_assoc.
+    now rewrite brD2_assoc.
   Qed.
 
   Lemma branch_idem : forall a : stmt,
       ⟦Branch a a⟧ ~ ⟦a⟧.
   Proof.
-    intros; apply choiceI2_idem.
+    intros; apply brD2_idem.
   Qed.
 
   Lemma branch_congr : forall a a' b b',
@@ -143,20 +143,20 @@ Section Theory.
       ⟦b⟧ ~ ⟦b'⟧ ->
       ⟦Branch a b⟧ ~ ⟦Branch a' b'⟧.
   Proof.
-    intros. cbn. apply sb_choiceI_id.
+    intros. cbn. apply sb_brD_id.
     intro; destruct x; rewrite ?H, ?H0; reflexivity.
   Qed.
 
   Lemma branch_block_l : forall a : stmt,
       ⟦Branch Block a⟧ ~ ⟦a⟧.
   Proof.
-    intros; apply choiceI2_stuckI_l.
+    intros; apply brD2_stuckD_l.
   Qed.
 
   Lemma branch_block_r : forall a : stmt,
       ⟦Branch a Block⟧ ~ ⟦a⟧.
   Proof.
-    intros; apply choiceI2_stuckI_r.
+    intros; apply brD2_stuckD_r.
   Qed.
 
 (*|
@@ -194,7 +194,7 @@ from Section 2 are indeed equivalent.
     intros...
     rewrite branch_block_r_interp...
     rewrite 2 unfold_interp_state.
-    cbn. setoid_rewrite sb_tauI.
+    cbn. setoid_rewrite sb_guard.
     setoid_rewrite bind_ret_l. rewrite interp_state_ret.
     play. inv_trans.
     - rewrite unfold_interp_state in TR. cbn in TR. rewrite bind_ret_l in TR.
@@ -204,7 +204,7 @@ from Section 2 are indeed equivalent.
       apply equ_sbisim_subrelation in EQ. etrans.
     - inv_trans. subst. eexists.
       rewrite unfold_interp_state. cbn. rewrite bind_ret_l.
-      apply trans_tauI. rewrite unfold_interp_state. cbn. etrans.
+      apply trans_guard. rewrite unfold_interp_state. cbn. etrans.
       now rewrite EQ.
   Qed.
 

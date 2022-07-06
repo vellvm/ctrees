@@ -41,36 +41,13 @@ Proof.
   destruct p; cbn; auto.
 Qed.
 
-(* Lemma eq_inv_VisF_weak {E R X1 X2} (e1 : E X1) (e2 : E X2) (k1 : X1 -> itree E R) (k2 : X2 -> itree E R) *)
-(*   : VisF (R := R) e1 k1 = VisF (R := R) e2 k2 -> *)
-(*     exists p : X1 = X2, eqeq E p e1 e2 /\ eqeq (fun X => X -> itree E R) p k1 k2. *)
-(* Proof. *)
-(*   refine (fun H => *)
-(*     match H in _ = t return *)
-(*       match t with *)
-(*       | VisF e2 k2 => _ *)
-(*       | _ => True *)
-(*       end *)
-(*     with *)
-(*     | eq_refl => _ *)
-(*     end); cbn. *)
-(*   exists eq_refl; cbn; auto. *)
-(* Qed. *)
-
-(* Ltac inv_Vis := *)
-(*   discriminate + *)
-(*   match goal with *)
-(*   | [ E : VisF _ _ = VisF _ _ |- _ ] => *)
-(*      apply eq_inv_VisF_weak in E; destruct E as [ <- [<- <-]] *)
-(*   end. *)
-
 (** ** [observing]: Lift relations through [observe]. *)
 Record observing {E R1 R2}
            (eq_ : ctree' E R1 -> ctree' E R2 -> Prop)
            (t1 : ctree E R1) (t2 : ctree E R2) : Prop :=
   observing_intros
   { observing_observe : eq_ (observe t1) (observe t2) }.
-Global Hint Constructors observing: core.
+#[global] Hint Constructors observing: core.
 
 Section observing_relations.
 
@@ -112,8 +89,8 @@ Lemma bind_ret_ {E R S} (r : R) (k : R -> ctree E S) :
   observing eq (CTree.bind (Ret r) k) (k r).
 Proof. constructor; reflexivity. Qed.
 
-Lemma bind_tau_ {E R} U t (k: U -> ctree E R) :
-  observing eq (CTree.bind (TauI t) k) (TauI (CTree.bind t k)).
+Lemma bind_Guard_ {E R} U t (k: U -> ctree E R) :
+  observing eq (CTree.bind (Guard t) k) (Guard (CTree.bind t k)).
 Proof. constructor; reflexivity. Qed.
 
 Lemma bind_vis_ {E R U V} (e: E V) (ek: V -> ctree E U) (k: U -> ctree E R) :
@@ -127,12 +104,12 @@ Proof. constructor; reflexivity. Qed.
 Lemma unfold_aloop_ {E A B} (f : A -> ctree E (A + B)) (x : A) :
   observing eq
     (CTree.iter f x)
-    (CTree.bind (f x) (fun lr => CTree.on_left lr l (TauI (CTree.iter f l)))).
+    (CTree.bind (f x) (fun lr => CTree.on_left lr l (Guard (CTree.iter f l)))).
 Proof. constructor; reflexivity. Qed.
 
 (** Unfolding lemma for [forever]. *)
 Lemma unfold_forever_ {E R S} (t: ctree E R):
-  observing eq (@CTree.forever E R S t) (CTree.bind t (fun _ => TauI (CTree.forever t))).
+  observing eq (@CTree.forever E R S t) (CTree.bind t (fun _ => Guard (CTree.forever t))).
 Proof. econstructor. reflexivity. Qed.
 
 (** ** [going]: Lift relations through [go]. *)
