@@ -156,7 +156,6 @@ Proof.
     assert (t' ≅ BrS n k2). { rewrite ctree_eta. rewrite <- x. reflexivity. }
     rewrite H0 in Hbound. rewrite H1. clear H0 H1 x x1.
     step in Hbound. inv Hbound. invert.
-    (* TODO: fix step in the coinduction library to work on unary relations *)
     red. apply (proj2 (gfp_fp (fbrD_bound n0) (BrS n k2))). cbn.
     constructor. intros. specialize (H1 i). fold (@brD_bound E R n0) in *.
     rewrite H in H1. auto.
@@ -172,7 +171,6 @@ Proof.
     rewrite H in Hbound. rewrite H0. auto.
 Qed.
 
-(* TODO: move to ctree library *)
 Variant equ_clos1_body {E X} (R : ctree E X -> Prop) : (ctree E X -> Prop) :=
   | Equ_clos1 : forall t t'
                  (Equt : t ≅ t')
@@ -313,7 +311,6 @@ Proof.
   destruct r0; constructor; auto; intros; apply CIH; auto.
 Qed.
 
-(* TODO move this *)
 Lemma sbisim_vis_visible {E R X} (t2 : ctree E R) (e : E X) k1
       (Hin: inhabited X)
       (Hbound : brD_bound 1 t2) :
@@ -394,7 +391,7 @@ Proof.
   - inv Heqc0. apply inj_pair2 in H3, H4. subst.
     apply sbisim_vis_visible; auto.
     pose proof (ctree_eta t1).  rewrite <- Heqc in H1.
-    (* TODO: clean this up *) eapply equ_VisF in H. rewrite H in H1.
+    eapply equ_VisF in H. rewrite H in H1.
     rewrite H1 in H0. auto.
   - inv Heqc0.
 Qed.
@@ -487,7 +484,7 @@ Section parallel.
     - destruct n. inv Hj'. cbn. erewrite <- IHj; eauto. lia.
   Qed.
 
-  (* at the element removed, we also subtract one. TODO: can we unify this with prev lemma? *)
+  (* at the element removed, we also subtract one. *)
   Lemma remove_vec_index_eq {n} (v : vec (S n)) i j
         (Hi : i < S n) (Hji : j = i) (Hj : S j < S n) (Hj' : j < n) :
     v (of_nat_lt Hj) = (remove_vec v (of_nat_lt Hi)) (of_nat_lt Hj').
@@ -1026,7 +1023,7 @@ Section parallel.
       constructor 2 with (x:=x).
       pose proof (ctree_eta t).
       rewrite Heq in H0. clear Heq. rename H0 into Heq. rewrite <- ctree_eta in Heq.
-      apply equ_schedule. (* TODO: some instance is missing *)
+      apply equ_schedule.
       apply replace_vec_relation; repeat intro; try reflexivity.
       rewrite <- Heq. rewrite <- REL. auto.
   Qed.
@@ -1457,7 +1454,7 @@ Section parallel.
     - destruct n. inv j. cbn in *. rewrite <- IHj; auto.
   Qed.
 
-  (* at the element removed, we also subtract one. TODO: can we unify this with prev lemma? *)
+  (* at the element removed, we also subtract one. *)
   Lemma remove_vec_index_eq' {n} (v : vec (S n)) i j
         (Hj : order j i = EQ) :
     v (FS j) = remove_vec v i j.
