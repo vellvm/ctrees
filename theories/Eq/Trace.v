@@ -5,7 +5,7 @@ From Coinduction Require Import
 
 From ITree Require Import Core.Subevent.
 From CTree Require Import
-     CTree Eq.Equ Eq.Trans Eq.SBisim Eq.SSimTheory.
+     CTree Eq.Equ Eq.Trans Eq.SBisim Eq.SSim.
 
 
 (*|

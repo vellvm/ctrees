@@ -19,7 +19,7 @@ From CTree.Eq Require Export
      Equ
      Trans
      SBisim
-     SSimTheory
+     SSim
      Visible.
 
 From CTree Require Export CTree.
