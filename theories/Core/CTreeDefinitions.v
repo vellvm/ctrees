@@ -17,8 +17,7 @@ interface of interactions, supporting monadic interpretations of these
 interfaces. But the equivalence relation over [ctree] is more complex, and
 account natively for this non-determinism. More specifically, we provide
 a structural, coinductive equality; a notion of strong bisimulation observing
-visible internal brs; a notion of weak bisimulation observing no internal
-br.
+visible internal brs; a notion of weak bisimulation observing no internal br.
 
 .. coq:: none
 |*)
@@ -139,12 +138,6 @@ Note that this is an equality "up to" [observe]. It would not be provable if it 
     (cofix bind' t1 := _bind (...) t1) t = _bind (...) t1
 
 The [cofix] is stuck, and can only be unstuck under the primitive projection [_observe] (which is wrapped by [observe]).
-
-Definitions
-
-These are meant to be imported qualified, e.g., [CTree.bind],
-[CTree.trigger], to avoid ambiguity with identifiers of the same
-name (some of which are overloaded generalizations of these).
 |*)
 
 Module CTree.
@@ -185,13 +178,7 @@ Definition cat {E T U V}
   fun t => bind (k t) h.
 
 (*|
-[iter]: See [Basics.Basics.MonadIter].
-
-[on_left lr l t]: run a computation [t] if the first argument is an [inl l].
-[l] must be a variable (used as a pattern), free in the expression [t]:
-
-   - [on_left (inl x) l t = t{l := x}]
-   - [on_left (inr y) l t = Ret y]
+Iteration
 |*)
 
 Notation on_left lr l t :=
@@ -212,14 +199,14 @@ Definition map {E R S} (f : R -> S)  (t : ctree E R) : ctree E S :=
   bind t (fun x => Ret (f x)).
 
 (*|
-Atomic itrees triggering a single event.
+Atomic ctrees triggering a single event.
 |*)
 
 Definition trigger {E : Type -> Type} : E ~> ctree E :=
   fun R e => Vis e (fun x => Ret x).
 
 (*|
-Atomic itrees with br over a finite arity.
+Atomic ctrees with br over a finite arity.
 |*)
 
 Definition br {E : Type -> Type} : forall b n, ctree E (fin n) :=
@@ -237,14 +224,15 @@ Notation stuckS := (stuck true).
 Notation stuckD := (stuck false).
 
 (*|
-Ignore the result of a tree.
+Ignores the result of a tree.
 |*)
 
 Definition ignore {E R} : ctree E R -> ctree E unit :=
   map (fun _ => tt).
 
 (*|
-Infinite taus.
+Infinite trees --- warning, [spinD] for instance does not
+"spin" in the traditional sense.
 |*)
 
 CoFixpoint spinD {E R} : ctree E R := Guard spinD.
@@ -255,7 +243,7 @@ CoFixpoint spinS_nary {E R} (n : nat) : ctree E R :=
 	BrS n (fun _ => spinS_nary n).
 
 (*|
-Repeat a computation infinitely.
+Repeats a computation infinitely.
 |*)
 
 Definition forever {E R S} (t : ctree E R) : ctree E S :=

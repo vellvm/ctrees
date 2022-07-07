@@ -208,9 +208,9 @@ Section sbisim_theory.
   Notation sbt := (coinduction.bt sb).
   Notation sT  := (coinduction.T sb).
 (*|
-This is just a hack suggested by Damien Pous to avoid a
-universe inconsistency when using both the relational algebra
-and coinduction libraries (we fix the type at which we'll use [eq]).
+This is just a hack to avoid a universe inconsistency when
+using both the relational algebra and coinduction libraries
+(we fix the type at which we'll use [eq]).
 |*)
   Definition seq: relation (ctree E X) := eq.
   Arguments seq/.
@@ -420,7 +420,7 @@ contexts.
   Qed.
 
 (*|
-Hence [equ eq] is a included in [sbisim]
+Hence [equ eq] is included in [sbisim]
 |*)
   #[global] Instance equ_sbisim_subrelation : subrelation (equ eq) sbisim.
   Proof.
@@ -1097,8 +1097,8 @@ Proof.
   intros * ST.
   play.
   - inv_trans.
-    exfalso; eapply ST, TR. (* automate stuck transition trying to step? *)
-    exists t'; auto.             (* automate trivial case *)
+    exfalso; eapply ST, TR.
+    exists t'; auto.
   - etrans.
 Qed.
 
@@ -1170,8 +1170,10 @@ Proof.
   now inv_trans.
 Qed.
 
-(** For the next few lemmas, we need to know that [X] is inhabited in order to
-    take a step *)
+(*|
+For the next few lemmas, we need to know that [X] is inhabited in order to
+take a step
+|*)
 Lemma sbisim_vis_invT {E R X1 X2}
       (e1 : E X1) (e2 : E X2) (k1 : X1 -> ctree E R) (k2 : X2 -> ctree E R) (x : X1):
   Vis e1 k1 ~ Vis e2 k2 ->
@@ -1297,9 +1299,6 @@ Proof.
   edestruct Hf as [x' Ht Hs]; [apply (@trans_vis _ _ _ _ x _) |]. inv_trans.
 Qed.
 
-(*|
-Not fond of these two, need to give some thoughts about them
-|*)
 Lemma sbisim_ret_BrD_inv {E R} (r : R) n (k : fin n -> ctree E R) :
   Ret r ~ BrD n k ->
   exists i, Ret r ~ k i.

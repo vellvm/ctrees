@@ -20,9 +20,6 @@ Open Scope monad_scope.
 
 Set Implicit Arguments.
 
-(* Stateful handlers [E ~> stateT S (itree F)] and morphisms
-   [E ~> state S] define stateful itree morphisms
-   [itree E ~> stateT S (itree F)]. *)
 Section State.
 
   Variable (S : Type).

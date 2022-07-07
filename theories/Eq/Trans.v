@@ -19,11 +19,12 @@ label of [v]
 with both [e] and [x]
 - [BrS k] can step to any [k x] by emitting a tau label
 
-This transition system will define a notion of strong bisimulation
+This transition system is used to define a notion of strong bisimulation
 in the process algebra tradition.
 It also leads to a weak bisimulation by defining [wtrans] as a
 sequence of tau steps, and allowing a challenge to be answered by
-[wtrans . trans . wtrans].
+[wtrans . trans . wtrans], and to a strong simulation by considering only
+half of the bisimulation game.
 Once [trans] is defined over our structure, we can reuse the constructions
 used by Pous in [Coinduction All the Way Up] to build these weak relations
 -- with the exception that we need to work in Kleene Algebras w.r.t. to model
@@ -783,8 +784,8 @@ Qed.
 Stuck processes
 ---------------
 A process is said to be stuck if it cannot step. The [stuck] process used
-to reduce pure computations is of course stuck, but so is [spinI], while [spinV]
-is not.
+to reduce pure computations is of course stuck, but so is [spinD],
+while [spinS] is not.
 |*)
 
 Section stuck.

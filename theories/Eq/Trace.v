@@ -9,7 +9,7 @@ From CTree Require Import
 
 
 (*|
-Base coinductive definitions for execution traces and trace equivalence.
+Execution traces defined as colists and trace equivalence.
 |*)
 
 CoInductive trace {E} :=

@@ -158,9 +158,9 @@ Section equ_theory.
   Notation et  := (coinduction.t (fequ (E := E) RR)).
   Notation ebt := (coinduction.bt (fequ (E := E) RR)).
 (*|
-This is just a hack suggested by Damien Pous to avoid a
-universe inconsistency when using both the relational algebra
-and coinduction libraries (we fix the type at which we'll use [eq]).
+This is just a hack to avoid a universe inconsistency when
+ using both the relational algebra and coinduction libraries
+ (we fix the type at which we'll use [eq]).
 |*)
   Definition seq: relation (ctree E R) := eq.
 
@@ -454,8 +454,6 @@ Ltac _apply f :=
   match goal with
     |- context [@body ?x ?l ?y] => apply (f _ l)
   end.
-(* Tactic Notation "Lapply" ident(f) := _apply f. *)
-(* Tactic Notation "Lapply'" uconstr(f) := _apply @f. *)
 
 #[global] Instance gfp_bt_equ {E R r} :
 	 Proper (gfp (@fequ E R R eq) ==> equ eq ==> flip impl)

@@ -24,10 +24,15 @@ Definition translate {E F} (h : E ~> F) : ctree E ~> ctree F
 
 Arguments translate {E F} h [T].
 
-(** ** Interpret *)
+(*|
+Interpret
+---------
+|*)
 
-(** An event handler [E ~> M] defines a monad morphism
-		[ctree E ~> M] for any monad [M] with a loop operator. *)
+(*|
+An event handler [E ~> M] defines a monad morphism
+[ctree E ~> M] for any monad [M] with a loop operator.
+|*)
 
 Definition interp {E M : Type -> Type}
 					 {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {FoM : MonadBr M}
@@ -42,7 +47,9 @@ Definition interp {E M : Type -> Type}
 
 Arguments interp {E M FM MM IM FoM} h [T].
 
-(** Unfolding of [interp]. *)
+(*|
+Unfolding of [interp].
+|*)
 Notation interp_ h t :=
   (match observe t with
   | RetF r => Ret r
@@ -50,7 +57,9 @@ Notation interp_ h t :=
 	| @BrF _ _ _ b n k => bind (mbr b n) (fun x => Guard (interp h (k x)))
   end)%function.
 
-(** Unfold lemma. *)
+(*|
+Unfold lemma.
+|*)
 Lemma unfold_interp {E F R} {h : E ~> ctree F} (t : ctree E R) :
   interp h t ≅ interp_ h t.
 Proof.
@@ -64,11 +73,10 @@ Proof.
     reflexivity.
 Qed.
 
-(** ** [interp] and constructors *)
-
-(** These are specializations of [unfold_interp], which can be added as
-    rewrite hints.
- *)
+(*|
+[interp] and constructors
+-------------------------
+|*)
 
 Lemma interp_ret {E F R} {f : E ~> ctree F} (x: R):
   interp f (Ret x) ≅ Ret x.
@@ -130,7 +138,9 @@ Proof.
     now constructor; intros.
 Qed.
 
-(** Counter-example showing that interp does not preserve sbisim in the general case. *)
+(*|
+Counter-example showing that interp does not preserve sbisim in the general case.
+|*)
 
 Inductive VoidE : Type -> Type :=
 | voidE : VoidE void.
@@ -162,7 +172,9 @@ Proof.
   rewrite unfold_interp in H. unfold t1, h in H. cbn in H. inv_trans.
 Qed.
 
-(** Helper inductive t0_det t t' means that t' is Guard*(t) *)
+(*|
+Helper inductive t0_det t t' means that t' is Guard*(t)
+|*)
 
 Inductive t0_det {E X} : relation (ctree E X) :=
 | t0_det_id : forall t t', t ≅ t' -> t0_det t t'
@@ -218,7 +230,9 @@ Proof.
   - rewrite H0. rewrite sb_guard. apply IHt0_det.
 Qed.
 
-(* is_simple *)
+(*|
+is_simple
+|*)
 
 Definition is_simple {E X} (t : ctree E X) :=
   (forall l t', trans l t t' -> is_val l) \/
@@ -324,7 +338,9 @@ Proof.
     apply T0Br with (x := Fin.F1). apply IHtrans0_.
 Qed.
 
-(* productive *)
+(*|
+productive
+|*)
 
 Inductive productive {E X} : ctree E X -> Prop :=
 | prod_ret {r t} (EQ: t ≅ Ret r) : productive t
@@ -571,10 +587,7 @@ Proof.
   assert (go oi ≅ x <- pre;; interp h (k x)).
   { rewrite Heqoi, <- ctree_eta. reflexivity. } clear Heqoi.
   revert Y k pre Hpre H0. induction H; intros.
-  - (*apply Stepbr in H as ?.
-    change (BrDF n k) with (observe (BrD n k)) in H1. rewrite H0 in H1.
-       change t with (observe (go t)) in H1. rewrite trans__trans in H1.*)
-    destruct n. now apply Fin.case0.
+  - destruct n. now apply Fin.case0.
     symmetry in H0. apply br_equ_bind in H0 as ?.
     destruct H1 as [[] | (? & ? & ?)].
     + rewrite H1 in H0. rewrite bind_ret_l in H0. setoid_rewrite H1. clear pre Hpre H1.

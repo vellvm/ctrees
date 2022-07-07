@@ -56,7 +56,9 @@ Definition ccs  := ccsT void.
 
 Definition comm a : label := obs (Act a) tt.
 
-(*| Process algebra |*)
+(*|
+Process algebra
+|*)
 Section Combinators.
 
 	Definition nil : ccs := BrS 0 (fun x : fin 0 => match x with end).

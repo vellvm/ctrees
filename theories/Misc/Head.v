@@ -1,6 +1,6 @@
 (*|
 ============================
-Scheduling head of [ctree]s
+Delayed head of [ctree]s
 ============================
 It is sometimes useful to compute the set of transition that a process
 can perform.
@@ -8,7 +8,7 @@ From the traditional perspective of a LTS, this corresponds
 to computing all possible finite trees justifying a transition.
 From the perspective of [ctree]s, it corresponds to prefix of the
 tree only made of invisible br nodes.
-We develop in this file the [get_head] function to compute this prefix.
+We develop in this file the [head] function to compute this prefix.
 
 .. coq:: none
 |*)

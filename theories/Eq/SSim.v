@@ -716,7 +716,6 @@ Inversion principles
     intros. step. step in H. eapply ss_brD_l_inv. apply H.
   Qed.
 
-  (* This one isn't very convenient... *)
   Lemma ssim_brD_r_inv : forall n
     (t : ctree E X) (k : fin n -> ctree E X),
     t ≲ BrD n k ->

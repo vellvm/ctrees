@@ -1,6 +1,6 @@
 (** * Shallow equivalence *)
 
-(** Equality under [observe]:
+(** Equality under [observe]: file adapted from the equivalent concept in [itree].
 
 [[
   observing eq t1 t2 <-> t1.(observe) = t2.(observe)

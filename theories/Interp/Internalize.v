@@ -28,7 +28,7 @@ Section Internalize.
   Lemma internalize_ret {R} (r : R) : internalize (Ret r) ≅ Ret r.
   Proof.
     unfold internalize.
-    rewrite interp_ret. (* Why is it slow? *)
+    rewrite interp_ret.
     reflexivity.
   Qed.
 
@@ -36,7 +36,7 @@ Section Internalize.
     internalize (t >>= k) ≅ internalize t >>= (fun x => internalize (k x)).
   Proof.
     unfold internalize.
-    rewrite interp_bind. (* Why is it slow? *)
+    rewrite interp_bind.
     reflexivity.
   Qed.
 
