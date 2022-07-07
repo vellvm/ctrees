@@ -55,6 +55,14 @@ Definition refine_cst {E} (h : bool -> forall n, fin (S n)) : ctree E ~> ctree E
     | S n => Br b 1 (fun _ => Ret (h b n))
     end).
 
+Definition refine_state {E St} (f : St -> forall b n, St * fin (S n)) :
+  ctree E ~> stateT St (ctree E) :=
+  refine (fun b n s =>
+            match n as n' return (ctree E (St * fin n')) with
+            | O => CTree.stuck b
+            | S n => Ret (f s b n)
+            end).
+
 Definition round_robin {E} : ctree E ~> stateT nat (ctree E).
 Proof.
   refine (refine
