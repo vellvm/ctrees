@@ -17,7 +17,8 @@ From ExtLib Require Import
 From ITree Require Import
      ITree
      Basics.CategoryKleisli
-     Events.State.
+     Events.State
+     Events.MapDefault.
 
 From Coinduction Require Import
 	coinduction rel tactics.
@@ -63,28 +64,28 @@ Inductive stmt : Type :=
 | Block
 .
 
-Variant ImpState : Type -> Type :=
-| GetVar (x : var) : ImpState value
-| SetVar (x : var) (v : value) : ImpState unit.
+Variant MemE : Type -> Type :=
+| rd (x : var) : MemE value
+| wr (x : var) (v : value) : MemE unit.
 
 Section Semantics.
-  Fixpoint denote_expr (e : expr) : ctree (stateE value) value :=
+  Fixpoint denote_expr (e : expr) : ctree MemE value :=
     match e with
-    | Var v     => trigger (Get _)
+    | Var v     => trigger (rd v)
     | Lit n     => ret n
     | Plus a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l + r)
     | Minus a b => l <- denote_expr a ;; r <- denote_expr b ;; ret (l - r)
     | Mult a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l * r)
     end.
 
-  Definition while (step : ctree (stateE value) (unit + unit)) : ctree (stateE value) unit :=
+  Definition while (step : ctree MemE (unit + unit)) : ctree MemE unit :=
     CTree.iter (fun _ => step) tt.
 
   Definition is_true (v : value) : bool := if (v =? 0)%nat then false else true.
 
-  Fixpoint denote_imp (s : stmt) : ctree (stateE value) unit :=
+  Fixpoint denote_imp (s : stmt) : ctree MemE unit :=
     match s with
-    | Assign x e =>  v <- denote_expr e ;; trigger (Put _ v)
+    | Assign x e =>  v <- denote_expr e ;; trigger (wr x v)
     | Seq a b    =>  denote_imp a ;; denote_imp b
     | If i t e   =>
       v <- denote_expr i ;;
@@ -104,12 +105,22 @@ Section Semantics.
 
     end.
 
-  Definition interp_imp : ctree (stateE value) ~> Monads.stateT value (ctree void1) :=
-    interp_state (@h_state _ void1).
+  (* list of key value pairs *)
+  Definition env := alist var value.
+
+  Definition handle_imp : MemE ~> Monads.stateT env (ctree void1) :=
+    fun _ e s =>
+      match e with
+      | rd x => Ret (s, lookup_default x 0 s)
+      | wr x v => Ret (Maps.add x v s, tt)
+      end.
+
+  Definition interp_imp t : Monads.stateT env (ctree void1) unit :=
+    interp_state handle_imp t.
 
 End Semantics.
 Notation "⟦ c ⟧" := (denote_imp c).
-Notation "'ℑ' c" := (@interp_imp _ (denote_imp c)) (at level 10).
+Notation "'ℑ' c" := (interp_imp (denote_imp c)) (at level 10).
 
 Section Theory.
 
@@ -165,25 +176,41 @@ Section Theory.
   For instance here transporting [branch_block_r].
 |*)
 
-  Lemma h_state_is_simple :
-    forall (X : Type) (e : stateE value X) (s : value), vsimple (E := void1) (h_state e s).
+  Lemma handle_imp_is_simple :
+    forall (X : Type) (e : MemE X) (s : env), vsimple (E := void1) (handle_imp _ e s).
   Proof.
-    unfold h_state, vsimple. intros. destruct e; eauto.
+    unfold handle_imp, h_state, vsimple. intros. destruct e; eauto.
   Qed.
 
   Lemma branch_block_r_interp : forall (a : stmt) s,
     ℑ (Branch a Block) s ~
     ℑ a s.
   Proof.
-    epose proof interp_state_sbisim (h_state (S := value)) h_state_is_simple.
+    epose proof interp_state_sbisim handle_imp handle_imp_is_simple.
     intros. rewrite branch_block_r. reflexivity.
+  Qed.
+
+  Lemma filter_filter : forall {A} f (l : list A), filter f (filter f l) = filter f l.
+  Proof.
+    intros. induction l.
+    - reflexivity.
+    - cbn. destruct (f a) eqn:?.
+      + cbn. rewrite Heqb. f_equal. apply IHl.
+      + apply IHl.
+  Qed.
+
+  Lemma alist_add_alist_add : forall {K RD_K V}, RelDec.RelDec_Correct (RD_K) ->
+    forall k v v' l, @alist_add K eq RD_K V k v (alist_add _ k v' l) = alist_add _ k v l.
+  Proof.
+    intros. unfold alist_add, alist_remove. cbn. rewrite filter_filter.
+    rewrite RelDec.rel_dec_eq_true; auto.
   Qed.
 
 (*|
 Finally, we can put bits together to prove that the programs [p3] and [br p2 or p3]
 from Section 2 are indeed equivalent.
 |*)
-  Example branch_ex : forall s : value,
+  Example branch_ex : forall s : env,
       ℑ (Branch
            (Seq
               (Assign "x" (Lit 0))
@@ -196,16 +223,19 @@ from Section 2 are indeed equivalent.
     rewrite 2 unfold_interp_state.
     cbn. setoid_rewrite sb_guard.
     setoid_rewrite bind_ret_l. rewrite interp_state_ret.
-    play. inv_trans.
+    play.
     - rewrite unfold_interp_state in TR. cbn in TR. rewrite bind_ret_l in TR.
       inv_trans. cbn in TR.
       rewrite unfold_interp_state in TR. cbn in TR.
       inv_trans. subst.
-      apply equ_sbisim_subrelation in EQ. etrans.
+      rewrite alist_add_alist_add. 2: apply RelDec_Correct_string.
+      apply equ_sbisim_subrelation in EQ.
+      eexists; etrans.
     - inv_trans. subst. eexists.
       rewrite unfold_interp_state. cbn. rewrite bind_ret_l.
-      apply trans_guard. rewrite unfold_interp_state. cbn. etrans.
-      now rewrite EQ.
+      apply trans_guard. rewrite unfold_interp_state. cbn.
+      rewrite alist_add_alist_add. 2: apply RelDec_Correct_string.
+      etrans. now rewrite EQ.
   Qed.
 
 End Theory.
