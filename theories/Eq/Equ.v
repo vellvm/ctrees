@@ -153,7 +153,7 @@ Import EquNotations.
 
 Section equ_theory.
 
-	Variable (E : Type -> Type) (R : Type) (RR : R -> R -> Prop).
+  Variable (E : Type -> Type) (R : Type) (RR : R -> R -> Prop).
   Notation eT  := (coinduction.T (fequ (E := E) RR)).
   Notation et  := (coinduction.t (fequ (E := E) RR)).
   Notation ebt := (coinduction.bt (fequ (E := E) RR)).
@@ -186,28 +186,28 @@ to be closed by reflexivity in effect: the companion is always reflexive.
 [converse] is compatible: up-to symmetry is valid
 |*)
 	Lemma converse_t {RRS: Symmetric RR}: converse <= et.
-	Proof.
-		apply leq_t. intros S x y H; cbn. destruct H; auto.
-	Qed.
+  Proof.
+    apply leq_t. intros S x y H; cbn. destruct H; auto.
+  Qed.
 
 (*|
 [squaring] is compatible: up-to transitivity is valid
 |*)
-	Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= et.
+  Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= et.
 	Proof.
 		apply leq_t.
 		intros S x z [y xy yz]; cbn.
 		inversion xy; inversion yz; try (exfalso; congruence).
 		- constructor. replace y0 with x1 in * by congruence. eauto.
 		- rewrite <-H in H2.
-			destruct (Vis_eq1 H2).
-			destruct (Vis_eq2 H2) as [-> ->].
-			constructor. intro x0. now exists (k2 x0).
-		- rewrite <- H in H2.
-			destruct (Br_eq1 H2); subst.
-			destruct (Br_eq2 H2).
-			constructor. intros i. now (exists (k0 i)).
-	Qed.
+      destruct (Vis_eq1 H2).
+      destruct (Vis_eq2 H2) as [-> ->].
+      constructor. intro x0. now exists (k2 x0).
+    - rewrite <- H in H2.
+      destruct (Br_eq1 H2); subst.
+      destruct (Br_eq2 H2).
+      constructor. intros i. now (exists (k0 i)).
+  Qed.
 
 (*|
 Having [const eq], [converse] and [square] below the companion entails respectively
@@ -215,12 +215,12 @@ that the companion, at all point, is reflexive, symmetric, transitive.
 The companion library directly provide these results for bisimilarity, [t R], [b (t R)]
 and [T f R].
 |*)
-	#[global] Instance Equivalence_et `{Equivalence _ RR} S: Equivalence (et S).
-	Proof. apply Equivalence_t. apply refl_t. apply square_t. apply converse_t. Qed.
-	#[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (eT f S).
-	Proof. apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
-	#[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (ebt S).
-	Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.
+  #[global] Instance Equivalence_et `{Equivalence _ RR} S: Equivalence (et S).
+  Proof. apply Equivalence_t. apply refl_t. apply square_t. apply converse_t. Qed.
+  #[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (eT f S).
+  Proof. apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
+  #[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (ebt S).
+  Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.
 
 (*|
 This instance is a bit annoyingly adhoc, but useful for unfolding laws notably:
