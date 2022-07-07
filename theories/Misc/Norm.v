@@ -10,7 +10,7 @@ Open Scope monad_scope.
 Notation BrSF := (BrF true).
 Notation BrDF := (BrF false).
 
-Definition guarded_form {E X} (t : ctree E X) : ctree E X :=
+Definition norm {E X} (t : ctree E X) : ctree E X :=
 	CTree.iter (fun t =>
 				        match observe t with
 				        | RetF r => ret (inr r)
@@ -21,18 +21,18 @@ Definition guarded_form {E X} (t : ctree E X) : ctree E X :=
 				        | VisF e k => bind (mtrigger _ e) (fun x => ret (inl (k x)))
 				        end) t.
 
-Lemma unfold_guarded_form {E X} (t : ctree E X) :
-  guarded_form t ≅
+Lemma unfold_norm {E X} (t : ctree E X) :
+  norm t ≅
   match observe t with
 	| RetF r => ret r
 	| BrDF n k =>
-      BrD n (fun x => Guard (guarded_form (k x)))
+      BrD n (fun x => Guard (norm (k x)))
 	| BrSF n k =>
-      BrD n (fun x => Step (Guard (guarded_form (k x))))
-	| VisF e k => bind (mtrigger _ e) (fun x => Guard (guarded_form (k x)))
+      BrD n (fun x => Step (Guard (norm (k x))))
+	| VisF e k => bind (mtrigger _ e) (fun x => Guard (norm (k x)))
 	end.
 Proof.
-  unfold guarded_form at 1.
+  unfold norm at 1.
   rewrite unfold_iter.
   desobs t; cbn.
   - now rewrite bind_ret_l.
@@ -52,19 +52,19 @@ Proof.
       step; constructor; auto.
 Qed.
 
-Lemma trans_guarded_inv_strong :
+Lemma trans_norm_inv_strong :
   forall {E X} (t u v : ctree E X) l,
-    (v ≅ guarded_form t \/ v ≅ Guard (guarded_form t)) ->
+    (v ≅ norm t \/ v ≅ Guard (norm t)) ->
     trans l v u ->
     exists t', trans l t t'
-          /\ (u ≅ guarded_form t' \/ u ≅ Guard (guarded_form t')).
+          /\ (u ≅ norm t' \/ u ≅ Guard (norm t')).
 Proof.
   intros * EQ TR.
   revert t EQ.
   unfold trans in TR; repeat red in TR.
   dependent induction TR.
   - intros ? [EQ | EQ].
-    + rewrite ctree_eta, <- x, unfold_guarded_form in EQ.
+    + rewrite ctree_eta, <- x, unfold_norm in EQ.
       setoid_rewrite (ctree_eta t).
       desobs t; try now step in EQ; inv EQ.
       destruct vis.
@@ -92,7 +92,7 @@ Proof.
 
   - (* G(t) ≅ BrS k : absurd *)
     intros ? [EQ | EQ].
-    + rewrite ctree_eta, <- x1, unfold_guarded_form in EQ.
+    + rewrite ctree_eta, <- x1, unfold_norm in EQ.
       desobs t0; try now step in EQ; inv EQ.
       destruct vis; try now step in EQ; inv EQ.
     + rewrite ctree_eta, <- x1 in EQ.
@@ -101,7 +101,7 @@ Proof.
   - (* G(t) ≅ Vis e k : t ≅ Vis e k', k x ≅ Guard (G (k' x)) *)
     intros ? [EQ | EQ].
     + setoid_rewrite (ctree_eta t0).
-      rewrite ctree_eta, <- x1, unfold_guarded_form in EQ.
+      rewrite ctree_eta, <- x1, unfold_norm in EQ.
       rewrite (ctree_eta t), x in H.
       clear t x.
       desobs t0; try now step in EQ; inv EQ.
@@ -122,14 +122,14 @@ Proof.
   - (* G(t) ≅ Ret x : t ≅ Ret x *)
     intros ? [EQ | EQ].
     + setoid_rewrite (ctree_eta t).
-      rewrite ctree_eta, <- x0, unfold_guarded_form in EQ.
+      rewrite ctree_eta, <- x0, unfold_norm in EQ.
       desobs t; try now step in EQ; inv EQ.
       2:destruct vis; try now step in EQ; inv EQ.
       step in EQ; inv EQ.
       eexists; split.
       etrans.
       left.
-      rewrite ctree_eta, <- x, unfold_guarded_form.
+      rewrite ctree_eta, <- x, unfold_norm.
       cbn.
       rewrite ! brD0_always_stuck.
       reflexivity.
@@ -137,14 +137,14 @@ Proof.
       now step in EQ; inv EQ.
 Qed.
 
-Lemma trans_guarded_inv :
+Lemma trans_norm_inv :
   forall E X (t u : ctree E X) l,
-    trans l (guarded_form t) u ->
+    trans l (norm t) u ->
     exists t', trans l t t'
-          /\ u ~ guarded_form t'.
+          /\ u ~ norm t'.
 Proof.
   intros.
-  edestruct @trans_guarded_inv_strong as (t' & TR & EQ); [|eassumption|].
+  edestruct @trans_norm_inv_strong as (t' & TR & EQ); [|eassumption|].
   left; eauto.
   exists t'; split; auto.
   destruct EQ as [EQ |EQ]; rewrite EQ; auto.
@@ -156,13 +156,13 @@ Ltac fold_bind :=
            |- context [CTree.subst ?k ?t] => fold (CTree.bind t k)
          end.
 
-#[global] Instance guarded_equ E X : Proper (equ eq ==> equ eq) (@guarded_form E X).
+#[global] Instance norm_equ E X : Proper (equ eq ==> equ eq) (@norm E X).
 Proof.
   do 2 red.
   coinduction ? IH.
   intros * EQ.
   step in EQ.
-  rewrite ! unfold_guarded_form.
+  rewrite ! unfold_norm.
   cbn*.
   inv EQ; auto.
   - cbn.
@@ -176,19 +176,14 @@ Proof.
     all: auto.
 Qed.
 
-(* TODO: bind simpl never globally? *)
-(* TODO: Taus without continuation? *)
-(* TODO: tactic for better stepping for equ *)
-(* TODO: tactics for better stepping for sbisim (see a couple above) *)
-(* Equality on [observe u] rewritten in [equ]? *)
 Opaque CTree.bind.
-Lemma trans_guarded_strong :
+Lemma trans_norm_strong :
   forall E X (t u : ctree E X) l,
     trans l t u ->
     exists u',
-      trans l (guarded_form t) u'
-      /\ (u' ≅ guarded_form u
-         \/ u' ≅ Guard (guarded_form u)).
+      trans l (norm t) u'
+      /\ (u' ≅ norm u
+         \/ u' ≅ Guard (norm u)).
 Proof.
   intros * TR.
   (* revert t EQ. *)
@@ -196,12 +191,12 @@ Proof.
   dependent induction TR; intros.
   - (* destruct EQ as [EQ | EQ]. *)
     edestruct IHTR as (u' & TR' & EQ'); eauto.
-    setoid_rewrite unfold_guarded_form at 1; rewrite <- x.
+    setoid_rewrite unfold_norm at 1; rewrite <- x.
     exists u'; split.
     eapply trans_brD with (x := x0); [| reflexivity].
     now apply trans_guard.
     auto.
-  - setoid_rewrite unfold_guarded_form at 1; rewrite <- x1.
+  - setoid_rewrite unfold_norm at 1; rewrite <- x1.
     eexists; split.
     eapply trans_brD with (x := x0); [| reflexivity].
     etrans.
@@ -210,7 +205,7 @@ Proof.
     rewrite H.
     rewrite (ctree_eta t0),x,<- ctree_eta.
     auto.
-  - setoid_rewrite unfold_guarded_form at 1; rewrite <- x1.
+  - setoid_rewrite unfold_norm at 1; rewrite <- x1.
     eexists; split.
     unfold mtrigger, MonadTrigger_ctree; cbn.
     rewrite bind_trigger.
@@ -220,7 +215,7 @@ Proof.
     rewrite H.
     rewrite (ctree_eta t0),x,<- ctree_eta.
     auto.
-  - setoid_rewrite unfold_guarded_form at 1; rewrite <- x0.
+  - setoid_rewrite unfold_norm at 1; rewrite <- x0.
     eexists; split.
     (*
       Why do I need to cbn even if I add:
@@ -228,19 +223,19 @@ Proof.
      *)
     cbn; etrans.
     left.
-    rewrite unfold_guarded_form, <- x; cbn.
+    rewrite unfold_norm, <- x; cbn.
     now rewrite ! brD0_always_stuck.
 Qed.
 
-Lemma trans_guarded :
+Lemma trans_norm :
   forall E X (t u : ctree E X) l,
     trans l t u ->
     exists u',
-      trans l (guarded_form t) u'
-      /\ u' ~ guarded_form u.
+      trans l (norm t) u'
+      /\ u' ~ norm u.
 Proof.
   intros * TR.
-  edestruct trans_guarded_strong as (u' & TR' & EQ'); eauto.
+  edestruct trans_norm_strong as (u' & TR' & EQ'); eauto.
   exists u'; split; auto.
   destruct EQ' as [EQ' | EQ']; rewrite EQ'; auto.
   now rewrite sb_guard.
@@ -254,13 +249,13 @@ Ltac svis  := apply step_sb_vis.
 Ltac sStep := apply step_sb_step.
 Ltac sstep := sret || svis || sStep.
 
-Lemma guarded_is_bisimilar {E X} : forall (t : ctree E X),
-    guarded_form t ~ t.
+Lemma norm_is_bisimilar {E X} : forall (t : ctree E X),
+    norm t ~ t.
 Proof.
   coinduction ? IH.
   intros t.
   rewrite (ctree_eta t) at 2.
-  rewrite unfold_guarded_form.
+  rewrite unfold_norm.
   desobs t.
   - now cbn.
   - cbn*.
@@ -290,14 +285,14 @@ Proof.
       * intros ? ? TR.
         cbn.
         inv_trans.
-        edestruct trans_guarded_inv as (u' & TR' & EQ'); eauto.
+        edestruct trans_norm_inv as (u' & TR' & EQ'); eauto.
         eexists.
         eapply trans_brD with (x := n0); [| reflexivity].
         eassumption.
         rewrite EQ'; auto.
       * cbn; intros ? ? TR.
         inv_trans.
-        edestruct trans_guarded as (u' & TR' & EQ'); eauto.
+        edestruct trans_norm as (u' & TR' & EQ'); eauto.
         eexists.
         eapply trans_brD with (x := n0); [| reflexivity].
         apply trans_guard.
