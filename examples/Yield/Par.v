@@ -466,14 +466,6 @@ Section parallel.
     depind i; cbn; auto.
   Qed.
 
-  (* Lemma of_nat_lt_S n j (Hj : j < S n) (Hj' : j < n) : *)
-  (*   of_nat_lt Hj = FS (of_nat_lt Hj'). *)
-  (* Proof. *)
-  (*   revert n Hj Hj'. *)
-  (*   induction j; intros; auto. *)
-  (*   - cbn. destruct n; auto. inv Hj'. *)
-  (* Qed. *)
-
   (* before the element removed, the same index works *)
   Lemma remove_vec_index_before {n} (v : vec (S n)) i j
         (Hi : i < S n) (Hji : j < i) (Hj : j < S n) (Hj' : j < n) :
@@ -505,50 +497,6 @@ Section parallel.
     - destruct n. inv Hj'. subst. cbn.
       erewrite <- IHi; auto.
   Qed.
-
-  (* Definition remove_vec_index {n} (v : vec (S n)) (i i' : fin (S n)) (H : i <> i') : *)
-  (*   { j : fin n | v i' = (remove_vec v i) j }. *)
-  (*   revert v. depind i; cbn; intros. *)
-  (*   - dependent destruction i'. contradiction. *)
-  (*     exists i'. reflexivity. *)
-  (*   - destruct n; [inv i |]. *)
-  (*     dependent destruction i'; auto. *)
-  (*     + exists F1. reflexivity. *)
-  (*     + assert (i <> i'). { intro. subst. contradiction. } *)
-  (*       edestruct IHi as (j & Hj); eauto. exists (FS j). rewrite <- Hj. reflexivity. *)
-  (* Defined. *)
-
-  (* Lemma remove_vec_index_foo {n} (v : vec (S n)) i j1 j2 Hj1 Hj2 : *)
-  (*   (* TODO: figure out why this doesn't work with ` notation *) *)
-
-  (*   (proj1_sig (remove_vec_index v i (FS j1) Hj1)) <> *)
-  (*     (proj1_sig (remove_vec_index v i (FS j2) Hj2)) -> *)
-  (*   (proj1_sig (remove_vec_index v i j1 Hj1)) <> *)
-  (*     (proj1_sig (remove_vec_index v i j2 Hj2)). *)
-
-  (* Lemma remove_vec_index_injective {n} (v : vec (S n)) i j1 j2 Hj1 Hj2 : *)
-  (*   (* TODO: figure out why this doesn't work with ` notation *) *)
-  (*   j1 <> j2 -> *)
-  (*   (proj1_sig (remove_vec_index v i j1 Hj1)) <> (proj1_sig (remove_vec_index v i j2 Hj2)). *)
-  (* Proof. *)
-  (*   revert v. depind i. *)
-  (*   - intro. intro. revert j2 Hj2 H v. depind j1; [contradiction |]; intros. *)
-  (*     dependent destruction j2; [contradiction |]. destruct n. inv j1. *)
-  (*     apply IHj1. *)
-  (* Qed. *)
-
-  (* Lemma remove_vec_index {n} (v : vec (S n)) i : *)
-  (*   forall i', i <> i' -> exists j, v i' = remove_vec v i j. *)
-  (* Proof. *)
-  (*   revert v. depind i; cbn; intros. *)
-  (*   - dependent destruction i'. contradiction. *)
-  (*     exists i'. reflexivity. *)
-  (*   - destruct n; [inv i |]. *)
-  (*     dependent destruction i'; auto. *)
-  (*     + exists F1. reflexivity. *)
-  (*     + assert (i <> i'). { intro. subst. contradiction. } *)
-  (*       edestruct IHi as (j & Hj); eauto. exists (FS j). rewrite <- Hj. reflexivity. *)
-  (* Qed. *)
 
   Definition remove_vec_helper n n' (v : vec n) (i : fin n) (H : n = S n')
     : vec n'.
@@ -626,14 +574,6 @@ Section parallel.
     - apply Fin.eqb_eq in Heqb. contradiction.
     - reflexivity.
   Qed.
-
-  (* Lemma replace_vec_same n (v : vec n) i : *)
-  (*   replace_vec v i (v i) = v. *)
-  (* Proof. *)
-  (*   unfold replace_vec. apply functional_extensionality. intro. *)
-  (*   destruct (Fin.eqb i x) eqn:?; auto. *)
-  (*   apply Fin.eqb_eq in Heqb. subst. auto. *)
-  (* Qed. *)
 
   (** Adding an element to the front of a [vec] *)
   Equations cons_vec {n : nat} (t : thread) (v : vec n) : vec (S n) :=
@@ -924,7 +864,6 @@ Section parallel.
     rewrite <- H1. rewrite <- ctree_eta. reflexivity.
   Qed.
 
-  (* spawn or br *)
   Lemma trans_schedule_thread_tau_some n v i t (Hbound : brD_bound 1 (v i)) :
     trans tau (schedule n v (Some i)) t ->
     (exists n' i',
@@ -942,7 +881,7 @@ Section parallel.
                 (cons_vec (k true) (replace_vec v i (k false)))
                 (Some (FS i))).
   Proof.
-    unfold trans. intros. cbn in H. red in H. (* destruct n; try inv i. *)
+    unfold trans. intros. cbn in H. red in H.
     remember (observe (schedule n v (Some i))).
     pose proof (ctree_eta (go (observe (schedule n v (Some i))))).
     rewrite <- Heqc in H0 at 1. cbn in H0. clear Heqc.
@@ -1332,12 +1271,6 @@ Section parallel.
     induction i; auto.
   Qed.
 
-  (* Lemma order_FS' {n} (i : fin n) : *)
-  (*   order (FS i) i = g. *)
-  (* Proof. *)
-  (*   apply order_flip; apply order_FS. *)
-  (* Qed. *)
-
   Lemma order_FS_GT_inv {m n} (p : fin m) (q : fin n) :
     order (FS p) q = GT ->
     order p q = EQ \/ order p q = GT.
@@ -1374,7 +1307,6 @@ Section parallel.
     auto.
   Defined.
 
-  (* not used *)
   Lemma not_highest_FS {n} (p q : fin (S (S n))) H H' :
     (not_highest (FS p) (FS q) H) = FS (not_highest p q H').
   Proof.
@@ -1554,7 +1486,7 @@ Section parallel.
                        | inright Hpi => (* p i > p r *)
                            p' i = subtract_one _ _ Hpi
                        end
-                   | _(* inleft (right Hi) *) =>
+                   | _ =>
                        (* i >= r *)
                        let pi := p (FS i) in
                        match (order_cases pi (p r)) with

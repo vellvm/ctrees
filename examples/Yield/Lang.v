@@ -32,7 +32,8 @@ From CTree Require Import
      CTree
      Eq
      Eq.WBisim
-     Interp.
+     Interp.Interp
+     Interp.State.
 
 From CTreeYield Require Import
      Par.
@@ -40,7 +41,6 @@ From CTreeYield Require Import
 From Equations Require Import Equations.
 
 Import ListNotations.
-(* Import MonadNotation. *)
 Import CTreeNotations.
 Import WBisimNotations.
 Local Open Scope monad_scope.
@@ -112,7 +112,7 @@ Section Denote1.
     | YieldS => trigger Yield
     end.
 
-  Definition interp_concurrency (t : stmt) : completed :=
+  Definition interp_concurrency (t : stmt) : @completed MemE :=
     schedule 1 (fun _ => denote_imp t) (Some Fin.F1).
 
   (* specific case for ctree rather than generic monad M *)
@@ -121,30 +121,18 @@ Section Denote1.
       f <- mbr b n;;
       ret (s, f).
 
-  Definition handle_MemE : MemE ~> ctree (mapE var 0%nat) :=
-    fun _ e =>
-      match e with
-      | rd x => trigger (LookupDef x)
-      | wr x v => trigger (Insert x v)
-      end.
-
   (* list of key value pairs *)
   Definition env := alist var value.
 
-  Definition handle_map {d : value} : mapE var d ~> Monads.stateT env (ctree void1) :=
+  Definition handle_imp : MemE ~> Monads.stateT env (ctree void1) :=
     fun _ e s =>
       match e with
-      | Insert k v => Ret (Maps.add k v s, tt)
-      | LookupDef k => Ret (s, lookup_default k d s)
-      | Remove k => Ret (Maps.remove k s, tt)
+      | rd x => Ret (s, lookup_default x 0%nat s)
+      | wr x v => Ret (Maps.add x v s, tt)
       end.
 
-  Definition interp_map {d : value} : ctree (mapE var d) ~> Monads.stateT env (ctree void1) :=
-    interp handle_map.
-
-  Definition interp_MemE (t : stmt) : Monads.stateT env (ctree void1) unit :=
-    let t' := interp handle_MemE (interp_concurrency t) in
-    interp_map _ t'.
+  Definition interp_imp (t : stmt) : Monads.stateT env (ctree void1) unit :=
+    interp_state handle_imp (interp_concurrency t).
 
   Lemma denote_expr_bounded e :
     brD_bound 1 (denote_expr e).
@@ -171,7 +159,6 @@ Section Denote1.
     induction t; cbn.
     - apply bind_brD_bound. apply denote_expr_bounded. intros.
       step. rewrite bind_trigger. constructor. intros.
-      (* step. rewrite bind_trigger. constructor. intros. *)
       step. constructor.
     - apply bind_brD_bound; auto.
     - apply bind_brD_bound. apply denote_expr_bounded.
@@ -189,50 +176,7 @@ Section Denote1.
     - step. constructor. intros. step. constructor.
   Qed.
 
-  (*
-  (* TODO: clean up proof *)
-  Lemma interp_state_bounded t :
-    brD_bound 1 t ->
-    brD_bound 1 (interp_state t).
-  Proof.
-    unfold interp_state. unfold Interp.interp. unfold iter. unfold MonadIter_ctree.
-    intros. unfold brD_bound. revert t H. coinduction r CIH.
-    intros. cbn. rewrite unfold_iter.
-    cbn. destruct (observe t) eqn:?; cbn. 3: destruct vis.
-    - rewrite bind_ret_l. constructor.
-    - unfold CTree.map. destruct e; destruct s; cbn.
-      + rewrite bind_trigger. rewrite bind_vis. constructor. intros.
-        rewrite bind_ret_l. step. constructor; auto.
-        intros. apply CIH. step in H. cbn in H. unfold brD_bound_ in H. rewrite Heqc in H.
-        inversion H. invert. apply H1.
-      + rewrite bind_trigger. do 2 rewrite bind_vis. constructor. intros.
-        rewrite bind_trigger. do 2 rewrite bind_vis. step. econstructor. intros.
-        do 2 rewrite bind_ret_l. step. constructor; auto.
-        intros. apply CIH. step in H. cbn in H. unfold brD_bound_ in H. rewrite Heqc in H.
-        inversion H. invert. apply H1.
-      + rewrite bind_trigger. do 2 rewrite bind_vis. constructor. intros.
-        rewrite bind_trigger. do 2 rewrite bind_vis. step. econstructor. intros.
-        do 2 rewrite bind_ret_l. step. constructor; auto.
-        intros. apply CIH. step in H. cbn in H. unfold brD_bound_ in H. rewrite Heqc in H.
-        inversion H. invert. apply H1.
-    - unfold br. unfold MonadBr_ctree. unfold CTree.br.
-      do 2 rewrite bind_br. constructor. intros.
-      do 2 rewrite bind_ret_l. step. constructor; auto. intros. apply CIH.
-      step in H. cbn in H. unfold brD_bound_ in H. rewrite Heqc in H.
-      inversion H. invert. apply H1.
-    - unfold br. unfold MonadBr_ctree. unfold CTree.br.
-      do 2 rewrite bind_br. constructor.
-      2: {
-        step in H. cbn in H. unfold brD_bound_ in H. rewrite Heqc in H.
-        inversion H. invert. apply H3.
-      }
-      intros.
-      do 2 rewrite bind_ret_l. step. constructor; auto. intros. apply CIH.
-      step in H. cbn in H. unfold brD_bound_ in H. rewrite Heqc in H.
-      inversion H. invert. apply H2.
-  Qed.
-   *)
-  Lemma schedule_forks t1 t2 :
+  Lemma schedule_forks_equ t1 t2 :
     (schedule 1 (fun _ : fin 1 => denote_imp (Fork t1 (Fork t2 Skip))) (Some Fin.F1))
       ≅
      Step (Step (Guard
@@ -261,9 +205,6 @@ Section Denote1.
       simp remove_vec. simp cons_vec.
       unfold remove_front_vec. simp cons_vec. cbn. simp cons_vec.
       rewrite bind_ret_l. reflexivity.
-      (* rewrite bind_bind. *)
-      (* eapply equ_clo_bind; auto. intros; subst. *)
-      (* rewrite bind_br. step. constructor. intros. inv i. *)
   Qed.
 
   Equations p : fin 2 -> fin 2 :=
@@ -308,17 +249,13 @@ Section Denote1.
     interp_concurrency (Fork s2 (Fork s1 Skip)).
   Proof.
     unfold interp_concurrency.
-    do 2 rewrite schedule_forks.
+    do 2 rewrite schedule_forks_equ.
     apply sb_step. apply sb_step. apply sb_guard_lr.
 
     do 2 rewrite rewrite_schedule. simp schedule_match.
     apply schedule_order; try solve [apply denote_imp_bounded]; reflexivity.
   Qed.
 
-  (* we need 2 yields here since spawning also emits a tau *)
-  (* [| fork s skip |] = tau tau s
-     (tau at spawn, tau when main thread ends, continue with s) *)
-  (* [| yield; yield; s |] = tau tau s *)
   Lemma yield_fork s :
     interp_concurrency (Seq YieldS (Seq YieldS s)) ~
     interp_concurrency (Fork s Skip).
@@ -428,13 +365,105 @@ Section Denote1.
     interp_concurrency (Fork s (Fork (Seq YieldS (While (Lit 1%nat) YieldS)) Skip)).
   Proof.
     unfold interp_concurrency.
-    do 2 rewrite schedule_forks.
+    do 2 rewrite schedule_forks_equ.
     apply sb_step. apply sb_step. apply sb_guard_lr.
 
     do 2 rewrite rewrite_schedule. simp schedule_match.
 
     apply schedule_order; try solve [apply denote_imp_bounded]; try reflexivity.
     apply while_true_unfold_sbisim.
+  Qed.
+
+  Lemma assign_equ :
+    interp_concurrency (Assign "x" (Lit 2)) ≅
+                       (vis (wr "x" 2) (fun _ => Guard (ret tt))).
+  Proof.
+    unfold interp_concurrency. cbn.
+
+    rewrite rewrite_schedule. simp schedule_match.
+    cbn. CTree.fold_subst.
+    step. constructor. intros [].
+
+    rewrite rewrite_schedule. simp schedule_match.
+    cbn. step. constructor. intros _.
+
+    rewrite rewrite_schedule. simp schedule_match. reflexivity.
+  Qed.
+
+  Lemma fork_assign_assign_equ :
+    interp_concurrency (Fork (Assign "x" (Lit 2))
+                             (Assign "x" (Lit 1%nat))) ≅
+    Step (vis (wr "x" 1%nat) (fun _ => (Guard (Step (vis (wr "x" 2) (fun _ => Guard (ret tt))))))).
+  Proof.
+    unfold interp_concurrency. cbn.
+
+    rewrite rewrite_schedule. simp schedule_match.
+    cbn. CTree.fold_subst.
+    rewrite replace_vec_unary.
+    step. constructor. intros _.
+
+    rewrite rewrite_schedule. simp schedule_match.
+    simp cons_vec. cbn.
+    step. constructor. intros [].
+
+    rewrite rewrite_schedule. simp schedule_match.
+    rewrite replace_vec_cons_2.
+    step. constructor. intros _.
+
+    rewrite rewrite_schedule. simp schedule_match.
+    step. constructor. intros i.
+
+    dependent destruction i. 2: inv i.
+    rewrite remove_vec_cons_2.
+    rewrite rewrite_schedule. simp schedule_match. cbn.
+    step. constructor. intros [].
+
+    rewrite rewrite_schedule. simp schedule_match. cbn.
+    step. constructor. intros _.
+
+    rewrite rewrite_schedule. simp schedule_match. reflexivity.
+  Qed.
+
+  Lemma filter_filter : forall {A} f (l : list A), filter f (filter f l) = filter f l.
+  Proof.
+    intros. induction l.
+    - reflexivity.
+    - cbn. destruct (f a) eqn:?.
+      + cbn. rewrite Heqb. f_equal. apply IHl.
+      + apply IHl.
+  Qed.
+
+  Lemma alist_add_alist_add : forall {K RD_K V}, RelDec.RelDec_Correct (RD_K) ->
+                                            forall k v v' l, @alist_add K eq RD_K V k v (alist_add _ k v' l) = alist_add _ k v l.
+  Proof.
+    intros. unfold alist_add, alist_remove. cbn. rewrite filter_filter.
+    rewrite RelDec.rel_dec_eq_true; auto.
+  Qed.
+
+  Lemma interp_fork_assign_assign s :
+    interp_imp (Fork (Assign "x" (Lit 2))
+                             (Assign "x" (Lit 1%nat))) s ≈
+    interp_imp (Assign "x" (Lit 2)) s.
+  Proof.
+    unfold interp_imp.
+    rewrite fork_assign_assign_equ. rewrite assign_equ.
+    do 2 rewrite unfold_interp_state. cbn.
+    rewrite step_wb. rewrite bind_ret_l.
+    rewrite guard_wb. symmetry. rewrite guard_wb. symmetry.
+
+    do 2 rewrite unfold_interp_state. cbn.
+    rewrite bind_ret_l.
+    rewrite guard_wb. rewrite unfold_interp_state. cbn.
+    do 2 rewrite guard_wb. symmetry. do 2 rewrite guard_wb. symmetry.
+
+    do 2 rewrite unfold_interp_state. cbn.
+    rewrite step_wb. rewrite guard_wb.
+
+    rewrite unfold_interp_state. cbn. rewrite bind_ret_l.
+    rewrite guard_wb. rewrite unfold_interp_state. cbn.
+    do 2 rewrite guard_wb. rewrite unfold_interp_state. cbn.
+
+    rewrite alist_add_alist_add. 2: apply RelDec_Correct_string. reflexivity.
   Qed.
 
 End Denote1.
