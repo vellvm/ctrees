@@ -14,7 +14,7 @@ Open Scope monad_scope.
   MonadTrigger E (stateT S M) :=
   fun _ e s => v <- mtrigger _ e;; ret (s, v).
 
-Definition schedule {E M : Type -> Type}
+Definition refine {E M : Type -> Type}
 					 {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {FoM : MonadTrigger E M}
            {CM : MonadBr M}
            (h : bool -> forall n, M (fin n)) :
@@ -28,8 +28,8 @@ Definition schedule {E M : Type -> Type}
 				    | VisF e k => bind (mtrigger _ e) (fun x => ret (inl (k x)))
 				    end).
 
-#[global] Instance schedule_equ {E X} h :
-  Proper (@equ E X X eq ==> equ eq) (schedule h X).
+#[global] Instance refine_equ {E X} h :
+  Proper (@equ E X X eq ==> equ eq) (refine h X).
 Proof.
   cbn.
   coinduction R CH.
@@ -48,8 +48,8 @@ Proof.
     apply CH. apply REL.
 Qed.
 
-Definition schedule_cst {E} (h : bool -> forall n, fin (S n)) : ctree E ~> ctree E :=
-  schedule (fun b n =>
+Definition refine_cst {E} (h : bool -> forall n, fin (S n)) : ctree E ~> ctree E :=
+  refine (fun b n =>
     match n with
     | O => CTree.stuck b
     | S n => Br b 1 (fun _ => Ret (h b n))
@@ -57,9 +57,9 @@ Definition schedule_cst {E} (h : bool -> forall n, fin (S n)) : ctree E ~> ctree
 
 Definition round_robin {E} : ctree E ~> stateT nat (ctree E).
 Proof.
-  refine (schedule
+  refine (refine
             (fun b n m =>
-               (* m: branch to be scheduled
+               (* m: branch to be refined
                   n: arity of the new node
                 *)
                match n as n' return (ctree E (nat * fin n')) with
@@ -71,13 +71,13 @@ Proof.
   auto with arith.
 Defined.
 
-Theorem schedule_cst_refinement :
+Theorem refine_cst_refinement :
   forall {E X} (h : bool -> forall n, fin (S n)) (t : ctree E X),
-  schedule_cst h _ t ≲ t.
+  refine_cst h _ t ≲ t.
 Proof.
   intros until h. coinduction R CH. repeat intro.
   do 3 red in H. remember (observe _) as os. genobs t' ot'.
-  assert (EQ : go os ≅ schedule_cst h X t \/ go os ≅ Guard (schedule_cst h X t)).
+  assert (EQ : go os ≅ refine_cst h X t \/ go os ≅ Guard (refine_cst h X t)).
   { left. rewrite Heqos. now rewrite <- ctree_eta. } clear Heqos.
   apply (f_equal go) in Heqot'. eq2equ Heqot'.
   rewrite <- ctree_eta in EQ0.
