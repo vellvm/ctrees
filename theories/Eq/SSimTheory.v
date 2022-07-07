@@ -21,7 +21,6 @@ Set Implicit Arguments.
 Import EquNotations.
 Import SBisimNotations.
 
-(* TODO: Decide where to set this *)
 Arguments trans : simpl never.
 
 #[local] Tactic Notation "step" := __step_sbisim || step.

@@ -241,9 +241,6 @@ Proof.
   now rewrite sb_guard.
 Qed.
 
-(* TODO: define properly the set of tactics in [sbisim] and kill this.
-   TODO: this is not resilient enough, it loops if the goal is not exactly of the right shape
- *)
 Ltac sret  := apply step_sb_ret.
 Ltac svis  := apply step_sb_vis.
 Ltac sStep := apply step_sb_step.

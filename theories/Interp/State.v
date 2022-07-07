@@ -86,13 +86,9 @@ Section State.
       reflexivity.
   Qed.
 
-  (* TODO: in the following proof, [cbn] reduces too much.
-     Need to diagnostic and fix
-   *)
-  #[global]
-   Instance equ_interp_state {E F R} (h : E ~> Monads.stateT S (ctree F)) :
+  #[global] Instance equ_interp_state {E F R} (h : E ~> Monads.stateT S (ctree F)) :
     Proper (equ eq ==> eq ==> equ eq)
-           (@interp_state _ _ _ _ _ _ h R).
+      (@interp_state _ _ _ _ _ _ h R).
   Proof.
     unfold Proper, respectful.
     coinduction ? IH; intros * EQ1 * <-.
@@ -142,7 +138,6 @@ Section State.
   Proof.
     unfold CTree.trigger. rewrite interp_state_vis; cbn.
     upto_bind_eq.
-    (* TODO: proof system for [equ] similar to the one for [sbisim] *)
     apply br_equ. intros _.
     rewrite interp_state_ret.
     now destruct x1.

@@ -375,8 +375,6 @@ Qed.
 (*|
 Proper Instances
 ----------------
-TODO: step back and think a bit better about those
-
 equ eq       ==> going (equ eq)  observe
 ∀(equ eq)    ==> going (equ eq)  BrF
 ∀(equ eq)    ==> going (equ eq)  VisF
@@ -505,7 +503,7 @@ f R = {(bind t k, bind u l) | equ SS t u /\ forall x y, SS x y -> R (k x) (l x)}
 Section bind.
 
 (*|
-Heterogeneous [pair], todo move to coinduction library
+Heterogeneous [pair], should be moved to coinduction library
 |*)
   Definition pointwise {X X' Y Y'} (SS : rel X X')
     : rel Y Y' -> rel (X -> Y) (X' -> Y') :=

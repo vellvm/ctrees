@@ -57,7 +57,6 @@ From RelationAlgebra Require Export
 
 Set Implicit Arguments.
 
-(* TODO: Decide where to set this *)
 Arguments trans : simpl never.
 
 Section StrongBisim.
@@ -256,7 +255,7 @@ i.e. validity of up-to symmetry
       destruct (xy _ _ xx') as [y' yy' x'y'].
       destruct (yz _ _ yy') as [z' zz' y'z'].
       exists z'. assumption.
-      apply (f_Tf sb).  (* TODO: set of tactics for the companion *)
+      apply (f_Tf sb).
       eexists; eauto.
   Qed.
 
@@ -679,9 +678,6 @@ The following proof rules avoid this issue in particular cases.
 
 Be sure to notice that contrary to equations such that [sb_tauI] or
 up-to principles such that [upto_vis], (most of) these rules consume a [sb].
-
-TODO: need to think more about this --- do we want more proof rules?
-Do we actually need them on [sb (st R)], or something else?
 |*)
 
 Section Proof_Rules.
@@ -945,7 +941,6 @@ Invisible taus can be stripped-out w.r.t. to [sbisim], but not visible ones
 (*|
 Br
 |*)
-  (* TODO: Double check that this is needed, it should be taus in all contexts I can think of *)
   Lemma sb_brD1 E X : forall (k : fin 1 -> ctree E X),
       BrD 1 k ~ k F1.
   Proof.

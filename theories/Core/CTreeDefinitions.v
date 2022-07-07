@@ -318,11 +318,6 @@ Instances
 #[global] Instance MonadBr_ctree {E} : MonadBr (ctree E) :=
   CTree.br.
 
-(*|
-TODO: we need to do some thinking about what the right
-way to represent and manipulate these finite branches.
-|*)
-
 Definition brS2 {E X} (t u : ctree E X) :=
  (BrS 2 (fun b =>
 			   match b with | Fin.F1 => t | _ => u end)).

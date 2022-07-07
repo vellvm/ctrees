@@ -752,7 +752,6 @@ Proof.
     + rewrite H1, bind_ret_l in H2. rewrite H1, bind_ret_l in cpy. inv_trans. subst.
       inv H3. step in H2. inv H2. step in H4. inv H4.
     + rewrite H1 in *. rewrite bind_trigger in H2. apply trans_vis_inv in H2 as (? & ? & ?). subst.
-      (* todo lemma *)
       rewrite H2 in H3. inv H3. step in H4. inv H4.
       apply equ_br_invE in H5. 2: apply Fin.F1.
       rewrite <- H5 in H4. inv H4. 2: { step in H6. inv H6. }
