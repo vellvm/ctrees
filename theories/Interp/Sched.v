@@ -28,24 +28,6 @@ Definition schedule {E M : Type -> Type}
 				    | VisF e k => bind (mtrigger _ e) (fun x => ret (inl (k x)))
 				    end).
 
-Variant pureb {E X} (rec : ctree E X -> Prop) : ctree' E X -> Prop :=
-  | pure_ret   (v : X) : pureb rec (RetF v)
-  | pure_delay n k (REC: forall v, rec (k v)) : pureb rec (BrDF n k).
-#[global] Hint Constructors equb: core.
-
-Definition pureb_ {E X} rec (t : ctree E X) := pureb rec (observe t).
-
-Program Definition fpure {E R} : mon (ctree E R -> Prop) := {|body := pureb_|}.
-Next Obligation.
-  red in H0 |- *.
-  inversion_clear H0; econstructor; auto.
-Qed.
-
-Definition pure {E R} := gfp (@fpure E R).
-
-(* Definition schedule_pure {E} (hV hI : forall n, fin n) : ctree E ~> ctree E := *)
-(*   schedule (fun n => Ret (h n)). *)
-
 #[global] Instance schedule_equ {E X} h :
   Proper (@equ E X X eq ==> equ eq) (schedule h X).
 Proof.

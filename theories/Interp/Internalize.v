@@ -42,4 +42,3 @@ Section Internalize.
 
 End Internalize.
 Arguments ext_chose n : clear implicits.
-
