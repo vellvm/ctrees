@@ -76,16 +76,17 @@ Relation relaxing [equ] to become insensitive to:
 (*|
 The function defining strong simulations: [trans] plays must be answered
 using [trans].
-The [ss] definition stands for [strong simulation]. The bisimulation [sb]
+The [ss0] definition stands for [strong simulation]. The bisimulation [sb]
 is obtained by expliciting the symmetric aspect of the definition following
 Pous'16 in order to be able to exploit symmetry arguments in proofs
 (see [square_st] for an illustration).
 |*)
-  Program Definition ss : mon (S -> S -> Prop) :=
+  Program Definition ss0 : mon (S -> S -> Prop) :=
     {| body R t u :=
-      forall l t', trans l t t' -> exists2 u', trans l u u' & R t' u'
+      (forall l t', trans l t t' -> exists2 u', trans l u u' & R t' u')
     |}.
   Next Obligation.
+    intros.
     edestruct H0; eauto.
   Qed.
 
@@ -97,13 +98,27 @@ i.e. fun R => converse (ss (converse R))
 i.e. comp converse (comp ss converse)
 The bisimulation is then obtained by intersecting both relations.
 |*)
-  Definition sb := (Coinduction.lattice.cap ss (comp converse (comp ss converse))).
+  Definition sb := (Coinduction.lattice.cap ss0 (comp converse (comp ss0 converse))).
+
+(*|
+Complete strong simulation [ss].
+|*)
+  Program Definition ss : mon (S -> S -> Prop) :=
+    {| body R t u :=
+      ss0 R t u /\
+      forall l u', trans l u u' -> exists l' t', trans l' t t'
+    |}.
+  Next Obligation.
+    split; eauto. intros.
+    edestruct H0; eauto.
+  Qed.
 
 End StrongBisim.
 
 (*|
 The relations themselves
 |*)
+Definition ssim0 {E X} := (gfp (@ss0 E X) : hrel _ _).
 Definition ssim {E X} := (gfp (@ss E X) : hrel _ _).
 Definition sbisim {E X} := (gfp (@sb E X) : hrel _ _).
 
@@ -111,6 +126,11 @@ Module SBisimNotations.
 
   Notation "t ≲ u" := (ssim t u) (at level 70).
   Notation "t ~ u" := (sbisim t u) (at level 70).
+
+  Notation sst0 := (t ss0).
+  Notation ssbt0 := (bt ss0).
+  Notation ssT0 := (T ss0).
+  Notation ssbT0 := (bT ss0).
 
   Notation sst := (t ss).
   Notation ssbt := (bt ss).
@@ -140,17 +160,24 @@ Ltac fold_sbisim :=
     match goal with
     | h: context[gfp (@sb ?E ?X)] |- _ => fold (@sbisim E X) in h
     | |- context[gfp (@sb ?E ?X)]      => fold (@sbisim E X)
+    | h: context[gfp (@ss0 ?E ?X)] |- _ => fold (@ssim0 E X) in h
+    | |- context[gfp (@ss0 ?E ?X)]      => fold (@ssim0 E X)
     | h: context[gfp (@ss ?E ?X)] |- _ => fold (@ssim E X) in h
     | |- context[gfp (@ss ?E ?X)]      => fold (@ssim E X)
     end.
 
 Ltac __coinduction_sbisim R H :=
   (try unfold sbisim);
+  (try unfold ssim0);
   (try unfold ssim);
   apply_coinduction; fold_sbisim; intros R H.
 
 Tactic Notation "__step_sbisim" :=
   match goal with
+  | |- context[@ssim0 ?E ?X] =>
+      unfold ssim;
+      step;
+      fold (@ssim E X)
   | |- context[@ssim ?E ?X] =>
       unfold ssim;
       step;
@@ -168,6 +195,10 @@ Tactic Notation "__step_sbisim" :=
 
 Ltac __step_in_sbisim H :=
   match type of H with
+  | context [@ssim0 ?E ?X] =>
+      unfold ssim in H;
+      step in H;
+      fold (@ssim0 E X) in H
   | context [@ssim ?E ?X] =>
       unfold ssim in H;
       step in H;
@@ -186,7 +217,9 @@ A bisimulation trivially gives a simulation.
 Lemma sb_ss : forall {E X} RR (t t' : ctree E X),
   sb RR t t' -> ss RR t t'.
 Proof.
-  intros. apply H.
+  intros. split.
+  - apply H.
+  - intros. apply H in H0 as []. eauto.
 Qed.
 
 Lemma sbisim_ssim : forall {E X} (t t' : ctree E X),
@@ -194,9 +227,28 @@ Lemma sbisim_ssim : forall {E X} (t t' : ctree E X),
 Proof.
   intros ? ?.
   coinduction R CH. simpl. intros.
+  step in H. split.
+  - intros.
+    apply H in H0 as [? ?].
+    exists x; auto.
+  - intros. apply H in H0 as [].
+    eexists. eexists. apply H0.
+Qed.
+
+Lemma ssim_ssim0 : forall {E X} (t t' : ctree E X),
+  ssim t t' -> ssim0 t t'.
+Proof.
+  intros ? ?.
+  coinduction R CH. simpl. intros.
   step in H.
-  apply H in H0 as [].
-  exists x; auto.
+  apply H in H0 as []. apply CH in H1.
+  exists x; eauto.
+Qed.
+
+Lemma sbisim_ssim0 : forall {E X} (t t' : ctree E X),
+  sbisim t t' -> ssim0 t t'.
+Proof.
+  intros. apply ssim_ssim0. now apply sbisim_ssim.
 Qed.
 
 Section sbisim_theory.
@@ -406,18 +458,30 @@ contexts.
     apply (ft_t equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_ss_closed_goal {r} : Proper (equ eq ==> equ eq ==> flip impl) (ss r).
+  #[global] Instance equ_ss0_closed_goal {r} : Proper (equ eq ==> equ eq ==> flip impl) (@ss0 E X r).
   Proof.
     intros t t' tt' u u' uu'; cbn; intros.
-    rewrite tt' in H0. apply H in H0 as [? ? ?].
-    eexists; eauto. rewrite uu'. eauto.
+    - rewrite tt' in H0. apply H in H0 as [? ? ?].
+      eexists; eauto. rewrite uu'. eauto.
+  Qed.
+
+  #[global] Instance equ_ss0_closed_ctx {r} : Proper (equ eq ==> equ eq ==> impl) (@ss0 E X r).
+  Proof.
+    intros t t' tt' u u' uu'; intros.
+    rewrite tt', uu'. reflexivity.
+  Qed.
+
+  #[global] Instance equ_ss_closed_goal {r} : Proper (equ eq ==> equ eq ==> flip impl) (ss r).
+  Proof.
+    intros t t' tt' u u' uu'; split; intros.
+    - rewrite tt', uu'. apply H.
+    - rewrite uu' in H0. apply H in H0. setoid_rewrite tt'. apply H0.
   Qed.
 
   #[global] Instance equ_ss_closed_ctx {r} : Proper (equ eq ==> equ eq ==> impl) (ss r).
   Proof.
-    intros t t' tt' u u' uu'; cbn; intros.
-    rewrite <- tt' in H0. apply H in H0 as [? ? ?].
-    eexists; eauto. rewrite <- uu'. eauto.
+    intros t t' tt' u u' uu'; intros.
+    rewrite tt', uu'. reflexivity.
   Qed.
 
 (*|
@@ -766,11 +830,11 @@ in both directions. We can in this case have [n] rather than [2n] obligations.
   Proof.
     intros PROP EQs1 EQs2.
     split; intros ? ? TR; inv_trans; subst.
-    - destruct (EQs1 n0) as [x HR].
+    - destruct (EQs1 x) as [y HR].
       eexists.
       etrans.
       rewrite EQ; eauto.
-    - destruct (EQs2 m0) as [x HR].
+    - destruct (EQs2 x) as [y HR].
       eexists.
       etrans.
       cbn; rewrite EQ; eauto.
@@ -832,16 +896,16 @@ cannot act as going under the guard.
   Proof.
     intros EQs1 EQs2.
     split; intros ? ? TR; inv_trans; subst.
-    - destruct (EQs1 n0) as [x [F _]]; cbn in F.
+    - destruct (EQs1 x) as [y [F _]]; cbn in F.
       apply F in TR; destruct TR as [u' TR' EQ'].
       eexists.
-      eapply trans_brD with (x := x); [|reflexivity].
+      eapply trans_brD with (x := y); [|reflexivity].
       eauto.
       eauto.
-    - destruct (EQs2 m0) as [x [_ B]]; cbn in B.
+    - destruct (EQs2 x) as [y [_ B]]; cbn in B.
       apply B in TR; destruct TR as [u' TR' EQ'].
       eexists.
-      eapply trans_brD with (x := x); [|reflexivity].
+      eapply trans_brD with (x := y); [|reflexivity].
       eauto.
       eauto.
   Qed.

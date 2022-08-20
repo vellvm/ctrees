@@ -215,11 +215,11 @@ on both arguments.
 We also get [wbisim] closed under [sbism] on both arguments, but need first to
 establish [wbisim]'s transitivity for that.
 |*)
-    Lemma s_e: @ss E X <= es.
+    Lemma s_e: @ss0 E X <= es.
     Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using trans_etrans_. Qed.
     Lemma e_w: es <= ws.
     Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using etrans_wtrans_. Qed.
-    Lemma s_w: ss <= ws.
+    Lemma s_w: ss0 <= ws.
     Proof. rewrite s_e. apply e_w. Qed.
 
     Corollary sbisim_wbisim: sbisim <= wbisim.

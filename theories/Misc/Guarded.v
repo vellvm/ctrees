@@ -274,14 +274,14 @@ Proof.
       * inv_trans.
         subst.
         eexists.
-        eapply trans_brS with (x := n0).
+        eapply trans_brS with (x := x).
         rewrite EQ.
         rewrite sb_guard.
         apply IH.
       * cbn.
         inv_trans; subst.
         eexists.
-        eapply trans_brD with (x := n0).
+        eapply trans_brD with (x := x).
         2:etrans.
         etrans.
         rewrite sb_guard.
@@ -292,14 +292,14 @@ Proof.
         inv_trans.
         edestruct trans_guarded_inv as (u' & TR' & EQ'); eauto.
         eexists.
-        eapply trans_brD with (x := n0); [| reflexivity].
+        eapply trans_brD with (x := x); [| reflexivity].
         eassumption.
         rewrite EQ'; auto.
       * cbn; intros ? ? TR.
         inv_trans.
         edestruct trans_guarded as (u' & TR' & EQ'); eauto.
         eexists.
-        eapply trans_brD with (x := n0); [| reflexivity].
+        eapply trans_brD with (x := x); [| reflexivity].
         apply trans_guard.
         eauto.
         rewrite EQ'; auto.

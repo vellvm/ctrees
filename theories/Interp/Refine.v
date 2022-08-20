@@ -3,6 +3,7 @@ From ExtLib Require Import
      Structures.Monad.
 
 From CTree Require Import
+     Eq.SSim0Theory
      Eq
      Interp.State.
 
@@ -91,7 +92,7 @@ Defined.
 
 Theorem refine_cst_refinement :
   forall {E X} (h : bool -> forall n, fin (S n)) (t : ctree E X),
-  refine_cst h _ t ≲ t.
+  ssim0 (refine_cst h _ t) t.
 Proof.
   intros until h. coinduction R CH. repeat intro.
   do 3 red in H. remember (observe _) as os. genobs t' ot'.
@@ -99,7 +100,7 @@ Proof.
   { left. rewrite Heqos. now rewrite <- ctree_eta. } clear Heqos.
   apply (f_equal go) in Heqot'. eq2equ Heqot'.
   rewrite <- ctree_eta in EQ0.
-  assert (exists u' : Trans.SS, trans l t u' /\ sst R t' u').
+  assert (exists u' : Trans.SS, trans l t u' /\ sst0 R t' u').
   2: { destruct H0; exists x; destruct H0; assumption. }
   setoid_rewrite <- EQ0. clear t' EQ0.
   revert t EQ.

@@ -1039,6 +1039,15 @@ Proof.
   rewrite <- ctree_eta; reflexivity.
 Qed.
 
+Lemma trans_bind_inv_l {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E Y) l :
+  trans l (t >>= k) u ->
+  exists l' t', trans l' t t'.
+Proof.
+  intros TR.
+  apply trans_bind_inv in TR.
+  destruct TR as [(? & ? & ? & ?) | (? & ? & ?)]; eauto.
+Qed.
+
 Lemma trans_bind_l {E X Y} (t : ctree E X) (k : X -> ctree E Y) (u : ctree E X) l :
   ~ (@is_val E l) ->
   trans l t u ->
@@ -1455,8 +1464,9 @@ Ltac inv_trans_one :=
 
   (* BrS *)
   | h : trans' _ (BrS ?n ?k) _ |- _ =>
+      let x := fresh "x" in
       let EQl := fresh "EQl" in
-      apply trans_brS_inv in h as (?n & ?EQ & EQl);
+      apply trans_brS_inv in h as (x & ?EQ & EQl);
       match type of EQl with
       | tau     = tau => clear EQl
       | val _   = tau => now inv EQl
@@ -1503,7 +1513,8 @@ Ltac inv_trans_one :=
 
   (* BrD *)
   | h : trans' _ (BrD ?n ?k) _ |- _ =>
-      apply trans_brD_inv in h as (?n & ?TR)
+      let x := fresh "x" in
+      apply trans_brD_inv in h as (x & ?TR)
 
   (* brD2 *)
   | h : trans' _ (brD2 _ _) _ |- _ =>

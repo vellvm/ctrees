@@ -58,7 +58,8 @@ Proof.
   apply trans_brD_inv in TR as (? & TR). destruct x0. inv_trans.
   - play in EQ. inv_trans. discriminate.
   - eapply ssim_brD_l_inv with (x := Fin.F1) in EQ.
-    play in EQ. inv_trans. discriminate.
+    + play in EQ. inv_trans. discriminate.
+    + etrans.
   Unshelve. all: auto.
 Qed.
 
@@ -69,11 +70,12 @@ Proof.
   apply step_ss_brD_l. intros.
   destruct x.
   - rewrite bind_trigger. apply step_ss_vis; auto. intros _.
-    step. apply step_ss_brD_r with (x := Fin.F1).
-    upto_bind_eq. now apply step_ss_vis.
+    step. apply step_ss_brD_r with (x := Fin.F1); [ now etrans |].
+    upto_bind_eq. split; [| now etrans ]. now apply step_ss_vis.
   - rewrite bind_trigger. apply step_ss_vis; auto. intros _.
-    step. apply step_ss_brD_r with (x := Fin.FS Fin.F1).
-    upto_bind_eq. now apply step_ss_vis.
+    step. apply step_ss_brD_r with (x := Fin.FS Fin.F1); [ now etrans |].
+    upto_bind_eq. split; [| now etrans ]. now apply step_ss_vis.
+  Unshelve. all: auto.
 Qed.
 
 Tactic Notation "play" "using" tactic(tac) :=
@@ -93,7 +95,7 @@ Proof.
     destruct s.
     2: play; now step.
     setoid_rewrite bind_ret_l in H.
-    play in H. apply trans_brD_inv in TR as [].
+    play in H.
     destruct x2; inv_trans; subst.
     + play using (apply trans_brD21; etrans).
       step. play.
