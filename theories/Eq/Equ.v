@@ -874,7 +874,7 @@ Proof.
 Qed.
 
 Lemma bind_trigger {E C X Y} (e : E X) (k : X -> ctree E C Y) :
-  trigger e >>= k ≅ Vis e (fun x => k x).
+  trigger e >>= k ≅ Vis e k.
 Proof.
   unfold trigger; rewrite bind_vis; setoid_rewrite bind_ret_l.
   reflexivity.
@@ -884,6 +884,13 @@ Lemma bind_choice {E C X Y Z} b (c : C X) (k : X -> ctree E C Y) (g : Y -> ctree
   Choice b c k >>= g ≅ Choice b c (fun x => k x >>= g).
 Proof.
   now rewrite unfold_bind.
+Qed.
+
+Lemma bind_choose {E C X Y} b (c : C X) (k : X -> ctree E C Y) :
+  choose b c >>= k ≅ Choice b c k.
+Proof.
+  unfold choose. rewrite bind_choice. setoid_rewrite bind_ret_l.
+  reflexivity.
 Qed.
 
 Lemma bind_tauV {E C X Y} `{C1 -< C} (t : ctree E C X) (g : X -> ctree E C Y):
