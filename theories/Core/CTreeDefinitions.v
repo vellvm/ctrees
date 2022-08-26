@@ -368,6 +368,8 @@ End CTree.
 Arguments CTree.choose {E C X} b c.
 Notation trigger e := (CTree.trigger (subevent _ e)).
 Notation choose b c := (CTree.choose b (subevent _ c)).
+Notation chooseI c := (CTree.choose false (subevent _ c)).
+Notation chooseV c := (CTree.choose true (subevent _ c)).
 Notation stuckI := (stuck false).
 Notation stuckV := (stuck true).
 
@@ -478,14 +480,14 @@ Compute with fuel
 
 Remove [Tau]s from the front of an [itree].
 |*)
-Fixpoint burn (n : nat) {E C : Type -> Type} {R} (t : ctree E (C1 +' C) R) : ctree E (C1 +' C) R :=
+Fixpoint burn (n : nat) {E C : Type -> Type} {R} (t : ctree E (C01 +' C) R) : ctree E (C01 +' C) R :=
   match n with
   | 0 => t
   | S n =>
       match observe t with
       | RetF r => Ret r
       | VisF e k => Vis e k
-      | ChoiceF b (inl1 c) k =>
+      | ChoiceF b (inl1 (inr1 c)) k =>
           match c in (C1 T) return (T -> _) -> _ with
           | choice1 => fun k => burn n (k tt)
           end k
