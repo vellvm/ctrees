@@ -216,11 +216,15 @@ on both arguments.
 We also get [wbisim] closed under [sbism] on both arguments, but need first to
 establish [wbisim]'s transitivity for that.
 |*)
-    Lemma s_e: @ss E C X _ <= es.
-    Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using trans_etrans_. Qed.
+    Lemma s_e: @ss E E C C X X _ _ eq <= es.
+    Proof.
+      intros R p q H l p' pp'. destruct (H _ _ pp').
+      destruct H0 as (? & ? & ? & <-). eauto using trans_etrans_.
+    Qed.
+
     Lemma e_w: es <= ws.
     Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using etrans_wtrans_. Qed.
-    Lemma s_w: ss <= ws.
+    Lemma s_w: @ss E E C C X X _ _ eq <= ws.
     Proof. rewrite s_e. apply e_w. Qed.
 
     Corollary sbisim_wbisim: sbisim <= wbisim.
@@ -438,7 +442,7 @@ We can now easily derive that [wbisim] is closed under [sbisim]
 (*|
 Weak bisimulation up-to [equ] is valid
 |*)
-    Lemma equ_clos_wt : @equ_clos E C X X <= wt.
+    Lemma equ_clos_wt : @equ_clos E E C C X X <= wt.
     Proof.
       apply Coinduction, by_Symmetry; [apply equ_clos_sym |].
       intros R t u EQ l t1 TR; inv EQ.
@@ -505,7 +509,7 @@ Disproving the transitivity of [wt R]
     Lemma not_Transitive_wt `{HasTau : C1 -< C} Z: X -> Z -> E Z -> ~ forall R, Transitive (wt R).
     Proof.
       intros x z e H.
-      cut (Vis e (fun _ => Ret x) ≈ Ret x).
+      cut (Vis e (fun _ => Ret x) ≈ (Ret x : ctree E C X)).
       - intros abs. step in abs; destruct abs as [abs _].
         destruct (abs (obs e z) (Ret x)) as [? step EQ].
         constructor; reflexivity.
@@ -555,7 +559,7 @@ Specialization of [bind_ctx] to a function acting with [sbisim] on the bound val
 and with the argument (pointwise) on the continuation.
 |*)
   Program Definition bind_ctx_wbisim :  mon (rel (ctree E C Y) (ctree E C Y)) :=
-    {|body := fun R => @bind_ctx E C X X Y Y wbisim (pointwise eq R) |}.
+    {|body := fun R => @bind_ctx E E C C X X Y Y wbisim (pointwise eq R) |}.
   Next Obligation.
     intros ???? H. apply leq_bind_ctx. intros ?? H' ?? H''.
     apply in_bind_ctx. apply H'. intros t t' HS. apply H0, H'', HS.
