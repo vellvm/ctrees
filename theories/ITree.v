@@ -107,22 +107,23 @@ Proof.
   rewrite 2 Interp.unfold_interp.
 	punfold bisim.
 	inv bisim; pclearbot; try easy.
-	- cbn*.
-    constructor; intros ?.
-    step.
-    cbn.
-    constructor; intros ?.
-    now apply CIH.
-	- cbn.
-    upto_bind_eq.
-    constructor; intros ?.
-    rewrite 2 Interp.unfold_interp.
-    cbn.
-    step; cbn.
-    constructor; intros ?.
-    step; cbn.
-    constructor; intros ?.
-    apply CIH, REL.
+	- Opaque CTree.bind.
+          unfold cobserve; cbn.
+          destruct (iobserve t) eqn:ot; try now cbn; auto.
+          Transparent CTree.bind.
+          upto_bind_eq.
+          constructor; intros ?.
+          apply CIH; auto.
+        - unfold cobserve; cbn.
+          upto_bind_eq.
+          constructor; intros ?.
+          rewrite 2 Interp.unfold_interp.
+          cbn.
+          step; cbn*.
+          constructor; intros ?.
+          step; cbn*.
+          constructor; intros ?.
+          apply CIH, REL.
 Qed.
 
 From Coq Require Import Datatypes.
