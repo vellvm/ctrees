@@ -23,6 +23,8 @@ Open Scope ctree.
 Set Implicit Arguments.
 Set Primitive Projections.
 
+#[local] Tactic Notation "step" "in" ident(H) := __step_in_equ H.
+
 Section Visible.
 
   Context {E C : Type -> Type} {R : Type}.
@@ -36,11 +38,19 @@ Section Visible.
   Inductive visible_ : hrel S' S' :=
   | VisibleI {X} (c : C X) x k t :
     visible_ (observe (k x)) t ->
+<<<<<<< HEAD
     visible_ (ChoiceF false c k) t
+=======
+    visible_ (BrF false n k) t
+>>>>>>> master
 
   | VisibleV {X} (c : C X) (x : X) k1 k2 :
     (forall x, k1 x ≅ k2 x) ->
+<<<<<<< HEAD
     visible_ (ChoiceF true c k1) (ChoiceF true c k2)
+=======
+    visible_ (BrF true n k1) (BrF true n k2)
+>>>>>>> master
 
   | VisibleVis {X} (e : E X) k1 k2 :
     (forall x, k1 x ≅ k2 x) ->

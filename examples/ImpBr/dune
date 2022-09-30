@@ -1,0 +1,4 @@
+(coq.theory
+  (name CTreeImp)
+  (theories CTree)
+)

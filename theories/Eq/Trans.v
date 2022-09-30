@@ -9,15 +9,15 @@ process-algebra tradition and define bisimulation atop of labelled
 transition systems.
 
 A node is said to be _observable_ if it is a visible event, a return
-node, or an internal choice tagged as visible.
+node, or an internal br tagged as visible.
 The first transition relation we introduce is [trans]: a tree can
-finitely descend through unobservable choices until it reaches an
+finitely descend through unobservable brs until it reaches an
 observable node. At this point, it steps following the simple rules:
 - [Ret v] steps to a silently blocked state by emitting a value
 label of [v]
 - [Vis e k] can step to any [k x] by emitting an event label tagged
 with both [e] and [x]
-- [ChoiceV k] can step to any [k x] by emitting a tau label
+- [BrS k] can step to any [k x] by emitting a tau label
 
 This transition system will define a notion of strong bisimulation
 in the process algebra tradition.
@@ -35,13 +35,13 @@ closed under [equ] rather than [eq].
 From Coq Require Import Fin.
 
 From Coinduction Require Import
-	   coinduction rel tactics.
+     coinduction rel tactics.
 
 From ITree Require Import
      Core.Subevent.
 
 From CTree Require Import
-	   CTree Eq.Shallow Eq.Equ.
+     CTree Eq.Shallow Eq.Equ.
 
 From RelationAlgebra Require Import
      monoid
@@ -71,14 +71,14 @@ Set Primitive Projections.
 
 Section Trans.
 
-  Context {E C : Type -> Type} {R : Type}.
-  Context {HasStuck: C0 -< C}.
+  Context {E B : Type -> Type} {R : Type}.
+  Context {HasStuck: B0 -< B}.
 
-  Notation S' := (ctree' E C R).
-  Notation S  := (ctree  E C R).
+  Notation S' := (ctree' E B R).
+  Notation S  := (ctree  E B R).
 
-	Definition SS : EqType :=
-		{| type_of := S ; Eq := equ eq |}.
+  Definition SS : EqType :=
+    {| type_of := S ; Eq := equ eq |}.
 
 (*|
 The domain of labels of the LTS.
@@ -87,10 +87,10 @@ be of type [R]. However typing it statically makes lemmas about
 [bind] particularly awkward to state, so this seems to be the
 least annoying solution.
 |*)
-	Variant label : Type :=
-	  | tau
-	  | obs {X : Type} (e : E X) (v : X)
-	  | val {X : Type} (v : X).
+  Variant label : Type :=
+    | tau
+    | obs {X : Type} (e : E X) (v : X)
+    | val {X : Type} (v : X).
 
   Variant is_val : label -> Prop :=
     | Is_val : forall X (x : X), is_val (val x).
@@ -98,33 +98,38 @@ least annoying solution.
 (*|
 The transition relation over [ctree]s.
 It can either:
-- recursively crawl through invisible [choice] node;
-- stop at a successor of a visible [choice] node, labelling the transition [tau];
+- recursively crawl through invisible [br] node;
+- stop at a successor of a visible [br] node, labelling the transition [tau];
 - stop at a successor of a [Vis] node, labelling the transition by the event and branch taken;
-- stop at a sink (implemented as a [choice] node with no successor) by stepping from a [ret v]
+- stop at a sink (implemented as a [br] node with no successor) by stepping from a [ret v]
 node, labelling the transition by the returned value.
 |*)
-	Inductive trans_ : label -> hrel S' S' :=
+  Inductive trans_ : label -> hrel S' S' :=
 
-  | Stepchoice {X} (c : C X) x k l t :
+  | Stepbr {X} (c : B X) x k l t :
     trans_ l (observe (k x)) t ->
-    trans_ l (ChoiceF false c k) t
+    trans_ l (BrF false c k) t
 
-  | Steptau {X} (c : C X) x k t :
+  | Steptau {X} (c : B X) x k t :
 		k x ≅ t ->
-    trans_ tau (ChoiceVF c k) (observe t)
+    trans_ tau (BrSF c k) (observe t)
 
   | Stepobs {X} (e : E X) k x t :
-		k x ≅ t ->
+    k x ≅ t ->
     trans_ (obs e x) (VisF e k) (observe t)
 
   | Stepval r k :
-    trans_ (val r) (RetF r) (choiceIF choice0 k)
-  .
+    trans_ (val r) (RetF r) (brDF branch0 k).
   Hint Constructors trans_ : core.
 
 	Definition transR l : hrel S S :=
 		fun u v => trans_ l (observe u) (observe v).
+
+  Ltac FtoObs :=
+    match goal with
+      |- trans_ _ _ ?t =>
+        change t with (observe {| _observe := t |})
+    end.
 
 	#[local] Instance trans_equ_aux1 l t :
 		Proper (going (equ eq) ==> flip impl) (trans_ l t).
@@ -136,17 +141,17 @@ node, labelling the transition by the returned value.
 		dependent induction TR; intros; subst; eauto.
 		+ inv equ.
 			* rewrite H2; eauto.
-			* change (VisF e k1) with (observe (Vis e k1)).
+			* FtoObs.
 			  apply (Steptau c x).
 				rewrite H.
 				rewrite (ctree_eta t), <- H2.
 				step; constructor; intros; symmetry; auto.
-			* change (ChoiceF b c0 k1) with (observe (Choice b c0 k1)).
+			* FtoObs.
 			  apply (Steptau c x).
 				rewrite H.
 				rewrite (ctree_eta t), <- H2.
 				step; constructor; intros; symmetry; auto.
-		+ change u with (observe (go u)).
+		+ FtoObs.
 			econstructor.
 			rewrite H; symmetry; step; auto.
     + inv equ. dependent destruction H3. econstructor.
@@ -161,7 +166,7 @@ node, labelling the transition by the returned value.
 		revert t' eqt.
 		dependent induction TR; intros; auto.
 		+ step in eqt; dependent induction eqt.
-			apply (Stepchoice c x).
+			apply (Stepbr c x).
 			apply IHTR.
 			rewrite REL; reflexivity.
 	 	+ step in eqt; dependent induction eqt.
@@ -175,29 +180,29 @@ node, labelling the transition by the returned value.
 	Qed.
 
   #[global] Instance trans_equ_ l :
-		Proper (going (equ eq) ==> going (equ eq) ==> iff) (trans_ l).
-	Proof.
-		intros ? ? eqt ? ? equ; split; intros TR.
-		- eapply trans_equ_aux2; eauto.
-		- symmetry in equ; symmetry in eqt; eapply trans_equ_aux2; eauto.
-	Qed.
+    Proper (going (equ eq) ==> going (equ eq) ==> iff) (trans_ l).
+  Proof.
+    intros ? ? eqt ? ? equ; split; intros TR.
+    - eapply trans_equ_aux2; eauto.
+    - symmetry in equ; symmetry in eqt; eapply trans_equ_aux2; eauto.
+  Qed.
 
 (*|
 [equ] is congruent for [trans], we can hence build a [srel] and build our
 relations in this model to still exploit the automation from the [RelationAlgebra]
 library.
 |*)
-	#[global] Instance trans_equ l :
-		Proper (equ eq ==> equ eq ==> iff) (transR l).
-	Proof.
-		intros ? ? eqt ? ? equ; unfold transR.
-		rewrite eqt, equ; reflexivity.
-	Qed.
+  #[global] Instance trans_equ l :
+    Proper (equ eq ==> equ eq ==> iff) (transR l).
+  Proof.
+    intros ? ? eqt ? ? equ; unfold transR.
+    rewrite eqt, equ; reflexivity.
+  Qed.
 
-	Definition trans l : srel SS SS := {| hrel_of := transR l : hrel SS SS |}.
+  Definition trans l : srel SS SS := {| hrel_of := transR l : hrel SS SS |}.
 
-  Lemma trans__trans : forall l (t t' : S),
-    trans_ l (observe t) (observe t') = trans l t t'.
+  Lemma trans__trans : forall l t u,
+    trans_ l (observe t) (observe u) = trans l t u.
   Proof.
     reflexivity.
   Qed.
@@ -212,23 +217,23 @@ library.
 Extension of [trans] with its reflexive closure, labelled by [tau].
 |*)
   Definition etrans (l : label) : srel SS SS :=
-	  match l with
-		| tau => (cup (trans l) 1)
-	  | _ => trans l
-	  end.
+    match l with
+    | tau => (cup (trans l) 1)
+    | _ => trans l
+    end.
 
 (*|
 The transition for the weak bisimulation: a sequence of
 internal steps, a labelled step, and a new sequence of internal ones
 |*)
-	Definition wtrans l : srel SS SS :=
-		(trans tau)^* ⋅ etrans l ⋅ (trans tau)^*.
+  Definition wtrans l : srel SS SS :=
+    (trans tau)^* ⋅ etrans l ⋅ (trans tau)^*.
 
-	Definition pwtrans l : srel SS SS :=
-		(trans tau)^* ⋅ trans l ⋅ (trans tau)^*.
+  Definition pwtrans l : srel SS SS :=
+    (trans tau)^* ⋅ trans l ⋅ (trans tau)^*.
 
   Definition tautrans : srel SS SS :=
-	  (trans tau)^+.
+    (trans tau)^+.
 
 (*|
 ----------------------------------------------
@@ -248,94 +253,94 @@ Inclusion relation between the three relations:
 Introduction rules for [trans]
 [trans (val v)   (ret v)       stuck]
 [trans (obs e v) (Vis e k)     (k v)]
-[trans tau       (ChoiceV n k) (k x)]
-[trans tau       (TauV t) t]
-[trans l (k x) u -> trans l (ChoiceI n k) u]
-[trans l t u     -> trans l (TauI t) u]
+[trans tau       (BrS n k) (k x)]
+[trans tau       (Step t) t]
+[trans l (k x) u -> trans l (BrI n k) u]
+[trans l t u     -> trans l (Guard t) u]
 
 Elimination rules for [trans]
 [trans l (Ret x)       u -> l = val x /\ t ≅ stuck]
 [trans l (Vis e k)     u -> exists v, l = obs e v /\ t ≅ k v]
-[trans l (ChoiceV n k) u -> exists x, t' ≅ k x /\ l = tau]
-[trans l (TauV t)      u -> t ≅ u /\ l = tau]
-[trans l (ChoiceI n k) u -> exists x, trans l (k x) u]
-[trans l (TauI t)      u -> trans l t u]
+[trans l (BrS n k) u -> exists x, t' ≅ k x /\ l = tau]
+[trans l (Step t)      u -> t ≅ u /\ l = tau]
+[trans l (BrI n k) u -> exists x, trans l (k x) u]
+[trans l (Guard t)      u -> trans l t u]
 
 |*)
-	Lemma trans_etrans l: trans l ≦ etrans l.
-	Proof.
-		unfold etrans; case l; ka.
-	Qed.
-	Lemma etrans_wtrans l: etrans l ≦ wtrans l.
-	Proof.
-		unfold wtrans; ka.
-	Qed.
-	Lemma trans_wtrans l: trans l ≦ wtrans l.
-	Proof. rewrite trans_etrans. apply etrans_wtrans. Qed.
-	Lemma tautrans_wtrans : tautrans ≦ wtrans tau.
-	Proof.
-		unfold tautrans, wtrans, etrans; ka.
-	Qed.
-	Lemma pwtrans_wtrans l : pwtrans l ≦ wtrans l.
-	Proof.
-		unfold pwtrans, wtrans, etrans; case l; ka.
-	Qed.
+  Lemma trans_etrans l: trans l ≦ etrans l.
+  Proof.
+    unfold etrans; case l; ka.
+  Qed.
+  Lemma etrans_wtrans l: etrans l ≦ wtrans l.
+  Proof.
+    unfold wtrans; ka.
+  Qed.
+  Lemma trans_wtrans l: trans l ≦ wtrans l.
+  Proof. rewrite trans_etrans. apply etrans_wtrans. Qed.
+  Lemma tautrans_wtrans : tautrans ≦ wtrans tau.
+  Proof.
+    unfold tautrans, wtrans, etrans; ka.
+  Qed.
+  Lemma pwtrans_wtrans l : pwtrans l ≦ wtrans l.
+  Proof.
+    unfold pwtrans, wtrans, etrans; case l; ka.
+  Qed.
 
-	Lemma trans_etrans_ l: forall p p', trans l p p' -> etrans l p p'.
-	Proof. apply trans_etrans. Qed.
-	Lemma trans_wtrans_ l: forall p p', trans l p p' -> wtrans l p p'.
-	Proof. apply trans_wtrans. Qed.
-	Lemma etrans_wtrans_ l: forall p p', etrans l p p' -> wtrans l p p'.
-	Proof. apply etrans_wtrans. Qed.
-	Lemma tautrans_wtrans_ : forall p p', tautrans p p' -> wtrans tau p p'.
-	Proof. apply tautrans_wtrans. Qed.
-	Lemma pwtrans_wtrans_ l : forall p p', pwtrans l p p' -> wtrans l p p'.
-	Proof. apply pwtrans_wtrans. Qed.
+  Lemma trans_etrans_ l: forall p p', trans l p p' -> etrans l p p'.
+  Proof. apply trans_etrans. Qed.
+  Lemma trans_wtrans_ l: forall p p', trans l p p' -> wtrans l p p'.
+  Proof. apply trans_wtrans. Qed.
+  Lemma etrans_wtrans_ l: forall p p', etrans l p p' -> wtrans l p p'.
+  Proof. apply etrans_wtrans. Qed.
+  Lemma tautrans_wtrans_ : forall p p', tautrans p p' -> wtrans tau p p'.
+  Proof. apply tautrans_wtrans. Qed.
+  Lemma pwtrans_wtrans_ l : forall p p', pwtrans l p p' -> wtrans l p p'.
+  Proof. apply pwtrans_wtrans. Qed.
 
-	Lemma enil p: etrans tau p p.
-	Proof. cbn. now right. Qed.
-	Lemma wnil p: wtrans tau p p.
-	Proof. apply etrans_wtrans, enil. Qed.
+  Lemma enil p: etrans tau p p.
+  Proof. cbn. now right. Qed.
+  Lemma wnil p: wtrans tau p p.
+  Proof. apply etrans_wtrans, enil. Qed.
 
-	Lemma wcons l: forall p p' p'', trans tau p p' -> wtrans l p' p'' -> wtrans l p p''.
-	Proof.
-		assert ((trans tau: srel SS SS) ⋅ wtrans l ≦ wtrans l) as H
-				by (unfold wtrans; ka).
-		intros. apply H. eexists; eassumption.
-	Qed.
-	Lemma wsnoc l: forall p p' p'', wtrans l p p' -> trans tau p' p'' -> wtrans l p p''.
-	Proof.
-		assert (wtrans l ⋅ trans tau ≦ wtrans l) as H
-				by (unfold wtrans; ka).
-		intros. apply H. eexists; eassumption.
-	Qed.
+  Lemma wcons l: forall p p' p'', trans tau p p' -> wtrans l p' p'' -> wtrans l p p''.
+  Proof.
+    assert ((trans tau: srel SS SS) ⋅ wtrans l ≦ wtrans l) as H
+        by (unfold wtrans; ka).
+    intros. apply H. eexists; eassumption.
+  Qed.
+  Lemma wsnoc l: forall p p' p'', wtrans l p p' -> trans tau p' p'' -> wtrans l p p''.
+  Proof.
+    assert (wtrans l ⋅ trans tau ≦ wtrans l) as H
+        by (unfold wtrans; ka).
+    intros. apply H. eexists; eassumption.
+  Qed.
 
-	Lemma wconss l: forall p p' p'', wtrans tau p p' -> wtrans l p' p'' -> wtrans l p p''.
-	Proof.
-		assert (wtrans tau ⋅ wtrans l ≦ wtrans l) as H by (unfold wtrans, etrans; ka).
-		intros. apply H. eexists; eassumption.
-	Qed.
-	Lemma wsnocs l: forall p p' p'', wtrans l p p' -> wtrans tau p' p'' -> wtrans l p p''.
-	Proof.
-		assert (wtrans l ⋅ wtrans tau ≦ wtrans l) as H by (unfold wtrans, etrans; ka).
-		intros. apply H. eexists; eassumption.
-	Qed.
+  Lemma wconss l: forall p p' p'', wtrans tau p p' -> wtrans l p' p'' -> wtrans l p p''.
+  Proof.
+    assert (wtrans tau ⋅ wtrans l ≦ wtrans l) as H by (unfold wtrans, etrans; ka).
+    intros. apply H. eexists; eassumption.
+  Qed.
+  Lemma wsnocs l: forall p p' p'', wtrans l p p' -> wtrans tau p' p'' -> wtrans l p p''.
+  Proof.
+    assert (wtrans l ⋅ wtrans tau ≦ wtrans l) as H by (unfold wtrans, etrans; ka).
+    intros. apply H. eexists; eassumption.
+  Qed.
 
   Lemma wtrans_tau: wtrans tau ≡ (trans tau)^*.
   Proof.
- 	  unfold wtrans, etrans. ka.
-	Qed.
+    unfold wtrans, etrans. ka.
+  Qed.
 
   Lemma pwtrans_tau: pwtrans tau ≡ (trans tau)^+.
   Proof.
- 	  unfold pwtrans, etrans. ka.
-	Qed.
+    unfold pwtrans, etrans. ka.
+  Qed.
 
- 	#[global] Instance PreOrder_wtrans_tau: PreOrder (wtrans tau).
- 	Proof.
+  #[global] Instance PreOrder_wtrans_tau: PreOrder (wtrans tau).
+  Proof.
     split.
     intro. apply wtrans_tau.
-		now (apply (str_refl (trans tau)); cbn).
+    now (apply (str_refl (trans tau)); cbn).
     intros ?????. apply wtrans_tau. apply (str_trans (trans tau)).
     eexists; apply wtrans_tau; eassumption.
     Qed.
@@ -367,230 +372,233 @@ in the section above so that [eauto with trans] works smoothly.
 |*)
 Section backward.
 
-  Context {E C : Type -> Type} {X : Type}.
-  Context `{C0 -< C}.
-  Context `{C1 -< C}.
+  Context {E B : Type -> Type} {X : Type}.
+  Context `{B0 -< B}.
+  Context `{B1 -< B}.
 
 (*|
 Structural rules
 |*)
 
 	Lemma trans_ret : forall (x : X),
-		  trans (E := E) (C := C) (val x) (Ret x) stuckI.
+		  trans (E := E) (B := B) (val x) (Ret x) stuckD.
 	Proof.
     intros; constructor.
   Qed.
 
-	Lemma trans_vis : forall {Y} (e : E Y) x (k : Y -> ctree E C X),
+	Lemma trans_vis : forall {Y} (e : E Y) x (k : Y -> ctree E B X),
 		  trans (obs e x) (Vis e k) (k x).
 	Proof.
     intros; constructor; auto.
   Qed.
 
-  Lemma trans_choiceI : forall {Y} l (t t' : ctree E C X) (c : C Y) k x,
+  Lemma trans_brD : forall {Y} l (t t' : ctree E B X) (c : B Y) k x,
 		  trans l t t' ->
       k x ≅ t ->
-		  trans l (ChoiceI c k) t'.
+		  trans l (BrD c k) t'.
 	Proof.
 		intros * TR Eq.
-    apply Stepchoice with x.
+    apply Stepbr with x.
     rewrite Eq; auto.
-	Qed.
+  Qed.
 
-  Lemma trans_choiceV : forall {Y} (c : C Y) (k : _ -> ctree E C X) x,
-		  trans tau (ChoiceV c k) (k x).
+  Lemma trans_brS : forall {Y} (c : B Y) (k : _ -> ctree E B X) x,
+		  trans tau (BrS c k) (k x).
 	Proof.
 		intros.
     apply Steptau with x; reflexivity.
-	Qed.
+  Qed.
 
 (*|
 Ad-hoc rules for pre-defined finite branching
 |*)
 
-  Variable (l : @label E) (t t' u u' v v' w w' : ctree E C X).
+  Variable (l : @label E) (t t' u u' v v' w w' : ctree E B X).
 
-	Lemma trans_tauV :
-		  trans tau (tauV t) t.
+	Lemma trans_step :
+		  trans tau (Step t) t.
 	Proof.
-    intros; apply (@trans_choiceV unit _ (fun _ => t) tt).
+    intros; apply (@trans_brS unit _ (fun _ => t) tt).
 	Qed.
 
-	Lemma trans_tauI :
-		  trans l t t' ->
-		  trans l (tauI t) t'.
-	Proof.
-		intros * TR; eapply trans_choiceI; eauto; exact Fin.F1.
-	Qed.
+  Lemma trans_guard :
+      trans l t t' ->
+      trans l (Guard t) t'.
+  Proof.
+    intros * TR; eapply trans_brD; eauto; exact F1.
+  Qed.
 
 End backward.
 
 Section BackwardBounded.
 
-  Context {E C : Type -> Type} {X : Type}.
-  Context `{C0 -< C}.
-  Variable (l : @label E) (t t' u u' v v' w w' : ctree E C X).
+  Context {E B : Type -> Type} {X : Type}.
+  Context `{B0 -< B}.
+  Context `{B2 -< B}.
+  Context `{B3 -< B}.
+  Context `{B4 -< B}.
+  Variable (l : @label E) (t t' u u' v v' w w' : ctree E B X).
 
-  Lemma trans_chooseV21 `{C2 -< C} :
-      trans tau (chooseV2 t u) t.
+  Lemma trans_brS21 :
+      trans tau (brS2 t u) t.
   Proof.
     intros.
-    unfold chooseV2.
+    unfold brS2.
     match goal with
-      |- _ (trans tau) (ChoiceV _ ?k) ?t => exact (trans_choiceV _ k true)
+      |- _ (trans tau) (BrS _ ?k) ?t => exact (trans_brS _ k true)
     end.
   Qed.
 
-  Lemma trans_chooseV22 `{C2 -< C} :
-      trans tau (chooseV2 t u) u.
+  Lemma trans_brS22 :
+      trans tau (brS2 t u) u.
   Proof.
     intros.
-    unfold chooseV2.
+    unfold brS2.
     match goal with
-      |- _ (trans tau) (ChoiceV _ ?k) ?t => exact (trans_choiceV _ k false)
+      |- _ (trans tau) (BrS _ ?k) ?t => exact (trans_brS _ k false)
     end.
   Qed.
 
-  Lemma trans_chooseI21 `{C2 -< C} :
+  Lemma trans_brD21 :
       trans l t t' ->
-      trans l (chooseI2 t u) t'.
+      trans l (brD2 t u) t'.
   Proof.
     intros * TR.
-    eapply trans_choiceI with (x := true); eauto.
+    eapply trans_brD with (x := true); eauto.
   Qed.
 
-  Lemma trans_chooseI22 `{C2 -< C} :
+  Lemma trans_brD22 :
       trans l u u' ->
-      trans l (chooseI2 t u) u'.
+      trans l (brD2 t u) u'.
   Proof.
     intros * TR.
-    eapply trans_choiceI with (x := false); eauto.
+    eapply trans_brD with (x := false); eauto.
   Qed.
 
-  Lemma trans_chooseV31 `{C3 -< C} :
-      trans tau (chooseV3 t u v) t.
+  Lemma trans_brS31 :
+      trans tau (brS3 t u v) t.
   Proof.
     intros.
-    unfold chooseV3.
+    unfold brS3.
     match goal with
-      |- _ (trans tau) (ChoiceV _ ?k) ?t => exact (trans_choiceV _ k t31)
+      |- _ (trans tau) (BrS _ ?k) ?t => exact (trans_brS _ k t31)
     end.
   Qed.
 
-  Lemma trans_chooseV32 `{C3 -< C} :
-      trans tau (chooseV3 t u v) u.
+  Lemma trans_brS32 :
+      trans tau (brS3 t u v) u.
   Proof.
     intros.
-    unfold chooseV3.
+    unfold brS3.
     match goal with
-      |- _ (trans tau) (ChoiceV _ ?k) ?t => exact (trans_choiceV _ k t32)
+      |- _ (trans tau) (BrS _ ?k) ?t => exact (trans_brS _ k t32)
     end.
   Qed.
 
-  Lemma trans_chooseV33 `{C3 -< C} :
-      trans tau (chooseV3 t u v) v.
+  Lemma trans_brS33 :
+      trans tau (brS3 t u v) v.
   Proof.
     intros.
-    unfold chooseV3.
+    unfold brS3.
     match goal with
-      |- _ (trans tau) (ChoiceV _ ?k) ?t => exact (trans_choiceV _ k t33)
+      |- _ (trans tau) (BrS _ ?k) ?t => exact (trans_brS _ k t33)
     end.
   Qed.
 
-  Lemma trans_chooseI31 `{C3 -< C} :
+  Lemma trans_brD31 :
       trans l t t' ->
-      trans l (chooseI3 t u v) t'.
+      trans l (brD3 t u v) t'.
   Proof.
     intros * TR.
-    eapply trans_choiceI with (x := t31); eauto.
+    eapply trans_brD with (x := t31); eauto.
   Qed.
 
-  Lemma trans_chooseI32 `{C3 -< C} :
+  Lemma trans_brD32 :
       trans l u u' ->
-      trans l (chooseI3 t u v) u'.
+      trans l (brD3 t u v) u'.
   Proof.
     intros * TR.
-    eapply trans_choiceI with (x := t32); eauto.
+    eapply trans_brD with (x := t32); eauto.
   Qed.
 
-  Lemma trans_chooseI33 `{C3 -< C} :
+  Lemma trans_brD33 :
       trans l v v' ->
-      trans l (chooseI3 t u v) v'.
+      trans l (brD3 t u v) v'.
   Proof.
     intros * TR.
-    eapply trans_choiceI with (x := t33); eauto.
+    eapply trans_brD with (x := t33); eauto.
   Qed.
 
-  Lemma trans_chooseV41 `{C4 -< C} :
-      trans tau (chooseV4 t u v w) t.
+  Lemma trans_brS41 :
+      trans tau (brS4 t u v w) t.
   Proof.
     intros.
-    unfold chooseV4.
+    unfold brS4.
     match goal with
-      |- _ (trans tau) (ChoiceV _ ?k) ?t => exact (trans_choiceV _ k t41)
+      |- _ (trans tau) (BrS _ ?k) ?t => exact (trans_brS _ k t41)
     end.
   Qed.
 
-  Lemma trans_chooseV42 `{C4 -< C} :
-      trans tau (chooseV4 t u v w) u.
+  Lemma trans_brS42 :
+      trans tau (brS4 t u v w) u.
   Proof.
     intros.
-    unfold chooseV4.
+    unfold brS4.
     match goal with
-      |- _ (trans tau) (ChoiceV _ ?k) ?t => exact (trans_choiceV _ k t42)
+      |- _ (trans tau) (BrS _ ?k) ?t => exact (trans_brS _ k t42)
     end.
   Qed.
 
-  Lemma trans_chooseV43 `{C4 -< C} :
-      trans tau (chooseV4 t u v w) v.
+  Lemma trans_brS43 :
+      trans tau (brS4 t u v w) v.
   Proof.
     intros.
-    unfold chooseV4.
+    unfold brS4.
     match goal with
-      |- _ (trans tau) (ChoiceV _ ?k) ?t => exact (trans_choiceV _ k t43)
+      |- _ (trans tau) (BrS _ ?k) ?t => exact (trans_brS _ k t43)
     end.
   Qed.
 
-  Lemma trans_chooseV44 `{C4 -< C} :
-      trans tau (chooseV4 t u v w) w.
+  Lemma trans_brS44 :
+      trans tau (brS4 t u v w) w.
   Proof.
     intros.
-    unfold chooseV4.
+    unfold brS4.
     match goal with
-      |- _ (trans tau) (ChoiceV _ ?k) ?t => exact (trans_choiceV _ k t44)
+      |- _ (trans tau) (BrS _ ?k) ?t => exact (trans_brS _ k t44)
     end.
   Qed.
 
-  Lemma trans_chooseI41 `{C4 -< C} :
+  Lemma trans_brD41 :
       trans l t t' ->
-      trans l (chooseI4 t u v w) t'.
+      trans l (brD4 t u v w) t'.
   Proof.
     intros * TR.
-    eapply trans_choiceI with (x := t41); eauto.
+    eapply trans_brD with (x := t41); eauto.
   Qed.
 
-  Lemma trans_chooseI42 `{C4 -< C} :
+  Lemma trans_brD42 :
       trans l u u' ->
-      trans l (chooseI4 t u v w) u'.
+      trans l (brD4 t u v w) u'.
   Proof.
     intros * TR.
-    eapply trans_choiceI with (x := t42); eauto.
+    eapply trans_brD with (x := t42); eauto.
   Qed.
 
-  Lemma trans_chooseI43 `{C4 -< C} :
+  Lemma trans_brD43 :
       trans l v v' ->
-      trans l (chooseI4 t u v w) v'.
+      trans l (brD4 t u v w) v'.
   Proof.
     intros * TR.
-    eapply trans_choiceI with (x := t43); eauto.
+    eapply trans_brD with (x := t43); eauto.
   Qed.
 
-  Lemma trans_chooseI44 `{C4 -< C} :
+  Lemma trans_brD44 :
       trans l w w' ->
-      trans l (chooseI4 t u v w) w'.
+      trans l (brD4 t u v w) w'.
   Proof.
     intros * TR.
-    eapply trans_choiceI with (x := t44); eauto.
+    eapply trans_brD with (x := t44); eauto.
   Qed.
 
 End BackwardBounded.
@@ -602,29 +610,29 @@ Forward reasoning for [trans]
 
 Section forward.
 
-  Context {E C : Type -> Type} `{HasStuck : C0 -< C} {X : Type}.
+  Context {E B : Type -> Type} `{HasStuck : B0 -< B} {X : Type}.
 
 (*|
 Inverting equalities between labels
 |*)
 
   Lemma val_eq_invT : forall X Y x y, @val E X x = @val E Y y -> X = Y.
-    clear C HasStuck. intros * EQ.
+    clear B HasStuck. intros * EQ.
     now dependent induction EQ.
   Qed.
 
   Lemma val_eq_inv : forall X x y, @val E X x = val y -> x = y.
-    clear C HasStuck. intros * EQ.
+    clear B HasStuck. intros * EQ.
     now dependent induction EQ.
   Qed.
 
   Lemma obs_eq_invT : forall X Y e1 e2 v1 v2, @obs E X e1 v1 = @obs E Y e2 v2 -> X = Y.
-    clear C HasStuck. intros * EQ.
+    clear B HasStuck. intros * EQ.
     now dependent induction EQ.
   Qed.
 
   Lemma obs_eq_inv : forall X e1 e2 v1 v2, @obs E X e1 v1 = @obs E X e2 v2 -> e1 = e2 /\ v1 = v2.
-    clear C HasStuck. intros * EQ.
+    clear B HasStuck. intros * EQ.
     now dependent induction EQ.
   Qed.
 
@@ -632,85 +640,133 @@ Inverting equalities between labels
 Structural rules
 |*)
 
-	Lemma trans_ret_inv : forall x l (t : ctree E C X),
-		  trans l (Ret x) t ->
-		   t ≅ stuckI /\ l = val x.
-	Proof.
-		intros * TR; inv TR; intuition.
+  Lemma trans_ret_inv : forall x l (t : ctree E B X),
+      trans l (Ret x) t ->
+       t ≅ stuckD /\ l = val x.
+  Proof.
+    intros * TR; inv TR; intuition.
     rewrite ctree_eta, <- H2; auto.
     step; constructor; intros abs; inv abs.
   Qed.
 
-	Lemma trans_vis_inv : forall {Y} (e : E Y) k l (u : ctree E C X),
+	Lemma trans_vis_inv : forall {Y} (e : E Y) k l (u : ctree E B X),
 		  trans l (Vis e k) u ->
       exists x, u ≅ k x /\ l = obs e x.
-	Proof.
+  Proof.
     intros * TR.
     inv TR.
     dependent induction H3; eexists; split; eauto.
     rewrite ctree_eta, <- H4, <- ctree_eta; symmetry; auto.
   Qed.
 
-	Lemma trans_choiceI_inv : forall {Y} l (c : C Y) k (u : ctree E C X),
-		  trans l (ChoiceI c k) u ->
-		  exists n, trans l (k n) u.
-	Proof.
-		intros * TR.
-		cbn in *.
+  Lemma trans_brD_inv : forall {Y} l (c : B Y) k (u : ctree E B X),
+      trans l (BrD c k) u ->
+      exists n, trans l (k n) u.
+  Proof.
+    intros * TR.
+    cbn in *.
     unfold transR in *.
-		cbn in TR |- *.
-		match goal with
-		| h: trans_ _ ?x ?y |- _ =>
-			  remember x as ox; remember y as oy
-		end.
-		revert c k u Heqox Heqoy.
-		induction TR; intros; inv Heqox; eauto.
-	Qed.
+    cbn in TR |- *.
+    match goal with
+    | h: trans_ _ ?x ?y |- _ =>
+        remember x as ox; remember y as oy
+    end.
+    revert c k u Heqox Heqoy.
+    induction TR; intros; inv Heqox; eauto.
+  Qed.
 
 (*|
 Ad-hoc rules for pre-defined finite branching
 |*)
 
-  Variable (l : @label E) (t t' u v w : ctree E C X).
+  Variable (l : @label E) (t t' u v w : ctree E B X).
+  Context `{B1 -< B} `{B2 -< B} `{B3 -< B} `{B4 -< B}.
 
-	Lemma trans_tauI_inv `{C1 -< C} :
-		  trans l (tauI t) t' ->
-		  trans l t t'.
-	Proof.
-    intros * TR; apply trans_choiceI_inv in TR as [_ TR]; auto.
+  Lemma trans_guard_inv :
+      trans l (Guard t) t' ->
+      trans l t t'.
+  Proof.
+    intros * TR; apply trans_brD_inv in TR as [_ TR]; auto.
   Qed.
 
-	Lemma trans_choiceV_inv : forall {X} (c : C X) k,
-		  trans l (ChoiceV c k) t' ->
-		  exists x, t' ≅ k x /\ l = tau.
-	Proof.
-		intros * TR.
-		cbn in *; red in TR; cbn in TR.
-		dependent induction TR.
-        eexists; split; auto.
-	    rewrite H, ctree_eta, (ctree_eta t0), x; reflexivity.
-	Qed.
+  Lemma trans_brD2_inv :
+      trans l (brD2 t u) t' ->
+      (trans l t t' \/ trans l u t').
+  Proof.
+    intros * TR; apply trans_brD_inv in TR as [[] TR]; auto.
+  Qed.
 
-	Lemma trans_tauV_inv `{C1 -< C} :
-		  trans l (tauV t) t' ->
-		  t' ≅ t /\ l = tau.
-	Proof.
-		intros * TR; apply trans_choiceV_inv in TR as (_ & ? & ?); auto.
-	Qed.
+  Lemma trans_brD3_inv :
+      trans l (brD3 t u v) t' ->
+      (trans l t t' \/ trans l u t' \/ trans l v t').
+  Proof.
+    intros * TR; apply trans_brD_inv in TR as [n TR].
+    destruct n; auto.
+  Qed.
+
+  Lemma trans_brD4_inv :
+      trans l (brD4 t u v w) t' ->
+      (trans l t t' \/ trans l u t' \/ trans l v t' \/ trans l w t').
+  Proof.
+    intros * TR; apply trans_brD_inv in TR as [n TR].
+    destruct n; auto.
+  Qed.
+
+  Lemma trans_brS_inv : forall {X} (c : B X) k,
+      trans l (BrS c k) t' ->
+      exists x, t' ≅ k x /\ l = tau.
+  Proof.
+    intros * TR.
+    cbn in *; red in TR; cbn in TR.
+    dependent induction TR.
+    eexists; split; auto.
+    rewrite H3, ctree_eta, (ctree_eta t0), x; reflexivity.
+  Qed.
+
+  Lemma trans_step_inv :
+      trans l (Step t) t' ->
+      t' ≅ t /\ l = tau.
+  Proof.
+    intros * TR; apply trans_brS_inv in TR as (_ & ? & ?); auto.
+  Qed.
+
+  Lemma trans_brS2_inv :
+      trans l (brS2 t u) t' ->
+      (l = tau /\ (t' ≅ t \/ t' ≅ u)).
+  Proof.
+    intros * TR; apply trans_brS_inv in TR as (? & TR & ->); split; auto.
+    destruct x; auto.
+  Qed.
+
+  Lemma trans_brS3_inv :
+      trans l (brS3 t u v) t' ->
+      (l = tau /\ (t' ≅ t \/ t' ≅ u \/ t' ≅ v)).
+  Proof.
+    intros * TR; apply trans_brS_inv in TR as (? & TR & ->); split; auto.
+    destruct x; auto.
+  Qed.
+
+  Lemma trans_brS4_inv :
+      trans l (brS4 t u v w) t' ->
+      (l = tau /\ (t' ≅ t \/ t' ≅ u \/ t' ≅ v \/ t' ≅ w)).
+  Proof.
+    intros * TR; apply trans_brS_inv in TR as (? & TR & ->); split; auto.
+    destruct x; auto.
+  Qed.
 
 (*|
 Inversion rules for [trans] based on the value of the label
 -----------------------------------------------------------
 In general, these would require to introduce the relation that
-only steps through the non-observable internal choice.
+only steps through the non-observable internal br.
 I'll skip them for now and introduce them if they turn out to be
 useful.
 |*)
 
   Lemma trans__val_inv {Y} :
-    forall (T U : ctree' E C X) (x : Y),
+    forall (T U : ctree' E B X) (x : Y),
       trans_ (val x) T U ->
-      go U ≅ stuckI.
+      go U ≅ stuckD.
   Proof.
     intros * TR.
     remember (val x) as ox.
@@ -719,20 +775,20 @@ useful.
   Qed.
 
   Lemma trans_val_inv {Y} :
-    forall (t u : ctree E C X) (x : Y),
+    forall (t u : ctree E B X) (x : Y),
       trans (val x) t u ->
-      u ≅ stuckI.
+      u ≅ stuckD.
   Proof.
     intros * TR. cbn in TR. red in TR.
     apply trans__val_inv in TR. rewrite ctree_eta. apply TR.
   Qed.
 
   Lemma wtrans_val_inv : forall (x : X),
-      wtrans (val x) u stuckI ->
-      exists t, wtrans tau u t /\ trans (val x) t stuckI.
+      wtrans (val x) u stuckD ->
+      exists t, wtrans tau u t /\ trans (val x) t stuckD.
   Proof.
     intros * TR.
-	  destruct TR as [t2 [t1 step1 step2] step3].
+    destruct TR as [t2 [t1 step1 step2] step3].
     exists t1; split.
     apply wtrans_tau; auto.
     erewrite <- trans_val_inv; eauto.
@@ -740,78 +796,23 @@ useful.
 
 End forward.
 
-Section forwardBounded.
-
-  Context {E C : Type -> Type} {X : Type}.
-  Context `{C0 -< C}.
-  Variable (l : @label E) (t t' u v w : ctree E C X).
-
-	Lemma trans_chooseI2_inv `{C2 -< C} :
-		trans l (chooseI2 t u) t' ->
-		(trans l t t' \/ trans l u t').
-	Proof.
-    intros * TR; apply trans_choiceI_inv in TR as [[] TR]; auto.
-  Qed.
-
-	Lemma trans_chooseI3_inv `{C3 -< C} :
-		trans l (chooseI3 t u v) t' ->
-		(trans l t t' \/ trans l u t' \/ trans l v t').
-	Proof.
-    intros * TR; apply trans_choiceI_inv in TR as [n TR].
-    destruct n; auto.
-  Qed.
-
-	Lemma trans_chooseI4_inv `{C4 -< C} :
-		trans l (chooseI4 t u v w) t' ->
-		(trans l t t' \/ trans l u t' \/ trans l v t' \/ trans l w t').
-	Proof.
-    intros * TR; apply trans_choiceI_inv in TR as [n TR].
-    destruct n; auto.
-  Qed.
-
-	Lemma trans_chooseV2_inv `{C2 -< C} :
-		  trans l (chooseV2 t u) t' ->
-		  (l = tau /\ (t' ≅ t \/ t' ≅ u)).
-	Proof.
-    intros * TR; apply trans_choiceV_inv in TR as (? & TR & ->); split; auto.
-    destruct x; auto.
-  Qed.
-
-	Lemma trans_chooseV3_inv `{C3 -< C} :
-		  trans l (chooseV3 t u v) t' ->
-		  (l = tau /\ (t' ≅ t \/ t' ≅ u \/ t' ≅ v)).
-	Proof.
-    intros * TR; apply trans_choiceV_inv in TR as (? & TR & ->); split; auto.
-    destruct x; auto.
-  Qed.
-
-	Lemma trans_chooseV4_inv `{C4 -< C} :
-		  trans l (chooseV4 t u v w) t' ->
-		  (l = tau /\ (t' ≅ t \/ t' ≅ u \/ t' ≅ v \/ t' ≅ w)).
-	Proof.
-    intros * TR; apply trans_choiceV_inv in TR as (? & TR & ->); split; auto.
-    destruct x; auto.
-  Qed.
-
-End forwardBounded.
-
 (*|
 [etrans] theory
 ---------------
 |*)
 
-Lemma etrans_case {E C X} `{C0 -< C} : forall l (t u : ctree E C X),
+Lemma etrans_case {E B X} `{B0 -< B} : forall l (t u : ctree E B X),
     etrans l t u ->
     (trans l t u \/ (l = tau /\ t ≅ u)).
 Proof.
   intros [] * TR; cbn in *; intuition.
 Qed.
 
-Lemma etrans_ret_inv {E C X} `{HasStuck : C0 -< C} : forall x l (t : ctree E C X),
+Lemma etrans_ret_inv {E B X} `{HasStuck : B0 -< B} : forall x l (t : ctree E B X),
 		etrans l (Ret x) t ->
-		(l = tau /\ t ≅ Ret x) \/ (l = val x /\ t ≅ stuckI).
+		(l = tau /\ t ≅ Ret x) \/ (l = val x /\ t ≅ stuckD).
 Proof.
-	intros ? [] ? step; cbn in step.
+  intros ? [] ? step; cbn in step.
   - intuition; try (eapply trans_ret in step; now apply step).
     inv H.
   - eapply trans_ret_inv in step; intuition.
@@ -828,10 +829,10 @@ is not.
 
 Section stuck.
 
-  Context {E C : Type -> Type} {X : Type} {HasStuck: C0 -< C}.
-  Variable (l : @label E) (t u : ctree E C X).
+  Context {E B : Type -> Type} {X : Type} {HasStuck: B0 -< B}.
+  Variable (l : @label E) (t u : ctree E B X).
 
-  Definition is_stuck : ctree E C X -> Prop :=
+  Definition is_stuck : ctree E B X -> Prop :=
     fun t => forall l u, ~ (trans l t u).
 
   #[global] Instance is_stuck_equ : Proper (equ eq ==> iff) is_stuck.
@@ -841,7 +842,7 @@ Section stuck.
     rewrite EQ in ABS; eapply ST; eauto.
   Qed.
 
-  Lemma etrans_is_stuck_inv (v v' : ctree E C X) :
+  Lemma etrans_is_stuck_inv (v v' : ctree E B X) :
       is_stuck v ->
       etrans l v v' ->
       (l = tau /\ v ≅ v').
@@ -851,7 +852,7 @@ Section stuck.
     apply ST in H; tauto.
   Qed.
 
-  Lemma transs_is_stuck_inv (v v' : ctree E C X) :
+  Lemma transs_is_stuck_inv (v v' : ctree E B X) :
       is_stuck v ->
       (trans tau)^* v v' ->
       v ≅ v'.
@@ -876,36 +877,36 @@ Section stuck.
     rewrite H, H0; auto.
   Qed.
 
-  Lemma choice0_is_stuck b (c : C void) (k : void -> _) :
-    is_stuck (Choice b c k).
+  Lemma Br0_is_stuck b (c : B void) (k : void -> _) :
+    is_stuck (Br b c k).
   Proof.
     red. intros. intro. inv H; destruct x.
   Qed.
 
-  Lemma choice_fin0_is_stuck b (c : C (fin 0)) (k : fin 0 -> _) :
-    is_stuck (Choice b c k).
+  Lemma Br_fin0_is_stuck b (c : B (fin 0)) (k : fin 0 -> _) :
+    is_stuck (Br b c k).
   Proof.
     red. intros. intro. inv H; now apply case0.
   Qed.
 
-  Lemma stuckI_is_stuck :
-    is_stuck stuckI.
+  Lemma stuckD_is_stuck :
+    is_stuck stuckD.
   Proof.
-    apply choice0_is_stuck.
+    apply Br0_is_stuck.
   Qed.
 
-  Lemma stuckV_is_stuck :
-    is_stuck stuckV.
+  Lemma stuckS_is_stuck :
+    is_stuck stuckS.
   Proof.
-    apply choice0_is_stuck.
+    apply Br0_is_stuck.
   Qed.
 
-  Lemma spinI_gen_is_stuck {Y} (x : C Y) :
-    is_stuck (spinI_gen x).
+  Lemma spinI_gen_is_stuck {Y} (x : B Y) :
+    is_stuck (spinD_gen x).
   Proof.
     red; intros * abs.
-    remember (spinI_gen x) as v.
-    assert (EQ: v ≅ spinI_gen x) by (subst; reflexivity); clear Heqv; revert EQ; rewrite ctree_eta.
+    remember (spinD_gen x) as v.
+    assert (EQ: v ≅ spinD_gen x) by (subst; reflexivity); clear Heqv; revert EQ; rewrite ctree_eta.
     induction abs; auto; try now (rewrite ctree_eta; intros abs; step in abs; inv abs).
     intros EQ; apply IHabs.
     rewrite <- ctree_eta.
@@ -914,25 +915,25 @@ Section stuck.
     dependent induction EQ; auto.
   Qed.
 
-  Lemma spinI_is_stuck `{C1 -< C}:
-    is_stuck spinI.
+  Lemma spinD_is_stuck `{B1 -< B}:
+    is_stuck spinD.
   Proof.
     red; intros * abs.
-    remember spinI as v.
-    assert (EQ: v ≅ spinI) by (subst; reflexivity); clear Heqv; revert EQ; rewrite ctree_eta.
-    induction abs; auto; try now (rewrite unfold_spinI; intros abs; step in abs; inv abs).
+    remember spinD as v.
+    assert (EQ: v ≅ spinD) by (subst; reflexivity); clear Heqv; revert EQ; rewrite ctree_eta.
+    induction abs; auto; try now (rewrite unfold_spinD; intros abs; step in abs; inv abs).
     intros EQ; apply IHabs.
     rewrite <- ctree_eta.
-    rewrite unfold_spinI in EQ.
+    rewrite unfold_spinD in EQ.
     step in EQ.
     dependent induction EQ; auto.
   Qed.
 
-  Lemma spinV_is_not_stuck `{C1 -< C} :
-    ~ (is_stuck spinV).
+  Lemma spinS_is_not_stuck `{B1 -< B} :
+    ~ (is_stuck spinS).
   Proof.
     red; intros * abs.
-    apply (abs tau spinV).
+    apply (abs tau spinS).
     rewrite ctree_eta at 1; cbn.
     constructor; [exact tt | reflexivity].
   Qed.
@@ -946,18 +947,18 @@ wtrans theory
 
 Section wtrans.
 
-  Context {E C : Type -> Type} {X : Type} `{HasStuck : C0 -< C}.
+  Context {E B : Type -> Type} {X : Type} `{HasStuck : B0 -< B}.
 
-	Lemma wtrans_tauV `{C1 -< C} : forall l (t t' : ctree E C X),
-		  wtrans l t t' ->
-		  wtrans l (tauV t) t'.
-	Proof.
-		intros * TR.
-		eapply wcons; eauto.
-		apply trans_tauV.
-	Qed.
+  Lemma wtrans_step `{B1 -< B} : forall l (t t' : ctree E B X),
+      wtrans l t t' ->
+      wtrans l (Step t) t'.
+  Proof.
+    intros * TR.
+    eapply wcons; eauto.
+    apply trans_step.
+  Qed.
 
-	Lemma trans_tau_str_ret_inv : forall x (t : ctree E C X),
+	Lemma trans_tau_str_ret_inv : forall x (t : ctree E B X),
 		  (trans tau)^* (Ret x) t ->
 		  t ≅ Ret x.
 	Proof.
@@ -967,9 +968,9 @@ Section wtrans.
       apply trans_ret_inv in H; intuition congruence.
 	Qed.
 
-	Lemma wtrans_ret_inv : forall x l (t : ctree E C X),
+	Lemma wtrans_ret_inv : forall x l (t : ctree E B X),
 		  wtrans l (Ret x) t ->
-		  (l = tau /\ t ≅ Ret x) \/ (l = val x /\ t ≅ stuckI).
+		  (l = tau /\ t ≅ Ret x) \/ (l = val x /\ t ≅ stuckD).
 	Proof.
 		intros * step.
 		destruct step as [? [? step1 step2] step3].
@@ -978,19 +979,19 @@ Section wtrans.
 		apply etrans_ret_inv in step2 as [[-> EQ] |[-> EQ]].
 		rewrite EQ in step3; apply trans_tau_str_ret_inv in step3; auto.
 		rewrite EQ in step3.
-    apply transs_is_stuck_inv in step3; [| apply stuckI_is_stuck].
+    apply transs_is_stuck_inv in step3; [| apply stuckD_is_stuck].
     intuition.
-	Qed.
+  Qed.
 
-  Lemma wtrans_val_inv' : forall (x : X) (t v : ctree E C X),
+  Lemma wtrans_val_inv' : forall (x : X) (t v : ctree E B X),
       wtrans (val x) t v ->
-      exists u, wtrans tau t u /\ trans (val x) u v /\ v ≅ stuckI.
+      exists u, wtrans tau t u /\ trans (val x) u v /\ v ≅ stuckD.
   Proof.
     intros * TR.
-	  destruct TR as [t2 [t1 step1 step2] step3].
+    destruct TR as [t2 [t1 step1 step2] step3].
     pose proof trans_val_inv step2 as EQ.
     rewrite EQ in step3, step2.
-    apply transs_is_stuck_inv in step3; auto using stuckI_is_stuck.
+    apply transs_is_stuck_inv in step3; auto using stuckD_is_stuck.
     exists t1; repeat split.
     apply wtrans_tau, step1.
     rewrite <- step3; auto.
@@ -1006,13 +1007,13 @@ trans l (t >>= k) u -> (trans l t t' /\ u ≅ t' >>= k) \/ (trans (ret x) t stuc
 l <> val x -> trans l t u -> trans l (t >>= k) (u >>= k)
 trans (val x) t stuck -> trans l (k x) u -> trans l (bind t k) u.
 |*)
-Lemma trans_bind_inv_aux {E C X Y} `{HasStuck : C0 -< C} l T U :
+Lemma trans_bind_inv_aux {E B X Y} `{HasStuck : B0 -< B} l T U :
   trans_ l T U ->
-  forall (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C Y),
+  forall (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y),
     go T ≅ t >>= k ->
     go U ≅ u ->
     (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
-      (exists (x : X), trans (val x) t stuckI /\ trans l (k x) u).
+      (exists (x : X), trans (val x) t stuckD /\ trans l (k x) u).
 Proof.
   intros TR; induction TR; intros.
   - rewrite unfold_bind in H; setoid_rewrite (ctree_eta t0).
@@ -1021,7 +1022,7 @@ Proof.
       exists r; split.
       constructor.
       rewrite <- H.
-      apply (Stepchoice _ x); auto.
+      apply (Stepbr _ x); auto.
       rewrite <- H0; auto.
     + step in H; inv H.
     + step in H; dependent induction H.
@@ -1030,10 +1031,10 @@ Proof.
       rewrite <- ctree_eta, REL; reflexivity.
       left; split; eauto.
       exists x0; split; auto.
-      apply (Stepchoice _ x); auto.
+      apply (Stepbr _ x); auto.
       right.
       exists x0; split; auto.
-      apply (Stepchoice _ x); auto.
+      apply (Stepbr _ x); auto.
   - rewrite unfold_bind in H0; setoid_rewrite (ctree_eta t0).
     desobs t0.
     + right.
@@ -1075,10 +1076,10 @@ Proof.
     + step in H; inv H.
 Qed.
 
-Lemma trans_bind_inv {E C X Y} `{C0 -< C} (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C Y) l :
+Lemma trans_bind_inv {E B X Y} `{B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
   trans l (t >>= k) u ->
   (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), trans (val x) t stuckI /\ trans l (k x) u).
+    (exists (x : X), trans (val x) t stuckD /\ trans l (k x) u).
 Proof.
   intros TR.
   eapply trans_bind_inv_aux.
@@ -1087,7 +1088,16 @@ Proof.
   rewrite <- ctree_eta; reflexivity.
 Qed.
 
-Lemma trans_bind_l {E C X Y} `{HasStuck : C0 -< C} (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C X) l :
+Lemma trans_bind_inv_l {E B X Y} `{B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
+  trans l (t >>= k) u ->
+  exists l' t', trans l' t t'.
+Proof.
+  intros TR.
+  apply trans_bind_inv in TR.
+  destruct TR as [(? & ? & ? & ?) | (? & ? & ?)]; eauto.
+Qed.
+
+Lemma trans_bind_l {E B X Y} `{HasStuck : B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B X) l :
   ~ (@is_val E l) ->
   trans l t u ->
   trans l (t >>= k) (u >>= k).
@@ -1113,14 +1123,14 @@ Proof.
   - exfalso; eapply NOV; constructor.
 Qed.
 
-Lemma trans_bind_r {E C X Y} `{C0 -< C} (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C Y) x l :
-  trans (val x) t stuckI ->
+Lemma trans_bind_r {E B X Y} `{B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) x l :
+  trans (val x) t stuckD ->
   trans l (k x) u ->
   trans l (t >>= k) u.
 Proof.
   cbn; unfold transR; intros TR1.
   genobs t ot.
-  remember (observe stuckI) as oc.
+  remember (observe stuckD) as oc.
   remember (val x) as v.
   revert t x Heqot Heqoc Heqv.
   induction TR1; intros; try (inv Heqv; fail).
@@ -1130,8 +1140,8 @@ Proof.
     rewrite (ctree_eta t), <- Heqot, unfold_bind; cbn; auto.
 Qed.
 
-Lemma is_stuck_bind : forall {E C X Y} `{C0 -< C}
-    (t : ctree E C X) (k : X -> ctree E C Y),
+Lemma is_stuck_bind : forall {E B X Y} `{B0 -< B}
+    (t : ctree E B X) (k : X -> ctree E B Y),
   is_stuck t -> is_stuck (bind t k).
 Proof.
   repeat intro.
@@ -1147,10 +1157,10 @@ Forward and backward rules for [wtrans] w.r.t. [bind]
 -----------------------------------------------------
 |*)
 
-Lemma etrans_bind_inv {E C X Y} `{HasStuck : C0 -< C} (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C Y) l :
+Lemma etrans_bind_inv {E B X Y} `{HasStuck : B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
   etrans l (t >>= k) u ->
   (~ (is_val l) /\ exists t', etrans l t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), trans (val x) t stuckI /\ etrans l (k x) u).
+    (exists (x : X), trans (val x) t stuckD /\ etrans l (k x) u).
 Proof.
   intros TR.
   apply @etrans_case in TR as [ | (-> & ?)].
@@ -1163,10 +1173,10 @@ Proof.
     exists t; split; auto using enil; symmetry; auto.
 Qed.
 
-Lemma transs_bind_inv {E C X Y} `{C0 -< C} (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C Y) :
+Lemma transs_bind_inv {E B X Y} `{B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) :
  	(trans tau)^* (t >>= k) u ->
   (exists t', (trans tau)^* t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), wtrans (val x) t stuckI /\ (trans tau)^* (k x) u).
+    (exists (x : X), wtrans (val x) t stuckD /\ (trans tau)^* (k x) u).
 Proof.
   intros [n TR].
   revert t k u TR.
@@ -1198,17 +1208,17 @@ in the continuation
 - the computation splills over the continuation, with the label taking place
 in the prefix. This is a bit more annoying to express: we cannot necessarily
 [wtrans l] all the way to a [Ret] as the end of the computation might contain
-just before the [Ret] some invisible choice nodes. We therefore have to introduce
+just before the [Ret] some invisible br nodes. We therefore have to introduce
 the last visible state reached by [wtrans] and add a [trans (val _)] afterward.
 |*)
-Lemma wtrans_bind_inv {E C X Y} `{HasStuck : C0 -< C} (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C Y) l :
+Lemma wtrans_bind_inv {E B X Y} `{HasStuck : B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
   wtrans l (t >>= k) u ->
   (~ (is_val l) /\ exists t', wtrans l t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), wtrans (val x) t stuckI /\ wtrans l (k x) u) \/
-    (exists (x : X) s, wtrans l t s /\ trans (val x) s stuckI /\ wtrans tau (k x) u).
+    (exists (x : X), wtrans (val x) t stuckD /\ wtrans l (k x) u) \/
+    (exists (x : X) s, wtrans l t s /\ trans (val x) s stuckD /\ wtrans tau (k x) u).
 Proof.
   intros TR.
-	destruct TR as [t2 [t1 step1 step2] step3].
+  destruct TR as [t2 [t1 step1 step2] step3].
   apply transs_bind_inv in step1 as [(u1 & TR1 & EQ1)| (x & TR1 & TR1')].
   - rewrite EQ1 in step2; clear t1 EQ1.
     apply etrans_bind_inv in step2 as [(H & u2 & TR2 & EQ2)| (x & TR2 & TR2')].
@@ -1234,7 +1244,7 @@ Proof.
     eexists; [eexists |]; eauto.
 Qed.
 
-Lemma etrans_bind_l {E C X Y} `{C0 -< C} (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C X) l :
+Lemma etrans_bind_l {E B X Y} `{B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B X) l :
   ~ is_val l ->
   etrans l t u ->
   etrans l (t >>= k) (u >>= k).
@@ -1245,7 +1255,7 @@ Proof.
   right; rewrite H0; auto.
 Qed.
 
-Lemma transs_bind_l {E C X Y} `{C0 -< C} (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C X) :
+Lemma transs_bind_l {E B X Y} `{B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B X) :
   (trans tau)^* t u ->
   (trans tau)^* (t >>= k) (u >>= k).
 Proof.
@@ -1260,7 +1270,7 @@ Proof.
     apply wtrans_tau; eauto.
 Qed.
 
-Lemma wtrans_bind_l {E C X Y} `{C0 -< C} (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C X) l :
+Lemma wtrans_bind_l {E B X Y} `{B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B X) l :
   ~ (@is_val E l) ->
   wtrans l t u ->
   wtrans l (t >>= k) (u >>= k).
@@ -1272,7 +1282,7 @@ Proof.
   apply transs_bind_l; eauto.
 Qed.
 
-Lemma wtrans_case {E C X} `{HasStuck : C0 -< C} (t u : ctree E C X) l:
+Lemma wtrans_case {E B X} `{HasStuck : B0 -< B} (t u : ctree E B X) l:
   wtrans l t u ->
   t ≅ u \/ (exists v, trans l t v /\ wtrans tau v u) \/ (exists v, trans tau t v /\ wtrans l v u).
 Proof.
@@ -1294,7 +1304,7 @@ Proof.
     exists n; eauto.
 Qed.
 
-Lemma wtrans_case' {E C X} `{HasStuck : C0 -< C} (t u : ctree E C X) l:
+Lemma wtrans_case' {E B X} `{HasStuck : B0 -< B} (t u : ctree E B X) l:
   wtrans l t u ->
     match l with
     | tau => (t ≅ u \/ exists v, trans tau t v /\ wtrans tau v u)
@@ -1320,19 +1330,19 @@ Proof.
     all:exists n; eauto.
 Qed.
 
-Lemma wtrans_stuckI_inv {E C R} `{HasStuck : C0 -< C} :
-  forall (t : ctree E C R) l,
-    wtrans l stuckI t ->
-    match l with | tau => t ≅ stuckI | _ => False end.
+Lemma wtrans_stuckD_inv {E B R} `{HasStuck : B0 -< B} :
+  forall (t : ctree E B R) l,
+    wtrans l stuckD t ->
+    match l with | tau => t ≅ stuckD | _ => False end.
 Proof.
   intros * TR.
   apply wtrans_case' in TR.
   destruct l; break; cbn in *.
   symmetry; auto.
-  all: exfalso; eapply stuckI_is_stuck; now apply H.
+  all: exfalso; eapply stuckD_is_stuck; now apply H.
 Qed.
 
-Lemma pwtrans_case {E C X} `{C0 -< C} (t u : ctree E C X) l:
+Lemma pwtrans_case {E B X} `{B0 -< B} (t u : ctree E B X) l:
   pwtrans l t u ->
   (exists v, trans l t v /\ wtrans tau v u) \/ (exists v, trans tau t v /\ wtrans l v u).
 Proof.
@@ -1350,12 +1360,12 @@ Qed.
 
 (*|
 It's a bit annoying that we need two cases in this lemma, but if
-[t = TauI (Ret x)] and [u = k x], we can process the [TauI] node
+[t = Guard (Ret x)] and [u = k x], we can process the [Guard] node
 by taking the [Ret] in the prefix, but we cannot process it to
 reach [u] in the bound computation.
 |*)
-Lemma wtrans_bind_r {E C X Y} `{HasStuck : C0 -< C} (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C Y) x l :
-  wtrans (val x) t stuckI ->
+Lemma wtrans_bind_r {E B X Y} `{HasStuck : B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) x l :
+  wtrans (val x) t stuckD ->
   wtrans l (k x) u ->
   (u ≅ k x \/ wtrans l (t >>= k) u).
 Proof.
@@ -1376,8 +1386,8 @@ Proof.
     apply trans_wtrans; auto.
 Qed.
 
-Lemma wtrans_bind_r' {E C X Y} `{HasStuck : C0 -< C} (t : ctree E C X) (k : X -> ctree E C Y) (u : ctree E C Y) x l :
-  wtrans (val x) t stuckI ->
+Lemma wtrans_bind_r' {E B X Y} `{HasStuck : B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) x l :
+  wtrans (val x) t stuckD ->
   pwtrans l (k x) u ->
   (wtrans l (t >>= k) u).
 Proof.
@@ -1397,8 +1407,8 @@ Proof.
     apply trans_wtrans; auto.
 Qed.
 
-Lemma trans_val_invT {E C R R'} `{C0 -< C}:
-  forall (t u : ctree E C R) (v : R'),
+Lemma trans_val_invT {E B R R'} `{B0 -< B}:
+  forall (t u : ctree E B R) (v : R'),
     trans (val v) t u ->
     R = R'.
 Proof.
@@ -1407,9 +1417,9 @@ Proof.
   induction TR; intros; auto; try now inv Heqov.
 Qed.
 
-Lemma wtrans_bind_lr {E C X Y} `{C0 -< C} (t u : ctree E C X) (k : X -> ctree E C Y) (v : ctree E C Y) x l :
+Lemma wtrans_bind_lr {E B X Y} `{B0 -< B} (t u : ctree E B X) (k : X -> ctree E B Y) (v : ctree E B Y) x l :
   pwtrans l t u ->
-  wtrans (val x) u stuckI ->
+  wtrans (val x) u stuckD ->
   pwtrans tau (k x) v ->
   (wtrans l (t >>= k) v).
 Proof.
@@ -1422,9 +1432,9 @@ Proof.
       pose proof (trans_val_invT TR1'); subst.
       apply trans_val_inv in TR1'.
       rewrite TR1' in TR1''.
-      apply transs_is_stuck_inv in TR1''; [| apply stuckI_is_stuck].
+      apply transs_is_stuck_inv in TR1''; [| apply stuckD_is_stuck].
       rewrite <- TR1'' in TR2.
-      apply wtrans_is_stuck_inv in TR2; [| apply stuckI_is_stuck].
+      apply wtrans_is_stuck_inv in TR2; [| apply stuckD_is_stuck].
       destruct TR2 as [abs _]; inv abs.
     }
     eexists.
@@ -1436,7 +1446,7 @@ Proof.
     eapply wtrans_bind_r'; eauto.
 Qed.
 
-Lemma trans_trigger : forall {E C X Y} `{C0 -< C} (e : E X) x (k : X -> ctree E C Y),
+Lemma trans_trigger : forall {E B X Y} `{B0 -< B} (e : E X) x (k : X -> ctree E B Y),
 		trans (obs e x) (trigger e >>= k) (k x).
 Proof.
   intros.
@@ -1446,7 +1456,7 @@ Proof.
   constructor; auto.
 Qed.
 
-Lemma trans_trigger' : forall {E C X Y} `{C0 -< C} (e : E X) x (t : ctree E C Y),
+Lemma trans_trigger' : forall {E B X Y} `{B0 -< B} (e : E X) x (t : ctree E B Y),
 		trans (obs e x) (trigger e;; t) t.
 Proof.
   intros.
@@ -1456,7 +1466,7 @@ Proof.
   constructor; auto.
 Qed.
 
-Lemma trans_trigger_inv : forall {E C X Y} `{HasStuck : C0 -< C} (e : E X) (k : X -> ctree E C Y) l u,
+Lemma trans_trigger_inv : forall {E B X Y} `{HasStuck : B0 -< B} (e : E X) (k : X -> ctree E B Y) l u,
 		trans l (trigger e >>= k) u ->
     exists x, u ≅ k x /\ l = obs e x.
 Proof.
@@ -1502,10 +1512,10 @@ Ltac inv_trans_one :=
       | _ => idtac
       end
 
-  (* TauV *)
-  | h : trans' _ (tauV _) _ |- _ =>
+  (* Step *)
+  | h : trans' _ (Step _) _ |- _ =>
       let EQl := fresh "EQl" in
-      apply trans_tauV_inv in h as (?EQ & EQl);
+      apply trans_step_inv in h as (?EQ & EQl);
       match type of EQl with
       | tau     = tau => clear EQl
       | val _   = tau => now inv EQl
@@ -1513,10 +1523,11 @@ Ltac inv_trans_one :=
       | _ => idtac
       end
 
-  (* chooseV2 *)
-  | h : trans' _ (chooseV2 _ _) _ |- _ =>
+  (* BrS *)
+  | h : trans' _ (BrS ?n ?k) _ |- _ =>
+      let x := fresh "x" in
       let EQl := fresh "EQl" in
-      apply trans_chooseV2_inv in h as (EQl & [?EQ | ?EQ]);
+      apply trans_brS_inv in h as (x & ?EQ & EQl);
       match type of EQl with
       | tau     = tau => clear EQl
       | val _   = tau => now inv EQl
@@ -1524,10 +1535,10 @@ Ltac inv_trans_one :=
       | _ => idtac
       end
 
-  (* chooseV3 *)
-  | h : trans' _ (chooseV3 _ _ _) _ |- _ =>
+  (* brS2 *)
+  | h : trans' _ (brS2 _ _) _ |- _ =>
       let EQl := fresh "EQl" in
-      apply trans_chooseV3_inv in h as (EQl & [?EQ | [?EQ | ?EQ]]);
+      apply trans_brS2_inv in h as (EQl & [?EQ | ?EQ]);
       match type of EQl with
       | tau     = tau => clear EQl
       | val _   = tau => now inv EQl
@@ -1535,10 +1546,10 @@ Ltac inv_trans_one :=
       | _ => idtac
       end
 
-  (* chooseV4 *)
-  | h : trans' _ (chooseV4 _ _ _ _) _ |- _ =>
+  (* brS3 *)
+  | h : trans' _ (brS3 _ _ _) _ |- _ =>
       let EQl := fresh "EQl" in
-      apply trans_chooseV4_inv in h as (EQl & [?EQ | [?EQ | [?EQ | ?EQ]]]);
+      apply trans_brS3_inv in h as (EQl & [?EQ | [?EQ | ?EQ]]);
       match type of EQl with
       | tau     = tau => clear EQl
       | val _   = tau => now inv EQl
@@ -1546,34 +1557,10 @@ Ltac inv_trans_one :=
       | _ => idtac
       end
 
-  (* TauI *)
-  | h : trans' _ (tauI _) _ |- _ =>
-      apply trans_tauI_inv in h
-
-  (* chooseI2 *)
-  | h : trans' _ (chooseI2 _ _) _ |- _ =>
-      apply trans_chooseI2_inv in h as [?TR | ?TR]
-
-  (* chooseI3 *)
-  | h : trans' _ (chooseI3 _ _ _) _ |- _ =>
-      apply trans_chooseI3_inv in h as [?TR | [?TR | ?TR]]
-
-  (* chooseI4 *)
-  | h : trans' _ (chooseI4 _ _ _ _) _ |- _ =>
-      apply trans_chooseI4_inv in h as [?TR | [?TR | [?TR | ?TR]]]
-
-  (* stuckV *)
-  | h : trans' _ stuckV _ |- _ =>
-      exfalso; eapply stuckV_is_stuck; now apply h
-
-  (* stuckI *)
-  | h : trans' _ stuckI _ |- _ =>
-      exfalso; eapply stuckI_is_stuck; now apply h
-
-  (* ChoiceV *)
-  | h : trans' _ (ChoiceV ?c ?k) _ |- _ =>
+  (* brS4 *)
+  | h : trans' _ (brS4 _ _ _ _) _ |- _ =>
       let EQl := fresh "EQl" in
-      apply trans_choiceV_inv in h as (?x & ?EQ & EQl);
+      apply trans_brS4_inv in h as (EQl & [?EQ | [?EQ | [?EQ | ?EQ]]]);
       match type of EQl with
       | tau     = tau => clear EQl
       | val _   = tau => now inv EQl
@@ -1581,9 +1568,33 @@ Ltac inv_trans_one :=
       | _ => idtac
       end
 
-  (* ChoiceI *)
-  | h : trans' _ (ChoiceI _ _) _ |- _ =>
-      apply trans_choiceI_inv in h as (?x & ?TR)
+  (* Guard *)
+  | h : trans' _ (Guard _) _ |- _ =>
+      apply trans_guard_inv in h
+
+  (* BrD *)
+  | h : trans' _ (BrD ?n ?k) _ |- _ =>
+      let x := fresh "x" in
+      apply trans_brD_inv in h as (x & ?TR)
+
+  (* brD2 *)
+  | h : trans' _ (brD2 _ _) _ |- _ =>
+      apply trans_brD2_inv in h as [?TR | ?TR]
+
+  (* brD3 *)
+  | h : trans' _ (brD3 _ _ _) _ |- _ =>
+      apply trans_brD3_inv in h as [?TR | [?TR | ?TR]]
+
+  (* brD4 *)
+  | h : trans' _ (brD4 _ _ _ _) _ |- _ =>
+      apply trans_brD4_inv in h as [?TR | [?TR | [?TR | ?TR]]]
+
+  (* stuckD *)
+  | h : trans' _ stuckD _ |- _ =>
+      exfalso; eapply stuckD_is_stuck; now apply h
+  (* stuckS *)
+  | h : trans' _ stuckS _ |- _ =>
+      exfalso; eapply stuckS_is_stuck; now apply h
 
   (* trigger *)
   | h : trans' _ (CTree.bind (CTree.trigger ?e) ?t) _ |- _ =>
@@ -1596,17 +1607,16 @@ Ltac inv_trans := repeat inv_trans_one.
 
 Create HintDb trans.
 #[global] Hint Resolve
- trans_ret trans_vis trans_choiceV trans_choiceI
- trans_tauI
- trans_chooseI21 trans_chooseI22
- trans_chooseI31 trans_chooseI32 trans_chooseI33
- trans_chooseI41 trans_chooseI42 trans_chooseI43 trans_chooseI44
- trans_tauV
- trans_chooseV21 trans_chooseV22
- trans_chooseV31 trans_chooseV32 trans_chooseV33
- trans_chooseV41 trans_chooseV42 trans_chooseV43 trans_chooseV44
+ trans_ret trans_vis trans_brS trans_brD
+ trans_guard
+ trans_brD21 trans_brD22
+ trans_brD31 trans_brD32 trans_brD33
+ trans_brD41 trans_brD42 trans_brD43 trans_brD44
+ trans_step
+ trans_brS21 trans_brS22
+ trans_brS31 trans_brS32 trans_brS33
+ trans_brS41 trans_brS42 trans_brS43 trans_brS44
  trans_trigger trans_bind_l trans_bind_r
   : trans.
 
 Ltac etrans := eauto with trans.
-

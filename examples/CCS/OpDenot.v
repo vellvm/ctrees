@@ -28,15 +28,19 @@ Set Implicit Arguments.
 Set Contextual Implicit.
 
 Lemma SRep': forall P a P'
-               (STEP : step P a P'),
-    step (!P) a (P' ∥ !P).
+               (STEP : step a P P'),
+    step a (!P) (P' ∥ !P).
 Proof.
   intros * TR; apply SRep,SParL; auto.
 Qed.
 
 Lemma trans_nil_inv : forall l p, ~ trans l nil p.
 Proof.
+<<<<<<< HEAD
   intros * abs; eapply (stuckV_is_stuck (C := ccsC)); apply abs.
+=======
+  intros * abs; eapply stuckS_is_stuck; apply abs.
+>>>>>>> master
 Qed.
 
 Definition ι : option action -> @label ccsE :=
@@ -76,7 +80,6 @@ Proof.
   all:match goal with |- context[if ?b then _ else _] => destruct b; easy end.
 Qed.
 
-(* More general (?) notions of simulations *)
 Definition forward (R : term -> ccs -> Prop) : Prop :=
   forall P P' q a,
 		R P q ->
@@ -89,11 +92,20 @@ Definition backward (R : term -> ccs -> Prop) : Prop :=
     trans l q q' ->
 	  exists P', P ⊢ γ l →op P' /\ R P' q'.
 
-Definition bisim := exists R, forward R /\ backward R.
+Definition bisim R := forward R /\ backward R.
+Definition bisimilar P q := exists R, bisim R /\ R P q.
+
+Lemma bisimilar_bisim : bisim bisimilar.
+Proof.
+  split; red; intros * (R & BIS & HR) TR;
+    pose proof BIS as [F B].
+  - edestruct F as (? & ? & ?); eauto; eexists; split; eauto.
+    exists R; split; auto.
+  - edestruct B as (? & ? & ?); eauto; eexists; split; eauto.
+    exists R; split; auto.
+Qed.
 
 Definition bisim_model := fun P q => ⟦P⟧ ~ q.
-
-
 
 Lemma complete : forward bisim_model.
 Proof.
@@ -105,7 +117,7 @@ Proof.
     apply trans_prefix.
     cbn in *; eauto.
   - step in HR; edestruct HR as [[? TR EQ] _].
-    cbn; apply trans_tauV.
+    cbn; apply trans_step.
     cbn in *; eauto.
   - edestruct IHTR as (q1 & TR1 & EQ1); eauto.
     step in HR; edestruct HR as [[q' TR' EQ'] _].
@@ -149,7 +161,7 @@ Proof.
   unfold bisim_model; red.
   induction P; intros * HR TR; copy TR; step in HR; destruct HR as [_ B]; apply B in TR as [? TR' EQ']; clear B; cbn in *.
   - exfalso; eapply trans_nil_inv,TR'.
-  - apply trans_tauV_inv in TR' as [EQ ->].
+  - apply trans_step_inv in TR' as [EQ ->].
     eexists; split; [constructor |].
     rewrite <- EQ',EQ; auto.
   - apply trans_prefix_inv in TR' as [EQ ->].
@@ -194,7 +206,7 @@ Proof.
     apply SRes; auto.
     rewrite use_channel_can_comm.
     destruct l; auto; destruct e; auto.
-    rewrite <- EQ',EQ,sb_tauI, <-EQ''; auto.
+    rewrite <- EQ',EQ,sb_guard, <-EQ''; auto.
   - trans_parabang_invT TR'.
     + edestruct IHP as (P' & STEP & EQ''); [reflexivity | apply TRp' |].
       exists (P' ∥ !P); split.
@@ -240,14 +252,188 @@ Proof.
       rewrite <- EQ'; cbn; rewrite paraA; auto.
 Qed.
 
-Theorem is_bisim : bisim.
+Theorem term_model_bisimilar : forall P, bisimilar P ⟦P⟧.
 Proof.
-  exists bisim_model; auto using correct,complete.
+  exists bisim_model; split; red; auto using correct,complete.
 Qed.
 
 (* We depend currently on
    - [Eqdep.Eq_rect_eq.eq_rect_eq]
  *)
-Print Assumptions is_bisim.
+Print Assumptions term_model_bisimilar.
 
-(* bisim_sem ⟦u⟧ ⟦v⟧ <-> bisim_op u v *)
+Definition forward_inv (R : ccs -> term -> Prop) : Prop :=
+  forall p p' Q l,
+		R p Q ->
+		trans l p p' ->
+	  exists Q', Q ⊢ γ l →op Q' /\ R p' Q'.
+
+Definition backward_inv (R : ccs -> term -> Prop) : Prop :=
+  forall p Q Q' a,
+		R p Q ->
+    Q ⊢ a →op Q' ->
+	  exists p', trans (ι a) p p' /\ R p' Q'.
+
+Definition bisim_inv R := forward_inv R /\ backward_inv R.
+Definition bisimilar_inv t u := exists R, bisim_inv R /\ R t u.
+
+Lemma bisimilar_inv_bisim_inv : bisim_inv bisimilar_inv.
+Proof.
+ split; red; intros * (R & BIS & HR) TR;
+    pose proof BIS as [F B].
+  - edestruct F as (? & ? & ?); eauto; eexists; split; eauto.
+    exists R; split; auto.
+  - edestruct B as (? & ? & ?); eauto; eexists; split; eauto.
+    exists R; split; auto.
+Qed.
+
+Definition rev {A B} (R : A -> B -> Prop) : B -> A -> Prop := fun b a => R a b.
+
+Lemma bisim_bisim_inv : forall R, bisim R -> bisim_inv (rev R).
+Proof.
+  intros ? [F B]; split; red; unfold rev; cbn; intros * HR TR.
+  edestruct B; eauto.
+  edestruct F; eauto.
+Qed.
+
+Lemma term_model_bisimilar_inv : forall P, bisimilar_inv ⟦P⟧ P.
+Proof.
+  intros P; edestruct (@term_model_bisimilar P) as (R & BIS & HR); eauto.
+  eexists; split.
+  apply bisim_bisim_inv; eauto.
+  auto.
+Qed.
+
+Lemma ιγ : forall l (t u : ccs),
+    trans l t u ->
+    ι (γ l) = l.
+Proof.
+  intros [] ? ? TR; cbn; auto.
+  destruct e,v; auto.
+  eapply trans_val_invT in TR; subst; destruct v.
+Qed.
+
+Lemma γι : forall l,
+    γ (ι l) = l.
+Proof.
+  intros []; auto.
+Qed.
+
+(* Naming *)
+Lemma cross_model_compose : forall T t u U,
+    bisimilar t T ->
+    Operational.bisim t u ->
+    bisimilar u U ->
+    T ~ U.
+Proof.
+  coinduction ? ?.
+  intros * EQtT EQtu EQuU.
+  pose proof bisimilar_bisim as [F B].
+  step in EQtu; destruct EQtu as [F' B'].
+  split; intros ? ? TRTt.
+  - edestruct B as (T' & TRT' & ?); [apply EQtT | |]; eauto.
+    edestruct F' as [U' TRU' ?]; eauto.
+    edestruct F as (u' & TRu' & ?); [apply EQuU | |]; eauto.
+    erewrite ιγ in TRu'; eauto.
+  - edestruct B as (T' & TRT' & ?); [apply EQuU | |]; eauto.
+    edestruct B' as [U' TRU' ?]; eauto.
+    edestruct F as (u' & TRu' & ?); [apply EQtT | |]; eauto.
+    erewrite ιγ in TRu'; eauto.
+    cbn in *; eauto.
+Qed.
+
+Lemma cross_model_compose' : forall T t u U,
+    bisimilar t T ->
+    T ~ U ->
+    bisimilar u U ->
+    Operational.bisim t u.
+Proof.
+  coinduction ? ?.
+  intros * EQtT EQtu EQuU.
+  pose proof bisimilar_bisim as [F B].
+  step in EQtu; destruct EQtu as [F' B'].
+  split; intros ? ? TRTt.
+  - edestruct F as (T' & TRT' & ?); [apply EQtT | |]; eauto.
+    edestruct F' as [U' TRU' ?]; eauto.
+    edestruct B as (u' & TRu' & ?); [apply EQuU | |]; eauto.
+    erewrite γι in TRu'; eauto.
+  - edestruct F as (T' & TRT' & ?); [apply EQuU | |]; eauto.
+    edestruct B' as [U' TRU' ?]; eauto.
+    edestruct B as (u' & TRu' & ?); [apply EQtT | |]; eauto.
+    erewrite γι in TRu'; eauto.
+    cbn in *; eauto.
+Qed.
+
+Lemma bisimilar_bisimilar_inv : forall t T,
+    bisimilar_inv t T -> bisimilar T t.
+Proof.
+  intros * (R & [F B] & HR).
+  exists (rev R); split; [| apply HR].
+  split.
+  red; intros; edestruct B; eauto.
+  red; intros; edestruct F; eauto.
+Qed.
+
+Lemma embed_sound : forall t u, Operational.bisim t u -> ⟦t⟧ ~ ⟦u⟧.
+Proof.
+  intros * BIS.
+  apply (gfp_fp b t u) in BIS; destruct BIS as [F B]; cbn in *.
+  step; split.
+  - intros ? T' TR.
+    pose proof (@term_model_bisimilar t) as BISt.
+    pose proof (@term_model_bisimilar u) as BISu.
+    pose proof bisimilar_bisim as [F' B'].
+    edestruct B' as (t' & TRt & EQTt); [apply BISt | ..]; eauto.
+    edestruct F as [u' TR'' EQtu]; eauto.
+    edestruct F' as (U' & TRu & EQuU); [apply BISu |..]; eauto.
+    erewrite ιγ in TRu; eauto.
+    eexists. apply TRu.
+    eapply cross_model_compose; eauto.
+  - intros ? U' TR.
+    pose proof (@term_model_bisimilar_inv u) as BISu.
+    pose proof (@term_model_bisimilar_inv t) as BISt.
+    pose proof bisimilar_inv_bisim_inv as [F' B'].
+    cbn.
+    edestruct F' as (u' & TRu & EQuU); [apply BISu |..]; eauto.
+    edestruct B as [t' TR'' EQtu]; eauto.
+    edestruct B' as (T' & TRT & EQuT); [apply BISt |..]; eauto.
+    erewrite ιγ in TRT; eauto.
+    eexists. apply TRT.
+    apply bisimilar_bisimilar_inv in EQuU, EQuT.
+    eapply cross_model_compose; eauto.
+Qed.
+
+Lemma embed_complete : forall t u, ⟦t⟧ ~ ⟦u⟧ -> Operational.bisim t u.
+Proof.
+  intros * BIS.
+  step in BIS; destruct BIS as [F B]; cbn in *.
+  step; split.
+  - intros ? T' TR.
+    pose proof (@term_model_bisimilar t) as BISt.
+    pose proof (@term_model_bisimilar u) as BISu.
+    pose proof bisimilar_bisim as [F' B'].
+    edestruct F' as (t' & TRt & EQTt); [apply BISt | ..]; eauto.
+    edestruct F as [u' TR'' EQtu]; eauto.
+    edestruct B' as (U' & TRu & EQuU); [apply BISu |..]; eauto.
+    erewrite γι in TRu; eauto.
+    eexists. apply TRu.
+    eapply cross_model_compose'; eauto.
+  - intros ? U' TR.
+    pose proof (@term_model_bisimilar_inv u) as BISu.
+    pose proof (@term_model_bisimilar_inv t) as BISt.
+    pose proof bisimilar_inv_bisim_inv as [F' B'].
+    cbn.
+    edestruct B' as (u' & TRu & EQuU); [apply BISu |..]; eauto.
+    edestruct B as [t' TR'' EQtu]; eauto.
+    edestruct F' as (T' & TRT & EQuT); [apply BISt |..]; eauto.
+    erewrite γι in TRT; eauto.
+    eexists. apply TRT.
+    apply bisimilar_bisimilar_inv in EQuU, EQuT.
+    eapply cross_model_compose'; eauto.
+Qed.
+
+Theorem equiv_bisims : forall t u, ⟦t⟧ ~ ⟦u⟧ <-> Operational.bisim t u.
+Proof.
+  intros; split; eauto using embed_complete, embed_sound.
+Qed.
+

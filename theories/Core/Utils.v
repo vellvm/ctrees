@@ -10,14 +10,21 @@ Notation fin := Fin.t.
 Ltac next := unfold bt; cbn.
 Tactic Notation "cbn*" := next.
 
-(* TODO: move *)
 Polymorphic Class MonadTrigger (E : Type -> Type) (M : Type -> Type) : Type :=
   mtrigger : E ~> M.
 
-Polymorphic Class MonadChoice (M C : Type -> Type) : Type :=
-  choice : forall (b : bool), C ~> M.
+Polymorphic Class MonadBr (B : Type -> Type) (M : Type -> Type) : Type :=
+  mbr : forall (b : bool) {X} (b: B X), M X.
 
 Notation rel X Y := (X -> Y -> Prop).
+
+Lemma t_gfp_bt : forall {X} `{CompleteLattice X} (b : mon X),
+  weq (t b (gfp (bt b))) (gfp b).
+Proof.
+  intros. cbn.
+  rewrite <- enhanced_gfp. rewrite t_gfp.
+  reflexivity.
+Qed.
 
 Ltac invert :=
   match goal with
@@ -41,11 +48,6 @@ Ltac break_match_in H :=
 
 (* A smarter version of this should be part of the [coinduction] library *)
 
-(* Ltac step := *)
-(*   match goal with *)
-(*   | |- gfp _ _ _ => tactics.step *)
-(*   | |- _ => red; tactics.step *)
-(*   end. *)
 Ltac step_ :=
   match goal with
   | |- gfp ?b ?x ?y => apply (proj2 (gfp_fp b x y))

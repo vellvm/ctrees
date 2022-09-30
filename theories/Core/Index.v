@@ -4,30 +4,30 @@ From CTree Require Import Core.Utils.
 (*|
 Nullary arity, encoding stuck processes
 |*)
-Variant C0 : Type -> Type := | choice0 : C0 void.
+Variant B0 : Type -> Type := | branch0 : B0 void.
 
 (*|
 Unary arity, encoding taus/fuel/guards
 |*)
-Variant C1 : Type -> Type := | choice1 : C1 unit.
+Variant B1 : Type -> Type := | branch1 : B1 unit.
 
 (*|
-Commonly used bounded arities
+Bommonly used bounded arities
 |*)
-Variant C2 : Type -> Type := | choice2 : C2 bool.
+Variant B2 : Type -> Type := | branch2 : B2 bool.
 Variant T3 : Type := | t31 | t32 | t33.
-Variant C3 : Type -> Type := | choice3 : C3 T3.
+Variant B3 : Type -> Type := | branch3 : B3 T3.
 Variant T4 : Type := | t41 | t42 | t43 | t44.
-Variant C4 : Type -> Type := | choice4 : C4 T4.
+Variant B4 : Type -> Type := | branch4 : B4 T4.
 
 (*|
 Finite unbounded arity
 |*)
-Variant Cn : Type -> Type := | choicen (n : nat) : Cn (fin n).
+Variant Bn : Type -> Type := | branchn (n : nat) : Bn (fin n).
 
 (*|
-Countable branching
+Bountable branching
 |*)
-Variant CN : Type -> Type := | choiceN : CN nat.
+Variant BN : Type -> Type := | branchN : BN nat.
 
-Notation C01 := (C0 +' C1).
+Notation B01 := (B0 +' B1).

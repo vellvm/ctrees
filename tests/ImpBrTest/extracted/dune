@@ -1,0 +1,71 @@
+(library
+  (name extracted)
+  (wrapped false)
+  )
+(coq.extraction
+  (prelude Extract)
+  (theories ImpBrEx)
+  (extracted_modules
+    Applicative
+    Ascii
+    Basics0
+    Basics
+    BinNat
+    BinNums
+    BinPosDef
+    BinPos
+    Bool
+    Byte
+    CategoryOps
+    Char0
+    Consider
+    CTreeDefinitions
+    Datatypes
+    Decimal
+    EitherMonad
+    Extras
+    ExtrOcamlIntConv
+    Fin
+    FMapAList
+    Function
+    Functor
+    Hexadecimal
+    ImpBr
+    ImpBrEx
+    Interp0
+    Interp
+    ITreeDefinition
+    List0
+    Logic
+    MapDefault
+    Maps
+    MonadExc
+    MonadFix
+    Monad
+    MonadPlus
+    MonadReader
+    MonadState
+    MonadTrans
+    MonadWriter
+    MonadZero
+    Monoid
+    Nat
+    NPeano
+    Number
+    OptionMonad
+    PeanoNat
+    ReaderMonad
+    Reducible
+    RelDec
+    Specif
+    State0
+    State
+    StateMonad
+    String0
+    String1
+    Subevent
+    Sum
+    Utils
+    Wf0
+    Wf
+))

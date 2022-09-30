@@ -14,9 +14,9 @@ jobs:
     strategy:
       matrix:
         coq_version:
-          - '8.15.1'
+          - '8.15.2'
         ocaml_version:
-          - '4.13.1-flambda'
+          - '4.14.0-flambda'
       max-parallel: 4
       fail-fast: false
 

@@ -14,11 +14,11 @@ While the only consideration over [itree]s was to be insensitive to the
 amount of fuel needed to run, things are richer over [ctree]s.
 We essentially want to capture three intuitive things:
 - to be insensitive to the particular branches chosen at non-deterministic
-nodes -- in particular, we want [choice t u ~~ choice u t];
-- to always be insensitive to how many _invisible_ choice nodes are crawled
+nodes -- in particular, we want [br t u ~~ br u t];
+- to always be insensitive to how many _invisible_ br nodes are crawled
 through -- they really are a generalization of [Tau] in [itree]s;
 - to have the flexibility to be sensible or not to the amount of _visible_
-choice nodes encountered -- they really are a generalization of CCS's tau
+br nodes encountered -- they really are a generalization of CCS's tau
 steps. This last fact, whether we observe or not these nodes, will constrain
 the distinction between the weak and strong bisimulations we define.
 
@@ -64,8 +64,8 @@ Import SBisimNotations.
 Weak Bisimulation
 -------------------
 Relation relaxing [equ] to become insensible to:
-- the amount of (any kind of) choices taken;
-- the particular branches taken during (any kind of) choices.
+- the amount of (any kind of) brs taken;
+- the particular branches taken during (any kind of) brs.
 |*)
 
 Section WeakBisim.
@@ -216,6 +216,7 @@ on both arguments.
 We also get [wbisim] closed under [sbism] on both arguments, but need first to
 establish [wbisim]'s transitivity for that.
 |*)
+<<<<<<< HEAD
     Lemma s_e: @ss E E C C X X _ _ eq <= es.
     Proof.
       intros R p q H l p' pp'. destruct (H _ _ pp').
@@ -225,6 +226,13 @@ establish [wbisim]'s transitivity for that.
     Lemma e_w: es <= ws.
     Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using etrans_wtrans_. Qed.
     Lemma s_w: @ss E E C C X X _ _ eq <= ws.
+=======
+    Lemma s_e: @ss0 E X <= es.
+    Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using trans_etrans_. Qed.
+    Lemma e_w: es <= ws.
+    Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using etrans_wtrans_. Qed.
+    Lemma s_w: ss0 <= ws.
+>>>>>>> master
     Proof. rewrite s_e. apply e_w. Qed.
 
     Corollary sbisim_wbisim: sbisim <= wbisim.
@@ -480,23 +488,33 @@ We can therefore rewrite [equ] in the middle of bisimulation proofs
 Contrary to what happens with [sbisim], weak bisimulation ignores both kinds of taus
 |*)
 
+<<<<<<< HEAD
     Lemma tauI_wb `{C1 -< C} : forall (t : ctree E C X),
         tauI t ≈ t.
+=======
+    Lemma guard_wb : forall (t : ctree E X),
+        Guard t ≈ t.
+>>>>>>> master
     Proof.
-      intros. now rewrite sb_tauI.
+      intros. now rewrite sb_guard.
     Qed.
 
+<<<<<<< HEAD
     Lemma tauV_wb `{HasTau : C1 -< C} : forall (t : ctree E C X),
         tauV t ≈ t.
+=======
+    Lemma step_wb : forall (t : ctree E X),
+        Step t ≈ t.
+>>>>>>> master
     Proof.
       intros t; step; split.
       - intros l t' H.
-        apply trans_tauV_inv in H as [EQ ->].
+        apply trans_step_inv in H as [EQ ->].
         exists t'.
         rewrite EQ. apply wnil.
         reflexivity.
       - intros l t' H. exists t'.
-        apply wtrans_tauV.
+        apply wtrans_step.
         apply trans_wtrans; auto.
         cbn; reflexivity.
     Qed.
@@ -514,29 +532,29 @@ Disproving the transitivity of [wt R]
         destruct (abs (obs e z) (Ret x)) as [? step EQ].
         constructor; reflexivity.
         apply wtrans_ret_inv in step as [[abs' ?] | [abs' ?]]; inv abs'.
-      - rewrite <- tauV_wb.
-        rewrite <- (tauV_wb (Ret x)).
+      - rewrite <- step_wb.
+        rewrite <- (step_wb (Ret x)).
         unfold wbisim; coinduction ? CIH; fold wbisim in *.
         split.
         + intros l t' tt'.
-          apply trans_tauV_inv in tt' as [EQ ->].
+          apply trans_step_inv in tt' as [EQ ->].
           exists (Ret x); auto.
           apply trans_wtrans; constructor; [exact tt | reflexivity].
           apply equ_wbisim_subrelation in EQ.
           rewrite EQ.
-          rewrite <- (subrelation_gfp_t _ (tauV_wb _)).
-          rewrite <- (subrelation_gfp_t _ (tauV_wb (Ret x))).
+          rewrite <- (subrelation_gfp_t _ (step_wb _)).
+          rewrite <- (subrelation_gfp_t _ (step_wb (Ret x))).
           assumption.  (* Here clearly some instances are missing, the rewrite do not work in the other order, and should not require such an explicit low level call *)
         + intros ? ? ?.
-          apply trans_tauV_inv in H0 as [EQ ->].
+          apply trans_step_inv in H0 as [EQ ->].
           eexists.
           apply trans_wtrans; constructor; [exact tt | reflexivity].
           cbn.
           apply equ_wbisim_subrelation in EQ.
-          rewrite <- (subrelation_gfp_t _ (tauV_wb _)).
+          rewrite <- (subrelation_gfp_t _ (step_wb _)).
           symmetry.
           rewrite EQ.
-          rewrite <- (subrelation_gfp_t _ (tauV_wb _)).
+          rewrite <- (subrelation_gfp_t _ (step_wb _)).
           symmetry.
           assumption.
     Qed.
@@ -658,13 +676,17 @@ Proof.
 Qed.
 
 (*|
-Note: with choiceI2, these relations hold up-to strong bisimulation.
-With choiceV2 however they don't even hold up-to weak bisimulation.
+Note: with brD2, these relations hold up-to strong bisimulation.
+With brS2 however they don't even hold up-to weak bisimulation.
 |*)
+<<<<<<< HEAD
 (*Lemma spinV_nary_0 : forall {E R}, @spinV_nary E R 0 ≈ spinV_nary 0.
   ~(exists x: X) @spinV_gen E C R 0 ≈ spinV_nary 0.
   ~(exists y: Y) ->
   @spinV_gen E C R 0 ≈ spinV_nary 0.
+=======
+Lemma spinS_nary_0 : forall {E R}, @spinS_nary E R 0 ≈ spinS_nary 0.
+>>>>>>> master
 Proof.
   intros E R.
   reflexivity.
@@ -683,31 +705,41 @@ Ltac wcase :=
       end
   end.
 
+<<<<<<< HEAD
 (*#[local] Arguments trans_choiceV21 [_ _].
 #[local] Arguments trans_choiceV22 [_ _].*)
+=======
+#[local] Arguments trans_brS21 [_ _].
+#[local] Arguments trans_brS22 [_ _].
+>>>>>>> master
 #[local] Arguments trans_ret [_ _] _.
 
 (*|
-With choiceV2 however they don't even hold up-to weak bisimulation.
+With brS2 however they don't even hold up-to weak bisimulation.
 The proof is not interesting, but it would be good to have a
 light way to automate it, so it's a decent case study.
 |*)
+<<<<<<< HEAD
 (*Lemma choiceV2_not_assoc :
 	~ (choiceV2 (choiceV2 (Ret 0 : ctree Sum.void1 nat) (Ret 1)) (Ret 2) ≈ choiceV2 (Ret 0) (choiceV2 (Ret 1) (Ret 2)))%nat.
+=======
+Lemma brS2_not_assoc :
+	~ (brS2 (brS2 (Ret 0 : ctree Sum.void1 nat) (Ret 1)) (Ret 2) ≈ brS2 (Ret 0) (brS2 (Ret 1) (Ret 2)))%nat.
+>>>>>>> master
 Proof.
   intros abs.
 
   (* init: 012 || 012 *)
-  wplayL trans_choiceV21.
+  wplayL trans_brS21.
 
   (* PL  : 01  || 012 *)
   wcase.
   - (* AR:  01  || 012 *)
-    wplayR trans_choiceV22.
+    wplayR trans_brS22.
     (* PR:  01  ||  12 *)
     wcase.
     + (* AL:  01  ||  12 *)
-      wplayR trans_choiceV22.
+      wplayR trans_brS22.
       (* PR:  01  ||   2 *)
       wcase.
       * (* AL: 01  ||   2 *)
@@ -740,20 +772,20 @@ Proof.
         inv_trans.
       * (* AL:  1  ||  12 *)
         wcase.
-        wplayR trans_choiceV22.
+        wplayR trans_brS22.
         wcase.
         apply wbisim_ret_inv in EQ; inv EQ.
         inv_trans.
         inv_trans.
   - inv_trans.
     + wcase.
-      * wplayL trans_choiceV22.
+      * wplayL trans_brS22.
         wcase.
         apply wbisim_ret_inv in EQ; inv EQ.
         inv_trans.
       * inv_trans.
     + wcase.
-      wplayL trans_choiceV21.
+      wplayL trans_brS21.
       wcase.
       wplayL trans_ret.
       wcase.
@@ -770,13 +802,13 @@ Proof.
       inv_trans.
       inv_trans.
       wcase.
-      wplayL trans_choiceV21.
+      wplayL trans_brS21.
       wcase.
       apply wbisim_ret_inv in EQ; inv EQ.
       inv_trans.
       inv_trans.
       wcase.
-      wplayL trans_choiceV21.
+      wplayL trans_brS21.
       wcase.
       apply wbisim_ret_inv in EQ; inv EQ.
       inv_trans.

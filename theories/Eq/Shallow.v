@@ -45,47 +45,24 @@ Proof.
   destruct p; cbn; auto.
 Qed.
 
-(* Lemma eq_inv_VisF_weak {E R X1 X2} (e1 : E X1) (e2 : E X2) (k1 : X1 -> itree E R) (k2 : X2 -> itree E R) *)
-(*   : VisF (R := R) e1 k1 = VisF (R := R) e2 k2 -> *)
-(*     exists p : X1 = X2, eqeq E p e1 e2 /\ eqeq (fun X => X -> itree E R) p k1 k2. *)
-(* Proof. *)
-(*   refine (fun H => *)
-(*     match H in _ = t return *)
-(*       match t with *)
-(*       | VisF e2 k2 => _ *)
-(*       | _ => True *)
-(*       end *)
-(*     with *)
-(*     | eq_refl => _ *)
-(*     end); cbn. *)
-(*   exists eq_refl; cbn; auto. *)
-(* Qed. *)
-
-(* Ltac inv_Vis := *)
-(*   discriminate + *)
-(*   match goal with *)
-(*   | [ E : VisF _ _ = VisF _ _ |- _ ] => *)
-(*      apply eq_inv_VisF_weak in E; destruct E as [ <- [<- <-]] *)
-(*   end. *)
-
 (** ** [observing]: Lift relations through [observe]. *)
-Record observing {E C R1 R2}
-           (eq_ : ctree' E C R1 -> ctree' E C R2 -> Prop)
-           (t1 : ctree E C R1) (t2 : ctree E C R2) : Prop :=
+Record observing {E B R1 R2}
+           (eq_ : ctree' E B R1 -> ctree' E B R2 -> Prop)
+           (t1 : ctree E B R1) (t2 : ctree E B R2) : Prop :=
   observing_intros
   { observing_observe : eq_ (observe t1) (observe t2) }.
-Global Hint Constructors observing: core.
+#[global] Hint Constructors observing: core.
 
 Section observing_relations.
 
-Context {E C : Type -> Type} {R : Type}.
-Variable (eq_ : ctree' E C R -> ctree' E C R -> Prop).
+Context {E B : Type -> Type} {R : Type}.
+Variable (eq_ : ctree' E B R -> ctree' E B R -> Prop).
 
 #[global] Instance observing_observe_ :
-  Proper (observing eq_ ==> eq_) (@observe E C R).
+  Proper (observing eq_ ==> eq_) (@observe E B R).
 Proof. intros ? ? []; cbv; auto. Qed.
 
-#[global] Instance observing_go : Proper (eq_ ==> observing eq_) (@go E C R).
+#[global] Instance observing_go : Proper (eq_ ==> observing eq_) (@go E B R).
 Proof. cbv; auto. Qed.
 
 #[global] Instance monotonic_observing eq_' :
@@ -105,22 +82,22 @@ End observing_relations.
 
 (** ** Unfolding lemmas for [bind] *)
 
-#[global] Instance observing_bind {E C R S} :
-  Proper (observing eq ==> eq ==> observing eq) (@CTree.bind E C R S).
+#[global] Instance observing_bind {E B R S} :
+  Proper (observing eq ==> eq ==> observing eq) (@CTree.bind E B R S).
 Proof.
   repeat intro; subst. constructor. unfold observe. cbn.
   rewrite (observing_observe H). reflexivity.
 Qed.
 
-Lemma bind_ret_ {E C R S} (r : R) (k : R -> ctree E C S) :
+Lemma bind_ret_ {E B R S} (r : R) (k : R -> ctree E B S) :
   observing eq (CTree.bind (Ret r) k) (k r).
 Proof. constructor; reflexivity. Qed.
 
-Lemma bind_tau_ {E C R} `{C1 -< C} U t (k: U -> ctree E C R) :
-  observing eq (CTree.bind (tauI t) k) (tauI (CTree.bind t k)).
+Lemma bind_Guard_ {E B R} `{B1 -< B} U t (k: U -> ctree E B R) :
+  observing eq (CTree.bind (Guard t) k) (Guard (CTree.bind t k)).
 Proof. constructor; reflexivity. Qed.
 
-Lemma bind_vis_ {E C R U V} (e: E V) (ek: V -> ctree E C U) (k: U -> ctree E C R) :
+Lemma bind_vis_ {E B R U V} (e: E V) (ek: V -> ctree E B U) (k: U -> ctree E B R) :
   observing eq
     (CTree.bind (Vis e ek) k)
     (Vis e (fun x => CTree.bind (ek x) k)).
@@ -128,25 +105,25 @@ Proof. constructor; reflexivity. Qed.
 
 (** Unfolding lemma for [aloop]. There is also a variant [unfold_aloop]
     without [Tau]. *)
-Lemma unfold_aloop_ {E C A B} `{C1 -< C} (f : A -> ctree E C (A + B)) (x : A) :
+Lemma unfold_aloop_ {E B X Y} `{B1 -< B} (f : X -> ctree E B (X + Y)) (x : X) :
   observing eq
     (CTree.iter f x)
-    (CTree.bind (f x) (fun lr => CTree.on_left lr l (tauI (CTree.iter f l)))).
+    (CTree.bind (f x) (fun lr => CTree.on_left lr l (Guard (CTree.iter f l)))).
 Proof. constructor; reflexivity. Qed.
 
 (** Unfolding lemma for [forever]. *)
-Lemma unfold_forever_ {E C R S} `{C1 -< C} (t: ctree E C R):
-  observing eq (@CTree.forever E C _ R S t) (CTree.bind t (fun _ => tauI (CTree.forever t))).
-Proof. econstructor. reflexivity. Qed.
+Lemma unfold_forever_ {E B R S} `{B1 -< B} (t: ctree E B R):
+  observing eq (@CTree.forever B _ _ R S t) (CTree.bind t (fun _ => Guard (CTree.forever t))).
+Proof. constructor; reflexivity. Qed.
 
 (** ** [going]: Lift relations through [go]. *)
 
-Inductive going {E C R1 R2} (r : ctree E C R1 -> ctree E C R2 -> Prop)
-          (ot1 : ctree' E C R1) (ot2 : ctree' E C R2) : Prop :=
+Inductive going {E B R1 R2} (r : ctree E B R1 -> ctree E B R2 -> Prop)
+          (ot1 : ctree' E B R1) (ot2 : ctree' E B R2) : Prop :=
 | going_intros : r (go ot1) (go ot2) -> going r ot1 ot2.
 #[global] Hint Constructors going: core.
 
-Lemma observing_going {E C R1 R2} (eq_ : ctree' E C R1 -> ctree' E C R2 -> Prop) ot1 ot2 :
+Lemma observing_going {E B R1 R2} (eq_ : ctree' E B R1 -> ctree' E B R2 -> Prop) ot1 ot2 :
   going (observing eq_) ot1 ot2 <-> eq_ ot1 ot2.
 Proof.
   split; auto.
@@ -155,10 +132,10 @@ Qed.
 
 Section going_relations.
 
-Context {E C : Type -> Type} {R : Type}.
-Variable (eq_ : ctree E C R -> ctree E C R -> Prop).
+Context {E B : Type -> Type} {R : Type}.
+Variable (eq_ : ctree E B R -> ctree E B R -> Prop).
 
-#[global] Instance going_go : Proper (going eq_ ==> eq_) (@go E C R).
+#[global] Instance going_go : Proper (going eq_ ==> eq_) (@go E B R).
 Proof. intros ? ? []; auto. Qed.
 
 #[global] Instance monotonic_going eq_' :
