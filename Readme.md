@@ -34,8 +34,8 @@ opam install coq-equations
 ### Obtaining the project
 
 ```shell
-git clone git@github.com:vellvm/ctrees.git
-checkout popl23
+git clone https://github.com/vellvm/ctrees.git
+git checkout popl23
 cd ctrees
 ```
 
