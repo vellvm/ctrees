@@ -47,8 +47,9 @@ dune build
 
 ## Paper to artifact correspondence
 
-Note: this repository contains the version of our development restricting internal branching to finite indexes, as described in the paper.
-As mentioned in the paper (footnotes 7, 10 and 11), the theory straightforwardly extends to arbitrary indexes at the cost of a heavier parameterization.
+Note: this repository contains the version of our development restricting internal branching to finite indexes,
+and bisimilarity to the homogeneous case, as described in the paper.
+As mentioned (footnotes 7, 10 and 11), the theory straightforwardly extends at the cost of a heavier parameterization.
 We refer the interested reader to our main active repository for details: https://github.com/vellvm/ctrees/
 
 ### Structure of the repository
@@ -83,4 +84,3 @@ Checking] option.
 This is a purely technical issue that affects in no way the soundness of our results.
 We are planning to synchronize with the authors of the respective libraries at play to
 find a patch to this issue.
-
