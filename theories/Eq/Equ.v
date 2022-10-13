@@ -822,6 +822,19 @@ Proof.
 	now step.
 Qed.
 
+Notation iterS_ step i :=
+  (lr <- step%function i;;
+   match lr with
+   | inl l => Step (iterS step l)
+   | inr r => Ret r
+   end)%ctree.
+
+Lemma unfold_iterS {E R I} (step : I -> ctree E (I + R)) i:
+	iterS step i ≅ iterS_ step i.
+Proof.
+	now step.
+Qed.
+
 (*|
 Monadic laws
 ------------

@@ -191,6 +191,10 @@ Definition iter {E : Type -> Type} {R I: Type}
            (step : I -> ctree E (I + R)) : I -> ctree E R :=
   cofix iter_ i := bind (step i) (fun lr => on_left lr l (Guard (iter_ l))).
 
+Definition iterS {E : Type -> Type} {R I: Type}
+           (step : I -> ctree E (I + R)) : I -> ctree E R :=
+  cofix iter_ i := bind (step i) (fun lr => on_left lr l (Step (iter_ l))).
+
 (*|
 Functorial map ([fmap] in Haskell)
 |*)
