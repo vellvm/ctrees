@@ -16,13 +16,8 @@ CoInductive trace {E} :=
 | Cons (l : @label E) (s : trace)
 | Nil.
 
-<<<<<<< HEAD
 Program Definition htr {E C X} `{HasStuck : C0 -< C} :
   mon (@trace E -> ctree E C X -> Prop) :=
-=======
-Program Definition htr {E X} :
-  mon (@trace E -> ctree E X -> Prop) :=
->>>>>>> master
   {| body R s t :=
     match s with
     | Cons l s' => exists t', trans l t t' /\ R s' t'

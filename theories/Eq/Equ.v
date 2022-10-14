@@ -246,33 +246,6 @@ Proof. apply Equivalence_et. typeclasses eauto. Qed.
 #[global] Hint Constructors equb : core.
 Arguments equb_ {E B R1 R2} RR eq t1 t2/.
 
-#[global] Instance equb_eq_equ {E B X} {Q : rel X X} :
-  Proper (equ eq ==> equ eq ==> flip impl) (@equ E B X X Q).
-Proof.
-  unfold Proper, respectful, flip, impl.
-  coinduction ? IH.
-  intros t t' EQt u u' EQu EQ.
-  step in EQt.
-  step in EQu.
-  step in EQ.
-  inv EQt; rewrite <- H in EQ.
-  - inv EQ.
-    rewrite <- H3 in EQu.
-    inv EQu.
-    cbn*; rewrite <- H0, <- H2; auto.
-  - dependent destruction EQ.
-    cbn*.
-    rewrite <- x in EQu.
-    dependent destruction EQu.
-    rewrite <- H0, <- x.
-    eauto.
-  - dependent destruction EQ.
-    cbn*.
-    rewrite <- x in EQu.
-    dependent destruction EQu.
-    rewrite <- H0, <- x.
-    eauto.
-Qed.
 
 #[global] Instance equb_eq_equ' {E B X Y} {R : rel X Y} :
   Proper (equ eq ==> equ eq ==> flip impl) (@equ E B X Y R).
@@ -300,6 +273,10 @@ Proof.
     rewrite <- x.
     eauto.
 Qed.
+
+#[global] Instance equb_eq_equ {E B X} {Q : rel X X} :
+  Proper (equ eq ==> equ eq ==> flip impl) (@equ E B X X Q).
+Proof. apply equb_eq_equ'. Qed.
 
 (*|
 Dependent inversion of [equ] and [equb] equations
@@ -765,15 +742,6 @@ Next Obligation.
   intros * ?? LE t u EQ; inv EQ.
   econstructor; eauto.
   apply LE; auto.
-Qed.
-
-(*|
-Sufficient condition to prove compatibility only over the simulation
-|*)
-Lemma equ_clos_sym {E B X} : compat converse (@equ_clos E E B B X X).
-Proof.
-  intros R t u EQ; inv EQ.
-  apply Equ_clos with u' t'; intuition.
 Qed.
 
 

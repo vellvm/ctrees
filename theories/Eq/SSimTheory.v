@@ -10,10 +10,7 @@ From CTree Require Import
      Utils
      Eq.Equ
      Eq.SBisim
-<<<<<<< HEAD
-=======
      Eq.SSim0Theory
->>>>>>> master
      Eq.Shallow
      Eq.Trans.
 
@@ -33,75 +30,66 @@ Arguments trans : simpl never.
   __coinduction_sbisim R H || coinduction R H.
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
 
-<<<<<<< HEAD
-Lemma ssim_subrelation : forall {E C X} `{C0 -< C} (t t' : ctree E C X) L L',
-  subrelation L L' -> ssim L t t' -> ssim L' t t'.
-Proof.
-  intros. revert t t' H1. coinduction R CH.
-  intros. step in H1. simpl. intros.
-  cbn in H1. apply H1 in H2 as (? & ? & ? & ? & ?).
-  apply H0 in H4. exists x, x0. auto.
-Qed.
+Section ssim_homogenous_theory.
 
-Section ssim_theory.
+  Context {E C : Type -> Type} {X : Type}
+          {L: relation (@label E)}
+          {HasStuck: B0 -< C}.
 
-  Context {E F C D : Type -> Type} {X Y : Type}.
-  Context `{HasStuck : C0 -< C} `{HasStuck' : C0 -< D}.
-  Notation ss1 := (@ss E E C C X X _ _).
-  Notation sse := (ss1 eq).
-  Notation ss := (@ss E F C D X Y).
-  Notation ssim1  := (@ssim E E C C X X).
-  Notation ssim  := (@ssim E F C D X Y).
-  Notation sst L := (coinduction.t (ss L)).
-  Notation sst1 L := (coinduction.t (ss1 L)).
-  Notation ssbt L := (coinduction.bt (ss L)).
-  Notation ssbt1 L := (coinduction.bt (ss1 L)).
-  Notation ssT L := (coinduction.T (ss L)).
-  Notation ssT1 L := (coinduction.T (ss1 L)).
-=======
-Section ssim_theory.
-
-  Context {E : Type -> Type} {X : Type}.
-  Notation ss := (@ss E X).
-  Notation ssim := (@ssim E X).
+  Notation ss0 := (@ss0 E E C C X X _ _ L).
+  Notation ss := (@ss E E C C X X _ _ L).
+  Notation ssim  := (@ssim E E C C X X).
   Notation sst := (coinduction.t ss).
   Notation ssbt := (coinduction.bt ss).
   Notation ssT := (coinduction.T ss).
->>>>>>> master
 
-(*|
-Various results on reflexivity and transitivity.
-|*)
-<<<<<<< HEAD
-  Lemma refl_sst1: forall L, `(Reflexive L) -> const seq <= sst1 L.
+  Lemma ssim_subrelation : forall (t t' : ctree E C X) L',
+      subrelation L L' -> ssim L t t' -> ssim L' t t'.
+  Proof.
+    intros. revert t t' H0. coinduction R CH.
+    intros. step in H0. simpl; split; intros; cbn in H0; destruct H0 as [H0' H0''].  
+    - cbn in H0'; apply H0' in H1 as (? & ? & ? & ? & ?);
+        apply H in H2. exists x, x0. auto.
+    - cbn in H0''; apply H0'' in H1 as (? & ? & ? & ?).
+      apply H in H0. exists x, x0. auto.
+  Qed.
+
+  (*|
+    Various results on reflexivity and transitivity.
+    |*)
+  
+  Lemma refl_sst `{Reflexive _ L}: const seq <= sst.
   Proof.
     intros. apply leq_t.
-    cbn. intros. unfold seq in H0. subst. eauto.
+    cbn. intros. unfold seq in H0. subst. split; eauto.
   Qed.
 
-  #[global] Instance Reflexive_ss1: forall L R, `(Reflexive L) -> `(Reflexive R) -> Reflexive (ss1 L R).
+  #[global] Instance Reflexive_ss R `{Reflexive _ L} `{Reflexive _ R}: Reflexive (ss R).
   Proof.
-    intros L R HL HR t l t' tt'.
-    exists t', l. auto.
+    intros t.
+    split; simpl; intros l t' TR; exists l, t'; auto.
   Qed.
 
-  #[global] Instance Reflexive_ssim1: Reflexive (ssim1 eq).
+  #[global] Instance Reflexive_ssim: Reflexive (ssim eq).
+  Proof.
+    cbn.  coinduction R CH.
+    intros t.
+    split; simpl; intros l t' TR; exists l, t'; auto.
+  Qed.
+
+  #[global] Instance Reflexive_ssim_flip: Reflexive (ssim (flip eq)).
   Proof.
     cbn. coinduction R CH.
-    apply Reflexive_ss1; auto.
+    intros t.
+    split; simpl; intros l t' TR; exists l, t'; auto.
   Qed.
 
-  #[global] Instance Reflexive_ssim_flip: Reflexive (ssim1 (flip eq)).
+  Lemma square_sst `{Transitive _ L}: square <= sst.
   Proof.
-    cbn. coinduction R CH.
-    apply Reflexive_ss1; auto.
-  Qed.
-
-  Lemma square_sst1 : forall (L : relation label), `(Transitive L) -> square <= sst1 L.
-  Proof.
-    intros L HL.
+    intros HL.
     apply Coinduction.
-    intros R x z [y xy yz] l x' xx'.
+    intros R x z [y xy yz]; split; intros l x' xx'.
+    (* LEF: Marker *)
     destruct (xy _ _ xx') as (y' & ? & yy' & x'y' & ?).
     destruct (yz _ _ yy') as (z' & ? & zz' & y'z' & ?).
     exists z', x1. split; [ assumption |]. split; [| now transitivity x0 ].
@@ -1558,3 +1546,18 @@ Qed.
 
 End WithParams.
 >>>>>>> master
+
+        
+Section ssim_heterogenous_theory.
+  #[local] Arguments label: clear implicits.
+  Context {E F C D : Type -> Type} {X Y : Type}
+          {L: rel (label E) (label F)}
+          {HasStuck1: B0 -< C} {HasStuck2: B0 -< D}.
+
+  Notation hss := (@ss E F C D X Y _ _ L).
+  Notation hssim  := (@ssim E F C D X Y _ _ L).
+  Notation hsst := (coinduction.t ss).
+  Notation hssbt := (coinduction.bt ss).
+  Notation hssT := (coinduction.T ss).
+  
+End ssim_heterogenous_theory.

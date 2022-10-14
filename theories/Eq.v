@@ -45,10 +45,7 @@ The [step], [step in] and [coinduction] tactics from [coinduction]
 Assuming a goal of the shape [t ~ u], initialize the two challenges
 |*)
 #[global] Tactic Notation "play" := __play_sbisim || __play_ssim.
-<<<<<<< HEAD
-#[global] Tactic Notation "play" "in" ident(H) := __play_ssim_in H.
-=======
->>>>>>> master
+
 
 (*|
 Assuming an hypothesis of the shape [t ~ u], extract the forward (playL)
@@ -91,13 +88,7 @@ useful to setup inductions.
 |*)
 Ltac eq2equ H :=
   match type of H with
-<<<<<<< HEAD
-  | ?u = ?t =>
-      let eq := fresh "EQ" in
-      assert (eq : u ≅ t) by (rewrite H; reflexivity); clear H
-=======
   | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≅ t) by (rewrite H; reflexivity); clear H
->>>>>>> master
   end.
 
 Ltac eq2sb H :=

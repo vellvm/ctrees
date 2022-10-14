@@ -44,6 +44,7 @@ From Coq Require Import
      Lia
      Basics
      Fin
+     RelationClasses
      Program.Equality
      Logic.Eqdep.
 
@@ -174,14 +175,14 @@ Module SBisimNotations.
   Notation "t {{≲ L }} u" := (ssbt L _ t u) (at level 79).
   Notation "t {{≲}} u" := (ssbt eq _ t u) (at level 79).
 
-  Notation "t [~ L] u" := (st L t u) (at level 79).
-  Notation "t [~] u" := (st eq t u) (at level 79).
+  Notation "t [~ L] u" := (st L _ t u) (at level 79).
+  Notation "t [~] u" := (st eq _ t u) (at level 79).
 
-  Notation "t {~ L } u" := (sbt L t u) (at level 79).
-  Notation "t {~} u" := (sbt eq t u) (at level 79).
+  Notation "t {~ L } u" := (sbt L _ t u) (at level 79).
+  Notation "t {~} u" := (sbt eq _ t u) (at level 79).
 
-  Notation "t {{ ~ L }} u" := (sb L t u) (at level 79).
-  Notation "t {{~}} u" := (sb eq t u) (at level 79).
+  Notation "t {{ ~ L }} u" := (sb L _ t u) (at level 79).
+  Notation "t {{~}} u" := (sb eq _ t u) (at level 79).
 
 End SBisimNotations.
 
@@ -291,34 +292,15 @@ Proof.
   intros. apply ssim_ssim0. now apply sbisim_ssim.
 Qed.
 
-Section sbisim_heterogenous_theory.
-  Notation hss E F C D X Y L := (@ss E F C D X Y _ _ L).
-  Notation hsb E F C D X Y L := (@sb E F C D X Y _ _ L).
-  Notation hsbisim E F C D X Y L := (@sbisim E F C D X Y _ _ L).
 
-  Notation ss E C X := (@ss E E C C X X _ _ eq).
-  Notation sb E C X := (@sb E E C C X X _ _ eq).
-  Notation sbisim E C X:= (@sbisim E E C C X X _ _ eq).
-  
-  Notation st  E C X := (coinduction.t (sb E C X)).
-  Notation sbt E C X := (coinduction.bt (sb E C X)).
-  Notation sT  E C X := (coinduction.T (sb E C X)).
-
-  #[global] Instance sbisim_sbisim_hclosed_goal {E F C D: Type -> Type} {X Y: Type}
-   `{HasStuck1 : B0 -< C} `{HasStuck2 : B0 -< D} {L: rel (@label E) (@label F)} :
-    
-    Proper (sbisim E C X ==> sbisim F D Y ==> flip impl)
-           (hsbisim E F C D X Y L).
-  Admitted.
-
-  
-End sbisim_heterogenous_theory.
 
 Section sbisim_homogenous_theory.
-  Context {E C: Type -> Type} {X: Type} `{HasStuck: B0 -< C}.
-  Notation ss := (@ss E E C C X X _ _ eq).
-  Notation sb  := (@sb E E C C X X _ _ eq).
-  Notation sbisim := (@sbisim E E C C X X _ _ eq).
+  Context {E C: Type -> Type} {X: Type} `{HasStuck: B0 -< C}
+          (L: relation (@label E)).
+  
+  Notation ss := (@ss E E C C X X _ _ L).
+  Notation sb  := (@sb E E C C X X _ _ L).
+  Notation sbisim := (@sbisim E E C C X X _ _ L).
 
   Notation st := (coinduction.t sb).
   Notation sbt := (coinduction.bt sb).
@@ -332,7 +314,7 @@ Section sbisim_homogenous_theory.
   Definition seq: relation (ctree E C X) := eq.
   Arguments seq/.
 
-  Lemma refl_st : const seq <= st.
+  Lemma refl_st {RL: Reflexive L} : const seq <= st.
   Proof.
     apply leq_t.
     split; intros; cbn*; intros; inv H; subst;
@@ -343,50 +325,54 @@ Section sbisim_homogenous_theory.
     [converse] is compatible
     i.e. validity of up-to symmetry
     |*)
-  Lemma converse_st: converse <= st.
+  Lemma converse_st {SL: Symmetric L}: converse <= st.
   Proof.
     apply leq_t; cbn.
     intros R ? ? [H1 H2]; split; intros.
-    - destruct (H2 _ _ H) as (? & ? & ? & ? & ?); subst; eauto.
-    - destruct (H1 _ _ H) as (? & ? & ? & ? & ?); subst; eauto.
+    - destruct (H2 _ _ H) as (? & ? & ? & ? & ?); subst; symmetry in H4; eauto.
+    - destruct (H1 _ _ H) as (? & ? & ? & ? & ?); subst; symmetry in H4; eauto.
   Qed.
 
   (*|
     [square] is compatible
     i.e. validity of up-to transivitiy
     |*)
-  Lemma square_st: square <= st.
+  Lemma square_st {TR: Transitive L}: square <= st.
   Proof.
     apply Coinduction; cbn.    
     intros R x z [y [xy yx] [yz zy]].
     split.
-    - intros ? x' xx'.
-      destruct (xy _ _ xx') as (? & y' & yy' & ? & <-). 
-      destruct (yz _ _ yy') as (? & z' & zz' & ? & <-).
-      exists l, z'; split; intuition.
+     - intros ?l x' xx'.
+      destruct (xy _ _ xx') as (?l & y' & yy' & ? & EQ).
+      destruct (yz _ _ yy') as (?l & z' & zz' & ? & EQ').
+      do 2 eexists; repeat split.
+      eauto.
       apply (f_Tf sb).
       eexists; eauto.
-    - intros ? z' zz'.      
-      destruct (zy _ _ zz') as (? & y' & yy' & ? & <-).
-      destruct (yx _ _ yy') as (l & x' & xx' & ? & <-).
-      exists l, x'; split; intuition.
-      apply (f_Tf sb).      
+      transitivity l0; assumption.
+    - intros ?l z' zz'.
+      destruct (zy _ _ zz') as (?l & y' & yy' & ? & EQ).
+      destruct (yx _ _ yy') as (?l & x' & xx' & ? & EQ').
+      do 2 eexists; repeat split.
+      eauto.
+      apply (f_Tf sb).
       eexists; eauto.
+      transitivity l0; assumption.
   Qed.
 
   (*|
     Thus bisimilarity and [t R] are always equivalence relations.
     |*)
-  #[global] Instance Equivalence_st R: Equivalence (st R).
+  #[global] Instance Equivalence_st `{Equivalence _ L} R: Equivalence (st R).
   Proof. apply Equivalence_t. apply refl_st. apply square_st. apply converse_st. Qed.
 
-  Corollary Equivalence_bisim : Equivalence sbisim.
+  Corollary Equivalence_bisim `{Equivalence _ L}: Equivalence sbisim.
   Proof. apply Equivalence_st. Qed.
 
-  #[global] Instance Equivalence_sbt R: Equivalence (sbt R).
+  #[global] Instance Equivalence_sbt `{Equivalence _ L} R: Equivalence (sbt R).
   Proof. apply rel.Equivalence_bt. apply refl_st. apply square_st. apply converse_st. Qed.
 
-  #[global] Instance Equivalence_sT f R: Equivalence ((T sb) f R).
+  #[global] Instance Equivalence_sT `{Equivalence _ L} f R: Equivalence ((T sb) f R).
   Proof. apply rel.Equivalence_T. apply refl_st. apply square_st. apply converse_st. Qed.
 
   (*|
@@ -395,46 +381,46 @@ Aggressively providing instances for rewriting hopefully faster
 of the companion).
 |*)
 
-  #[global] Instance sbisim_sbisim_closed_goal : Proper (sbisim ==> sbisim ==> flip impl) sbisim.
+  #[global] Instance sbisim_sbisim_closed_goal `{Equivalence _ L} : Proper (sbisim ==> sbisim ==> flip impl) sbisim.
   Proof.
     repeat intro.
     etransitivity; [etransitivity; eauto | symmetry; eassumption].
   Qed.
 
-  #[global] Instance sbisim_sbisim_closed_ctx : Proper (sbisim ==> sbisim ==> impl) sbisim.
+  #[global] Instance sbisim_sbisim_closed_ctx `{Equivalence _ L} : Proper (sbisim ==> sbisim ==> impl) sbisim.
   Proof.
     repeat intro.
     etransitivity; [symmetry; eassumption | etransitivity; eauto].
   Qed.
 
-  #[global] Instance sbisim_clos_st_goal RR :
-    Proper (sbisim ==> sbisim ==> flip impl) (st RR).
+  #[global] Instance sbisim_clos_st_goal `{Equivalence _ L} R :
+    Proper (sbisim ==> sbisim ==> flip impl) (st R).
   Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
     rewrite eq1, eq2.
     auto.
   Qed.
 
-  #[global] Instance sbisim_clos_st_ctx RR :
-    Proper (sbisim ==> sbisim ==> impl) (st RR).
+  #[global] Instance sbisim_clos_st_ctx `{Equivalence _ L} R :
+    Proper (sbisim ==> sbisim ==> impl) (st R).
   Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
     rewrite <- eq1, <- eq2.
     auto.
   Qed.
 
-  #[global] Instance sbisim_clos_sT_goal RR f :
-    Proper (sbisim ==> sbisim ==> flip impl) (sT f RR).
+  #[global] Instance sbisim_clos_sT_goal `{Equivalence _ L} R f :
+    Proper (sbisim ==> sbisim ==> flip impl) (sT f R).
   Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
     rewrite eq1, eq2.
     auto.
   Qed.
 
-  #[global] Instance sbisim_clos_sT_ctx RR f :
-    Proper (sbisim ==> sbisim ==> impl) (sT f RR).
+  #[global] Instance sbisim_clos_sT_ctx `{Equivalence _ L} R f :
+    Proper (sbisim ==> sbisim ==> impl) (sT f R).
   Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
     rewrite <- eq1, <- eq2.
     auto.
   Qed.
@@ -446,22 +432,26 @@ of the companion).
   Lemma equ_clos_st : equ_clos <= st.
   Proof.
     apply Coinduction; cbn.
-    intros R x1 y1 [x2 y2 x3 y3 EQ2 [H1 H2] EQ3].
-    split; intros; cbn*.
-    Admitted.
-  (* apply equ_clos_sym.
-    intros R t u EQ l t1 TR. cbn in EQ. inv EQ.
-    destruct HR as [F _]; cbn in *.
-    rewrite Equt in TR.
-    apply F in TR.
-    destruct TR as (? & ? & ? & ? & ?). subst.
-    exists x. exists x0. intuition.
-    rewrite <- Equu; eauto.
-    eapply (f_Tf sb).
-    econstructor; intuition.
-    auto.
-  Qed. *)
-  
+    intros R x y [x' y' x'' y'' EQ' [F B] EQ'']; split.
+    - intros l z x'z.
+      rewrite EQ' in x'z.
+      apply F in x'z.
+      destruct x'z as (? & ? & ? & ? & ?).
+      do 2 eexists; intuition.
+      rewrite <- EQ''. eauto.
+      eapply (f_Tf sb).
+      econstructor; eauto.
+      eauto.
+    - intros l z y'z.
+      rewrite <- EQ'' in y'z.
+      apply B in y'z.
+      destruct y'z as (? & ? & ? & ? & ?).
+      do 2 eexists; intuition.
+      rewrite EQ'; eauto.
+      eapply (f_Tf sb).
+      econstructor; eauto.
+      eauto.
+  Qed.
 
   (*|
     Aggressively providing instances for rewriting [equ] under all [sb]-related
@@ -481,18 +471,18 @@ of the companion).
     apply (ft_t equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_sbt_closed_goal {r} :
-    Proper (equ eq ==> equ eq ==> flip impl) (sbt r).
+  #[global] Instance equ_sbt_closed_goal `{EqL: Equivalence _ L} R:
+    Proper (equ eq ==> equ eq ==> flip impl) (sbt R).
   Proof.
-    repeat intro. pose proof (gfp_bt sb r).
+    repeat intro. pose proof (gfp_bt sb R).
     etransitivity; [| etransitivity]; [ | apply H1 | ]; apply H2.
     rewrite H; auto. rewrite H0; auto.
   Qed.
 
-  #[global] Instance equ_sbt_closed_ctx {r} :
-    Proper (equ eq ==> equ eq ==> impl) (sbt r).
+  #[global] Instance equ_sbt_closed_ctx `{EqL: Equivalence _ L} {R} :
+    Proper (equ eq ==> equ eq ==> impl) (sbt R).
   Proof.
-    repeat intro. pose proof (gfp_bt sb r).
+    repeat intro. pose proof (gfp_bt sb R).
     etransitivity; [| etransitivity]; [ | apply H1 | ]; apply H2.
     rewrite H; auto. rewrite H0; auto.
   Qed.
@@ -525,29 +515,27 @@ of the companion).
     apply (ft_t equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
-  Check sbisim.
-  Check ss0.
-  #[global] Instance equ_ss0_closed_goal {r} : Proper (equ eq ==> equ eq ==> flip impl) (@ss0 E E C C X X _ _ eq r).
+  #[global] Instance equ_ss0_closed_goal {r} : Proper (equ eq ==> equ eq ==> flip impl) (@ss0 E E C C X X _ _ L r).
   Proof.
     intros t t' tt' u u' uu'; cbn; intros.
     rewrite tt' in H0. apply H in H0 as (? & ? & ? & ? & ?).
     eexists; eexists; eauto. rewrite uu'. eauto.
   Qed.
 
-  #[global] Instance equ_ss0_closed_ctx {r} : Proper (equ eq ==> equ eq ==> impl) (@ss0 E E C C X X _ _ eq r).
+  #[global] Instance equ_ss0_closed_ctx {r} : Proper (equ eq ==> equ eq ==> impl) (@ss0 E E C C X X _ _ L r).
   Proof.
     intros t t' tt' u u' uu'; intros.
     rewrite tt', uu'. reflexivity.
   Qed.
 
-  #[global] Instance equ_ss_closed_goal {r} : Proper (equ eq ==> equ eq ==> flip impl) (ss r).
+  #[global] Instance equ_ss_closed_goal `{EqL: Equivalence _ L} {r} : Proper (equ eq ==> equ eq ==> flip impl) (ss r).
   Proof.
     intros t t' tt' u u' uu'; split; intros.
     - rewrite tt', uu'. apply H.
     - rewrite uu' in H0. apply H in H0. setoid_rewrite tt'. apply H0.
   Qed.
 
-  #[global] Instance equ_ss_closed_ctx {r} : Proper (equ eq ==> equ eq ==> impl) (ss r).
+  #[global] Instance equ_ss_closed_ctx `{EqL: Equivalence _ L} {r} : Proper (equ eq ==> equ eq ==> impl) (ss r).
   Proof.
     intros t t' tt' u u' uu'; intros.
     rewrite tt', uu'. reflexivity.
@@ -556,27 +544,12 @@ of the companion).
   (*|
 Hence [equ eq] is a included in [sbisim]
 |*)
-  #[global] Instance equ_sbisim_subrelation : subrelation (equ eq) sbisim.
+  #[global] Instance equ_sbisim_subrelation `{EqL: Equivalence _ L} : subrelation (equ eq) sbisim.
   Proof.
     red; intros.
     rewrite H; reflexivity.
   Qed.
 End sbisim_homogenous_theory.
-
-(* Up-to-bisimulation enhancing function *)
-Variant sbisim_clos_body {E F C D X1 X2} `{B0 -< C} `{B0 -< D} (R : rel (ctree E C X1) (ctree F D X2)) : (rel (ctree E C X1) (ctree F D X2)) :=
-  | Sbisim_clos : forall t t' u' u
-                 (Sbisimt : t ~ t')
-                 (HR : R t' u')
-                 (Sbisimu : u' ~ u),
-      sbisim_clos_body R t u.
-
-Program Definition sbisim_clos {E F C D X1 X2} `{B0 -< C} `{B0 -< D} : mon (rel (ctree E C X1) (ctree F D X2)) :=
-  {| body := @sbisim_clos_body E F C D X1 X2 _ _ |}.
-Next Obligation.
-  destruct H2.
-  econstructor; eauto.
-Qed.
 
 (*|
 Up-to [bind] context bisimulations
@@ -1228,7 +1201,7 @@ With invisible schedules, they are always equivalent: neither of them
 produce any challenge for the other.
 |*)
 
-  Lemma spinV_gen_nonempty : forall {Z X Y} (c: C X) (c': C Y) (x: X) (y: Y),
+  Lemma spinS_gen_nonempty : forall {Z X Y} (c: C X) (c': C Y) (x: X) (y: Y),
       @spinS_gen E C Z X c ~ @spinS_gen E C Z Y c'.
   Proof.
     intros R.
@@ -1247,12 +1220,12 @@ produce any challenge for the other.
       + rewrite EQ; eauto.
   Qed.
 
-  Lemma spinI_gen_bisim : forall {Z X Y} (c: C X) (c': C Y),
+  Lemma spinD_gen_bisim : forall {Z X Y} (c: C X) (c': C Y),
       @spinD_gen E C Z X c ~ @spinD_gen E C Z Y c'.
   Proof.
     intros R.
     coinduction S _; split; cbn;
-      intros * TR; exfalso; eapply spinI_gen_is_stuck, TR.
+      intros * TR; exfalso; eapply spinD_gen_is_stuck, TR.
   Qed.
 
   (*|
@@ -1414,7 +1387,6 @@ Inversion principles
     Annoying case: [Vis e k ~ BrS c k'] is true if [e : E void] and [c : C void].
     We rule out this case in this definition.
     |*)
-  Check BrF.
   Definition are_bisim_incompat {X} (t u : ctree E C X) : Type :=
     match observe t, observe u with
     | RetF _, RetF _
@@ -1524,3 +1496,67 @@ Inversion principles
   Qed.
 End WithParams.
 
+(*|
+  This section should describe lemmas proved for the
+  heterogenous version of `ss`, parametric on
+  - Return types X, Y
+  - Label types E, F
+  - Branch effects C, D
+|*)
+Section sbisim_heterogenous_theory.
+
+  Arguments label: clear implicits.
+  Context {E F C D : Type -> Type} {X Y : Type}
+          {L: rel (@label E) (@label F)}
+          {HasStuck1: B0 -< C} {HasStuck2: B0 -< D}.
+  
+  Notation hss := (@ss E F C D X Y _ _ L).
+  Notation hsb := (@sb E F C D X Y _ _ L).
+  Notation hsbisim := (@sbisim E F C D X Y _ _ L).
+
+  Notation hst  E C X := (coinduction.t (hsb E C X)).
+  Notation hsbt E C X := (coinduction.bt (hsb E C X)).
+  Notation hsT  E C X := (coinduction.T (hsb E C X)).
+
+
+  (*| Up-to-bisimulation enhancing function |*)
+  Variant sbisim_clos_body LE LF
+          (R : rel (ctree E C X) (ctree F D Y)) : (rel (ctree E C X) (ctree F D Y)) :=
+    | Sbisim_clos : forall t t' u' u
+                      (Sbisimt : t (~ LE) t')
+                      (HR : R t' u')
+                      (Sbisimu : u' (~ LF) u),
+        sbisim_clos_body LE LF R t u.
+
+  Program Definition sbisim_clos LE LF : mon (rel (ctree E C X) (ctree F D Y)) :=
+    {| body := @sbisim_clos_body LE LF |}.
+  Next Obligation.
+    destruct H0.
+    econstructor; eauto.
+  Qed.
+
+  (* LEF: What is L here? *)
+  Theorem sbisim_clos_upto LE LF R: sbisim_clos LE LF R <= st L R.
+    Proof. Admitted.
+
+  #[global] Instance sbisim_hsbisim_hclosed_goal {LE: rel (label E) (label E)} {LF: rel (label F) (label F)}:
+    
+    Proper (sbisim LE ==> sbisim LF ==> flip impl) hsbisim.
+  Admitted.
+
+  #[global] Instance sbisim_hsbisim_hclosed_ctx {LE: rel (label E) (label E)} {LF: rel (label F) (label F)}:
+    
+    Proper (sbisim LE ==> sbisim LF ==> impl) hsbisim.
+  Admitted.
+
+  #[global] Instance equ_hsbisim_hclosed_goal:
+    
+    Proper (equ eq ==> equ eq ==> flip impl) hsbisim.
+  Admitted.
+
+  #[global] Instance equ_hsbisim_hclosed_ctx:
+    
+    Proper (equ eq ==> equ eq ==> impl) hsbisim.
+  Admitted.
+  
+End sbisim_heterogenous_theory.

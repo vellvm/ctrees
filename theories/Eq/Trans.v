@@ -901,7 +901,7 @@ Section stuck.
     apply Br0_is_stuck.
   Qed.
 
-  Lemma spinI_gen_is_stuck {Y} (x : B Y) :
+  Lemma spinD_gen_is_stuck {Y} (x : B Y) :
     is_stuck (spinD_gen x).
   Proof.
     red; intros * abs.
