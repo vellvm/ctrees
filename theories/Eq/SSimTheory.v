@@ -36,12 +36,12 @@ Section ssim_homogenous_theory.
           {L: relation (@label E)}
           {HasStuck: B0 -< C}.
 
-  Notation ss0 := (@ss0 E E C C X X _ _ L).
-  Notation ss := (@ss E E C C X X _ _ L).
-  Notation ssim  := (@ssim E E C C X X).
-  Notation sst := (coinduction.t ss).
-  Notation ssbt := (coinduction.bt ss).
-  Notation ssT := (coinduction.T ss).
+  Notation ss0 := (@ss0 E E C C X X _ _).
+  Notation ss := (@ss E E C C X X _ _).
+  Notation ssim  := (@ssim E E C C X X _ _).
+  Notation sst L := (coinduction.t (ss L)).
+  Notation ssbt L := (coinduction.bt (ss L)).
+  Notation ssT L := (coinduction.T (ss L)).
 
   Lemma ssim_subrelation : forall (t t' : ctree E C X) L',
       subrelation L L' -> ssim L t t' -> ssim L' t t'.
@@ -57,83 +57,108 @@ Section ssim_homogenous_theory.
   (*|
     Various results on reflexivity and transitivity.
     |*)
-  
-  Lemma refl_sst `{Reflexive _ L}: const seq <= sst.
+  Lemma refl_sst `{Reflexive _ L}: const seq <= (sst L).
   Proof.
     intros. apply leq_t.
     cbn. intros. unfold seq in H0. subst. split; eauto.
   Qed.
 
-  #[global] Instance Reflexive_ss R `{Reflexive _ L} `{Reflexive _ R}: Reflexive (ss R).
+  #[global] Instance Reflexive_ss R `{Reflexive _ L} `{Reflexive _ R}: Reflexive (ss L R).
   Proof.
     intros t.
     split; simpl; intros l t' TR; exists l, t'; auto.
   Qed.
 
-  #[global] Instance Reflexive_ssim: Reflexive (ssim eq).
+  #[global] Instance Reflexive_ssim `{Reflexive _ L}: Reflexive (ssim L).
   Proof.
     cbn.  coinduction R CH.
     intros t.
-    split; simpl; intros l t' TR; exists l, t'; auto.
+    split; simpl; intros l t' TR; exists l, t'; split; auto.
   Qed.
 
-  #[global] Instance Reflexive_ssim_flip: Reflexive (ssim (flip eq)).
+  Lemma square_sst `{Transitive _ L}: square <= (sst L).
   Proof.
-    cbn. coinduction R CH.
-    intros t.
-    split; simpl; intros l t' TR; exists l, t'; auto.
+    apply Coinduction; cbn.
+    intros R x z [y [xy yx] [yz zy]].
+    split.
+    - intros l x' xx'.
+      destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
+      destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
+      exists l'', z'.
+      split; [assumption |split].
+      + apply (f_Tf (ss L)).
+        exists y'; eauto.
+      + transitivity l'; auto.
+    - intros l z' zz'.
+      destruct (zy _ _ zz') as (l' & y' & ? & yy'). 
+      destruct (yx _ _ yy') as (l'' & x' & ? & xx').
+      exists l'', x'.
+      split; eauto with trans.
   Qed.
 
-  Lemma square_sst `{Transitive _ L}: square <= sst.
+  Lemma Transitive_ss R `{Transitive _ L} `{Transitive _ R}: Transitive (ss L R).
   Proof.
-    intros HL.
-    apply Coinduction.
-    intros R x z [y xy yz]; split; intros l x' xx'.
-    (* LEF: Marker *)
-    destruct (xy _ _ xx') as (y' & ? & yy' & x'y' & ?).
-    destruct (yz _ _ yy') as (z' & ? & zz' & y'z' & ?).
-    exists z', x1. split; [ assumption |]. split; [| now transitivity x0 ].
-    apply (f_Tf (ss1 L)).
-    eexists; eauto.
-  Qed.
+    cbn.
+    intros x y z [xy yx] [yz zy].
+    split.
+    - intros l x' xx'.
+      destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
+      destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
+      exists l'', z'.
+      split; [assumption | split].
+      + now transitivity y'.
+      + now transitivity l'.
+    - intros l z' zz'.
+      destruct (zy _ _ zz') as (l' & y' & ? & yy'). 
+      destruct (yx _ _ yy') as (l'' & x' & ? & xx').
+      exists l'', z'.
+      split.
+      + now transitivity l'.
+      + admit. (* LEF: not sure why this doesn't work *)
+  Admitted.
 
-  Lemma Transitive_ss: forall L R, `(Transitive L) -> `(Transitive R) -> Transitive (ss1 L R).
+  #[global] Instance PreOrder_sst R `{PreOrder _ L}: PreOrder (sst L R).
+  Proof. apply PreOrder_t. apply refl_sst. apply square_sst. Qed.
+
+  Corollary PreOrder_ssim `{PreOrder _ L}:  PreOrder (ssim L).
+  Proof. now apply PreOrder_sst. Qed.
+
+  #[global] Instance PreOrder_ssbt R `{PreOrder _ L}: PreOrder (ssbt L R).
+  Proof. apply rel.PreOrder_bt. now apply refl_sst. apply square_sst. Qed.
+
+  #[global] Instance PreOrder_ssT f R `{PreOrder _ L}: PreOrder ((T (ss L)) f R).
+  Proof. apply rel.PreOrder_T. now apply refl_sst. apply square_sst. Qed.
+
+
+  (*|
+    Aggressively providing instances for rewriting hopefully faster
+    [sbisim] under relevant [ss]-related contexts (consequence of the transitivity
+    of the companion).
+    |*)
+  Lemma sbisim_clos_ss `{PreOrder _ L}: @sbisim_clos E E C C X X _ _ eq eq <= (sst L).
   Proof.
-    intros L R HL HR x y z xy yz l x' xx'.
-    destruct (xy _ _ xx') as (y' & ? & yy' & x'y' & ?).
-    destruct (yz _ _ yy') as (z' & ? & zz' & y'z' & ?).
-    exists z', x1. intuition. now transitivity y'. now transitivity x0.
-  Qed.
-
-  #[global] Instance PreOrder_sst1 L R `(PreOrder _ L) : PreOrder (sst1 L R).
-  Proof. apply PreOrder_t. apply refl_sst1. apply H. apply square_sst1. apply H. Qed.
-
-  Corollary PreOrder_ssim1 L: `(PreOrder L) -> PreOrder (ssim1 L).
-  Proof. apply PreOrder_sst1. Qed.
-
-  #[global] Instance PreOrder_sbt (L : relation _) R : `(PreOrder L) -> PreOrder (ssbt1 L R).
-	Proof. intro. apply rel.PreOrder_bt. now apply refl_sst1. apply square_sst1. apply H. Qed.
-
-  #[global] Instance PreOrder_sT L f R: `(PreOrder L) -> PreOrder ((T (ss1 L)) f R).
-  Proof. intro. apply rel.PreOrder_T. now apply refl_sst1. apply square_sst1. apply H. Qed.
-
-(*|
-Aggressively providing instances for rewriting hopefully faster
-[sbisim] under relevant [ss]-related contexts (consequence of the transitivity
-of the companion).
-|*)
-
-  Lemma sbisim_clos_ss : forall L, sbisim_clos <= sst L.
-  Proof.
-    intro. apply Coinduction.
-    cbn. intros.
-    destruct H.
-    step in Sbisimt. apply Sbisimt in H0 as (? & ? & ? & ? & ?). subst.
-    apply HR in H as (? & ? & ? & ? & ?).
-    step in Sbisimu. apply Sbisimu in H as (? & ? & ? & ? & ?). subst.
-    exists x3, x4. split; [assumption|]. split; [|assumption].
-    eapply (f_Tf (ss L)).
-    econstructor; eauto.
+    intro R1. apply Coinduction.
+    cbn; intros Rs x y [z x' y' z' SBzx' [x'y' y'x'] SBy'z']; split. 
+    - intros l t zt.      
+      step in SBzx'.
+      apply SBzx' in zt as (l' & t' & x't' & ? & ?); subst.
+      destruct (x'y' _ _ x't') as (l'' & t'' & y't'' & ? & ?).
+      
+      step in SBy'z'.
+      apply SBy'z' in y't'' as (ll & tt & z'tt & ? & ?); subst.
+      exists ll, tt; split; trivial.
+      + split; trivial.
+        apply (f_Tf (ss L)).
+        econstructor; eauto.
+    - intros l t z't.
+      step in SBy'z'.
+      symmetry in SBy'z'.      
+      apply SBy'z' in z't as (l' & t' & y't' & ? & ?); subst.
+      destruct (y'x' _ _ y't') as (l'' & t'' & y't'' & ?).
+      step in SBzx'.
+      apply SBzx' in H1 as (ll & tt & ztt & ? & ?); subst.
+      exists ll, tt; split; trivial.
+      simpl in H1, H2; subst; assumption.
   Qed.
 
   #[global] Instance sbisim_clos_ssim_goal L :
@@ -151,44 +176,6 @@ of the companion).
     split; [| assumption].
     symmetry in H7. eapply CH; eassumption.
   Qed.
-
-  #[global] Instance sbisim_clos_ssim_ctx L :
-    Proper (sbisim ==> sbisim ==> impl) (ssim L).
-=======
-  Lemma refl_sst: const seq <= sst.
-  Proof.
-    apply leq_t. cbn.
-    intros. unfold seq in H. subst. eauto.
-  Qed.
-
-  Lemma square_sst : square <= sst.
-  Proof.
-    apply Coinduction.
-    intros R x z [y xy yz].
-    split.
-    - intros l x' xx'.
-      destruct (proj1 xy _ _ xx') as [y' yy' x'y'].
-      destruct (proj1 yz _ _ yy') as [z' zz' y'z'].
-      exists z'. assumption.
-      apply (f_Tf ss).
-      eexists; eauto.
-    - intros l z' zz'.
-      destruct (proj2 yz _ _ zz') as (l' & y' & yy').
-      destruct (proj2 xy _ _ yy') as (l'' & x' & xx').
-      eauto.
-  Qed.
-
-  #[global] Instance PreOrder_sst R : PreOrder (sst R).
-  Proof. apply PreOrder_t. apply refl_sst. apply square_sst. Qed.
-
-  Corollary PreOrder_ssim: PreOrder ssim.
-  Proof. apply PreOrder_sst. Qed.
-
-  #[global] Instance PreOrder_ssbt R : PreOrder (ssbt R).
-	Proof. apply rel.PreOrder_bt. now apply refl_sst. apply square_sst. Qed.
-
-  #[global] Instance PreOrder_ssT f R: PreOrder ((T ss) f R).
-  Proof. apply rel.PreOrder_T. now apply refl_sst. apply square_sst. Qed.
 
 (*|
 Aggressively providing instances for rewriting hopefully faster

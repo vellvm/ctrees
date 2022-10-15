@@ -775,10 +775,10 @@ Proof.
   subst; eauto.
 Qed.
 
-#[local] Definition t1 : ctree void1 (B0 +' B1) unit :=
+#[local] Definition t1 : ctree void1 (B0 +' B1 +' B2) unit :=
   Step (Ret tt).
 
-#[local] Definition t2 : ctree void1 (B0 +' B2) unit :=
+#[local] Definition t2 : ctree void1 (B0 +' B1 +' B2) unit :=
   brS2 (Ret tt) (stuckD).
 
 Lemma ssim0_hsbisim_nequiv :

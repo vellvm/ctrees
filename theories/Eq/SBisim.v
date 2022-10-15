@@ -585,44 +585,76 @@ Section bind_homogenous.
     apply H0; auto.
   Qed.
 
+  (** Lef: When I change eq to L here, I need the following lemma
+      {HPval: Proper (L ==> flip impl) is_val}
+      so I can make [L a b -> is_val a -> is_val b], it doesn't work for any [L] *)
   (*|
     The resulting enhancing function gives a valid up-to technique
-    |*)
-  Lemma bind_ctx_sbisim_t : bind_ctx_sbisim <= (st eq).
+        |*)
+  Lemma bind_ctx_sbisim_t: bind_ctx_sbisim <= (st eq).
   Proof.
     apply Coinduction; cbn.
     
-    intros R x y [z _ [t zt [k1 _ [k2 EQ]]]]; inv H; split; intros.
-    - edestruct EQ; trivial. 
-      (*
-    apply bind_ctx_sbisim_sym.
-    intros R. 
-    intros t1 t2 tt k1 k2 kk.
-    step in tt; destruct tt as (F & B); cbn in *.
-    cbn in *; intros l u STEP.
-    apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
-    - apply F in STEP as (u' & ? & STEP & EQ' & ?).
-      eexists. exists l. subst. split.
-      apply trans_bind_l; eauto. split; auto.
-      apply (fT_T equ_clos_st).
-      econstructor; [exact EQ | | reflexivity].
-      apply (fTf_Tf sb).
-      apply in_bind_ctx; auto.
-      intros ? ? ->.
-      apply (b_T sb).
-      apply kk; auto.
-    - apply F in STEPres as (u' & ? & STEPres & EQ' & ?). subst.
-      pose proof (trans_val_inv STEPres) as EQ.
-      rewrite EQ in STEPres.
-      specialize (kk v v eq_refl) as [Fk Bk].
-      apply Fk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
-      eexists. eexists. split.
-      eapply trans_bind_r; cbn in *; eauto.
-      split; auto.
-      eapply (id_T sb); cbn; auto.
-       *)
-  Admitted.
-
+    intros R x y [z _ [t zt [k1 _ [k2 EQ H]]]]; inv H; split; intros.
+    - edestruct EQ; trivial.
+      red in EQ; simpl in *.
+      step in zt; destruct zt as (Fzt & Btz); cbn in *.
+      apply trans_bind_inv in H as
+          [(H & t'' & STEP & EQ') | (v & STEPres & STEP)]; cbn in *.
+      + apply Fzt in STEP as (u' & ? & STEP & EQ'' & ?); subst.
+        exists u'; eexists; split; subst.
+        * eapply trans_bind_l; eauto with trans.
+        * split; eauto.
+          apply (fT_T (equ_clos_st eq)).
+          econstructor; [exact EQ' | | reflexivity].
+          apply (fTf_Tf (sb eq)).
+          apply in_bind_ctx; auto.
+          intros ? ? ->.
+          apply (b_T (sb eq)).
+          apply EQ; reflexivity.
+      + apply Fzt in STEPres as (u' & ? & STEPres & EQ' & ?); subst.
+        pose proof (trans_val_inv STEPres) as EQ''.
+        rewrite EQ'' in STEPres.
+        specialize (EQ v v eq_refl) as [Fk Bk].
+        apply Fk in STEP as (u'' & ? & STEP & EQu & ?); cbn in *.
+        eexists. eexists. split.
+        eapply trans_bind_r; cbn in *; eauto.
+        apply STEP.
+        split.
+        -- eapply (id_T (sb eq)); cbn; auto.
+        -- assumption.
+    - edestruct EQ; trivial.
+      red in EQ; simpl in *.
+      step in zt; destruct zt as (Fzt & Btz); cbn in *.
+      apply trans_bind_inv in H as
+          [(H & t'' & STEP & EQ') | (v & STEPres & STEP)]; cbn in *.
+      + apply Btz in STEP as (u' & ? & STEP & EQ'' & ?); subst.
+        exists l; eexists; split; subst.
+        * eapply trans_bind_l; eauto with trans.
+        * split; eauto.
+          apply (fT_T (equ_clos_st eq)).
+          econstructor.
+          -- (* Not the equality I want here *)
+            admit.
+          -- apply (fTf_Tf (sb eq)).
+             apply in_bind_ctx; auto.
+             intros ? ? ->.
+             apply (b_T (sb eq)).
+             apply EQ; reflexivity.
+          -- admit.
+      + apply Btz in STEPres as (u' & ? & STEPres & EQ' & ?); subst.
+        pose proof (trans_val_inv STEPres) as EQ''.
+        rewrite EQ'' in STEPres.
+        specialize (EQ v v eq_refl) as [Fk Bk].
+        apply Bk in STEP as (u'' & ? & STEP & EQu & ?); cbn in *.
+        eexists. eexists. split.
+        eapply trans_bind_r; cbn in *; eauto.
+        apply STEP.
+        split.
+        -- eapply (id_T (sb eq)); cbn; auto.
+        -- assumption.
+Admitted.
+          
 End bind_homogenous.
 
 Import CTree.
@@ -1520,15 +1552,15 @@ Section sbisim_heterogenous_theory.
 
 
   (*| Up-to-bisimulation enhancing function |*)
-  Variant sbisim_clos_body LE LF
+  Variant sbisim_clos_body {LE LF}
           (R : rel (ctree E C X) (ctree F D Y)) : (rel (ctree E C X) (ctree F D Y)) :=
     | Sbisim_clos : forall t t' u' u
                       (Sbisimt : t (~ LE) t')
                       (HR : R t' u')
                       (Sbisimu : u' (~ LF) u),
-        sbisim_clos_body LE LF R t u.
+        @sbisim_clos_body LE LF R t u.
 
-  Program Definition sbisim_clos LE LF : mon (rel (ctree E C X) (ctree F D Y)) :=
+  Program Definition sbisim_clos {LE LF} : mon (rel (ctree E C X) (ctree F D Y)) :=
     {| body := @sbisim_clos_body LE LF |}.
   Next Obligation.
     destruct H0.
@@ -1536,7 +1568,7 @@ Section sbisim_heterogenous_theory.
   Qed.
 
   (* LEF: What is L here? *)
-  Theorem sbisim_clos_upto LE LF R: sbisim_clos LE LF R <= st L R.
+  Theorem sbisim_clos_upto {LE LF} R: @sbisim_clos LE LF R <= st L R.
     Proof. Admitted.
 
   #[global] Instance sbisim_hsbisim_hclosed_goal {LE: rel (label E) (label E)} {LF: rel (label F) (label F)}:
