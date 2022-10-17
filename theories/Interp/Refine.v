@@ -75,7 +75,7 @@ Proof.
                | S n => (Ret (S m, @Fin.of_nat_lt (Nat.modulo m (S n)) _ _))
                end
          )).
-  apply (NPeano.Nat.mod_upper_bound).
+  apply (PeanoNat.Nat.mod_upper_bound).
   auto with arith.
 Defined.
 

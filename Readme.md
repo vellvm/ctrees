@@ -4,9 +4,9 @@ This development is a companion to the POPL'23 conditionally accepted submission
 
 ## Meta
 
-- Author(s): REDACTED
+- Author(s): Nicolas Chappe, Paul He, Ludovic Henrio, Yannick Zakowski, and Steve Zdancewic
 - License: MIT License
-- Compatible Coq versions: 8.15
+- Compatible Coq versions: 8.16
 - Additional dependencies:
   - dune
   - [Extlib](https://github.com/coq-community/coq-ext-lib)
@@ -23,12 +23,7 @@ This development is a companion to the POPL'23 conditionally accepted submission
 
 Installing the opam dependencies
 ```shell
-opam install dune
-opam install coq-ext-lib
-opam install coq-itree
-opam install coq-relation-algebra
-opam install coq-coinduction
-opam install coq-equations
+opam install .
 ```
 
 ### Obtaining the project
