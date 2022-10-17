@@ -298,13 +298,12 @@ Section sbisim_homogenous_theory.
   Context {E C: Type -> Type} {X: Type} `{HasStuck: B0 -< C}
           (L: relation (@label E)).
   
-  Notation ss := (@ss E E C C X X _ _ L).
-  Notation sb  := (@sb E E C C X X _ _ L).
-  Notation sbisim := (@sbisim E E C C X X _ _ L).
-
-  Notation st := (coinduction.t sb).
-  Notation sbt := (coinduction.bt sb).
-  Notation sT  := (coinduction.T sb).
+  Notation ss := (@ss E E C C X X _ _).
+  Notation sb  := (@sb E E C C X X _ _).
+  Notation sbisim := (@sbisim E E C C X X _ _).
+  Notation st L := (coinduction.t (sb L)).
+  Notation sbt L := (coinduction.bt (sb L)).
+  Notation sT  L := (coinduction.T (sb L)).
 
   (*|
     This is just a hack suggested by Damien Pous to avoid a
@@ -314,7 +313,7 @@ Section sbisim_homogenous_theory.
   Definition seq: relation (ctree E C X) := eq.
   Arguments seq/.
 
-  Lemma refl_st {RL: Reflexive L} : const seq <= st.
+  Lemma refl_st {RL: Reflexive L} : const seq <= (st L).
   Proof.
     apply leq_t.
     split; intros; cbn*; intros; inv H; subst;
@@ -325,7 +324,7 @@ Section sbisim_homogenous_theory.
     [converse] is compatible
     i.e. validity of up-to symmetry
     |*)
-  Lemma converse_st {SL: Symmetric L}: converse <= st.
+  Lemma converse_st `{SL: Symmetric _ L}: converse <= (st L).
   Proof.
     apply leq_t; cbn.
     intros R ? ? [H1 H2]; split; intros.
@@ -337,7 +336,7 @@ Section sbisim_homogenous_theory.
     [square] is compatible
     i.e. validity of up-to transivitiy
     |*)
-  Lemma square_st {TR: Transitive L}: square <= st.
+  Lemma square_st `{TR: Transitive _ L}: square <= (st L).
   Proof.
     apply Coinduction; cbn.    
     intros R x z [y [xy yx] [yz zy]].
@@ -347,7 +346,7 @@ Section sbisim_homogenous_theory.
       destruct (yz _ _ yy') as (?l & z' & zz' & ? & EQ').
       do 2 eexists; repeat split.
       eauto.
-      apply (f_Tf sb).
+      apply (f_Tf (sb L)).
       eexists; eauto.
       transitivity l0; assumption.
     - intros ?l z' zz'.
@@ -355,46 +354,89 @@ Section sbisim_homogenous_theory.
       destruct (yx _ _ yy') as (?l & x' & xx' & ? & EQ').
       do 2 eexists; repeat split.
       eauto.
-      apply (f_Tf sb).
+      apply (f_Tf (sb L)).
       eexists; eauto.
       transitivity l0; assumption.
   Qed.
 
+  (*| Reflexivity |*)
+  #[global] Instance Reflexive_st R `{Reflexive _ L}: Reflexive (st L R).
+  Proof. apply build_reflexive; apply ft_t; apply refl_st. Qed.
+
+  Corollary Reflexive_sbisim `{Reflexive _ L}: Reflexive (sbisim L).
+  Proof. now apply Reflexive_st. Qed.
+
+  #[global] Instance Reflexive_sbt R `{Reflexive _ L}: Reflexive (sbt L R).
+  Proof. apply build_reflexive; apply fbt_bt; apply refl_st. Qed.
+
+  #[global] Instance Reflexive_sT f R `{Reflexive _ L}: Reflexive (sT L f R).
+  Proof. apply build_reflexive; apply fT_T; apply refl_st. Qed.
+
+  (*| Transitivity |*)
+  #[global] Instance Transitive_st R `{Transitive _ L}: Transitive (st L R).
+  Proof. apply build_transitive; apply ft_t; apply (square_st). Qed.
+
+  Corollary Transitive_sbisim `{Transitive _ L}: Transitive (sbisim L).
+  Proof. now apply Transitive_st. Qed.
+
+  #[global] Instance Transitive_sbt R `{Transitive _ L}: Transitive (sbt L R).
+  Proof. apply build_transitive; apply fbt_bt; apply square_st. Qed.
+
+  #[global] Instance Transitive_sT f R `{Transitive _ L}: Transitive (sT L f R).
+  Proof. apply build_transitive; apply fT_T; apply square_st. Qed.
+  
+  (*| Symmetry |*)
+  #[global] Instance Symmetric_st R `{Symmetric _ L}: Symmetric (st L R).
+  Proof. apply build_symmetric; apply ft_t; apply (converse_st). Qed.
+
+  Corollary Symmetric_sbisim `{Symmetric _ L}: Symmetric (sbisim L).
+  Proof. now apply Symmetric_st. Qed.
+
+  #[global] Instance Symmetric_sbt R `{Symmetric _ L}: Symmetric (sbt L R).
+  Proof. apply build_symmetric; apply fbt_bt; apply converse_st. Qed.
+
+  #[global] Instance Symmetric_sT f R `{Symmetric _ L}: Symmetric (sT L f R).
+  Proof. apply build_symmetric; apply fT_T; apply converse_st. Qed.
+  
   (*|
     Thus bisimilarity and [t R] are always equivalence relations.
-    |*)
-  #[global] Instance Equivalence_st `{Equivalence _ L} R: Equivalence (st R).
-  Proof. apply Equivalence_t. apply refl_st. apply square_st. apply converse_st. Qed.
+  |*)
+  #[global] Instance Equivalence_st `{Equivalence _ L} R: Equivalence (st L R).
+  Proof. split; typeclasses eauto. Qed.
 
-  Corollary Equivalence_bisim `{Equivalence _ L}: Equivalence sbisim.
-  Proof. apply Equivalence_st. Qed.
+  Corollary Equivalence_bisim `{Equivalence _ L}: Equivalence (sbisim L).
+  Proof. split; typeclasses eauto. Qed. 
 
-  #[global] Instance Equivalence_sbt `{Equivalence _ L} R: Equivalence (sbt R).
-  Proof. apply rel.Equivalence_bt. apply refl_st. apply square_st. apply converse_st. Qed.
+  #[global] Instance Equivalence_sbt `{Equivalence _ L} R: Equivalence (sbt L R).
+  Proof. split; typeclasses eauto. Qed. 
 
-  #[global] Instance Equivalence_sT `{Equivalence _ L} f R: Equivalence ((T sb) f R).
-  Proof. apply rel.Equivalence_T. apply refl_st. apply square_st. apply converse_st. Qed.
+  #[global] Instance Equivalence_sT `{Equivalence _ L} f R: Equivalence ((T (sb L)) f R).
+  Proof. split; typeclasses eauto. Qed.
 
   (*|
-Aggressively providing instances for rewriting hopefully faster
-[sbisim] under all [sb]-related contexts (consequence of the transitivity
-of the companion).
-|*)
-
-  #[global] Instance sbisim_sbisim_closed_goal `{Equivalence _ L} : Proper (sbisim ==> sbisim ==> flip impl) sbisim.
+    Aggressively providing instances for rewriting hopefully faster
+    [sbisim] under all [sb]-related contexts (consequence of the transitivity
+    of the companion).
+ |*)
+  #[global] Instance sbisim_sbisim_closed_goal `{Transitive _ L} `{Symmetric _ L} :
+    Proper (sbisim L ==> sbisim L ==> flip impl) (sbisim L).
   Proof.
     repeat intro.
     etransitivity; [etransitivity; eauto | symmetry; eassumption].
   Qed.
 
-  #[global] Instance sbisim_sbisim_closed_ctx `{Equivalence _ L} : Proper (sbisim ==> sbisim ==> impl) sbisim.
+  #[global] Instance sbisim_sbisim_closed_ctx `{Transitive _ L} `{Symmetric _ L} :
+    Proper (sbisim L ==> sbisim L ==> impl) (sbisim L).
   Proof.
     repeat intro.
     etransitivity; [symmetry; eassumption | etransitivity; eauto].
   Qed.
 
-  #[global] Instance sbisim_clos_st_goal `{Equivalence _ L} R :
-    Proper (sbisim ==> sbisim ==> flip impl) (st R).
+  (** LEF: These are super slow because of instance resolution,
+      making this file a pain to compile. Can we rewrite them more
+      explicitly? *)
+  #[global] Instance sbisim_clos_st_goal `{Equivalence _ L} R:
+    Proper (sbisim L ==> sbisim L ==> flip impl) (st L R).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 ?.
     rewrite eq1, eq2.
@@ -402,7 +444,7 @@ of the companion).
   Qed.
 
   #[global] Instance sbisim_clos_st_ctx `{Equivalence _ L} R :
-    Proper (sbisim ==> sbisim ==> impl) (st R).
+    Proper (sbisim L ==> sbisim L ==> impl) (st L R).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 ?.
     rewrite <- eq1, <- eq2.
@@ -410,7 +452,7 @@ of the companion).
   Qed.
 
   #[global] Instance sbisim_clos_sT_goal `{Equivalence _ L} R f :
-    Proper (sbisim ==> sbisim ==> flip impl) (sT f R).
+    Proper (sbisim L ==> sbisim L ==> flip impl) (sT L f R).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 ?.
     rewrite eq1, eq2.
@@ -418,7 +460,7 @@ of the companion).
   Qed.
 
   #[global] Instance sbisim_clos_sT_ctx `{Equivalence _ L} R f :
-    Proper (sbisim ==> sbisim ==> impl) (sT f R).
+    Proper (sbisim L ==> sbisim L ==> impl) (sT L f R).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 ?.
     rewrite <- eq1, <- eq2.
@@ -429,7 +471,7 @@ of the companion).
     Strong bisimulation up-to [equ] is valid
     ----------------------------------------
     |*)
-  Lemma equ_clos_st : equ_clos <= st.
+  Lemma equ_clos_st : equ_clos <= (st L).
   Proof.
     apply Coinduction; cbn.
     intros R x y [x' y' x'' y'' EQ' [F B] EQ'']; split.
@@ -439,7 +481,7 @@ of the companion).
       destruct x'z as (? & ? & ? & ? & ?).
       do 2 eexists; intuition.
       rewrite <- EQ''. eauto.
-      eapply (f_Tf sb).
+      eapply (f_Tf (sb L)).
       econstructor; eauto.
       eauto.
     - intros l z y'z.
@@ -448,7 +490,7 @@ of the companion).
       destruct y'z as (? & ? & ? & ? & ?).
       do 2 eexists; intuition.
       rewrite EQ'; eauto.
-      eapply (f_Tf sb).
+      eapply (f_Tf (sb L)).
       econstructor; eauto.
       eauto.
   Qed.
@@ -458,58 +500,58 @@ of the companion).
     contexts.
     |*)
   #[global] Instance equ_clos_st_goal RR :
-    Proper (equ eq ==> equ eq ==> flip impl) (st RR).
+    Proper (equ eq ==> equ eq ==> flip impl) (st L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (ft_t equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
   #[global] Instance equ_clos_st_ctx RR :
-    Proper (equ eq ==> equ eq ==> impl) (st RR).
+    Proper (equ eq ==> equ eq ==> impl) (st L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (ft_t equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
   #[global] Instance equ_sbt_closed_goal `{EqL: Equivalence _ L} R:
-    Proper (equ eq ==> equ eq ==> flip impl) (sbt R).
+    Proper (equ eq ==> equ eq ==> flip impl) (sbt L R).
   Proof.
-    repeat intro. pose proof (gfp_bt sb R).
+    repeat intro. pose proof (gfp_bt (sb L) R).
     etransitivity; [| etransitivity]; [ | apply H1 | ]; apply H2.
     rewrite H; auto. rewrite H0; auto.
   Qed.
 
   #[global] Instance equ_sbt_closed_ctx `{EqL: Equivalence _ L} {R} :
-    Proper (equ eq ==> equ eq ==> impl) (sbt R).
+    Proper (equ eq ==> equ eq ==> impl) (sbt L R).
   Proof.
-    repeat intro. pose proof (gfp_bt sb R).
+    repeat intro. pose proof (gfp_bt (sb L) R).
     etransitivity; [| etransitivity]; [ | apply H1 | ]; apply H2.
     rewrite H; auto. rewrite H0; auto.
   Qed.
 
   #[global] Instance equ_clos_sT_goal RR f :
-    Proper (equ eq ==> equ eq ==> flip impl) (sT f RR).
+    Proper (equ eq ==> equ eq ==> flip impl) (sT L f RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (fT_T equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
   #[global] Instance equ_clos_sT_ctx RR f :
-    Proper (equ eq ==> equ eq ==> impl) (sT f RR).
+    Proper (equ eq ==> equ eq ==> impl) (sT L f RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (fT_T equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
   #[global] Instance equ_clos_sbisim_goal :
-    Proper (equ eq ==> equ eq ==> flip impl) sbisim.
+    Proper (equ eq ==> equ eq ==> flip impl) (sbisim L).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (ft_t equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
   #[global] Instance equ_clos_sbisim_ctx :
-    Proper (equ eq ==> equ eq ==> impl) sbisim.
+    Proper (equ eq ==> equ eq ==> impl) (sbisim L).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (ft_t equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
@@ -528,14 +570,14 @@ of the companion).
     rewrite tt', uu'. reflexivity.
   Qed.
 
-  #[global] Instance equ_ss_closed_goal `{EqL: Equivalence _ L} {r} : Proper (equ eq ==> equ eq ==> flip impl) (ss r).
+  #[global] Instance equ_ss_closed_goal `{EqL: Equivalence _ L} {r} : Proper (equ eq ==> equ eq ==> flip impl) (ss L r).
   Proof.
     intros t t' tt' u u' uu'; split; intros.
     - rewrite tt', uu'. apply H.
     - rewrite uu' in H0. apply H in H0. setoid_rewrite tt'. apply H0.
   Qed.
 
-  #[global] Instance equ_ss_closed_ctx `{EqL: Equivalence _ L} {r} : Proper (equ eq ==> equ eq ==> impl) (ss r).
+  #[global] Instance equ_ss_closed_ctx `{EqL: Equivalence _ L} {r} : Proper (equ eq ==> equ eq ==> impl) (ss L r).
   Proof.
     intros t t' tt' u u' uu'; intros.
     rewrite tt', uu'. reflexivity.
@@ -544,7 +586,7 @@ of the companion).
   (*|
 Hence [equ eq] is a included in [sbisim]
 |*)
-  #[global] Instance equ_sbisim_subrelation `{EqL: Equivalence _ L} : subrelation (equ eq) sbisim.
+  #[global] Instance equ_sbisim_subrelation `{EqL: Equivalence _ L} : subrelation (equ eq) (sbisim L).
   Proof.
     red; intros.
     rewrite H; reflexivity.

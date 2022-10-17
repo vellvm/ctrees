@@ -30,6 +30,251 @@ Arguments trans : simpl never.
   __coinduction_sbisim R H || coinduction R H.
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
 
+
+Section ssim_heterogenous_theory.
+  
+  Arguments label: clear implicits.
+  Context {E F C D: Type -> Type} {X Y: Type}
+          {L: rel (@label E) (@label F)}
+          {HasStuck1: B0 -< C} {HasStuck2: B0 -< D}.
+  
+  Notation ss0 := (@ss0 E F C D X Y _ _).
+  Notation ss := (@ss E F C D X Y _ _).
+  Notation ssim  := (@ssim E F C D X Y _ _).
+  Notation sst L := (coinduction.t (ss L)).
+  Notation ssbt L := (coinduction.bt (ss L)).
+  Notation ssT L := (coinduction.T (ss L)).
+
+  (*|
+    Various results on reflexivity and transitivity.
+    |*)
+
+  (*|
+    Aggressively providing instances for rewriting hopefully faster
+    [sbisim] under relevant [ss]-related contexts (consequence of the transitivity
+    of the companion).
+    |*)
+  Lemma sbisim_clos_ss : @sbisim_clos E F C D X Y _ _ eq eq <= (sst L).
+  Proof.
+    intro R1. apply Coinduction.
+    cbn; intros Rs x y [z x' y' z' SBzx' [x'y' y'x'] SBy'z']; split. 
+    - intros l t zt.      
+      step in SBzx'.
+      apply SBzx' in zt as (l' & t' & x't' & ? & ?); subst.
+      destruct (x'y' _ _ x't') as (l'' & t'' & y't'' & ? & ?).
+      
+      step in SBy'z'.
+      apply SBy'z' in y't'' as (ll & tt & z'tt & ? & ?); subst.
+      exists ll, tt; split; trivial.
+      + split; trivial.
+        apply (f_Tf (ss L)).
+        econstructor; eauto.
+    - intros l t z't.
+      step in SBy'z'.
+      symmetry in SBy'z'.      
+      apply SBy'z' in z't as (l' & t' & y't' & ? & ?); subst.
+      destruct (y'x' _ _ y't') as (l'' & t'' & y't'' & ?).
+      step in SBzx'.
+      apply SBzx' in H0 as (ll & tt & ztt & ? & ?); subst.
+      exists ll, tt; split; trivial.
+      simpl in H0, H1; subst; assumption.
+  Qed.
+
+  (*|
+    Aggressively providing instances for rewriting hopefully faster
+    [sbisim] under all [ss1]-related contexts (consequence of the transitivity
+    of the companion).
+  |*)    
+  #[global] Instance sbisim_clos_ssim_goal:
+    Proper (sbisim eq ==> sbisim eq ==> flip impl) (ssim L).
+  Proof.
+    cbn.
+    coinduction R CH. intros.
+    do 2 red; cbn; split; intros.
+    - symmetry in H0.
+      step in H; apply H in H2 as (? & ? & ? & ? & ?).
+      step in H1; apply H1 in H2 as (? & ? & ? & ? & ?).
+      step in H0; apply H0 in H2 as (? & ? & ? & ? & ?); subst.
+      exists x5, x6.
+      split; [assumption |].
+      split; [| assumption].
+      symmetry in H7. eapply CH; eassumption.
+    - step in H0; apply H0 in H2 as (? & ? & ? & ? & ?).
+      step in H1. apply H1 in H2 as (? & ? & ? & ?). 
+      step in H. apply H in H5 as (? & ? & ? & ? & ?); simpl in *; subst.
+      exists x3, x6.
+      split; assumption.
+  Qed.
+
+  #[global] Instance sbisim_clos_ssim_ctx :
+    Proper (sbisim eq ==> sbisim eq ==> impl) (ssim L).
+  Proof.
+    repeat intro. symmetry in H, H0. eapply sbisim_clos_ssim_goal; eauto.
+  Qed.
+
+  #[global] Instance sbisim_clos_sst_goal RR :
+    Proper (sbisim eq ==> sbisim eq ==> flip impl) (sst L RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (ft_t sbisim_clos_ss). cbn.
+    econstructor; eauto.
+    now rewrite eq2.
+  Qed.
+
+  #[global] Instance sbisim_clos_sst_ctx RR :
+    Proper (sbisim eq ==> sbisim eq ==> impl) (sst L RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
+    rewrite <- eq1, <- eq2.
+    auto.
+  Qed.
+
+  #[global] Instance sbisim_clos_ssT_goal RR f :
+    Proper (sbisim eq ==> sbisim eq ==> flip impl) (ssT L f RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (fT_T sbisim_clos_ss). cbn.
+    econstructor; eauto.
+    now rewrite eq2.
+  Qed.
+
+  #[global] Instance sbisim_clos_ssT_ctx RR f :
+    Proper (sbisim eq ==> sbisim eq ==> impl) (ssT L f RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
+    rewrite <- eq1, <- eq2.
+    auto.
+  Qed.
+
+  (*|
+    Strong simulation up-to [equ] is valid
+    ----------------------------------------
+    |*)
+  Lemma equ_clos_ss : equ_clos <= t (ss L).
+  Proof.
+    apply Coinduction.
+    intros R t u EQ; split; intros l ? TR; cbn in EQ; inv EQ;
+      cbn in *.
+    - rewrite Equt in TR;
+        apply HR in TR;
+        destruct TR as (? & ? & ? & ? & ?); subst;
+        exists x, x0; intuition.
+      + rewrite <- Equu; auto.
+      + eapply (f_Tf (ss L)).
+        econstructor; auto; auto.
+    - rewrite <- Equu in TR;
+        apply HR in TR as (? & ? & ? & ?); subst;
+        exists x, x0; intuition; rewrite Equt; auto.
+  Qed.
+
+  #[global] Instance equ_clos_sst_goal RR :
+    Proper (equ eq ==> equ eq ==> flip impl) (sst L RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (ft_t equ_clos_ss); econstructor; [eauto | | symmetry; eauto]; assumption.
+  Qed.
+
+  #[global] Instance equ_clos_sst_ctx RR :
+    Proper (equ eq ==> equ eq ==> impl) (sst L RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (ft_t equ_clos_ss); econstructor; [symmetry; eauto | | eauto]; assumption.
+  Qed.
+
+  #[global] Instance equ_ssbt_closed_goal {r}:
+    Proper (equ eq ==> equ eq ==> flip impl) (ssbt L r).
+  Proof.
+    cbn; repeat intro.
+    symmetry in H.
+    apply (fbt_bt equ_clos_ss); econstructor; [symmetry; eauto | | eauto].
+    apply (fbt_bt equ_clos_ss); econstructor; [reflexivity| eauto| eauto].
+    now symmetry in H0.
+  Qed.
+
+  #[global] Instance equ_ssbt_closed_ctx {r} :
+    Proper (equ eq ==> equ eq ==> impl) (ssbt L r).
+  Proof.
+    cbn; repeat intro. 
+    setoid_rewrite H in H1. setoid_rewrite H0 in H1.
+    auto.
+  Qed.
+
+  #[global] Instance equ_clos_ssT_goal RR f :
+    Proper (equ eq ==> equ eq ==> flip impl) (ssT L f RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (fT_T equ_clos_ss); econstructor; [eauto | | symmetry; eauto]; assumption.
+  Qed.
+
+  #[global] Instance equ_clos_ssT_ctx RR f :
+    Proper (equ eq ==> equ eq ==> impl) (ssT L f RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (fT_T equ_clos_ss); econstructor; [symmetry; eauto | | eauto]; assumption.
+  Qed.
+
+  #[global] Instance equ_clos_ssim_goal :
+    Proper (equ eq ==> equ eq ==> flip impl) (ssim L).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (ft_t equ_clos_ss); econstructor; [eauto | | symmetry; eauto]; assumption.
+  Qed.
+
+  #[global] Instance equ_clos_ssim_ctx :
+    Proper (equ eq ==> equ eq ==> impl) (ssim L).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (ft_t equ_clos_ss); econstructor; [symmetry; eauto | | eauto]; assumption.
+  Qed.
+
+  #[global] Instance equ_ss_closed_goal {r} : Proper (equ eq ==> equ eq ==> flip impl) (ss L r).
+  Proof.
+    intros t t' tt' u u' uu'; cbn; intros [H H0]; split; intros l t0 TR.
+    - rewrite tt' in TR. destruct (H _ _ TR) as (? & ? & ? & ? & ?).     
+      exists x, x0; auto; rewrite uu'; auto.
+    - rewrite uu' in TR. destruct (H0 _ _ TR) as (? & ? & ? & ?).
+      exists x, x0; eauto; rewrite tt'; auto.
+  Qed.
+
+  #[global] Instance equ_ss_closed_ctx {r} : Proper (equ eq ==> equ eq ==> impl) (ss L r).
+  Proof.
+    intros t t' tt' u u' uu'; cbn; intros [H H0]; split; intros l t0 TR.
+    - rewrite <- tt' in TR. destruct (H _ _ TR) as (? & ? & ? & ? & ?).
+      exists x, x0; auto; rewrite <- uu'; auto.
+    - rewrite <- uu' in TR. destruct (H0 _ _ TR) as (? & ? & ? & ?). 
+      exists x, x0; auto; rewrite <- tt'; auto.
+  Qed.
+
+  Lemma is_stuck_ss : forall (t: ctree E C X) (u: ctree F D Y) R,
+      ss L R t u -> is_stuck t <-> is_stuck u.
+  Proof.
+    split; intros; intros ? ? ?.
+    - apply H in H1 as (? & ? & ? & ?). now apply H0 in H2.
+    - apply H in H1 as (? & ? & ? & ? & ?). now apply H0 in H1.
+  Qed.
+
+  Lemma is_stuck_ssim :  forall (t: ctree E C X) (u: ctree F D Y),
+      t (≲ L) u -> is_stuck t <-> is_stuck u.
+  Proof.
+    intros. step in H. eapply is_stuck_ss; eauto.
+  Qed.
+
+  Lemma ss_is_stuck : forall (t : ctree E C X) (u: ctree F D Y) R,
+      is_stuck t -> is_stuck u -> ss L R t u.
+  Proof.
+    split; intros.
+    - cbn. intros. now apply H in H1.
+    - now apply H0 in H1.
+  Qed.
+
+  Lemma ssim_is_stuck : forall (t : ctree E C X) (u: ctree F D Y),
+      is_stuck t -> is_stuck u -> t (≲ L) u.
+  Proof.
+    intros. step. now apply ss_is_stuck.
+  Qed.
+
+End ssim_heterogenous_theory.
+
 Section ssim_homogenous_theory.
 
   Context {E C : Type -> Type} {X : Type}
@@ -129,378 +374,7 @@ Section ssim_homogenous_theory.
   #[global] Instance PreOrder_ssT f R `{PreOrder _ L}: PreOrder ((T (ss L)) f R).
   Proof. apply rel.PreOrder_T. now apply refl_sst. apply square_sst. Qed.
 
-
-  (*|
-    Aggressively providing instances for rewriting hopefully faster
-    [sbisim] under relevant [ss]-related contexts (consequence of the transitivity
-    of the companion).
-    |*)
-  Lemma sbisim_clos_ss `{PreOrder _ L}: @sbisim_clos E E C C X X _ _ eq eq <= (sst L).
-  Proof.
-    intro R1. apply Coinduction.
-    cbn; intros Rs x y [z x' y' z' SBzx' [x'y' y'x'] SBy'z']; split. 
-    - intros l t zt.      
-      step in SBzx'.
-      apply SBzx' in zt as (l' & t' & x't' & ? & ?); subst.
-      destruct (x'y' _ _ x't') as (l'' & t'' & y't'' & ? & ?).
-      
-      step in SBy'z'.
-      apply SBy'z' in y't'' as (ll & tt & z'tt & ? & ?); subst.
-      exists ll, tt; split; trivial.
-      + split; trivial.
-        apply (f_Tf (ss L)).
-        econstructor; eauto.
-    - intros l t z't.
-      step in SBy'z'.
-      symmetry in SBy'z'.      
-      apply SBy'z' in z't as (l' & t' & y't' & ? & ?); subst.
-      destruct (y'x' _ _ y't') as (l'' & t'' & y't'' & ?).
-      step in SBzx'.
-      apply SBzx' in H1 as (ll & tt & ztt & ? & ?); subst.
-      exists ll, tt; split; trivial.
-      simpl in H1, H2; subst; assumption.
-  Qed.
-
-  #[global] Instance sbisim_clos_ssim_goal L :
-    Proper (sbisim ==> sbisim ==> flip impl) (ssim L).
-  Proof.
-    cbn.
-    coinduction R CH. intros.
-    symmetry in H0.
-    do 2 red. cbn. intros.
-    step in H. apply H in H2 as ?. destruct H3 as (? & ? & ? & ? & ?). subst.
-    step in H1. apply H1 in H3 as (? & ? & ? & ? & ?).
-    step in H0. apply H0 in H3 as (? & ? & ? & ? & ?). subst.
-    exists x5, x6.
-    split; [assumption |].
-    split; [| assumption].
-    symmetry in H7. eapply CH; eassumption.
-  Qed.
-
-(*|
-Aggressively providing instances for rewriting hopefully faster
-[sbisim] under all [ss1]-related contexts (consequence of the transitivity
-of the companion).
-|*)
-
-  #[global] Instance sbisim_clos_ssim_goal :
-    Proper (sbisim ==> sbisim ==> flip impl) ssim.
-  Proof.
-    repeat intro.
-    symmetry in H0. apply sbisim_ssim in H, H0.
-    transitivity y0. transitivity y. all: auto.
-  Qed.
-
-  #[global] Instance sbisim_clos_ssim_ctx :
-    Proper (sbisim ==> sbisim ==> impl) ssim.
->>>>>>> master
-  Proof.
-    repeat intro. symmetry in H, H0. eapply sbisim_clos_ssim_goal; eauto.
-  Qed.
-
-<<<<<<< HEAD
-  #[global] Instance sbisim_clos_sst_goal L RR :
-    Proper (sbisim ==> sbisim ==> flip impl) (sst L RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t (sbisim_clos_ss L)). cbn.
-    econstructor; eauto.
-    now rewrite eq2.
-  Qed.
-
-  #[global] Instance sbisim_clos_sst_ctx L RR :
-    Proper (sbisim ==> sbisim ==> impl) (sst L RR).
-=======
-  #[global] Instance sbisim_clos_sst_goal RR :
-    Proper (sbisim ==> sbisim ==> flip impl) (sst RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    symmetry in eq2. apply sbisim_ssim in eq1, eq2.
-    rewrite eq1, <- eq2.
-    auto.
-  Qed.
-
-  #[global] Instance sbisim_clos_sst_ctx RR :
-    Proper (sbisim ==> sbisim ==> impl) (sst RR).
->>>>>>> master
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    rewrite <- eq1, <- eq2.
-    auto.
-  Qed.
-
-<<<<<<< HEAD
-  #[global] Instance sbisim_clos_ssT_goal L RR f :
-    Proper (sbisim ==> sbisim ==> flip impl) (ssT L f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T (sbisim_clos_ss L)). cbn.
-    econstructor; eauto.
-    now rewrite eq2.
-  Qed.
-
-  #[global] Instance sbisim_clos_ssT_ctx L RR f :
-    Proper (sbisim ==> sbisim ==> impl) (ssT L f RR).
-=======
-  #[global] Instance sbisim_clos_ssT_goal RR f :
-    Proper (sbisim ==> sbisim ==> flip impl) (ssT f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    symmetry in eq2. apply sbisim_ssim in eq1, eq2.
-    rewrite eq1, <- eq2.
-    auto.
-  Qed.
-
-  #[global] Instance sbisim_clos_ssT_ctx RR f :
-    Proper (sbisim ==> sbisim ==> impl) (ssT f RR).
->>>>>>> master
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    rewrite <- eq1, <- eq2.
-    auto.
-  Qed.
-
-(*|
-Strong simulation up-to [equ] is valid
-----------------------------------------
-|*)
-<<<<<<< HEAD
-  Lemma equ_clos_ss {L} : equ_clos <= t (ss L).
-  Proof.
-    apply Coinduction.
-    intros R t u EQ l t1 TR. cbn in EQ. inv EQ.
-    cbn in *. rewrite Equt in TR.
-    apply HR in TR.
-    destruct TR as (? & ? & ? & ? & ?). subst.
-    exists x. exists x0. intuition.
-    rewrite <- Equu; auto.
-    eapply (f_Tf (ss L)).
-    econstructor; auto; auto.
-  Qed.
-
-  #[global] Instance equ_clos_sst_goal L RR :
-    Proper (equ eq ==> equ eq ==> flip impl) (sst L RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_ss); econstructor; [eauto | | symmetry; eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_clos_sst_ctx L RR :
-    Proper (equ eq ==> equ eq ==> impl) (sst L RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_ss); econstructor; [symmetry; eauto | | eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_ssbt_closed_goal {L r} :
-    Proper (equ eq ==> equ eq ==> flip impl) (ssbt L r).
-  Proof.
-    cbn; repeat intro. do 5 red in H1.
-    setoid_rewrite <- H in H1. setoid_rewrite <- H0 in H1.
-    auto.
-  Qed.
-
-  #[global] Instance equ_ssbt_closed_ctx {L r} :
-    Proper (equ eq ==> equ eq ==> impl) (ssbt L r).
-  Proof.
-    cbn; repeat intro. do 5 red in H1.
-    setoid_rewrite H in H1. setoid_rewrite H0 in H1.
-    auto.
-  Qed.
-
-  #[global] Instance equ_clos_ssT_goal L RR f :
-    Proper (equ eq ==> equ eq ==> flip impl) (ssT L f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T equ_clos_ss); econstructor; [eauto | | symmetry; eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_clos_ssT_ctx L RR f :
-    Proper (equ eq ==> equ eq ==> impl) (ssT L f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T equ_clos_ss); econstructor; [symmetry; eauto | | eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_clos_ssim_goal L :
-    Proper (equ eq ==> equ eq ==> flip impl) (ssim L).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_ss); econstructor; [eauto | | symmetry; eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_clos_ssim_ctx L :
-    Proper (equ eq ==> equ eq ==> impl) (ssim L).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_ss); econstructor; [symmetry; eauto | | eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_ss_closed_goal {L r} : Proper (equ eq ==> equ eq ==> flip impl) (ss L r).
-  Proof.
-    intros t t' tt' u u' uu'; cbn; intros.
-    rewrite tt' in H0. apply H in H0 as (? & ? & ? & ? & ?).
-    eexists; eexists; eauto. rewrite uu'. eauto.
-  Qed.
-
-  #[global] Instance equ_ss_closed_ctx {L r} : Proper (equ eq ==> equ eq ==> impl) (ss L r).
-  Proof.
-    intros t t' tt' u u' uu'; cbn; intros.
-    rewrite <- tt' in H0. apply H in H0 as (? & ? & ? & ? & ?).
-    eexists; eexists; eauto. rewrite <- uu'. eauto.
-  Qed.
-
-(*|
-stuck ctrees can be simulated by anything.
-|*)
-
-  Lemma is_stuck_ss (R : rel _ _) (t : ctree E C X) (t' : ctree F D Y) L :
-    is_stuck t -> ss L R t t'.
-  Proof.
-    repeat intro. now apply H in H0.
-  Qed.
-
-  Lemma is_stuck_ssim (t : ctree E C X) (t' : ctree F D Y) L :
-    is_stuck t -> ssim L t t'.
-  Proof.
-    intros. step. now apply is_stuck_ss.
-  Qed.
-
-  Lemma stuckI_ss (R : rel _ _) (t : ctree F D Y) L : ss L R (stuckI : ctree E C X) t.
-  Proof.
-    repeat intro. now apply stuckI_is_stuck in H.
-  Qed.
-
-  Lemma stuckI_ssim (t : ctree F D Y) L : ssim L (stuckI : ctree E C X) t.
-  Proof.
-    intros. step. apply stuckI_ss.
-  Qed.
-
-  Lemma spinI_gen_ss Z (R : rel _ _) (t : ctree F D Y) (x : C Z) L : ss L R (CTree.spinI_gen x : ctree E C X) t.
-  Proof.
-    repeat intro. now apply spinI_gen_is_stuck in H.
-  Qed.
-
-  Lemma spinI_gen_ssim : forall {Z} (c: C Z) (t' : ctree F D Y) L,
-      @CTree.spinI_gen E C X Z c (≲L) t'.
-  Proof.
-    intros. step. apply spinI_gen_ss.
-=======
-  Lemma equ_clos_sst : equ_clos <= sst.
-  Proof.
-    apply Coinduction.
-    intros R t u EQ. inv EQ. cbn in *. split.
-    - intros l t1 TR.
-      rewrite Equt in TR.
-      apply HR in TR as [].
-      exists x.
-      rewrite <- Equu; auto.
-      eapply (f_Tf ss).
-      econstructor; auto; auto.
-    - intros l u1 TR.
-      rewrite <- Equu in TR.
-      setoid_rewrite Equt.
-      now apply HR in TR.
-  Qed.
-
-  #[global] Instance equ_clos_sst_goal RR :
-    Proper (equ eq ==> equ eq ==> flip impl) (sst RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_clos_sst_ctx RR :
-    Proper (equ eq ==> equ eq ==> impl) (sst RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst); econstructor; [symmetry; eauto | | eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_ssbt_closed_goal {r} :
-    Proper (equ eq ==> equ eq ==> flip impl) (ssbt r).
-  Proof.
-    cbn. intros.
-    now rewrite <- H, <- H0 in H1.
-  Qed.
-
-  #[global] Instance equ_ssbt_closed_ctx {r} :
-    Proper (equ eq ==> equ eq ==> impl) (ssbt r).
-  Proof.
-    cbn. intros.
-    now rewrite H, H0 in H1.
-  Qed.
-
-  #[global] Instance equ_clos_ssT_goal RR f :
-    Proper (equ eq ==> equ eq ==> flip impl) (ssT f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T equ_clos_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_clos_ssT_ctx RR f :
-    Proper (equ eq ==> equ eq ==> impl) (ssT f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T equ_clos_sst); econstructor; [symmetry; eauto | | eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_clos_ssim_goal :
-    Proper (equ eq ==> equ eq ==> flip impl) ssim.
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_clos_ssim_ctx :
-    Proper (equ eq ==> equ eq ==> impl) ssim.
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst); econstructor; [symmetry; eauto | | eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_ss_closed_goal {r} : Proper (equ eq ==> equ eq ==> flip impl) (ss r).
-  Proof.
-    intros t t' tt' u u' uu'; cbn; split; intros.
-    - rewrite tt' in H0. apply H in H0 as [? ? ?].
-      eexists; eauto. rewrite uu'. eauto.
-    - rewrite uu' in H0. apply H in H0. now setoid_rewrite tt'.
-  Qed.
-
-  #[global] Instance equ_ss_closed_ctx {r} : Proper (equ eq ==> equ eq ==> impl) (ss r).
-  Proof.
-    intros t t' tt' u u' uu'; cbn; split; intros.
-    - rewrite <- tt' in H0. apply H in H0 as [? ? ?].
-      eexists; eauto. rewrite <- uu'. eauto.
-    - rewrite <- uu' in H0. apply H in H0. now setoid_rewrite <- tt'.
-  Qed.
-
-  Lemma is_stuck_ss : forall (t u : ctree E X) R, ss R t u -> is_stuck t <-> is_stuck u.
-  Proof.
-    split; intros; intros ? ? ?.
-    - apply H in H1 as (? & ? & ?). now apply H0 in H1.
-    - apply H in H1 as []. now apply H0 in H1.
-  Qed.
-
-  Lemma is_stuck_ssim : forall (t u : ctree E X), t ≲ u -> is_stuck t <-> is_stuck u.
-  Proof.
-    intros. step in H. eapply is_stuck_ss; eauto.
-  Qed.
-
-  Lemma ss_is_stuck : forall (t u : ctree E X) R, is_stuck t -> is_stuck u -> ss R t u.
-  Proof.
-    split; intros.
-    - cbn. intros. now apply H in H1.
-    - now apply H0 in H1.
-  Qed.
-
-  Lemma ssim_is_stuck : forall (t u : ctree E X), is_stuck t -> is_stuck u -> t ≲ u.
-  Proof.
-    intros. step. now apply ss_is_stuck.
->>>>>>> master
-  Qed.
-
-End ssim_theory.
+End ssim_homogenous_theory.
 
 (*|
 Up-to [bind] context simulations
@@ -511,136 +385,94 @@ We now prove the same result, but for strong simulation.
 |*)
 
 Section bind.
+  Arguments label: clear implicits.
   Obligation Tactic := idtac.
 
-<<<<<<< HEAD
- Context {E F C D: Type -> Type} {X X' Y Y': Type}.
- Context `{HasStuck : C0 -< C} `{HasStuck' : C0 -< D}.
- Context (L : hrel (@label E) (@label F)).
-=======
- Context {E : Type -> Type} {X Y : Type}.
->>>>>>> master
+  Context {E F C D: Type -> Type} {X X' Y Y': Type}
+          `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}
+          (L : hrel (@label E) (@label F)).
 
-(*|
-Specialization of [bind_ctx] to a function acting with [ssim] on the bound value,
-and with the argument (pointwise) on the continuation.
-|*)
-<<<<<<< HEAD
+  (*|
+    Specialization of [bind_ctx] to a function acting with [ssim] on the bound value,
+    and with the argument (pointwise) on the continuation.
+    |*)
   Program Definition bind_ctx_ssim : mon (rel (ctree E C X') (ctree F D Y')) :=
     {|body := fun R => @bind_ctx E F C D X Y X' Y' (ssim L) (pointwise (fun x y => L (val x) (val y)) R) |}.
   Next Obligation.
     intros ?? H. apply leq_bind_ctx. intros ?? H' ?? H''.
     apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
-=======
-  Program Definition bind_ctx_ssim : mon (rel (ctree E Y) (ctree E Y)) :=
-    {|body := fun R => @bind_ctx E X X Y Y ssim
-        (pointwise eq (fun t u => R t u /\ exists l t', trans l t t')) |}.
-  Next Obligation.
-    intros ?? H. apply leq_bind_ctx. intros ?? H' ?? H''.
-    apply in_bind_ctx. apply H'. intros t t' HS. red in H''. split.
-    - apply H, H'', HS.
-    - subst. specialize (H'' t' t' eq_refl). apply H''.
->>>>>>> master
   Qed.
 
 (*|
 The resulting enhancing function gives a valid up-to technique
 |*)
   Lemma bind_ctx_ssim_t :
-<<<<<<< HEAD
     respects_val L ->
     bind_ctx_ssim <= sst L.
-=======
-    bind_ctx_ssim <= sst.
->>>>>>> master
   Proof.
     intro HL.
     apply Coinduction.
     intros R. apply (leq_bind_ctx _).
     intros t1 t2 tt k1 k2 kk.
-<<<<<<< HEAD
     step in tt.
-    intros l u STEP.
-    apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
+    split; simpl; intros l u STEP; 
+      apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)];
+      cbn in *.
     - apply tt in STEP as (u' & l' & STEP & EQ' & ?).
-      eexists. exists l'. split.
+      do 2 eexists. split.
       apply trans_bind_l; eauto.
-      { intro Hl. destruct Hl. apply HL in H0 as [_ ?]. specialize (H0 (Is_val _)). auto. }
-      split; auto.
-      apply (fT_T equ_clos_ss).
-      econstructor; [exact EQ | | reflexivity].
-      apply (fTf_Tf (ss L)).
-      apply in_bind_ctx; auto.
-      intros ? ? ?.
-      apply (b_T (ss L)).
-      red in kk. red. red. now apply kk.
+      + intro Hl. destruct Hl. apply HL in H0 as [_ ?]. specialize (H0 (Is_val _)). auto.
+      + split; auto.
+        apply (fT_T equ_clos_ss).
+        econstructor; [exact EQ | | reflexivity].
+        apply (fTf_Tf (ss L)).
+        apply in_bind_ctx; auto.
+        intros ? ? ?.
+        apply (b_T (ss L)).
+        red in kk; now apply kk. 
     - apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
       specialize (HL _ _ H) as [? _]. specialize (H0 (Is_val _)). destruct H0.
       pose proof (trans_val_invT STEPres). subst.
       pose proof (trans_val_inv STEPres) as EQ.
       rewrite EQ in STEPres.
-      specialize (kk v x H).
+      specialize (kk v x0 H). 
       apply kk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
-      eexists. eexists. split.
+      do 2 eexists; split.
       eapply trans_bind_r; eauto.
       split; auto.
       eapply (id_T (ss L)); auto.
-=======
-    step in tt. split.
-    - intros l u STEP.
-      red in kk.
-      apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
-      + apply tt in STEP as [u' STEP EQ'].
-        eexists.
-        apply trans_bind_l; eauto.
-        apply (fT_T equ_clos_sst).
-        econstructor; [exact EQ | | reflexivity].
-        apply (fTf_Tf ss).
-        apply in_bind_ctx; auto.
-        intros ? ? ->. split.
-        apply (b_T ss).
-        now apply kk.
-        now eapply kk.
-      + apply tt in STEPres as [u' STEPres EQ'].
-        pose proof (trans_val_inv STEPres) as EQ.
-        rewrite EQ in STEPres.
-        specialize (kk v v eq_refl).
-        apply kk in STEP as [u'' STEP EQ'']; cbn in *.
-        eexists.
-        eapply trans_bind_r; cbn in *; eauto.
-        eapply (id_T ss); auto.
-    - intros l u STEP. red in kk.
-      apply trans_bind_inv_l in STEP as (l' & t2' & STEP).
-      apply tt in STEP as (l'' & t1' & EQ').
-      destruct l''.
-      + eexists _, _. apply trans_bind_l; [| eauto ]. intro. inv H.
-      + eexists _, _. apply trans_bind_l; [| eauto ]. intro. inv H.
-      + apply trans_val_invT in EQ' as ?. subst.
-        apply trans_val_inv in EQ' as ?. rewrite H in EQ'.
-        specialize (kk v v eq_refl). destruct kk as [_ (? & ? & ?)].
-        eapply trans_bind_r in H0; eauto.
->>>>>>> master
+    - apply tt in STEP as (u' & l' & ? & STEP). 
+      do 2 eexists; split; eauto.
+      apply trans_bind_l.
+      + intro Hl. destruct Hl. apply HL in H0 as [? _]. specialize (H0 (Is_val _)). auto.
+      + eauto.
+    - destruct tt as [tt tt'].
+      apply tt' in STEPres as (u' & ? & ? & STEPres).
+      specialize (HL _ _ H) as [_ ?]. specialize (H0 (Is_val _)). destruct H0.
+      pose proof (trans_val_invT STEPres). subst.
+      pose proof (trans_val_inv STEPres) as EQ.
+      rewrite EQ in STEPres.
+      specialize (kk x0 v H). 
+      apply kk in STEP as (u'' & ? & ? & STEP); cbn in *.
+      do 2 eexists; split; eauto.      
+      eapply trans_bind_r; eauto.
   Qed.
 
 End bind.
 
-<<<<<<< HEAD
-Lemma bind_ctx_ssim_eq_t {E C T X} `{C0 -< C} :
+Lemma bind_ctx_ssim_eq_t {E C T X} `{B0 -< C} :
     (bind_ctx_ssim (X := T) (Y := T) eq : mon (relation (ctree E C X))) <= sst eq.
 Proof.
   apply bind_ctx_ssim_t. red. intros. now subst.
 Qed.
 
-=======
->>>>>>> master
 Import CTree.
 Import CTreeNotations.
 
 (*|
 Expliciting the reasoning rule provided by the up-to principles.
 |*)
-<<<<<<< HEAD
-Lemma sst_clo_bind (E F C D: Type -> Type) `{C0 -< C} `{C0 -< D} (X X' Y Y' : Type) L :
+Lemma sst_clo_bind (E F C D: Type -> Type) `{B0 -< C} `{B0 -< D} (X X' Y Y' : Type) L :
   forall (t1 : ctree E C X) (t2 : ctree F D X') (k1 : X -> ctree E C Y) (k2 : X' -> ctree F D Y') RR,
 		t1 (≲L) t2 ->
     respects_val L ->
@@ -656,7 +488,7 @@ Qed.
 (*|
 Specializing the congruence principle for [~]
 |*)
-Lemma ssim_clo_bind (E F C D: Type -> Type) `{C0 -< C} `{C0 -< D} (X X' Y Y' : Type) L :
+Lemma ssim_clo_bind (E F C D: Type -> Type) `{B0 -< C} `{B0 -< D} (X X' Y Y' : Type) L :
   forall (t1 : ctree E C X) (t2 : ctree F D X') (k1 : X -> ctree E C Y) (k2 : X' -> ctree F D Y'),
 		t1 (≲L) t2 ->
     respects_val L ->
@@ -667,45 +499,12 @@ Proof.
   intros.
   apply (ft_t (@bind_ctx_ssim_t E F C D X Y X' Y' _ _ L H2)).
   apply in_bind_ctx; auto.
-=======
-Lemma sst_clo_bind (E : Type -> Type) (X Y : Type) :
-  forall (t1 t2 : ctree E X) (k1 k2 : X -> ctree E Y) RR,
-		t1 ≲ t2 ->
-    (forall x, (sst RR) (k1 x) (k2 x)) ->
-    (forall x, exists l t', trans l (k1 x) t') ->
-    sst RR (t1 >>= k1) (t2 >>= k2)
-.
-Proof.
-  intros.
-  apply (ft_t (@bind_ctx_ssim_t E X Y)).
-  apply in_bind_ctx; auto.
-  intros ? ? <-; auto.
-Qed.
-
-(*|
-Specializing the congruence principle for [≲]
-|*)
-Lemma ssim_clo_bind (E : Type -> Type) (X Y : Type) :
-  forall (t1 t2 : ctree E X) (k1 k2 : X -> ctree E Y),
-		t1 ≲ t2 ->
-    (forall x, k1 x ≲ k2 x) ->
-    (forall x, exists l t', trans l (k1 x) t') ->
-    t1 >>= k1 ≲ t2 >>= k2
-.
-Proof.
-  intros * EQ EQs ?.
-  apply (ft_t (@bind_ctx_ssim_t E X Y)).
-  apply in_bind_ctx; auto.
-  intros ? ? <-; auto.
-  split. apply EQs. apply H.
->>>>>>> master
 Qed.
 
 (*|
 And in particular, we can justify rewriting [≲] to the left of a [bind].
 |*)
-<<<<<<< HEAD
-Lemma bind_ssim_cong_gen {E F C D X X' Y Y'} `{C0 -< C} `{C0 -< D} RR (L : rel _ _) :
+Lemma bind_ssim_cong_gen {E F C D X X' Y Y'} `{B0 -< C} `{B0 -< D} RR (L : rel _ _) :
   forall (t : ctree E C X) (t' : ctree F D X')
       (k : X -> ctree E C Y) (k' : X' -> ctree F D Y'),
     respects_val L ->
@@ -714,21 +513,10 @@ Lemma bind_ssim_cong_gen {E F C D X X' Y Y'} `{C0 -< C} `{C0 -< D} RR (L : rel _
     sst L RR (CTree.bind t k) (CTree.bind t' k').
 Proof.
   intros; eapply sst_clo_bind; red in H2; eauto.
-=======
-Lemma bind_ssim_cong_gen {E X Y} RR :
-  forall (t1 t2 : ctree E X) (k1 k2 : X -> ctree E Y),
-  t1 ≲ t2 ->
-  (forall x, sst RR (k1 x) (k2 x)) ->
-  (forall x, exists l t', trans l (k1 x) t') ->
-  sst RR (t1 >>= k1) (t2 >>= k2).
-Proof.
-  intros; eapply sst_clo_bind; eauto.
->>>>>>> master
 Qed.
 
 Ltac __upto_bind_ssim :=
   match goal with
-<<<<<<< HEAD
     |- @ssim _ _ _ _ ?X ?X' _ _ _ (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
       apply ssim_clo_bind
   | |- body (t (@ss ?E ?E ?C ?C ?X ?X _ _ eq)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
@@ -749,32 +537,6 @@ Ltac __play_ssim_in H :=
 Ltac __eplay_ssim :=
   match goal with
   | h : @ssim ?E ?F ?C ?D ?X ?Y _ _ ?L _ _ |- _ =>
-=======
-    |- @ssim _ ?X (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
-      apply ssim_clo_bind
-  | |- body (t (@ss ?E ?X)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
-      apply (ft_t (@bind_ctx_ssim_t E T X)), in_bind_ctx
-  | |- body (bt (@ss ?E ?X)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) =>
-      apply (fbt_bt (@bind_ctx_ssim_t E T X)), in_bind_ctx
-  end.
-Ltac __upto_bind_eq_ssim :=
-  match goal with
-  | |- @ssim _ ?X (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
-    __upto_bind_ssim; [reflexivity | intros ?]
-  | _ => __upto_bind_ssim; [reflexivity | intros ? ? <-]
-  end.
-
-Ltac __play_ssim := step; cbn; split; [intros ? ? ?TR | etrans].
-
-Ltac __play_ssim_in H :=
-  step in H;
-  cbn in H; edestruct H as [[? ?TR ?EQ] _];
-  clear H; [etrans |].
-
-Ltac __eplay_ssim :=
-  match goal with
-  | h : @ssim ?E ?X _ _ |- _ =>
->>>>>>> master
       __play_ssim_in h
   end.
 
@@ -784,57 +546,41 @@ Ltac __eplay_ssim :=
 
 Section Proof_Rules.
 
-<<<<<<< HEAD
   Context {E F C D : Type -> Type}.
-  Context {HasStuck : C0 -< C} {HasStuck' : C0 -< D}.
-  Context {HasTau : C1 -< C} {HasTau' : C1 -< D}.
+  Context {HasStuck : B0 -< C} {HasStuck' : B0 -< D}.
+  Context {HasTau : B1 -< C} {HasTau' : B1 -< D}.
   Context {X X' Y Y' : Type}.
   Context {L : rel (@label E) (@label F)}.
 
   Lemma step_ss_ret_gen (x : X) (y : Y) (R : rel _ _) :
-    R stuckI stuckI ->
+    R stuckD stuckD ->
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     L (val x) (val y) ->
     ss L R (Ret x : ctree E C X) (Ret y : ctree F D Y).
   Proof.
     intros Rstuck PROP Lval.
-    cbn; intros ? ? TR; inv_trans; subst.
-    cbn; eexists; eexists; intuition; etrans.
-    now rewrite EQ.
+    cbn; split; intros ? ? TR; inv_trans; subst;
+      cbn; eexists; eexists; intuition; etrans;
+      now rewrite EQ.
   Qed.
+End Proof_Rules.
 
-  Lemma step_ss_ret (x : X) (y : Y) (R : rel _ _) :
-    L (val x) (val y) ->
-    ssbt L R (Ret x : ctree E C X) (Ret y : ctree F D Y).
-  Proof.
-    intros.
-    apply step_ss_ret_gen.
-    - step. intros. now apply stuckI_ss.
-    - typeclasses eauto.
-    - apply H.
-=======
-  Context {E : Type -> Type}.
-  Context {X Y : Type}.
-
-  Lemma step_ss_ret_gen (x y : X) (R : rel _ _) :
-    R stuckD stuckD ->
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    x = y ->
-    ss R (Ret x : ctree E X) (Ret y).
-  Proof.
-    split; [| etrans ].
-    apply step_ss0_ret_gen; auto.
+Section Foo.
+   Context {E C : Type -> Type} {X : Type}
+          {L: relation (@label E)}
+          {HasStuck: B0 -< C}.
+   
+   Lemma step_ss_ret (x y : X) (R : rel _ _) `{Reflexive _ L}:
+     x = y ->
+     ssbt L R (Ret x : ctree E C X) (Ret y: ctree E C X).
+   Proof.
+     intros.
+     apply step_ss_ret_gen.
+     apply refl_sst; eauto.
+     typeclasses eauto.
+     subst; reflexivity.
   Qed.
-
-  Lemma step_ss_ret (x y : X) (R : rel _ _) :
-    x = y ->
-    ssbt R (Ret x : ctree E X) (Ret y).
-  Proof.
-    apply step_ss_ret_gen.
-    reflexivity.
-    typeclasses eauto.
->>>>>>> master
-  Qed.
+    
 
 (*|
 The vis nodes are deterministic from the perspective of the labeled transition system,

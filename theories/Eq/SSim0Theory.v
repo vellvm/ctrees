@@ -47,113 +47,23 @@ Import CTreeNotations.
 Import EquNotations.
 Import SBisimNotations.
 
-Section ssim0_theory.
+Section ssim0_heterogenous_theory.
+  Arguments label: clear implicits.
+  Context {E F C D: Type -> Type} {X Y: Type}
+          {L: rel (@label E) (@label F)}
+          {HasStuck1: B0 -< C} {HasStuck2: B0 -< D}.
+  
+  Notation ss0 := (@ss0 E F C D X Y _ _).
+  Notation ssim0  := (@ssim0 E F C D X Y _ _).
+  Notation sst0 L := (coinduction.t (ss0 L)).
+  Notation ssbt0 L := (coinduction.bt (ss0 L)).
+  Notation ssT0 L := (coinduction.T (ss0 L)).
 
-  Context {E C : Type -> Type} {X : Type}
-          {L: relation (@label E)}
-          {HasStuck: B0 -< C} {EqL: Equivalence L}.
-
-  Notation ss0 := (@ss0 E E C C X X _ _ L).
-  Notation ssim0 := (@ssim0 E E C C X X _ _ L).
-  Notation sst0 := (coinduction.t ss0).
-  Notation ssbt0 := (coinduction.bt ss0).
-  Notation ssT0 := (coinduction.T ss0).
-
-(*|
-Various results on reflexivity and transitivity.
-|*)
-  Lemma refl_sst0: const seq <= sst0.
-  Proof.
-    apply leq_t. cbn.
-    intros. unfold seq in H. subst. eauto.
-  Qed.
-
-  Lemma square_sst0 : square <= sst0.
-  Proof.
-    apply Coinduction; cbn.
-    intros R x z [y xy yz] l x' xx'.
-    destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
-    destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
-    exists l'', z'.
-    split.
-    assumption.
-    split.
-    apply (f_Tf ss0).
-    exists y'; eauto.
-    transitivity l'; auto.
-  Qed.
-
-  #[global] Instance PreOrder_sst0 R : PreOrder (sst0 R).
-  Proof. apply PreOrder_t. apply refl_sst0. apply square_sst0. Qed.
-
-  Corollary PreOrder_ssim0: PreOrder ssim0.
-  Proof. apply PreOrder_sst0. Qed.
-
-  #[global] Instance PreOrder_ssbt0 R : PreOrder (ssbt0 R).
-	Proof. apply rel.PreOrder_bt. now apply refl_sst0. apply square_sst0. Qed.
-
-  #[global] Instance PreOrder_ssT0 f R: PreOrder ((T ss0) f R).
-  Proof. apply rel.PreOrder_T. now apply refl_sst0. apply square_sst0. Qed.
-
-(*|
-Aggressively providing instances for rewriting hopefully faster
-[sbisim] under all [ss1]-related contexts (consequence of the transitivity
-of the companion).
-|*)
-
-  #[global] Instance sbisim_clos_ssim0_goal :
-    Proper (sbisim L ==> sbisim L ==> flip impl) ssim0.
-  Proof.
-    repeat intro.
-    symmetry in H0. apply sbisim_ssim0 in H, H0.
-    transitivity y0. transitivity y. all: auto.
-  Qed.
-
-  #[global] Instance sbisim_clos_ssim0_ctx :
-    Proper (sbisim L ==> sbisim L ==> impl) ssim0.
-  Proof.
-    repeat intro. symmetry in H, H0. eapply sbisim_clos_ssim0_goal; eauto.
-  Qed.
-
-  #[global] Instance sbisim_clos_sst_goal RR :
-    Proper (sbisim L ==> sbisim L ==> flip impl) (sst0 RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    symmetry in eq2. apply sbisim_ssim0 in eq1, eq2.
-    rewrite eq1, <- eq2.
-    auto.
-  Qed.
-
-  #[global] Instance sbisim_clos_sst_ctx RR :
-    Proper (sbisim L ==> sbisim L ==> impl) (sst0 RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    rewrite <- eq1, <- eq2.
-    auto.
-  Qed.
-
-  #[global] Instance sbisim_clos_ssT_goal RR f :
-    Proper (sbisim L ==> sbisim L ==> flip impl) (ssT0 f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    symmetry in eq2. apply sbisim_ssim0 in eq1, eq2.
-    rewrite eq1, <- eq2.
-    auto.
-  Qed.
-
-  #[global] Instance sbisim_clos_ssT_ctx RR f :
-    Proper (sbisim L ==> sbisim L ==> impl) (ssT0 f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    rewrite <- eq1, <- eq2.
-    auto.
-  Qed.
-
-(*|
+ (*|
 Strong simulation up-to [equ] is valid
 ----------------------------------------
 |*)
-  Lemma equ_clos_sst0 : equ_clos <= sst0.
+  Lemma equ_clos_sst0 : equ_clos <= (sst0 L).
   Proof.
     apply Coinduction; cbn.
     intros R x y [x' y' x'' y'' EQ' EQ''] l z x'z.
@@ -163,74 +73,77 @@ Strong simulation up-to [equ] is valid
     split.
     - rewrite <- Equu; auto.
     - split; auto.
-      eapply (f_Tf ss0).
+      eapply (f_Tf (ss0 L)).
       econstructor; auto; auto.
   Qed.
 
-  #[global] Instance equ_clos_sst0_goal RR :
-    Proper (equ eq ==> equ eq ==> flip impl) (sst0 RR).
+  #[global] Instance equ_clos_sst0_goal {RR} :
+    Proper (equ eq ==> equ eq ==> flip impl) (sst0 L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (ft_t equ_clos_sst0); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_clos_sst0_ctx RR :
-    Proper (equ eq ==> equ eq ==> impl) (sst0 RR).
+  #[global] Instance equ_clos_sst0_ctx {RR} :
+    Proper (equ eq ==> equ eq ==> impl) (sst0 L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (ft_t equ_clos_sst0); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
   #[global] Instance equ_ssbt0_closed_goal {r} :
-    Proper (equ eq ==> equ eq ==> flip impl) (ssbt0 r).
+    Proper (equ eq ==> equ eq ==> flip impl) (ssbt0 L r).
   Proof.
     cbn. intros.
-    now rewrite <- H, <- H0 in H1.
+    apply (fbt_bt equ_clos_sst0); econstructor; eauto.
+    now symmetry.
   Qed.
 
   #[global] Instance equ_ssbt0_closed_ctx {r} :
-    Proper (equ eq ==> equ eq ==> impl) (ssbt0 r).
+    Proper (equ eq ==> equ eq ==> impl) (ssbt0 L r).
   Proof.
-    cbn. intros.
+    cbn; intros.    
     now rewrite H, H0 in H1.
   Qed.
 
   #[global] Instance equ_clos_ssT0_goal RR f :
-    Proper (equ eq ==> equ eq ==> flip impl) (ssT0 f RR).
+    Proper (equ eq ==> equ eq ==> flip impl) (ssT0 L f RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (fT_T equ_clos_sst0); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
   #[global] Instance equ_clos_ssT0_ctx RR f :
-    Proper (equ eq ==> equ eq ==> impl) (ssT0 f RR).
+    Proper (equ eq ==> equ eq ==> impl) (ssT0 L f RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (fT_T equ_clos_sst0); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
   #[global] Instance equ_clos_ssim0_goal :
-    Proper (equ eq ==> equ eq ==> flip impl) ssim0.
+    Proper (equ eq ==> equ eq ==> flip impl) (ssim0 L).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (ft_t equ_clos_sst0); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
   #[global] Instance equ_clos_ssim0_ctx :
-    Proper (equ eq ==> equ eq ==> impl) ssim0.
+    Proper (equ eq ==> equ eq ==> impl) (ssim0 L).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (ft_t equ_clos_sst0); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_ss0_closed_goal {r} : Proper (equ eq ==> equ eq ==> flip impl) (ss0 r).
+  #[global] Instance equ_ss0_closed_goal {r} :
+    Proper (equ eq ==> equ eq ==> flip impl) (ss0 L r).
   Proof.
     intros t t' tt' u u' uu'; cbn; intros.
     rewrite tt' in H0. apply H in H0 as (l' & ? & ? & ? & ?).
     do 2 eexists; eauto. rewrite uu'. eauto.
   Qed.
 
-  #[global] Instance equ_ss0_closed_ctx {r} : Proper (equ eq ==> equ eq ==> impl) (ss0 r).
+  #[global] Instance equ_ss0_closed_ctx {r} :
+    Proper (equ eq ==> equ eq ==> impl) (ss0 L r).
   Proof.
     intros t t' tt' u u' uu'; cbn; intros.
     rewrite <- tt' in H0. apply H in H0 as (l' & ? & ? & ? & ?).
@@ -240,41 +153,171 @@ Strong simulation up-to [equ] is valid
   (*|
     stuck ctrees can be simulated by anything.
     |*)
-  Lemma is_stuck_ss0 (R : rel _ _) (t t' : ctree E C X) :
-    is_stuck t -> ss0 R t t'.
+  Lemma is_stuck_ss0 (R : rel _ _) (t : ctree E C X) (t': ctree F D Y):
+    is_stuck t -> ss0 L R t t'.
   Proof.
     repeat intro. now apply H in H0.
   Qed.
 
-  Lemma is_stuck_ssim0 (t t' : ctree E C X) :
-    is_stuck t -> ssim0 t t'.
+  Lemma is_stuck_ssim0 (t: ctree E C X) (t': ctree F D Y):
+    is_stuck t -> ssim0 L t t'.
   Proof.
     intros. step. now apply is_stuck_ss0.
   Qed.
 
-  Lemma stuckD_ss0 (R : rel _ _) (t : ctree E C X) : ss0 R stuckD t.
+  Lemma stuckD_ss0 (R : rel _ _) (t : ctree F D Y) : ss0 L R stuckD t.
   Proof.
     repeat intro. now apply stuckD_is_stuck in H.
   Qed.
 
-  Lemma stuckD_ssim0 (t : ctree E C X) : ssim0 stuckD t.
+  Lemma stuckD_ssim0 (t : ctree F D Y) : ssim0 L stuckD t.
   Proof.
     intros. step. apply stuckD_ss0.
   Qed.
-
   
-  Lemma spinD_ss0 (R : rel _ _) (t : ctree E C X) `{HasTau: B1 -< C}: ss0 R spinD t.
+  Lemma spinD_ss0 (R : rel _ _) (t : ctree F D Y) `{HasTau: B1 -< C}: ss0 L R spinD t.
   Proof.
     repeat intro. now apply spinD_is_stuck in H.
   Qed.
 
-  Lemma spinD_ssim0 : forall (t' : ctree E C X) `{HasTau: B1 -< C},
-      ssim0 spinD t'.
+  Lemma spinD_ssim0 : forall (t' : ctree F D Y) `{HasTau: B1 -< C},
+      ssim0 L spinD t'.
   Proof.
     intros. step. apply spinD_ss0.
   Qed.
 
-End ssim0_theory.
+End ssim0_heterogenous_theory.
+
+Section ssim0_homogenous_theory.
+  Context {E C: Type -> Type} {X: Type}
+          {L: relation (@label E)}
+          {HasStuck1: B0 -< C}.
+
+  Notation ss0 := (@ss0 E E C C X X _ _).
+  Notation ssim0 := (@ssim0 E E C C X X _ _).
+  Notation sst0 L := (coinduction.t (ss0 L)).
+  Notation ssbt0 L := (coinduction.bt (ss0 L)).
+  Notation ssT0 L := (coinduction.T (ss0 L)).
+
+  (*|
+    Various results on reflexivity and transitivity.
+  |*)
+  Lemma refl_sst0 `{Reflexive _ L}: const seq <= (sst0 L).
+  Proof.
+    apply leq_t. cbn.
+    intros. unfold seq in H0. subst. eauto.
+  Qed.
+
+  Lemma square_sst0 `{Transitive _ L}: square <= (sst0 L).
+  Proof.
+    apply Coinduction; cbn.
+    intros R x z [y xy yz] l x' xx'.
+    destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
+    destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
+    exists l'', z'.
+    split.
+    assumption.
+    split.
+    apply (f_Tf (ss0 L)).
+    exists y'; eauto.
+    transitivity l'; auto.
+  Qed.
+
+  (*| Reflexivity |*)
+  #[global] Instance Reflexive_sst0 R `{Reflexive _ L}: Reflexive (sst0 L R).
+  Proof. apply build_reflexive; apply ft_t; apply (refl_sst0). Qed.
+
+  Corollary Reflexive_ssim0 `{Reflexive _ L}: Reflexive (ssim0 L).
+  Proof. now apply Reflexive_sst0. Qed.
+
+  #[global] Instance Reflexive_ssbt0 R `{Reflexive _ L}: Reflexive (ssbt0 L R).
+  Proof. apply build_reflexive; apply fbt_bt; apply refl_sst0. Qed.
+
+  #[global] Instance Reflexive_ssT0 f R `{Reflexive _ L}: Reflexive (ssT0 L f R).
+  Proof. apply build_reflexive; apply fT_T; apply refl_sst0. Qed.
+
+  (*| Transitivity |*)
+  #[global] Instance Transitive_sst0 R `{Transitive _ L}: Transitive (sst0 L R).
+  Proof. apply build_transitive; apply ft_t; apply (square_sst0). Qed.
+
+  Corollary Transitive_ssim0 `{Transitive _ L}: Transitive (ssim0 L).
+  Proof. now apply Transitive_sst0. Qed.
+
+  #[global] Instance Transitive_ssbt0 R `{Transitive _ L}: Transitive (ssbt0 L R).
+  Proof. apply build_transitive; apply fbt_bt; apply square_sst0. Qed.
+
+  #[global] Instance Transitive_ssT0 f R `{Transitive _ L}: Transitive (ssT0 L f R).
+  Proof. apply build_transitive; apply fT_T; apply square_sst0. Qed.
+  
+  (*| PreOrder |*)
+  #[global] Instance PreOrder_sst0 R `{PreOrder _ L}: PreOrder (sst0 L R).
+  Proof. split; typeclasses eauto. Qed.
+
+  Corollary PreOrder_ssim0 `{PreOrder _ L}: PreOrder (ssim0 L).
+  Proof. split; typeclasses eauto. Qed.
+
+  #[global] Instance PreOrder_ssbt0 R `{PreOrder _ L}: PreOrder (ssbt0 L R).
+  Proof. split; typeclasses eauto. Qed.
+
+  #[global] Instance PreOrder_ssT0 f R `{PreOrder _ L}: PreOrder (ssT0 L f R).
+  Proof. split; typeclasses eauto. Qed.
+   
+  (*|
+    Aggressively providing instances for rewriting hopefully faster
+    [sbisim] under all [ss1]-related contexts (consequence of the transitivity
+    of the companion).
+    |*)
+  #[global] Instance sbisim_clos_ssim0_goal `{Symmetric _ L} `{Transitive _ L} :
+    Proper (sbisim L ==> sbisim L ==> flip impl) (ssim0 L).
+  Proof.
+    repeat intro.
+    transitivity y0. transitivity y.
+    - now apply sbisim_ssim0 in H1.
+    - now exact H3.
+    - symmetry in H2; now apply sbisim_ssim0 in H2.
+  Qed.
+
+  #[global] Instance sbisim_clos_ssim0_ctx `{Equivalence _ L}:
+    Proper (sbisim L ==> sbisim L ==> impl) (ssim0 L).
+  Proof.
+    repeat intro. symmetry in H0, H1. eapply sbisim_clos_ssim0_goal; eauto.
+  Qed.
+
+  #[global] Instance sbisim_clos_sst_goal RR `{Equivalence _ L}:
+    Proper (sbisim L ==> sbisim L ==> flip impl) (sst0 L RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 H0.
+    symmetry in eq2. apply sbisim_ssim0 in eq1, eq2.
+    rewrite eq1, <- eq2.
+    auto.
+  Qed.
+
+  #[global] Instance sbisim_clos_sst_ctx RR `{Equivalence _ L}:
+    Proper (sbisim L ==> sbisim L ==> impl) (sst0 L RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
+    rewrite <- eq1, <- eq2.
+    auto.
+  Qed.
+
+  #[global] Instance sbisim_clos_ssT_goal RR f `{Equivalence _ L}:
+    Proper (sbisim L ==> sbisim L ==> flip impl) (ssT0 L f RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
+    symmetry in eq2. apply sbisim_ssim0 in eq1, eq2.
+    rewrite eq1, <- eq2.
+    auto.
+  Qed.
+
+  #[global] Instance sbisim_clos_ssT_ctx RR f `{Equivalence _ L}:
+    Proper (sbisim L ==> sbisim L ==> impl) (ssT0 L f RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
+    rewrite <- eq1, <- eq2.
+    auto.
+  Qed.
+
+End ssim0_homogenous_theory.
 
 Import SSim0Notations.
 
@@ -786,20 +829,19 @@ Lemma ssim0_hsbisim_nequiv :
 Proof.
   unfold t1, t2. intuition.
   - step.
-Admitted.
-(* LEF: Hm, not sure how to work with the preorder of branch effects... 
-apply step_ss0_brS; auto.
-    intros _. exists Fin.F1. reflexivity.
+    apply step_ss0_brS; auto.
+    intros _. exists true. reflexivity.
   - step. apply step_ss0_brS; auto.
-    intro. exists Fin.F1. destruct x.
+    intros [|]; exists tt. 
     + reflexivity.
     + step. apply stuckD_ss0.
   - step in H. cbn in H. destruct H as [_ ?].
     specialize (H tau stuckD). lapply H; [| etrans].
-    intros. destruct H0 as [? ? ?].
+    intros. destruct H0 as (? & ? & ? & ? & ?).
     inv_trans. step in H1. cbn in H1. destruct H1 as [? _].
-    specialize (H0 (val tt) stuckD). lapply H0. 2: { rewrite EQ. etrans. }
-    intro. destruct H1 as [? ? ?].
+    specialize (H0 (val tt) stuckD). lapply H0.
+    2: subst; etrans.
+    intro; destruct H1 as (? & ? & ? & ? & ?).
     now apply stuckD_is_stuck in H1.
 Qed.
-*)
+
