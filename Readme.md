@@ -17,14 +17,7 @@ This development is a companion to the POPL'23 conditionally accepted submission
   - [Alectryon](https://github.com/cpitclaudel/alectryon)
 - Coq namespace: `CTree`
 
-## Building instructions
-
-### Installing dependencies
-
-Installing the opam dependencies
-```shell
-opam install .
-```
+## Building instructions: from source
 
 ### Obtaining the project
 
@@ -34,10 +27,26 @@ git checkout popl23
 cd ctrees
 ```
 
+### Installing dependencies
+
+Installing the opam dependencies
+```shell
+opam install --deps-only .
+```
+
 ### Building the project
 
 ```shell
 dune build
+```
+
+## Building instructions: via Docker
+
+We provide a Docker image as an alternative way to build the project. The image is hosted on the Docker hub under the identifier `paulhe55555/ctrees`.
+It can be obtained as follows:
+
+```shell
+docker pull paulhe55555/ctrees
 ```
 
 ## Paper to artifact correspondence
