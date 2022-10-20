@@ -884,13 +884,11 @@ Do we actually need them on [sb (st R)], or something else?
 
 Section Proof_Rules.
 
-  Context {E C : Type -> Type}.
-  Context {HasStuck : B0 -< C}.
-  Context {HasTau : B1 -< C}.
-  Context {X Y : Type}.
-  Context {L: relation (@label E)}.
+  Context {E C : Type -> Type} {X: Type}
+          `{HasStuck : B0 -< C} `{HasTau : B1 -< C}
+          {L: relation (@label E)}.
 
-  Lemma step_sb_ret_gen (x y : X) (R : rel _ _) :
+  Lemma step_sb_ret_gen (x y : X) (R : rel (ctree E C X) (ctree E C X)) :
     R stuckD stuckD ->
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     x = y ->
@@ -902,7 +900,7 @@ Section Proof_Rules.
     all: now rewrite EQ.
   Qed.
 
-  Lemma step_sb_ret (x y : X) (R : rel _ _) :
+  Lemma step_sb_ret (x y : X) (R : rel (ctree E C X) (ctree E C X)) :
     x = y ->
     sbt eq R (Ret x) (Ret y : ctree E C X).
   Proof.
@@ -915,7 +913,7 @@ Section Proof_Rules.
 The vis nodes are deterministic from the perspective of the labeled transition system,
 stepping is hence symmetric and we can just recover the itree-style rule.
 |*)
-  Lemma step_sb_vis_gen (e : E X) (k k' : X -> ctree E C Y) (R : rel _ _) :
+  Lemma step_sb_vis_gen {Y} (e : E X) (k k' : X -> ctree E C Y) (R : rel (ctree E C Y) (ctree E C Y)) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (forall x, R (k x) (k' x)) ->
     sb eq R (Vis e k) (Vis e k').
@@ -925,7 +923,7 @@ stepping is hence symmetric and we can just recover the itree-style rule.
     all: cbn; eexists; eexists; intuition; etrans; rewrite EQ; auto.
   Qed.
 
-  Lemma step_sb_vis (e : E X) (k k' : X -> ctree E C Y) (R : rel _ _) :
+  Lemma step_sb_vis {Y} (e : E X) (k k' : X -> ctree E C Y) (R : rel (ctree E C Y) (ctree E C Y)) :
     (forall x, (st eq R) (k x) (k' x)) ->
     sbt eq R (Vis e k) (Vis e k').
   Proof.
@@ -937,7 +935,7 @@ stepping is hence symmetric and we can just recover the itree-style rule.
   (*|
     Same goes for visible tau nodes.
     |*)
-  Lemma step_sb_step_gen (t t' : ctree E C X) (R : rel _ _) :
+  Lemma step_sb_step_gen (t t' : ctree E C X) (R : rel (ctree E C X) (ctree E C X)) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (R t t') ->
     sb eq R (Step t) (Step t').
@@ -947,7 +945,7 @@ stepping is hence symmetric and we can just recover the itree-style rule.
     all: cbn; eexists; eexists; intuition; etrans; rewrite EQ; auto.
   Qed.
 
-  Lemma step_sb_step (t t' : ctree E C X) (R : rel _ _) :
+  Lemma step_sb_step (t t' : ctree E C X) (R : rel (ctree E C X) (ctree E C X)) :
     (st eq R t t') ->
     sbt eq R (Step t) (Step t').
   Proof.
@@ -961,7 +959,7 @@ stepping is hence symmetric and we can just recover the itree-style rule.
     A useful special case is the one where the arity coincide and we simply use the identity
     in both directions. We can in this case have [n] rather than [2n] obligations.
     |*)
-  Lemma step_sb_brS_gen Z (c : C Y) (c' : C Z) (k : Y -> ctree E C X) (k' : Z -> ctree E C X) (R : rel _ _) :
+  Lemma step_sb_brS_gen {Z Y} (c : C Y) (c' : C Z) (k : Y -> ctree E C X) (k' : Z -> ctree E C X) (R : rel (ctree E C X) (ctree E C X)) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (forall x, exists y, R (k x) (k' y)) ->
     (forall y, exists x, R (k x) (k' y)) ->
@@ -979,7 +977,7 @@ stepping is hence symmetric and we can just recover the itree-style rule.
       cbn; rewrite EQ; eauto.
   Qed.
 
-  Lemma step_sb_brS Z (c : C Y) (c' : C Z) (k : Y -> ctree E C X) (k' : Z -> ctree E C X) (R : rel _ _) :
+  Lemma step_sb_brS {Z Y} (c : C Y) (c' : C Z) (k : Y -> ctree E C X) (k' : Z -> ctree E C X) (R : rel (ctree E C X) (ctree E C X)) :
     (forall x, exists y, st eq R (k x) (k' y)) ->
     (forall y, exists x, st eq R (k x) (k' y)) ->
     sbt eq R (BrS c k) (BrS c' k').
@@ -989,7 +987,7 @@ stepping is hence symmetric and we can just recover the itree-style rule.
     typeclasses eauto.
   Qed.
 
-  Lemma step_sb_brS_id_gen (c : C Y) (k k' : Y -> ctree E C X) (R : rel _ _) :
+  Lemma step_sb_brS_id_gen {Y} (c : C Y) (k k' : Y -> ctree E C X) (R : rel (ctree E C X) (ctree E C X)) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (forall x, R (k x) (k' x)) ->
     sb eq R (BrS c k) (BrS c k').
@@ -999,7 +997,7 @@ stepping is hence symmetric and we can just recover the itree-style rule.
     all: intros x; exists x; auto.
   Qed.
 
-  Lemma step_sb_brS_id (c : C Y) (k k' : Y -> ctree E C X) (R : rel _ _) :
+  Lemma step_sb_brS_id {Y} (c : C Y) (k k' : Y -> ctree E C X) (R : rel (ctree E C X) (ctree E C X)) :
     (forall x, st eq R (k x) (k' x)) ->
     sbt eq R (BrS c k) (BrS c k').
   Proof.
@@ -1011,7 +1009,7 @@ stepping is hence symmetric and we can just recover the itree-style rule.
   For invisible nodes, the situation is different: we may kill them, but that execution
   cannot act as going under the guard.
   |*)
-  Lemma step_sb_guard_gen (t t' : ctree E C X) (R : rel _ _) :
+  Lemma step_sb_guard_gen (t t' : ctree E C X) (R : rel (ctree E C X) (ctree E C X)) :
     sb eq R t t' ->
     sb eq R (Guard t) (Guard t').
   Proof.
@@ -1025,14 +1023,15 @@ stepping is hence symmetric and we can just recover the itree-style rule.
     - assumption. 
   Qed.
 
-  Lemma step_sb_guard (t t' : ctree E C X) (R : rel _ _) :
+  Lemma step_sb_guard (t t' : ctree E C X) (R : rel (ctree E C X) (ctree E C X)) :
     sbt eq R t t' ->
     sbt eq R (Guard t) (Guard t').
   Proof.
     apply step_sb_guard_gen.
   Qed.
 
-  Lemma step_sb_brD_gen Z (c : C Y) (c' : C Z) (k : Y -> ctree E C X) (k' : Z -> ctree E C X) (R : rel _ _) :
+  Lemma step_sb_brD_gen {Z Y} (c : C Y) (c' : C Z) (k : Y -> ctree E C X) (k' : Z -> ctree E C X)
+        (R : rel (ctree E C X) (ctree E C X)) :
     (forall x, exists y, sb eq R (k x) (k' y)) ->
     (forall y, exists x, sb eq R (k x) (k' y)) ->
     sb eq R (BrD c k) (BrD c' k').
@@ -1053,7 +1052,8 @@ stepping is hence symmetric and we can just recover the itree-style rule.
       eauto.
   Qed.
 
-  Lemma step_sb_brD Z (c : C Y) (c' : C Z) (k : Y -> ctree E C X) (k' : Z -> ctree E C X) (R : rel _ _) :
+  Lemma step_sb_brD {Y Z} (c : C Y) (c' : C Z) (k : Y -> ctree E C X) (k' : Z -> ctree E C X)
+        (R : rel (ctree E C X) (ctree E C X)) :
     (forall x, exists y, sbt eq R (k x) (k' y)) ->
     (forall y, exists x, sbt eq R (k x) (k' y)) ->
     sbt eq R (BrD c k) (BrD c' k').
@@ -1061,7 +1061,8 @@ stepping is hence symmetric and we can just recover the itree-style rule.
     apply step_sb_brD_gen.
   Qed.
 
-  Lemma step_sb_brD_id_gen (c : C Y) (k k' : Y -> ctree E C X) (R : rel _ _) :
+  Lemma step_sb_brD_id_gen {Y} (c : C Y) (k k' : Y -> ctree E C X)
+        (R : rel (ctree E C X) (ctree E C X)) :
     (forall x, sb eq R (k x) (k' x)) ->
     sb eq R (BrD c k) (BrD c k').
   Proof.
@@ -1070,7 +1071,8 @@ stepping is hence symmetric and we can just recover the itree-style rule.
     intros x; exists x; apply H.
   Qed.
 
-  Lemma step_sb_brD_id (c : C Y) (k k' : Y -> ctree E C X) (R : rel _ _) :
+  Lemma step_sb_brD_id {Y} (c : C Y) (k k' : Y -> ctree E C X)
+        (R : rel (ctree E C X) (ctree E C X)) :
     (forall x, sbt eq R (k x) (k' x)) ->
     sbt eq R (BrD c k) (BrD c k').
   Proof.
@@ -1092,7 +1094,7 @@ Section Sb_Proof_System.
   Context {E C : Type -> Type}.
   Context {HasStuck : B0 -< C}.
   Context {HasTau : B1 -< C}.
-  Context {X Y : Type}.
+  Context {X : Type}.
 
   Lemma sb_ret : forall x y,
       x = y ->
@@ -1103,7 +1105,7 @@ Section Sb_Proof_System.
   Qed.
 
   (** LEF: TODO: make sure all the ltac patterns have the right arguments for sb, sbisim, st etc. *)
-  Lemma sb_vis e : forall (k k' : X -> ctree E C Y),
+  Lemma sb_vis {Y e} : forall (k k' : X -> ctree E C Y),
       (forall x, k x ~ k' x) ->
       Vis e k ~ Vis e k'.
   Proof.
