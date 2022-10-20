@@ -12,7 +12,7 @@ Unary arity, encoding taus/fuel/guards
 Variant B1 : Type -> Type := | branch1 : B1 unit.
 
 (*|
-Bommonly used bounded arities
+Commonly used bounded arities
 |*)
 Variant B2 : Type -> Type := | branch2 : B2 bool.
 Variant T3 : Type := | t31 | t32 | t33.
@@ -26,7 +26,7 @@ Finite unbounded arity
 Variant Bn : Type -> Type := | branchn (n : nat) : Bn (fin n).
 
 (*|
-Bountable branching
+Countable branching
 |*)
 Variant BN : Type -> Type := | branchN : BN nat.
 

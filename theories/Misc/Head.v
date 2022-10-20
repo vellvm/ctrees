@@ -25,24 +25,18 @@ Set Implicit Arguments.
 Set Contextual Implicit.
 
 (*|
-The [head] computation is itself a tree. The values it computes is
+The [haction] computation is itself a tree. The values it computes is
 the set of possible transition, i.e. enough data to recover the next label
 and process.
 The [haction] data structure captures trivially this data.
 .. coq::
 |*)
 
-<<<<<<< HEAD:theories/Head.v
-Variant head {E C R} :=
-	| HRet    (r : R)
-	| HChoice (X : Type) (c : C X) (k : X -> ctree E C R)
-	| HVis    (X : Type) (e : E X) (k : X -> ctree E C R).
-=======
-Variant haction {E R} :=
+Variant haction {E C R} :=
 	| ARet    (r : R)
-	| ABr (n : nat) (k : Fin.t n -> ctree E R)
-	| AVis    (X : Type) (e : E X) (k : X -> ctree E R).
->>>>>>> master:theories/Misc/Head.v
+	| ABr     (X : Type) (c : C X) (k : X -> ctree E C R)
+	| AVis    (X : Type) (e : E X) (k : X -> ctree E C R).
+
 
 (*|
 The [head] computation simply scrolls the tree until it reaches
@@ -50,14 +44,13 @@ a none invisible br node.
 Notice that this computation may loop if the original computation
 admits a infinite branch of invisible brs.
 |*)
-<<<<<<< HEAD:theories/Head.v
-Definition get_head {E C X} : ctree E C X -> ctree E C (@head E C X) :=
-  cofix get_head (t : ctree E C X) :=
+Definition head {E C X} : ctree E C X -> ctree E C (@haction E C X) :=
+  cofix head(t : ctree E C X) :=
     match observe t with
-    | RetF x          => Ret (HRet x)
-    | VisF e k        => Ret (HVis e k)
-    | ChoiceF true c k => Ret (HChoice c k)
-    | ChoiceF false c k => Choice false c (fun x => get_head (k x))
+    | RetF x          => Ret (ARet x)
+    | VisF e k        => Ret (AVis e k)
+    | BrSF c k        => Ret (ABr c k)
+    | BrDF c k        => Br false c (fun x => head (k x))
     end.
 
 Notation get_head_ t :=

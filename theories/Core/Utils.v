@@ -67,3 +67,41 @@ match type of H with
 | _ => red in H; step_in H
 end.
 Tactic Notation "step" "in" ident(H) := step_in H.
+
+Class Injective {A B}(R: rel A B) := {
+    inj: forall x x' y, R x y /\ R x' y -> x = x';
+  }.
+
+Class Deterministic {A B}(R: rel A B) := {
+    det: forall x y y', R x y /\ R x y' -> y = y';
+  }.
+
+#[global] Instance Injective_eq A: @Injective A A eq.
+Proof.
+  split; intros ? ? ? [H H'].
+  subst; reflexivity.
+Qed.
+
+#[global] Instance Deterministic_eq A: @Deterministic A A eq.
+Proof.
+  split; intros ? ? ? [H H'].
+  subst; reflexivity.
+Qed.
+
+Ltac do_inj :=
+  match goal with
+  | [ _: Injective ?L, H: ?L ?x ?y, H': ?L ?x' ?y |- _ ] =>
+      pose proof (@inj _ _ L _ _ _ _ (conj H H')) as RWTinj;
+      rewrite <- RWTinj in *;
+      clear RWTinj H'
+  end.
+
+Ltac do_det :=
+  match goal with
+  | [ _: Deterministic ?L, H: ?L ?x ?y, H': ?L ?x ?y' |- _ ] =>
+      pose proof (@det _ _ L _ _ _ _ (conj H H')) as RWTdet;
+      rewrite <- RWTdet in *;
+      clear RWTdet H'
+  end.
+
+#[global] Notation inhabited X := { x: X | True}.

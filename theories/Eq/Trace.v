@@ -28,44 +28,27 @@ Next Obligation.
   destruct a. destruct H0 as (? & ? & ?). eauto. apply I.
 Defined.
 
-<<<<<<< HEAD
-Definition has_trace {E C X} `{HasStuck : C0 -< C} := gfp (@htr E C X _).
 
-Definition tracincl {E C D X Y} `{C0 -< C} `{C0 -< D}
+Definition has_trace {E C X} `{HasStuck : B0 -< C} := gfp (@htr E C X _).
+
+Definition tracincl {E C D X Y} `{B0 -< C} `{B0 -< D}
   (t : ctree E C X) (t' : ctree E D Y) :=
   forall s, has_trace s t -> has_trace s t'.
-Definition traceq {E C D X Y} `{C0 -< C} `{C0 -< D}
-  (t : ctree E C X) (t' : ctree E D Y) :=
-=======
-Definition has_trace {E X} := gfp (@htr E X).
 
-Definition tracincl {E X}
-  (t t' : ctree E X) :=
-  forall s, has_trace s t -> has_trace s t'.
-Definition traceq {E X}
-  (t t' : ctree E X) :=
->>>>>>> master
+Definition traceq {E C D X Y} `{B0 -< C} `{B0 -< D}
+  (t : ctree E C X) (t' : ctree E D Y) :=
   tracincl t t' /\ tracincl t' t.
 
 (*|
 Instances
 |*)
 
-<<<<<<< HEAD
-#[global] Instance traceq_equ : forall {E C X} `{C0 -< C} s,
+#[global] Instance traceq_equ : forall {E C X} `{B0 -< C} s,
   Proper (equ eq ==> impl) (@has_trace E C X _ s).
 Proof.
   cbn. intros. step. destruct s; auto.
   step in H1. cbn in H1. destruct H1 as (? & ? & ?).
   rewrite H0 in H1. exists x0. auto.
-=======
-#[global] Instance traceq_equ : forall {E X} s,
-  Proper (equ eq ==> impl) (@has_trace E X s).
-Proof.
-  cbn. intros. step. destruct s; auto.
-  step in H0. cbn in H0. destruct H0 as (? & ? & ?).
-  rewrite H in H0. exists x0. auto.
->>>>>>> master
 Qed.
 
 (*|
@@ -88,9 +71,7 @@ Tactic Notation "__trace_play" "in" hyp(H) :=
 Trace inclusion is weaker than similarity,
 and trace equivalence is weaker than bisimilarity.
 |*)
-
-<<<<<<< HEAD
-Lemma ssim_tracincl : forall {E C X} `{C0 -< C} (t t' : ctree E C X),
+Lemma ssim_tracincl : forall {E C X} `{B0 -< C} (t t' : ctree E C X),
   ssim eq t t' -> tracincl t t'.
 Proof.
   red. red. intros. revert t t' H0 s H1. coinduction R CH. intros.
@@ -100,24 +81,8 @@ Proof.
   exists x0. split. apply H1. eapply CH. apply H3. red. apply H2.
 Qed.
 
-Lemma sbisim_traceq : forall {E C X} `{C0 -< C} (t t' : ctree E C X),
+Lemma sbisim_traceq : forall {E C X} `{B0 -< C} (t t' : ctree E C X),
   sbisim t t' -> traceq t t'.
 Proof.
   intros. split; apply ssim_tracincl; now apply sbisim_ssim_eq.
-=======
-Lemma ssim_tracincl : forall {E X} (t t' : ctree E X),
-  ssim t t' -> tracincl t t'.
-Proof.
-  red. red. intros. revert t t' H s H0. coinduction R CH. intros.
-  simpl. destruct s; auto.
-  step in H0. cbn in H0. destruct H0 as (? & ? & ?).
-  step in H. apply H in H0. destruct H0 as [? ? ?].
-  exists x0. split. apply H0. eapply CH. apply H2. red. apply H1.
-Qed.
-
-Lemma sbisim_traceq : forall {E X} (t t' : ctree E X),
-  sbisim t t' -> traceq t t'.
-Proof.
-  intros. split; apply ssim_tracincl; now apply sbisim_ssim.
->>>>>>> master
 Qed.

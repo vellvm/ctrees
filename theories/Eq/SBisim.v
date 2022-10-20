@@ -292,8 +292,6 @@ Proof.
   intros. apply ssim_ssim0. now apply sbisim_ssim.
 Qed.
 
-
-
 Section sbisim_homogenous_theory.
   Context {E C: Type -> Type} {X: Type} `{HasStuck: B0 -< C}
           (L: relation (@label E)).
@@ -417,7 +415,7 @@ Section sbisim_homogenous_theory.
     Aggressively providing instances for rewriting hopefully faster
     [sbisim] under all [sb]-related contexts (consequence of the transitivity
     of the companion).
- |*)
+  |*)
   #[global] Instance sbisim_sbisim_closed_goal `{Transitive _ L} `{Symmetric _ L} :
     Proper (sbisim L ==> sbisim L ==> flip impl) (sbisim L).
   Proof.
@@ -432,9 +430,8 @@ Section sbisim_homogenous_theory.
     etransitivity; [symmetry; eassumption | etransitivity; eauto].
   Qed.
 
-  (** LEF: These are super slow because of instance resolution,
-      making this file a pain to compile. Can we rewrite them more
-      explicitly? *)
+  (** LEF: These are super slow because of instance resolution. 
+      Maybe we can rewrite them without [rewrite] *)
   #[global] Instance sbisim_clos_st_goal `{Equivalence _ L} R:
     Proper (sbisim L ==> sbisim L ==> flip impl) (st L R).
   Proof.
@@ -470,7 +467,7 @@ Section sbisim_homogenous_theory.
   (*|
     Strong bisimulation up-to [equ] is valid
     ----------------------------------------
-    |*)
+  |*)
   Lemma equ_clos_st : equ_clos <= (st L).
   Proof.
     apply Coinduction; cbn.
@@ -1455,8 +1452,6 @@ Inversion principles
     eexists; eauto.
   Qed.
 
-  Notation inhabited X := (exists x: X, True).
-
   (*|
     Annoying case: [Vis e k ~ BrS c k'] is true if [e : E void] and [c : C void].
     We rule out this case in this definition.
@@ -1471,9 +1466,9 @@ Inversion principles
     | BrF true n _, RetF _ => True
     | RetF _,  BrF true n _ => True
     | @BrF _ _ _ _ true X _ _, @VisF _ _ _ _ Y _ _ =>
-        inhabited X \/ inhabited Y
+        inhabited X + inhabited Y
     | @VisF _ _ _ _ Y _ _, @BrF _ _ _ _ true X _ _ =>
-        inhabited X \/ inhabited Y
+        inhabited X + inhabited Y
     | _, _ => True
     end.
 
@@ -1584,14 +1579,12 @@ Section sbisim_heterogenous_theory.
           {L: rel (@label E) (@label F)}
           {HasStuck1: B0 -< C} {HasStuck2: B0 -< D}.
   
-  Notation hss := (@ss E F C D X Y _ _ L).
-  Notation hsb := (@sb E F C D X Y _ _ L).
-  Notation hsbisim := (@sbisim E F C D X Y _ _ L).
-
-  Notation hst  E C X := (coinduction.t (hsb E C X)).
-  Notation hsbt E C X := (coinduction.bt (hsb E C X)).
-  Notation hsT  E C X := (coinduction.T (hsb E C X)).
-
+  Notation ss := (@ss E _ _ _ _ X _ _).
+  Notation sb := (@sb E _ _ _ _ X _ _).
+  Notation sbisim := (@sbisim _ _ _ _ _ X _ _).
+  Notation sst L := (coinduction.t (sb L)).
+  Notation sbt L := (coinduction.bt (sb L)).
+  Notation sT  L := (coinduction.T (sb L)).
 
   (*| Up-to-bisimulation enhancing function |*)
   Variant sbisim_clos_body {LE LF}
@@ -1609,28 +1602,18 @@ Section sbisim_heterogenous_theory.
     econstructor; eauto.
   Qed.
 
-  (* LEF: What is L here? *)
   Theorem sbisim_clos_upto {LE LF} R: @sbisim_clos LE LF R <= st L R.
-    Proof. Admitted.
-
-  #[global] Instance sbisim_hsbisim_hclosed_goal {LE: rel (label E) (label E)} {LF: rel (label F) (label F)}:
+  Proof.
     
-    Proper (sbisim LE ==> sbisim LF ==> flip impl) hsbisim.
   Admitted.
 
-  #[global] Instance sbisim_hsbisim_hclosed_ctx {LE: rel (label E) (label E)} {LF: rel (label F) (label F)}:
-    
-    Proper (sbisim LE ==> sbisim LF ==> impl) hsbisim.
+  #[global] Instance sbisim_sbisim_hclosed_goal {LE: rel (label E) (label E)} {LF: rel (label F) (label F)}:  
+    Proper (sbisim LE ==> sbisim LF ==> flip impl) (sbisim L).
   Admitted.
 
-  #[global] Instance equ_hsbisim_hclosed_goal:
+  #[global] Instance sbisim_sbisim_hclosed_ctx {LE: rel (label E) (label E)} {LF: rel (label F) (label F)}:
     
-    Proper (equ eq ==> equ eq ==> flip impl) hsbisim.
+    Proper (sbisim LE ==> sbisim LF ==> impl) (sbisim L).
   Admitted.
 
-  #[global] Instance equ_hsbisim_hclosed_ctx:
-    
-    Proper (equ eq ==> equ eq ==> impl) hsbisim.
-  Admitted.
-  
 End sbisim_heterogenous_theory.
