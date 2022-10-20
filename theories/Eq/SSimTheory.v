@@ -546,15 +546,12 @@ Ltac __eplay_ssim :=
 #[local] Tactic Notation "play" "in" ident(H) := __play_ssim_in H.
 #[local] Tactic Notation "eplay" := __eplay_ssim.
 
-Section Proof_Rules_Heterogenous.
+Section Proof_Rules.
   Arguments label: clear implicits.
-  Context {E F C D : Type -> Type}.
-  Context {HasStuck : B0 -< C} {HasStuck' : B0 -< D}.
-  Context {HasTau : B1 -< C} {HasTau' : B1 -< D}.
-  Context {X X' Y Y' : Type}.
-  Context {L : rel (label E) (label F)}.
+  Context {E C : Type -> Type} {X: Type} `{HasStuck : B0 -< C}.
 
-  Lemma step_ss_ret_gen (x : X) (y : Y) (R : rel _ _) :
+  Lemma step_ss_ret_gen {Y F D}(x : X) (y : Y) `{HasStuck': B0 -< D}
+        {L: rel (label E) (label F)} {R : rel (ctree E C X) (ctree F D Y)}:
     R stuckD stuckD ->
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     L (val x) (val y) ->
@@ -566,7 +563,8 @@ Section Proof_Rules_Heterogenous.
       now rewrite EQ.
   Qed.
 
-  Lemma step_ss_ret (x : X) (y : Y) (R : rel _ _) :
+  Lemma step_ss_ret  {Y F D}(x : X) (y : Y) `{HasStuck': B0 -< D}
+        {L: rel (label E) (label F)} {R : rel (ctree E C X) (ctree F D Y)}:
     L (val x) (val y) ->
     ssbt L R (Ret x : ctree E C X) (Ret y : ctree F D Y).
   Proof.
@@ -582,22 +580,25 @@ Section Proof_Rules_Heterogenous.
     transition system, stepping is hence symmetric and we can just recover
     the itree-style rule.
   |*)
-  Lemma step_ss_vis_gen (l : rel _ _) (e : E X) (k : X -> ctree E C Y) (k' : X -> ctree E D Y') (R : rel _ _) :
+  (* LEF: Here, I got lazy -- it would be nice to have [k': Z' -> ctree F D Y]
+     see [step_ss0_vis_gen] *)
+   Lemma step_ss_vis_gen {Y Z F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R L: rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (forall x, R (k x) (k' x)) ->
-    (forall x, l (obs e x) (obs e x)) ->
-    ss l R (Vis e k) (Vis e k').
+    (forall x, L (obs e x) (obs f x)) ->
+    ss L R (Vis e k) (Vis f k').
   Proof.
     split.
-    - apply step_ss0_vis_gen; auto.
+    - apply step_ss0_vis_gen; eauto.
     - intros. inv_trans; subst; etrans.
   Qed.
 
-  Lemma step_ss_vis (l : rel _ _) (e : E X)
-        (k : X -> ctree E C Y) (k' : X -> ctree E D Y') (R : rel _ _) :
-    (forall x, sst l R (k x) (k' x)) ->
-    (forall x, l (obs e x) (obs e x)) ->
-    ssbt l R (Vis e k) (Vis e k').
+  Lemma step_ss_vis {Y Z F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R L: rel _ _) :
+    (forall x, sst L R (k x) (k' x)) ->
+    (forall x, L (obs e x) (obs f x)) ->
+    ssbt L R (Vis e k) (Vis f k').
   Proof.
     intros * EQ.
     apply step_ss_vis_gen; auto.
@@ -606,9 +607,9 @@ Section Proof_Rules_Heterogenous.
   
   (*|
     Same goes for visible tau nodes.
-  |*)
-  
-  Lemma step_ss_step_gen (t : ctree E C X) (t' : ctree F D Y) (R : rel _ _) :
+  |*)  
+  Lemma step_ss_step_gen{Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C} `{HasTau': B1 -< D}
+        (t : ctree E C X) (t' : ctree F D Y) (R L: rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (R t t') ->
     L tau tau ->
@@ -621,12 +622,13 @@ Section Proof_Rules_Heterogenous.
     - assumption.
   Qed.
 
-  Lemma step_ss_step (t : ctree E C X) (t' : ctree F D Y) (R : rel _ _) :
+  Lemma step_ss_step{Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C} `{HasTau': B1 -< D}
+        (t : ctree E C X) (t' : ctree F D Y) (R L: rel _ _) :
     L tau tau ->
     (sst L R t t') ->
     ssbt L R (Step t) (Step t').
   Proof.
-    intros. apply step_ss_step_gen; auto.
+    intros. eapply step_ss_step_gen; eauto.
     typeclasses eauto.
   Qed.
 
@@ -637,17 +639,17 @@ Section Proof_Rules_Heterogenous.
     the identity in both directions. We can in this case have [n] rather than [2n]
     obligations.
   |*)
-
-  (** LEF: Here I need to show [Y] is inhabited,
+  (** LEF: Here I need to show [Z] is inhabited,
       I think the way to go is to axiomatize it. Maybe it's possible
-      to extract a [Y] from [HasTau: C]? *)
-  Lemma step_ss_brS_gen C' Z `{B0 -< C'} (c : C Y) (c' : C' Z)
-    (k : Y -> ctree E C X) (k' : Z -> ctree F C' X') (R : rel _ _) :
+      to extract a [Z] from [HasTau: B1 -< C]? YZ says no,
+      so maybe the extra restriction is truly needed. *)
+  Lemma step_ss_brS_gen{Y Z Z' F D} `{HasStuck': B0 -< D} (c : C Z) (d: D Z')
+        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R L: rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     L tau tau ->
-    inhabited Y ->
+    inhabited Z ->
     (forall x, exists y, R (k x) (k' y)) ->
-    ss L R (BrS c k) (BrS c' k').
+    ss L R (BrS c k) (BrS d k').
   Proof.
     intros PROP ? EX EQs; cbn; split; 
       intros ? ? TR; inv_trans; subst.
@@ -658,23 +660,23 @@ Section Proof_Rules_Heterogenous.
       Unshelve. apply (proj1_sig EX).
   Qed.
 
-  Lemma step_ss_brS Z (c : C Y) (c' : D Z)
-    (k : Y -> ctree E C X) (k' : Z -> ctree F D X') (R : rel _ _) :
+  Lemma step_ss_brS {Y Z Z' F D} `{HasStuck': B0 -< D} (c : C Z) (d: D Z')
+        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R L: rel _ _) :
     L tau tau ->
-    inhabited Y ->
+    inhabited Z ->
     (forall x, exists y, sst L R (k x) (k' y)) ->
-    ssbt L R (BrS c k) (BrS c' k').
+    ssbt L R (BrS c k) (BrS d k').
   Proof.
     intros.
     apply step_ss_brS_gen; auto.
     typeclasses eauto.
   Qed.
 
-  Lemma step_ss_brS_id_gen (c : C Y)
-    (k : Y -> ctree E C X) (k' : Y -> ctree F C X') (R : rel _ _) :
+  Lemma step_ss_brS_id_gen {Y Z F } (c : C Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F C Y) (R L: rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     L tau tau ->
-    inhabited Y ->
+    inhabited Z ->
     (forall x, R (k x) (k' x)) ->
     ss L R (BrS c k) (BrS c k').
   Proof.
@@ -683,10 +685,10 @@ Section Proof_Rules_Heterogenous.
     intros x; exists x; auto.
   Qed.
 
-  Lemma step_ss_brS_id (c : C Y)
-    (k : Y -> ctree E C X) (k' : Y -> ctree F C X') (R : rel _ _) :
+  Lemma step_ss_brS_id {Y Z F } (c : C Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F C Y) (R L: rel _ _) :
     L tau tau ->
-    inhabited Y ->
+    inhabited Z ->
     (forall x, sst L R (k x) (k' x)) ->
     ssbt L R (BrS c k) (BrS c k').
   Proof.
@@ -698,7 +700,8 @@ Section Proof_Rules_Heterogenous.
     For invisible nodes, the situation is different: we may kill them, but that
     execution cannot act as going under the guard.
   |*)
-  Lemma step_ss_guard_gen (t : ctree E C X) (t' : ctree F D Y) (R : rel _ _) :
+  Lemma step_ss_guard_gen {Y F D} `{HasStuck': B0 -< D}`{HasTau: B1 -< C} `{HasTau': B1 -< D}
+        (t : ctree E C X) (t' : ctree F D Y) (R L: rel _ _) :
     ss L R t t' ->
     ss L R (Guard t) (Guard t').
   Proof.
@@ -711,15 +714,16 @@ Section Proof_Rules_Heterogenous.
       + apply trans_guard; eauto.
   Qed.
 
-  Lemma step_ss_guard (t : ctree E C X) (t' : ctree F D Y) (R : rel _ _) :
+  Lemma step_ss_guard {Y F D} `{HasStuck': B0 -< D}`{HasTau: B1 -< C} `{HasTau': B1 -< D}
+        (t : ctree E C X) (t' : ctree F D Y) (R L : rel _ _) :
     ssbt L R t t' ->
     ssbt L R (Guard t) (Guard t').
   Proof.
     apply step_ss_guard_gen.
   Qed.
 
-  Lemma step_ss_brD_l_gen C' Z `{B0 -< C'} (c : C Z)
-    (k : Z -> ctree E C X) (t' : ctree F C' Y) (R : rel _ _) :
+  Lemma step_ss_brD_l_gen {Y F D Z} `{HasStuck': B0 -< D} (c : C Z)
+    (k : Z -> ctree E C X) (t' : ctree F D Y) (R L: rel _ _) :
     (forall x, ss L R (k x) t') ->
     inhabited Z -> 
     ss L R (BrD c k) t'.
@@ -730,12 +734,12 @@ Section Proof_Rules_Heterogenous.
     - pose proof (proj1_sig X0) as z.
       destruct (EQs z) as (tt & ? & ? & ? & ?); eauto.
       do 2 eexists; intuition.
-      apply H0.
+      apply H.
       eapply trans_brD; eauto.
   Qed.
 
-  Lemma step_ss_brD_l C' Z `{B0 -< C'} (c : C Z)
-    (k : Z -> ctree E C X) (t' : ctree F C' Y) (R : rel _ _) :
+  Lemma step_ss_brD_l {Y F D Z} `{HasStuck': B0 -< D} (c : C Z)
+    (k : Z -> ctree E C X) (t' : ctree F D Y) (R L: rel _ _) :
     (forall x, ssbt L R (k x) t') ->
     inhabited Z ->
     ssbt L R (BrD c k) t'.
@@ -743,28 +747,29 @@ Section Proof_Rules_Heterogenous.
     apply step_ss_brD_l_gen.
   Qed.
 
-  Lemma step_ss_brD_r_gen C' Z `{B0 -< C'} :
-    forall (t : ctree E C X) (c : C' Z) (k : Z -> ctree F C' Y) x R,
-    ss L R t (k x) ->
+  Lemma step_ss_brD_r_gen {Y F D Z} `{HasStuck': B0 -< D} (c : D Z)
+    (t : ctree E C X) (k : Z -> ctree F D Y) (R L: rel _ _) z :
+    ss L R t (k z) ->
     ss L R t (BrD c k).
   Proof.
     simpl. split; intros.
-    - apply H0 in H1 as (? & ? & ? & ? & ?); subst.
-      exists x0, x1. intuition. econstructor. eauto.
-    - apply trans_brD_inv in H1 as (? & ?).
+    - apply H in H0 as (? & ? & ? & ? & ?); subst.
+      exists x, x0. intuition. econstructor. eauto.
+    - apply trans_brD_inv in H0 as (? & ?).
       (** HM maybe this isn't so easy for complete simulation *)
       admit.
   Admitted.
 
-  Lemma step_ss_brD_r Z : forall (t : ctree E C X) (c : D Z) (k : Z -> ctree F D Y) x R,
-    ssbt L R t (k x) ->
+  Lemma step_ss_brD_r {Y F D Z} `{HasStuck': B0 -< D} (c : D Z)
+        (t : ctree E C X) (k : Z -> ctree F D Y) (R L: rel _ _) z :
+    ssbt L R t (k z) ->
     ssbt L R t (BrD c k).
   Proof.
     intros. eapply step_ss_brD_r_gen. apply H.
   Qed.
 
-  Lemma step_ss_brD_gen C' Z Z' `{B0 -< C'} (c : C Z) (c' : C' Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F C' Y) (R : rel _ _) :
+  Lemma step_ss_brD_gen {Y F D Z Z'} `{HasStuck': B0 -< D} (c: C Z) (c': D Z')
+        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R L: rel _ _) :
     (forall x, exists y, ss L R (k x) (k' y)) ->
     inhabited Z ->
     ss L R (BrD c k) (BrD c' k').
@@ -772,11 +777,11 @@ Section Proof_Rules_Heterogenous.
     intros EQs ?.
     apply step_ss_brD_l_gen; trivial.
     intros. destruct (EQs x) as [x' ?].
-    now apply step_ss_brD_r_gen with (x := x').
+    now apply step_ss_brD_r_gen with (z := x').
   Qed.
 
-  Lemma step_ss_brD C' Z Z' `{B0 -< C'} (c : C Z) (c' : C' Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F C' Y) (R : rel _ _) :
+  Lemma step_ss_brD {Y F D Z Z'} `{HasStuck': B0 -< D} (c: C Z) (c': D Z')
+        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R L: rel _ _) :
     (forall x, exists y, ssbt L R (k x) (k' y)) ->
     inhabited Z -> 
     ssbt L R (BrD c k) (BrD c' k').
@@ -784,8 +789,8 @@ Section Proof_Rules_Heterogenous.
     apply step_ss_brD_gen.
   Qed.
 
-  Lemma step_ss_brD_id_gen Z (c : C Z)
-    (k : Z -> ctree E C X) (k' : Z -> ctree F C Y) (R : rel _ _) :
+  Lemma step_ss_brD_id_gen {Y F Z} (c: C Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F C Y) (R L: rel _ _) :
     (forall x, ss L R (k x) (k' x)) ->
     inhabited Z ->
     ss L R (BrD c k) (BrD c k').
@@ -794,7 +799,8 @@ Section Proof_Rules_Heterogenous.
     intros x; exists x; apply H.
   Qed.
 
-  Lemma step_ss_brD_id Z (c : C Z) (k : Z -> ctree E C X) (k' : Z -> ctree F C Y) (R : rel _ _) :
+  Lemma step_ss_brD_id {Y F Z} (c: C Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F C Y) (R L: rel _ _) :
     (forall x, ssbt L R (k x) (k' x)) ->
     inhabited Z -> 
     ssbt L R (BrD c k) (BrD c k').
@@ -802,7 +808,7 @@ Section Proof_Rules_Heterogenous.
     apply step_ss_brD_id_gen.
   Qed.
 
-End Proof_Rules_Heterogenous.
+End Proof_Rules.
 
 Section WithParams.
 
@@ -1023,8 +1029,10 @@ Lemma ssim_sbisim_nequiv :
 Proof.
   unfold t1, t2. intuition.
   - step. eapply step_ss_brS; auto.
+    exact  (exist _ tt I).
     intros _. exists true. reflexivity.
   - step. eapply step_ss_brS; auto.
+    exact  (exist _ true I).
     intro. exists tt. destruct x.
     + reflexivity.
     + step. apply ss_is_stuck.
@@ -1037,7 +1045,6 @@ Proof.
     specialize (H0 (val tt) stuckD). lapply H0. 2: { etrans. }
     intro. destruct H1 as (? & ? & ? & ? & ?). subst.
     now apply stuckD_is_stuck in H1.
-    Unshelve. exact unit.
-    Unshelve. exact unit.
+
 Admitted.
 
