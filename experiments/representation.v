@@ -266,6 +266,7 @@ Module fam.
 (*|
 We stick this time to the itrees constructor, but they quantify over families of descendants
 |*)
+    (* fam <- F arbitrary functor *)
     CoInductive ctree : Type :=
     | ret : fam R -> ctree
     | delay : fam ctree -> ctree
@@ -463,6 +464,18 @@ Wild version from Tom
            -> fam R      (* ret *)
            -> ftree.
 
+    Definition Tau (m : ftree) : fam ftree :=
+      let '(obs _ tau _) := m in
+      tau.
+
+    Definition Vis (m : ftree) :=
+      let '(obs vis _ _) := m in
+      vis.
+
+    Definition Ret (m : ftree) :=
+      let '(obs _ _ ret) := m in
+      ret.
+
     Variant label : Type :=
       | tau
       | ext {Y : Type} (e : E Y) (v : Y)
@@ -508,28 +521,90 @@ Wild version from Tom
 .. coq:: none
 |*)
 
+    Definition distr (f: fam ftree) : ftree.
+      destruct f as [D map].
+      refine (obs _ _ _).
+      - refine (fun X e => _).
+        unshelve (refine (Build_fam _)).
+        refine ({ d : D & dom (Vis (map d) e)}).
+        refine (fun d => _).
+        destruct d as [d i].
+        refine (forest (Vis (map d) e) i).
+      - unshelve refine (Build_fam _).
+        refine { d : D & dom (Tau (map d))}.
+        refine (fun d => _).
+        destruct d as [d i].
+        refine (forest (Tau (map d)) i).
+      - unshelve refine (Build_fam _).
+        refine { d : D & dom (Ret (map d))}.
+        refine (fun d => _).
+        destruct d as [d i].
+        refine (forest (Ret (map d)) i).
+Defined.
+
+    Definition distr' (f : fam ftree) : ftree :=
+      match f with
+      | {| dom := dom0; forest := forest0 |} =>
+          (fun (D : Type) (map : D -> ftree) =>
+             obs (fun (X : Type) (e : E X) => {| dom := {d : D & dom (Vis (map d) e)}; forest := fun d : {d : D & dom (Vis (map d) e)} => let (x, p) := d in (fun (d0 : D) (i : dom (Vis (map d0) e)) => forest (Vis (map d0) e) i) x p |})
+                 {| dom := {d : D & dom (Tau (map d))}; forest := fun d : {d : D & dom (Tau (map d))} => let (x, p) := d in (fun (d0 : D) (i : dom (Tau (map d0))) => forest (Tau (map d0)) i) x p |}
+                 {| dom := {d : D & dom (Ret (map d))}; forest := fun d : {d : D & dom (Ret (map d))} => let (x, p) := d in (fun (d0 : D) (i : dom (Ret (map d0))) => forest (Ret (map d0)) i) x p |}) dom0 forest0
+      end.
+
+
   End withParam.
 
 (*|
 Confused about what I should do in the [ret] case.
 |*)
 
-  Definition bind {E X Y} (k : Y -> ftree E X) : ftree E Y -> ftree E X.
-    refine (cofix bind m :=
-              let '(obs vis ftau ret) := m
-              in obs
-                   (fun _ e =>
-                      {| dom := dom (vis _ e);
-                        forest := fun idx ans =>
-                                    bind (forest (vis _ e) idx ans) |})
-                   {| dom := dom ftau;
-                     forest := fun idx => bind (forest ftau idx) |}
-                   _).
-    destruct ret as [D T].
+  Definition fam_map {X Y}
+    (f : X ->  Y) (m : fam X) : fam Y.
+    destruct m as [d1 f1].
+    unshelve refine (@Build_fam _ d1 _).
+    refine (fun i => (f (f1 i))).
+  Defined.
 
-    (* refine (fun x => _). *)
-    (* Confused about this ret case *)
-  Abort.
+  Definition bind {E X Y}
+    (k : Y -> ftree E X) : ftree E Y -> ftree E X.
+    refine (
+        cofix bind m :=
+          let '(obs vis ftau ret) := m
+          in
+          let '(obs visk tauk retk) := distr (fam_map k ret)
+          in obs (fun T e => _) _ _).
+    - exact
+      {|
+        dom    := dom (vis _ e) + dom (visk _ e);
+        forest := fun idx =>
+                    match idx with
+                    | inl i =>
+                        fun t => bind (forest (vis _ e) i t)
+                    | inr j => forest (visk _ e) j
+                    end
+      |}.
+    - exact
+        {|
+          dom    := dom ftau + dom tauk;
+          forest := fun idx =>
+                      match idx with
+                      | inl i =>
+                          bind (forest ftau i)
+                      | inr j => forest tauk j
+                      end
+        |}.
+    - exact retk.
+  Defined.
+
+  Definition bundle {D Y Z}
+    (ret : D -> Y) (k : Y -> Z) : fam Z :=
+    @Build_fam _ D (fun d => k (ret d)).
+
+  (* Conjecture, obviously not for [eq] in practice *)
+  (* Lemma foo {E X Y} (m : ftree E X) (k : X -> ftree E Y): *)
+  (*   bind k m = *)
+  (*     cup (bind k (obs (Vis m) (Tau m) empty_fam)) *)
+  (*         (bundle (Ret m) k). *)
 
 (*|
 .. coq::
