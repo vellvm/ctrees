@@ -1045,6 +1045,5 @@ Proof.
     specialize (H0 (val tt) stuckD). lapply H0. 2: { etrans. }
     intro. destruct H1 as (? & ? & ? & ? & ?). subst.
     now apply stuckD_is_stuck in H1.
-
 Admitted.
 

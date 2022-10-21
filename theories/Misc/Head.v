@@ -53,40 +53,19 @@ Definition head {E C X} : ctree E C X -> ctree E C (@haction E C X) :=
     | BrDF c k        => Br false c (fun x => head (k x))
     end.
 
-Notation get_head_ t :=
-    match observe t with
-    | RetF x          => Ret (HRet x)
-    | VisF e k        => Ret (HVis e k)
-    | ChoiceF true c k => Ret (HChoice c k)
-    | ChoiceF false c k => Choice false c (fun x => get_head (k x))
-    end.
-
-Lemma unfold_get_head {E C X} : forall (t : ctree E C X),
-    get_head t ≅ get_head_ t.
-=======
-Definition head {E X} : ctree E X -> ctree E (@haction E X) :=
-  cofix head (t : ctree E X) :=
-    match observe t with
-    | RetF x            => Ret (ARet x)
-    | VisF e k          => Ret (AVis e k)
-    | BrSF n k      => Ret (ABr k)
-    | BrDF n k      => Br false n (fun i => head (k i))
-    end.
-
 Notation head_ t :=
   match observe t with
   | RetF x            => Ret (ARet x)
   | VisF e k          => Ret (AVis e k)
-  | BrSF n k      => Ret (ABr k)
-  | BrDF n k      => Br false n (fun i => head (k i))
+  | BrSF c k      => Ret (ABr c k)
+  | BrDF c k      => Br false c (fun i => head (k i))
   end.
 
-Lemma unfold_head {E X} : forall (t : ctree E X),
+Lemma unfold_head {E C X} : forall (t : ctree E C X),
     head t ≅ head_ t.
->>>>>>> master:theories/Misc/Head.v
 Proof.
   intros.
-	now step.
+  now step.
 Qed.
 
 (*|
@@ -94,21 +73,13 @@ Transitions in a tree can always be reflected in their head-tree.
 The exact shape of the lemma depends on the nature of the transition.
 We wrap them together in [trans_head].
 |*)
-<<<<<<< HEAD:theories/Head.v
-Lemma trans_get_head_obs {E C X} `{C0 -< C} : forall (t u : ctree E C X) Y (e : E Y) v,
+Lemma trans_head_obs {E C X} `{B0 -< C} : forall (t u : ctree E C X) Y (e : E Y) v,
     trans (obs e v) t u ->
     exists (k : Y -> ctree E C X),
-      trans (val (HVis e k)) (get_head t) stuckI /\
-=======
-Lemma trans_head_obs {E X} : forall (t u : ctree E X) Y (e : E Y) v,
-    trans (obs e v) t u ->
-    exists (k : Y -> ctree E X),
-      trans (val (AVis e k)) (head t) stuckD /\
->>>>>>> master:theories/Misc/Head.v
-        u ≅ k v.
+      trans (val (AVis e k)) (head t) stuckD /\ u ≅ k v.
 Proof.
   intros * TR.
-  unfold transR in *.
+
   remember (obs e v) as ob.
   setoid_rewrite (ctree_eta u).
   setoid_rewrite unfold_head.
@@ -126,18 +97,10 @@ Proof.
     rewrite <- ctree_eta; symmetry; assumption.
 Qed.
 
-<<<<<<< HEAD:theories/Head.v
-Lemma trans_get_head_tau {E C R} `{C0 -< C} : forall (t u : ctree E C R),
+Lemma trans_head_tau {E C R} `{B0 -< C} : forall (t u : ctree E C R),
     trans tau t u ->
     exists X (c : C X) (k : X -> ctree E C R) x,
-      trans (val (HChoice c k)) (get_head t) stuckI /\
-=======
-Lemma trans_head_tau {E X} : forall (t u : ctree E X),
-    trans tau t u ->
-    exists n (k : Fin.t n -> ctree E X) x,
-      trans (val (ABr k)) (head t) stuckD /\
->>>>>>> master:theories/Misc/Head.v
-        u ≅ k x.
+      trans (val (ABr c k)) (head t) stuckD /\ u ≅ k x.
 Proof.
   intros * TR.
   unfold trans in *.
@@ -145,19 +108,11 @@ Proof.
   setoid_rewrite (ctree_eta u).
   setoid_rewrite unfold_head.
   induction TR; try now inv Heqob; subst.
-<<<<<<< HEAD:theories/Head.v
-  - specialize (IHTR Heqob). destruct IHTR as (Y & c' & k' & y & IHTR & EQ); auto.
-    exists Y, c', k', y. split; [| exact EQ].
-    rename x into z.
-    rewrite <- unfold_get_head in IHTR.
-    eapply trans_choiceI with (x := z).
-=======
-  - destruct IHTR as (m & kf & z & IHTR & EQ); auto.
-    exists m, kf, z; split; [| exact EQ].
+  - destruct IHTR as (m & kf & z & i & IHTR & EQ); auto.
+    exists m, kf, z, i. split; [| exact EQ].
     rename x into y.
     rewrite <- unfold_head in IHTR.
     eapply trans_brD with (x := y).
->>>>>>> master:theories/Misc/Head.v
     apply IHTR.
     reflexivity.
   - exists X,c,k,x; split.
@@ -165,17 +120,9 @@ Proof.
     rewrite <- ctree_eta; symmetry; assumption.
 Qed.
 
-<<<<<<< HEAD:theories/Head.v
-Lemma trans_get_head_ret {E C X} `{C0 -< C} : forall (t u : ctree E C X) (v : X),
+Lemma trans_head_ret {E C X} `{B0 -< C} : forall (t u : ctree E C X) (v : X),
     trans (val v) t u ->
-    trans (val (@HRet E C X v)) (get_head t) stuckI /\
-      u ≅ stuckI.
-=======
-Lemma trans_head_ret {E X} : forall (t u : ctree E X) (v : X),
-    trans (val v) t u ->
-    trans (val (@ARet E X v)) (head t) stuckD /\
-      u ≅ stuckD.
->>>>>>> master:theories/Misc/Head.v
+    trans (val (@ARet E C X v)) (head t) stuckD /\ u ≅ stuckD.
 Proof.
   intros * TR.
   unfold trans in *.
@@ -192,39 +139,18 @@ Proof.
     reflexivity.
   - dependent induction Heqob.
     split.
-<<<<<<< HEAD:theories/Head.v
-    constructor. symmetry. unfold stuckI.
-    symmetry; rewrite choice0_always_stuck; reflexivity.
-Qed.
-
-Lemma trans_get_head : forall {E C R} `{C0 -< C} (t u : ctree E C R) l,
-    trans l t u ->
-    match l with
-    | tau => exists X (c : C X) (k : X -> ctree E C R) x,
-        trans (val (HChoice c k)) (get_head t) stuckI /\ u ≅ k x
-    | obs e v => exists (k : _ -> ctree E C R),
-        trans (val (HVis e k)) (get_head t) stuckI /\ u ≅ k v
-    | val v => trans (val (@HRet E C _ v)) (get_head t) stuckI /\ u ≅ stuckI
-    end.
-Proof.
-  intros *; destruct l.
-  apply trans_get_head_tau.
-  apply trans_get_head_obs.
-  intros H0.
-  pose proof (trans_val_invT H0); subst; apply trans_get_head_ret; assumption.
-=======
     constructor.
     symmetry; rewrite brD0_always_stuck; reflexivity.
 Qed.
 
-Lemma trans_head : forall {E X} (t u : ctree E X) l,
+Lemma trans_head : forall {E C X} `{HasStuck: B0 -< C} (t u : ctree E C X) l,
     trans l t u ->
     match l with
-    | tau => exists n (k : Fin.t n -> ctree E X) x,
-        trans (val (ABr k)) (head t) stuckD /\ u ≅ k x
-    | obs e v => exists (k : _ -> ctree E X),
+    | tau => exists Y (c: C Y) (k : Y -> ctree E C X) x,
+        trans (val (ABr c k)) (head t) stuckD /\ u ≅ k x
+    | obs e v => exists (k : _ -> ctree E C X),
         trans (val (AVis e k)) (head t) stuckD /\ u ≅ k v
-    | val v => trans (val (@ARet E _ v)) (head t) stuckD /\ u ≅ stuckD
+    | val v => trans (val (@ARet E C _ v)) (head t) stuckD /\ u ≅ stuckD
     end.
 Proof.
   intros *; destruct l.
@@ -232,24 +158,13 @@ Proof.
   apply trans_head_obs.
   intros A.
   pose proof (trans_val_invT A); subst; apply trans_head_ret; assumption.
->>>>>>> master:theories/Misc/Head.v
 Qed.
 
 (*|
 The only transitions that the head-tree can take are value ones.
 |*)
-<<<<<<< HEAD:theories/Head.v
-Ltac eq2equ H :=
-  match type of H with
-  | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≅ t) by (subst; reflexivity); clear H
-  end.
-
-Lemma trans_get_head_inv {E C X} `{C0 -< C} : forall (P : ctree E C X) l u,
-    trans l (get_head P) u ->
-=======
-Lemma trans_head_inv {E X} : forall (P : ctree E X) l u,
+Lemma trans_head_inv {E C X} `{B0 -< C} : forall (P : ctree E C X) l u,
     trans l (head P) u ->
->>>>>>> master:theories/Misc/Head.v
     is_val l.
 Proof.
   intros * TR.
@@ -262,13 +177,8 @@ Proof.
     desobs P; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-<<<<<<< HEAD:theories/Head.v
-    + step in EQ; destruct (equb_choice_invT _ _ _ _ EQ) as [-> _].
-      eapply equb_choice_invE in EQ as [].
-=======
-    + step in EQ; destruct (equb_br_invT _ _ EQ) as [-> _].
-      eapply equb_br_invE in EQ.
->>>>>>> master:theories/Misc/Head.v
+    + step in EQ; destruct (equb_br_invT _ _ _ _ EQ) as [-> _].
+      eapply equb_br_invE in EQ as [].
       setoid_rewrite <- ctree_eta in IHTR.
       eapply IHTR; eauto.
   - exfalso.
@@ -284,17 +194,10 @@ Proof.
   - constructor.
 Qed.
 
-<<<<<<< HEAD:theories/Head.v
-Lemma trans_HRet :
-  forall {E C X} `{C0 -< C} r (p: ctree E C X) q,
-    trans (val (@HRet E C X r)) (get_head p) q ->
-    trans (val r) p stuckI.
-=======
 Lemma trans_ARet :
-  forall {E X} r (p: ctree E X) q,
-    trans (val (@ARet E X r)) (head p) q ->
+  forall {E C X} `{B0 -< C} r (p: ctree E C X) q,
+    trans (val (@ARet E C X r)) (head p) q ->
     trans (val r) p stuckD.
->>>>>>> master:theories/Misc/Head.v
 Proof.
   intros * TR.
   remember (head p) as Ap.
@@ -309,16 +212,11 @@ Proof.
     desobs p; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-<<<<<<< HEAD:theories/Head.v
-    + step in EQ; destruct (equb_choice_invT _ _ _ _ EQ) as [-> _].
-=======
-    + step in EQ; destruct (equb_br_invT _ _ EQ) as [-> _].
-      eapply equb_br_invE in EQ.
->>>>>>> master:theories/Misc/Head.v
+    + step in EQ; destruct (equb_br_invT _ _ _ _ EQ) as [-> _].
       setoid_rewrite <- ctree_eta in IHTR.
       econstructor.
       apply IHTR; eauto.
-      now apply equb_choice_invE in EQ.
+      now apply equb_br_invE in EQ.
   - unfold trans.
     apply val_eq_inv in Heql; inv Heql.
     rewrite unfold_head in EQ.
@@ -330,27 +228,15 @@ Proof.
     + step in EQ; inv EQ.
 Qed.
 
-<<<<<<< HEAD:theories/Head.v
-Lemma trans_HChoice :
-  forall {E C R X} `{C0 -< C} (c : C X) k (p: ctree E C R) q,
-    trans (val (HChoice c k)) (get_head p) q ->
-    forall i, trans tau p (k i).
-Proof.
-  intros * TR.
-  remember (get_head p) as Hp.
-  remember (val (HChoice c k)) as l.
-  eq2equ HeqHp.
-=======
 Lemma trans_ABr :
-  forall {E X} n k (p: ctree E X) q,
-    trans (val (ABr (n := n) k)) (head p) q ->
+  forall {E C R X} `{B0 -< C} (c : C X) k (p: ctree E C R) q,
+    trans (val (ABr c k)) (head p) q ->
     forall i, trans tau p (k i).
 Proof.
   intros * TR.
-  remember (head p) as Ap.
-  remember (val (ABr k)) as l.
-  eq2equ HeqAp.
->>>>>>> master:theories/Misc/Head.v
+  remember (head p) as Hp.
+  remember (val (ABr c k)) as l.
+  eq2equ HeqHp.
   rewrite ctree_eta in EQ.
   revert p EQ k Heql.
   induction TR; intros; subst; try now inv Heql.
@@ -360,13 +246,8 @@ Proof.
     desobs p; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-<<<<<<< HEAD:theories/Head.v
-    + step in EQ; destruct (equb_choice_invT _ _ _ _ EQ) as [-> _].
-      eapply equb_choice_invE in EQ as [].
-=======
-    + step in EQ; destruct (equb_br_invT _ _ EQ) as [-> _].
-      eapply equb_br_invE in EQ.
->>>>>>> master:theories/Misc/Head.v
+    + step in EQ; destruct (equb_br_invT _ _ _ _ EQ) as [-> _].
+      eapply equb_br_invE in EQ as [].
       setoid_rewrite <- ctree_eta in IHTR.
       econstructor.
       apply IHTR; eauto.
@@ -382,15 +263,9 @@ Proof.
     + step in EQ; inv EQ.
 Qed.
 
-<<<<<<< HEAD:theories/Head.v
-Lemma trans_HVis :
-  forall {E C X Y} `{C0 -< C} (e : E Y) (p: ctree E C X) (k : Y -> ctree E C X) q,
-    trans (val (HVis e k)) (get_head p) q ->
-=======
 Lemma trans_AVis :
-  forall {E X Y} (e : E Y) (p: ctree E X) (k : Y -> ctree E X) q,
+  forall {E C X Y} `{B0 -< C} (e : E Y) (p: ctree E C X) (k : Y -> ctree E C X) q,
     trans (val (AVis e k)) (head p) q ->
->>>>>>> master:theories/Misc/Head.v
     forall i, trans (obs e i) p (k i).
 Proof.
   intros * TR.
@@ -406,13 +281,8 @@ Proof.
     desobs p; try now (step in EQ; inv EQ).
     destruct vis.
     + step in EQ; inv EQ.
-<<<<<<< HEAD:theories/Head.v
-    + step in EQ; destruct (equb_choice_invT _ _ _ _ EQ) as [-> _].
-      eapply equb_choice_invE in EQ as [].
-=======
-    + step in EQ; destruct (equb_br_invT _ _ EQ) as [-> _].
-      eapply equb_br_invE in EQ.
->>>>>>> master:theories/Misc/Head.v
+    + step in EQ; destruct (equb_br_invT _ _ _ _ EQ) as [-> _].
+      eapply equb_br_invE in EQ as [].
       setoid_rewrite <- ctree_eta in IHTR.
       econstructor.
       apply IHTR; eauto.
@@ -434,29 +304,16 @@ well-behaved w.r.t. to [equ] as usual: rewriting [equ eq] leads to [equ eq_hacti
 computations, where [eq_haction] propagates [equ] to the computations contained in the
 actions.
 |*)
-<<<<<<< HEAD:theories/Head.v
-Variant eq_head {E C R} : @head E C R -> head -> Prop :=
-| eq_head_ret : forall r, eq_head (HRet r) (HRet r)
-| eq_head_choice : forall X (c : C X) (k1 k2 : X -> _),
-    (forall x, k1 x ≅ k2 x) ->
-    eq_head (HChoice c k1) (HChoice c k2)
-| eq_head_vis : forall X (e : E X) k1 k2,
-=======
-Variant eq_haction {E R} : @haction E R -> haction -> Prop :=
+Variant eq_haction {E C R} : @haction E C R -> haction -> Prop :=
 | eq_haction_ret : forall r, eq_haction (ARet r) (ARet r)
-| eq_haction_br : forall n (k1 k2 : fin n -> _),
-    (forall i, k1 i ≅ k2 i) ->
-    eq_haction (ABr k1) (ABr k2)
+| eq_haction_br : forall X (c : C X) (k1 k2 : X -> _),
+    (forall x, k1 x ≅ k2 x) ->
+    eq_haction (ABr c k1) (ABr c k2)
 | eq_haction_vis : forall X (e : E X) k1 k2,
->>>>>>> master:theories/Misc/Head.v
     (forall x, k1 x ≅ k2 x) ->
     eq_haction (AVis e k1) (AVis e k2).
 
-<<<<<<< HEAD:theories/Head.v
-#[global] Instance eq_head_equiv {E C R} : Equivalence (@eq_head E C R).
-=======
-#[global] Instance eq_haction_equiv {E R} : Equivalence (@eq_haction E R).
->>>>>>> master:theories/Misc/Head.v
+#[global] Instance eq_haction_equiv {E C R} : Equivalence (@eq_haction E C R).
 Proof.
   split.
   - intros []; constructor; auto.
@@ -470,13 +327,8 @@ Proof.
     constructor; intros; rewrite H; auto.
 Qed.
 
-<<<<<<< HEAD:theories/Head.v
-#[global] Instance get_head_equ {E C X} :
-  Proper (equ eq ==> equ (eq_head)) (@get_head E C X).
-=======
-#[global] Instance head_equ {E X} :
-  Proper (equ eq ==> equ (eq_haction)) (@head E X).
->>>>>>> master:theories/Misc/Head.v
+#[global] Instance head_equ {E C X} :
+  Proper (equ eq ==> equ (eq_haction)) (@head E C X).
 Proof.
   unfold Proper, respectful.
   unfold equ; coinduction S CIH.
@@ -491,14 +343,14 @@ Proof.
     + constructor; intros ?; auto.
 Qed.
 
-Definition run_haction {E X} (hd : @haction E X) : ctree E X :=
+Definition run_haction {E C X} (hd : @haction E C X) : ctree E C X :=
   match hd with
   | ARet r => Ret r
-  | @ABr _ _ n k => BrS n k
+  | @ABr _ _ _ _ n k => BrS n k
   | AVis e k => Vis e k
   end.
 
-Lemma get_run_haction {E X} : forall (t : ctree E X),
+Lemma get_run_haction {E C X} : forall (t : ctree E C X),
     t ≅ head t >>= run_haction.
 Proof.
   coinduction r cih.

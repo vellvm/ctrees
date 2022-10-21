@@ -16,7 +16,7 @@ CoInductive trace {E} :=
 | Cons (l : @label E) (s : trace)
 | Nil.
 
-Program Definition htr {E C X} `{HasStuck : C0 -< C} :
+Program Definition htr {E C X} `{HasStuck : B0 -< C} :
   mon (@trace E -> ctree E C X -> Prop) :=
   {| body R s t :=
     match s with
@@ -78,11 +78,11 @@ Proof.
   simpl. destruct s; auto.
   step in H1. cbn in H1. destruct H1 as (? & ? & ?).
   step in H0. apply H0 in H1. destruct H1 as (? & ? & ? & ? & ?). subst.
-  exists x0. split. apply H1. eapply CH. apply H3. red. apply H2.
+  exists x1. split. apply H1. eapply CH. apply H3. red. apply H2.
 Qed.
 
 Lemma sbisim_traceq : forall {E C X} `{B0 -< C} (t t' : ctree E C X),
-  sbisim t t' -> traceq t t'.
+  sbisim eq t t' -> traceq t t'.
 Proof.
-  intros. split; apply ssim_tracincl; now apply sbisim_ssim_eq.
+  intros. split; apply ssim_tracincl; now apply sbisim_ssim.
 Qed.
