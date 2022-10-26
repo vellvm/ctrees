@@ -157,7 +157,7 @@ Import EquNotations.
 
 Section equ_theory.
 
-	Variable (E B : Type -> Type) (R : Type) (RR : R -> R -> Prop).
+  Context {E B : Type -> Type} {R : Type} (RR : R -> R -> Prop).
   Notation eT  := (coinduction.T (fequ (E := E) (B := B) RR)).
   Notation et  := (coinduction.t (fequ (E := E) (B := B) RR)).
   Notation ebt := (coinduction.bt (fequ (E := E) (B := B) RR)).

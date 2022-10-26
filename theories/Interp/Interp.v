@@ -12,7 +12,8 @@ From ITree Require Import
   Core.Subevent.
 
 From CTree Require Import
-		 CTree.
+     CTreeDefinitions
+     CTree.
 
 Import CTreeNotations.
 Open Scope ctree_scope.
@@ -24,11 +25,7 @@ Definition translateF {E F C R} (h : E ~> F) (rec: ctree E C R -> ctree F C R) (
 	match t with
 		| RetF x => Ret x
 		| VisF e k => Vis (h _ e) (fun x => rec (k x))
-<<<<<<< HEAD
-		| ChoiceF b c k => Choice b c (fun x => rec (k x))
-=======
 		| BrF b n k => Br b n (fun x => rec (k x))
->>>>>>> master
 	end.
 
 Definition translate {E F C} (h : E ~> F) : ctree E C ~> ctree F C
@@ -37,54 +34,36 @@ Definition translate {E F C} (h : E ~> F) : ctree E C ~> ctree F C
 Arguments translate {E F C} h [T].
 
 (** ** Interpret *)
-
 (** An event handler [E ~> M] defines a monad morphism
-<<<<<<< HEAD
-		[ctree E C ~> M] for any monad [M] with a loop operator. *)
-Definition interp {E C M : Type -> Type}
-           {FM : Functor M} {MM : Monad M} {IM : MonadIter M}
-           (h : E ~> M) (h' : bool -> C ~> M) :
+[ctree E C ~> M] for any monad [M] with a loop operator. *)
+
+
+
+Check @BrF.
+Definition interp {E C M : Type -> Type} {FoM: MonadBr C M}
+	   {FM : Functor M} {MM : Monad M} {IM : MonadIter M} 
+	   (h : E ~> M) :
 			ctree E C ~> M := fun R =>
 			iter (fun t =>
 				match observe t with
 				| RetF r => ret (inr r)
-				| ChoiceF b c k => fmap (fun x => inl (k x)) (h' b _ c)
-=======
-		[ctree E ~> M] for any monad [M] with a loop operator. *)
-
-Definition interp {E M : Type -> Type}
-					 {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {FoM : MonadBr M}
-					 (h : E ~> M) :
-			ctree E ~> M := fun R =>
-			iter (fun t =>
-				match observe t with
-				| RetF r => ret (inr r)
-				| @BrF _ _ _ b n k => bind (mbr b n) (fun x => ret (inl (k x)))
->>>>>>> master
+				| @BrF _ _ _ _ b _ n k =>
+                                    bind (mbr b n) (fun x => ret (inl (k x)))
 				| VisF e k => fmap (fun x => inl (k x)) (h _ e)
 				end).
-
-Arguments interp {E C M FM MM IM} h h' [T].
+Arguments interp {E C M FoM FM MM IM} h [T].
 
 (** Unfolding of [interp]. *)
-Notation interp_ h h' t :=
+Notation interp_ h t :=
   (match observe t with
-  | RetF r => Ret r
-<<<<<<< HEAD
-	| VisF e k => bind (h _ e) (fun x => tauI (interp h h' (k x)))
-	| ChoiceF b c k => bind (h' b _ c) (fun x => tauI (interp h h' (k x)))
-=======
-	| VisF e k => bind (h _ e) (fun x => Guard (interp h (k x)))
-	| @BrF _ _ _ b n k => bind (mbr b n) (fun x => Guard (interp h (k x)))
->>>>>>> master
+   | RetF r => Ret r
+   | VisF e k => bind (h _ e) (fun x => Guard (interp h (k x)))
+   | BrF b c k => bind (mbr b c) (fun x => Guard (interp h (k x)))
   end)%function.
 
-Notation interpE h := (interp h (fun b _ c => choose b c)).
-
-<<<<<<< HEAD
 (* TODO [step] should refold  *)
-Lemma bind_choice {E C R S X} b (c : C X) (k : _ -> ctree E C R) (h : _ -> ctree E C S):
-      (Choice b c k) >>= h ≅ Choice b c (fun x => k x >>= h).
+Lemma bind_br {E C R S X} b (c : C X) (k : _ -> ctree E C R) (h : _ -> ctree E C S):
+      (Br b c k) >>= h ≅ Br b c (fun x => k x >>= h).
 Proof.
   step; cbn; constructor; intros ?.
   reflexivity.
@@ -92,73 +71,45 @@ Qed.
 
 Section Interp.
 
-  Context {E F C D : Type -> Type} {X : Type} `{C1 -< D}.
-  Context {h : E ~> ctree F D} {h' : bool -> C ~> ctree F D}.
-=======
-(** ** [interp] and constructors *)
+  Context {E F C : Type -> Type} {X : Type} `{B1 -< C}
+          {h : E ~> ctree F C}.
 
-(** These are specializations of [unfold_interp], which can be added as
-    rewrite hints.
- *)
+  (** ** [interp] and constructors *)
 
-Lemma interp_ret {E F R} {f : E ~> ctree F} (x: R):
-  interp f (Ret x) ≅ Ret x.
-Proof. now rewrite unfold_interp. Qed.
-
-Lemma interp_tau {E F R} {f : E ~> ctree F} (t: ctree E R):
-  interp f (Guard t) ≅ Guard (Guard (interp f t)).
-Proof.
-  rewrite unfold_interp.
-  cbn.
-  unfold mbr, MonadBr_ctree, CTree.br. cbn.
-  rewrite unfold_bind.
-  cbn.
-  setoid_rewrite bind_ret_l.
-  reflexivity.
-Qed.
-
-Lemma interp_vis {E F R S} {f : E ~> ctree F} (e: E R) (k: R -> ctree E S) :
-  interp f (Vis e k) ≅ x <- f _ e;; Guard (interp f (k x)).
-Proof. now rewrite unfold_interp. Qed.
-
-Lemma interp_br {E F R} {f : E ~> ctree F} b n (k: _ -> ctree E R) :
-  interp f (Br b n k) ≅ x <- mbr b n;; Guard (interp f (k x)).
-Proof. now rewrite unfold_interp. Qed.
->>>>>>> master
+  (** These are specializations of [unfold_interp], which can be added as
+      rewrite hints.
+   *)
 
   (** Unfold lemma. *)
-  Lemma unfold_interp (t : ctree E C X) :
-    interp h h' t ≅ interp_ h h' t.
+  Lemma unfold_interp (t: ctree E C X):
+    interp h t ≅ interp_ h t.
   Proof.
-    unfold interp, Basics.iter, MonadIter_ctree.
+    unfold interp, Basics.iter, MonadIter_ctree, mbr, MonadBr_ctree, CTree.branch.
     rewrite unfold_iter.
     destruct (observe t); cbn.
     - now rewrite ?bind_ret_l.
     - now rewrite bind_map, ?bind_ret_l.
-    - now rewrite bind_map.
+    - do 3 rewrite bind_br.
+      apply br_equ; intros.
+      do 3 rewrite bind_ret_l.
+      apply br_equ; intros _.
+      reflexivity.
   Qed.
 
-<<<<<<< HEAD
-  (** ** [interp] and constructors *)
-
-  (** These are specializations of [unfold_interp], which can be added as
-    rewrite hints.
-   *)
-
   Lemma interp_ret (x: X):
-    interp h h' (Ret x) ≅ Ret x.
+    interp h (Ret x) ≅ Ret x.
   Proof. now rewrite unfold_interp. Qed.
 
   Lemma interp_vis {U} (e: E U) (k: U -> ctree E C X) :
-    interp h h' (Vis e k) ≅ x <- h _ e;; tauI (interp h h' (k x)).
+    interp h (Vis e k) ≅ x <- h _ e;; Guard (interp h (k x)).
   Proof. now rewrite unfold_interp. Qed.
 
   Lemma interp_choice {U} b (c : C U) (k: _ -> ctree E C X) :
-    interp h h' (Choice b c k) ≅ x <- h' b _ c;; tauI (interp h h' (k x)).
+    interp h (Br b c k) ≅ x <- mbr b c;; Guard (interp h (k x)).
   Proof. now rewrite unfold_interp. Qed.
 
   #[global] Instance interp_equ :
-    Proper (equ eq ==> equ eq) (interp h h' (T := X)).
+    Proper (equ eq ==> equ eq) (interp h (T := X)).
   Proof.
     cbn.
     coinduction ? CIH.
@@ -175,23 +126,23 @@ Proof. now rewrite unfold_interp. Qed.
 
 End Interp.
 
-Lemma interp_tau {E F C X} `{C1 -< C} (h : E ~> ctree F C) (t: ctree E C X):
-  interp h (fun b _ c => choose b c) (tauI t) ≅ tauI (tauI (interpE h t)).
+Lemma interp_tau {E F C X} `{B1 -< C} {h : E ~> ctree F C} (t: ctree E C X):
+  interp h (Guard t) ≅ Guard (Guard (interp h t)).
 Proof.
-  rewrite unfold_interp. setoid_rewrite bind_choice. cbn.
-  apply equ_ChoiceF. intro.
+  rewrite unfold_interp. setoid_rewrite bind_br.
+  apply equ_BrF. intro.
   rewrite bind_ret_l. reflexivity.
 Qed.
 
 Section Interp.
 
-  Context {E F C D : Type -> Type} {X : Type} `{C1 -< D}.
-  Context {h : E ~> ctree F D} {h' : bool -> C ~> ctree F D}.
+  Context {E F C : Type -> Type} {X : Type} `{B1 -< C}.
+  Context {h : E ~> ctree F C}.
 
   (* Note: this is specialized to [ctree F] as target monad. *)
   (* TODO: Incorporate Irene's work to generalize *)
   Lemma interp_bind {S} (t : ctree E C X) (k : X -> ctree _ _ S) :
-    interp h h' (t >>= k) ≅ interp h h' t >>= (fun x => interp h h' (k x)).
+    interp h (t >>= k) ≅ interp h t >>= (fun x => interp h (k x)).
   Proof.
     revert t.
     coinduction X' CIH.
@@ -201,44 +152,24 @@ Section Interp.
     - now rewrite bind_ret_l.
     - rewrite interp_vis, bind_bind.
       upto_bind_eq.
-      rewrite bind_tauI.
+      rewrite bind_guard.
       now constructor.
     - rewrite interp_choice, bind_bind.
       upto_bind_eq.
-      rewrite bind_tauI.
+      rewrite bind_guard.
       now constructor.
   Qed.
 
 End Interp.
-=======
-(* Note: this is specialized to [ctree F] as target monad. *)
-(* TODO: Incorporate Irene's work to generalize *)
-Lemma interp_bind {E F R S} (h : E ~> ctree F) (t : ctree E R) (k : R -> ctree _ S) :
-  interp h (t >>= k) ≅ interp h t >>= (fun x => interp h (k x)).
-Proof.
-  revert t.
-  coinduction R' CIH.
-  intros t.
-  rewrite unfold_bind, (unfold_interp t).
-  desobs t; cbn -[ebt].
-  - now rewrite bind_ret_l.
-  - rewrite interp_vis, bind_bind.
-    upto_bind_eq.
-    rewrite bind_br.
-    now constructor; intros.
-  - rewrite interp_br, bind_bind.
-    upto_bind_eq.
-    rewrite bind_br.
-    now constructor; intros.
-Qed.
 
 (** Counter-example showing that interp does not preserve sbisim in the general case. *)
 
 Inductive VoidE : Type -> Type :=
 | voidE : VoidE void.
 
-#[local] Definition t1 := Ret 1 : ctree VoidE nat.
-#[local] Definition t2 := brD2 (Ret 1) (x <- trigger voidE;; match x : void with end) : ctree VoidE nat.
+Notation B012 := (B0 +' B1 +' B2).
+#[local] Definition t1 := Ret 1 : ctree VoidE B012 nat.
+#[local] Definition t2 := brD2 (Ret 1) (x <- trigger voidE;; match x : void with end) : ctree VoidE B012 nat.
 
 Goal t1 ~ t2.
 Proof.
@@ -248,9 +179,9 @@ Proof.
   red. intros. intro. inv_trans.  destruct x.
 Qed.
 
-#[local] Definition h : VoidE ~> ctree VoidE.
+#[local] Definition h : VoidE ~> ctree VoidE B012.
 Proof.
-  intros. destruct H. exact (Step CTree.stuckD).
+  intros. destruct H. exact (Step stuckD).
 Defined.
 
 Example interp_sbsisim_counterexample : ~ (interp h t1 ~ interp h t2).
@@ -258,20 +189,20 @@ Proof.
   red. intros. unfold t2 in H.
   playR in H.
   rewrite unfold_interp. cbn. setoid_rewrite bind_br.
-  eapply trans_brD with (x := Fin.FS Fin.F1).
+  eapply trans_brD with (x := false).
   2: { rewrite bind_ret_l. reflexivity. }
-  apply trans_guard. setoid_rewrite unfold_interp. cbn. rewrite bind_br. etrans.
-  rewrite unfold_interp in H. unfold t1, h in H. cbn in H. inv_trans.
+  apply trans_guard. setoid_rewrite unfold_interp. cbn. rewrite bind_step. etrans.
+  rewrite unfold_interp in TR. unfold t1, h in TR. cbn in TR. inv_trans.
 Qed.
 
 (** Helper inductive t0_det t t' means that t' is Guard*(t) *)
-
-Inductive t0_det {E X} : relation (ctree E X) :=
+Inductive t0_det {E C X} `{B1 -< C}: relation (ctree E C X) :=
 | t0_det_id : forall t t', t ≅ t' -> t0_det t t'
 | t0_det_tau : forall t t' t'',
     t0_det t t' -> t'' ≅ Guard t -> t0_det t'' t'.
 
-#[global] Instance t0_det_equ : forall {E X}, Proper (equ eq ==> equ eq ==> flip impl) (@t0_det E X).
+#[global] Instance t0_det_equ {E C X} `{Tau: B1 -< C}:
+  Proper (equ eq ==> equ eq ==> flip impl) (@t0_det E C X _).
 Proof.
   cbn. intros.
   revert x H. induction H1; intros.
@@ -279,41 +210,44 @@ Proof.
   - eapply t0_det_tau. apply IHt0_det. apply H0. reflexivity. rewrite H2. apply H.
 Qed.
 
-#[global] Instance t0_det_equ' : forall {E X}, Proper (equ eq ==> equ eq ==> impl) (@t0_det E X).
+#[global] Instance t0_det_equ' {E C X} `{Tau: B1 -< C}:
+  Proper (equ eq ==> equ eq ==> impl) (@t0_det E C X _).
 Proof.
   cbn. intros. rewrite <- H, <- H0. apply H1.
 Qed.
 
-Lemma t0_det_bind {E X Y} : forall (t t' : ctree E X) (k : X -> ctree E Y),
+Lemma t0_det_bind {E C X Y} `{Tau: B1 -< C}: forall (t t' : ctree E C X) (k : X -> ctree E C Y),
   t0_det t t' ->
   t0_det (t >>= k) (t' >>= k).
 Proof.
   intros. induction H.
   - rewrite H. constructor. reflexivity.
-  - rewrite H0. setoid_rewrite bind_Guard. eapply t0_det_tau. apply IHt0_det. reflexivity.
+  - rewrite H0. setoid_rewrite bind_guard. eapply t0_det_tau. apply IHt0_det. reflexivity.
 Qed.
 
-Lemma t0_det_bind_ret_l {E X Y} : forall (t : ctree E X) t' (k : X -> ctree E Y) x,
+Lemma t0_det_bind_ret_l {E C X Y} `{Tau: B1 -< C}: forall (t : ctree E C X) t' (k : X -> ctree E C Y) x,
   t0_det t (Ret x) ->
   t0_det (k x) t' ->
   t0_det (t >>= k) t'.
 Proof.
   intros. remember (Ret x) as R. revert t' k x HeqR H0. induction H; intros; subst.
   - subst. rewrite H, bind_ret_l. apply H0.
-  - rewrite H0. setoid_rewrite bind_Guard.
+  - rewrite H0. setoid_rewrite bind_guard.
     eapply t0_det_tau. 2: reflexivity. eapply IHt0_det. reflexivity. apply H1.
 Qed.
 
-Lemma t0_det_bind_ret_l_equ {E X Y} : forall (t : ctree E X) (k : X -> ctree E Y) x,
+Lemma t0_det_bind_ret_l_equ {E C X Y} `{Tau: B1 -< C}:
+  forall (t : ctree E C X) (k : X -> ctree E C Y) x,
   t0_det t (Ret x) ->
   x <- t;; k x ≅ t;; k x.
 Proof.
   intros. remember (Ret x) as R. induction H; subst.
   - rewrite H. rewrite !bind_ret_l. reflexivity.
-  - rewrite H0. rewrite !bind_Guard. apply br_equ. intro. apply IHt0_det. reflexivity.
+  - rewrite H0. rewrite !bind_guard. apply br_equ. intro. apply IHt0_det. reflexivity.
 Qed.
 
-Lemma sbisim_t0_det {E X} : forall (t t' : ctree E X), t0_det t t' -> t ~ t'.
+Lemma sbisim_t0_det {E C X} `{Stuck: B0 -< C} `{Tau: B1 -< C}:
+  forall (t t' : ctree E C X), t0_det t t' -> t ~ t'.
 Proof.
   intros. induction H.
   - now rewrite H.
@@ -321,28 +255,30 @@ Proof.
 Qed.
 
 (* is_simple *)
-
-Definition is_simple {E X} (t : ctree E X) :=
+Definition is_simple {E C X} `{B0 -< C} `{B1 -< C} (t : ctree E C X) :=
   (forall l t', trans l t t' -> is_val l) \/
   (forall l t', trans l t t' -> exists r, t0_det t' (Ret r)).
 
-#[global] Instance is_simple_equ : forall {E X},
-  Proper (equ eq ==> iff) (@is_simple E X).
+#[global] Instance is_simple_equ : forall {E C X} `{Stuck: B0 -< C} `{Tau: B1 -< C},
+  Proper (equ eq ==> iff) (@is_simple E C X _ _).
 Proof.
   cbn. intros. unfold is_simple. setoid_rewrite H. reflexivity.
 Qed.
 
-Lemma is_simple_ret : forall {E X} r, is_simple (Ret r : ctree E X).
+Lemma is_simple_ret : forall {E C X} `{B0 -< C} `{B1 -< C} r, is_simple (Ret r : ctree E C X).
 Proof.
   cbn. red. intros. left. intros. inv_trans. subst. constructor.
 Qed.
 
-Lemma is_simple_guard_ret : forall {E X} r, is_simple (Guard (Ret r) : ctree E X).
+Lemma is_simple_guard_ret : forall {E C X} `{B0 -< C}`{B1 -< C}r,
+    is_simple (Guard (Ret r) : ctree E C X).
 Proof.
   cbn. red. intros. left. intros. inv_trans. subst. constructor.
 Qed.
 
-Lemma is_simple_br : forall {E} n, is_simple (mbr false n : ctree E _).
+(* Marker *)
+Lemma is_simple_br : forall {E C} `{B0 -< C} `{B1 -< C} n,
+    is_simple (mbr false n : ctree E C _).
 Proof.
   cbn. red. intros.
   left. intros. apply trans_brD_inv in H as []. inv_trans. subst. constructor.
@@ -885,4 +821,3 @@ Proof.
   red; eauto.
   rewrite !bind_ret_l, !sb_guard in H0. apply H0.
 Qed.
->>>>>>> master

@@ -1,5 +1,6 @@
 From Coq Require Import
      Lia Basics Fin
+     RelationClasses
      Logic.Eqdep.
 
 From Coinduction Require Import
@@ -19,6 +20,7 @@ From RelationAlgebra Require Export
      rel srel.
 
 Import CTree.
+
 Set Implicit Arguments.
 
 (* TODO: Decide where to set this *)
@@ -29,24 +31,9 @@ Arguments trans : simpl never.
   __coinduction_sbisim R H || coinduction R H.
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
 
-Module SSim0Notations.
-
-  Notation "t ≲ u" := (ssim0 eq t u) (at level 70).
-  Notation "t [≲] u" := (ss0 eq _ t u) (at level 79).
-  Notation "t {≲} u" := (t (ss0 eq) _ t u) (at level 79).
-  Notation "t {{≲}} u" := (bt (ss0 eq) _ t u) (at level 79).
-
-  Notation "t ( ≲ L ) u" := (ssim0 L t u) (at level 70).
-  Notation "t [ ≲ L ] u" := (ss0 L _ t u) (at level 79).
-  Notation "t { ≲ L } u" := (t (ss0 L) _ t u) (at level 79).
-  Notation "t {{ ≲ L }} u" := (bt (ss0 L) _ t u) (at level 79).
-
-End SSim0Notations.
-
 Import CTreeNotations.
 Import EquNotations.
 Import SBisimNotations.
-Import SSim0Notations.
 
 Section ssim0_homogenous_theory.
   Context {E C: Type -> Type} {X: Type}
@@ -321,13 +308,6 @@ Section ssim0_heterogenous_theory.
 
 End ssim0_heterogenous_theory.
 
-#[global] Hint Resolve is_stuck_ss0: core.
-#[global] Hint Resolve is_stuck_ssim0: core.
-#[global] Hint Resolve stuckD_ss0: core.
-#[global] Hint Resolve stuckD_ssim0: core.
-#[global] Hint Resolve spinD_ss0: core.
-#[global] Hint Resolve spinD_ssim0: core.
-
 (*|
 Up-to [bind] context simulations
 ----------------------------------
@@ -357,11 +337,9 @@ Section bind.
   (*|
     The resulting enhancing function gives a valid up-to technique
   |*)
-  Lemma bind_ctx_ssim0_t: 
-    respects_val L ->
+  Lemma bind_ctx_ssim0_t {RV: Respects_val L}: 
     bind_ctx_ssim0 <= (sst0 L).
   Proof.
-    intros HL.
     apply Coinduction.
     intros R. apply (leq_bind_ctx _).
     intros t1 t2 tt k1 k2 kk.
@@ -372,7 +350,7 @@ Section bind.
     apply tt in STEP as (u' & l' & STEP & EQ' & ?).
     do 2 eexists. split.
     apply trans_bind_l; eauto.
-    + intro Hl. destruct Hl. apply HL in H0 as [_ ?]. specialize (H0 (Is_val _)). auto.
+    + intro Hl. destruct Hl. apply RV in H0 as [_ ?]. specialize (H0 (Is_val _)). auto.
     + split; auto.
         apply (fT_T equ_clos_sst0).
         econstructor; [exact EQ | | reflexivity].
@@ -382,16 +360,17 @@ Section bind.
         apply (b_T (ss0 L)).
         red in kk; cbn; now apply kk.
     + apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
-      specialize (HL _ _ H) as [? _]. specialize (H0 (Is_val _)). destruct H0.
-      pose proof (trans_val_invT STEPres). subst.
+      destruct RV.
+      destruct (respects_val _ _ H) as [? _]. specialize (H0 (Is_val _)). destruct H0.
+      pose proof (trans_val_invT STEPres); subst.
       pose proof (trans_val_inv STEPres) as EQ.
-      rewrite EQ in STEPres.
-      specialize (kk v x0 H). 
+      rewrite EQ in STEPres.      
+      specialize (kk v x0 H).      
       apply kk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
       do 2 eexists; split.
       eapply trans_bind_r; eauto.
       split; auto.
-      eapply (id_T (ss0 L)); auto.
+      eapply (id_T (ss0 L)); auto.      
   Qed.
 
 End bind.
@@ -400,15 +379,14 @@ End bind.
 Expliciting the reasoning rule provided by the up-to principles.
 |*)
 Lemma sst0_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L: rel (@label E) (@label F)}
-      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} {RV: Respects_val L}
       (t1 : ctree E C X) (t2: ctree F D Y)
       (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') RR:
-  respects_val L ->
   ssim0 L t1 t2 ->
   (forall x y, (sst0 L RR) (k1 x) (k2 y)) ->
   sst0 L RR (t1 >>= k1) (t2 >>= k2).
 Proof.
-  intros RV ? ?.
+  intros ? ?.
   apply (ft_t (@bind_ctx_ssim0_t E F C D X X' Y Y' _ _ L RV)).
   apply in_bind_ctx; eauto.
   intros ? ? ?; auto.
@@ -418,15 +396,14 @@ Qed.
 Specializing the congruence principle for [≲]
 |*)
 Lemma ssim0_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type}  {L: rel (@label E) (@label F)}
-      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} {RV: Respects_val L}
       (t1 : ctree E C X) (t2: ctree F D Y)
       (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y'):
-  respects_val L ->
   ssim0 L t1 t2 ->
   (forall x y, ssim0 L (k1 x) (k2 y)) ->
   ssim0 L (t1 >>= k1) (t2 >>= k2).
 Proof.
-  intros * RV EQ EQs.
+  intros * EQ EQs.
   apply (ft_t (@bind_ctx_ssim0_t E F C D X X' Y Y' _ _ L RV)).
   apply in_bind_ctx; auto.
   intros ? ? ?; auto.
@@ -437,7 +414,7 @@ Qed.
 And in particular, we can justify rewriting [≲] to the left of a [bind].
 |*)
 Lemma bind_ssim0_cong_gen {E C X X'} RR {HasStuck: B0 -< C}
-      {L: relation (@label E)} `{respects_val L}:
+      {L: relation (@label E)} {RV: Respects_val L}:
   Proper (ssim0 L ==> (fun f g => forall x y, sst0 L RR (f x) (g y)) ==> sst0 L RR) (@bind E C X X').
 Proof.
   do 4 red; intros.
@@ -516,10 +493,6 @@ Section Proof_Rules.
     transition system, stepping is hence symmetric and we can just recover
     the itree-style rule.
   |*)
-  (* LEF: Here, maybe it would be nice to
-     have [k: Z -> ctree E C X], [k': Z' -> ctree F D Y] then the precondition
-     becomes [forall x, exists y, R (k x) (k' y) /\ L (obs e x) (obs f y)] but that's hard
-     for the [step_ss0_vis] proof. *)
   Lemma step_ss0_vis_gen {Y Z Z' F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z')
         (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R L: rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->

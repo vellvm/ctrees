@@ -348,20 +348,29 @@ Elimination rules for [trans]
 
 End Trans.
 
-Definition respects_val {E F} (L : rel (@label E) (@label F)) : Prop :=
-  forall l l',
-  L l l' ->
-  is_val l <-> is_val l'.
+Class Respects_val {E F} (L : rel (@label E) (@label F)) :=
+  { respects_val:
+    forall l l',
+      L l l' ->
+      is_val l <-> is_val l' }.
 
-Definition respects_tau {E F} (L : rel (@label E) (@label F)) : Prop :=
-  forall l l',
-  L l l' ->
-  l = tau <-> l' = tau.
+Class Respects_tau {E F} (L : rel (@label E) (@label F)) :=
+  { respects_tau: forall l l',
+      L l l' ->
+      l = tau <-> l' = tau }.
 
 Definition eq_obs {E} (L : relation (@label E)) : Prop :=
   forall X X' e e' (x : X) (x' : X'),
   L (obs e x) (obs e' x') ->
   obs e x = obs e' x'.
+
+#[global] Instance Respects_val_eq A: @Respects_val A A eq.
+split; intros; subst; reflexivity.
+Defined.
+
+#[global] Instance Respects_tau_eq A: @Respects_tau A A eq.
+split; intros; subst; reflexivity.
+Defined.
 
 (*|
 Backward reasoning for [trans]

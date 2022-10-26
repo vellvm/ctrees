@@ -1,5 +1,5 @@
 From Coq Require Import
-     Lia
+     Classes.RelationClasses
      Basics
      Fin
      Logic.Eqdep.
@@ -17,6 +17,7 @@ From CTree Require Import
      Eq.SSim0Theory
      Eq.Shallow
      Eq.Trans.
+
 
 From RelationAlgebra Require Export
      rel srel.
@@ -257,7 +258,7 @@ Section ssim_heterogenous_theory.
   Qed.
 
   Lemma is_stuck_ssim :  forall (t: ctree E C X) (u: ctree F D Y),
-      t (≲ L) u -> is_stuck t <-> is_stuck u.
+      t (⪅ L) u -> is_stuck t <-> is_stuck u.
   Proof.
     intros. step in H. eapply is_stuck_ss; eauto.
   Qed.
@@ -271,7 +272,7 @@ Section ssim_heterogenous_theory.
   Qed.
 
   Lemma ssim_is_stuck : forall (t : ctree E C X) (u: ctree F D Y),
-      is_stuck t -> is_stuck u -> t (≲ L) u.
+      is_stuck t -> is_stuck u -> t (⪅ L) u.
   Proof.
     intros. step. now apply ss_is_stuck.
   Qed.
@@ -409,11 +410,9 @@ Section bind.
 (*|
 The resulting enhancing function gives a valid up-to technique
 |*)
-  Lemma bind_ctx_ssim_t :
-    respects_val L ->
+  Lemma bind_ctx_ssim_t {HL: Respects_val L}:
     bind_ctx_ssim <= sst L.
   Proof.
-    intro HL.
     apply Coinduction.
     intros R. apply (leq_bind_ctx _).
     intros t1 t2 tt k1 k2 kk.
@@ -434,7 +433,8 @@ The resulting enhancing function gives a valid up-to technique
         apply (b_T (ss L)).
         red in kk; now apply kk. 
     - apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
-      specialize (HL _ _ H) as [? _]. specialize (H0 (Is_val _)). destruct H0.
+      destruct HL.
+      pose proof (respects_val _ _ H) as [? _]. specialize (H0 (Is_val _)). destruct H0.
       pose proof (trans_val_invT STEPres). subst.
       pose proof (trans_val_inv STEPres) as EQ.
       rewrite EQ in STEPres.
@@ -451,7 +451,8 @@ The resulting enhancing function gives a valid up-to technique
       + eauto.
     - destruct tt as [tt tt'].
       apply tt' in STEPres as (u' & ? & ? & STEPres).
-      specialize (HL _ _ H) as [_ ?]. specialize (H0 (Is_val _)). destruct H0.
+      destruct HL.
+      pose proof (respects_val _ _ H) as [_ ?]. specialize (H0 (Is_val _)). destruct H0.
       pose proof (trans_val_invT STEPres). subst.
       pose proof (trans_val_inv STEPres) as EQ.
       rewrite EQ in STEPres.
@@ -467,47 +468,46 @@ End bind.
 Lemma bind_ctx_ssim_eq_t {E C T X} `{B0 -< C} :
   (bind_ctx_ssim (X := T) (Y := T) eq : mon (relation (ctree E C X))) <= sst eq.
 Proof.
-  apply bind_ctx_ssim_t. red. intros. now subst.
+  apply bind_ctx_ssim_t. split. intros. now subst.
 Qed.
 
 (*|
 Expliciting the reasoning rule provided by the up-to principles.
 |*)
-Lemma sst_clo_bind (E F C D: Type -> Type) `{B0 -< C} `{B0 -< D} (X X' Y Y' : Type) L :
-  forall (t1 : ctree E C X) (t2 : ctree F D X') (k1 : X -> ctree E C Y) (k2 : X' -> ctree F D Y') RR,
-		t1 (≲L) t2 ->
-    respects_val L ->
+Lemma sst_clo_bind {E F C D: Type -> Type} `{B0 -< C} `{B0 -< D}
+      {X X' Y Y' : Type} {L: rel (@label E) (@label F)} {HL: Respects_val L} (t1 : ctree E C X) (t2 : ctree F D X')
+      (k1 : X -> ctree E C Y) (k2 : X' -> ctree F D Y') RR:
+		t1 (⪅ L) t2 ->
     (forall x y, L (val x) (val y) -> (sst L RR) (k1 x) (k2 y)) ->
     sst L RR (t1 >>= k1) (t2 >>= k2).
 Proof.
   intros.
-  apply (ft_t (@bind_ctx_ssim_t E F C D X Y X' Y' _ _ L H2)).
+  apply (ft_t (@bind_ctx_ssim_t E F C D X Y X' Y' _ _ L HL)).
   apply in_bind_ctx; auto.
 Qed.
 
 (*|
 Specializing the congruence principle for [~]
 |*)
-Lemma ssim_clo_bind (E F C D: Type -> Type) `{B0 -< C} `{B0 -< D} (X X' Y Y' : Type) L :
-  forall (t1 : ctree E C X) (t2 : ctree F D X') (k1 : X -> ctree E C Y) (k2 : X' -> ctree F D Y'),
-		t1 (≲L) t2 ->
-    respects_val L ->
-    (forall x x', L (val x) (val x') -> k1 x (≲L) k2 x') ->
-    t1 >>= k1 (≲L) t2 >>= k2
+Lemma ssim_clo_bind {E F C D: Type -> Type} `{B0 -< C} `{B0 -< D}
+      {X X' Y Y' : Type} L {HL: Respects_val L} (t1 : ctree E C X) (t2 : ctree F D X')
+      (k1 : X -> ctree E C Y) (k2 : X' -> ctree F D Y'):
+		t1 (⪅L) t2 ->
+    (forall x x', L (val x) (val x') -> k1 x (⪅L) k2 x') ->
+    t1 >>= k1 (⪅L) t2 >>= k2
 .
 Proof.
   intros.
-  apply (ft_t (@bind_ctx_ssim_t E F C D X Y X' Y' _ _ L H2)).
+  apply (ft_t (@bind_ctx_ssim_t E F C D X Y X' Y' _ _ L HL)).
   apply in_bind_ctx; auto.
 Qed.
 
 (*|
-And in particular, we can justify rewriting [≲] to the left of a [bind].
+And in particular, we can justify rewriting [⪅] to the left of a [bind].
 |*)
-Lemma bind_ssim_cong_gen {E F C D X X' Y Y'} `{B0 -< C} `{B0 -< D} RR (L : rel _ _) :
-  forall (t : ctree E C X) (t' : ctree F D X')
-      (k : X -> ctree E C Y) (k' : X' -> ctree F D Y'),
-    respects_val L ->
+Lemma bind_ssim_cong_gen {E F C D X X' Y Y'} `{B0 -< C} `{B0 -< D} RR (L : rel _ _)
+      {HL: Respects_val L} (t : ctree E C X) (t' : ctree F D X')
+      (k : X -> ctree E C Y) (k' : X' -> ctree F D Y'):
     ssim L t t' ->
     (forall x x', L (val x) (val x') -> sst L RR (k x) (k' x')) ->
     sst L RR (CTree.bind t k) (CTree.bind t' k').
@@ -826,7 +826,7 @@ Section WithParams.
     With invisible schedules, they are always equivalent: neither of them
     produce any challenge for the other.
     |*)
-  Lemma spinV_gen_nonempty : forall {Z Z' X Y} (c: C X) (c': D Y) (x: X) (y: Y) (L : rel _ _),
+  Lemma spinS_gen_nonempty : forall {Z Z' X Y} (c: C X) (c': D Y) (x: X) (y: Y) (L : rel _ _),
     L tau tau ->
     ssim L (@spinS_gen E C Z X c) (@spinS_gen F D Z' Y c').
   Proof.
@@ -848,7 +848,7 @@ Section WithParams.
     --------------------
   |*)
   Lemma ssim_ret_inv X Y (r1 : X) (r2 : Y) :
-    (Ret r1 : ctree E C X) (≲L) (Ret r2 : ctree F D Y) ->
+    (Ret r1 : ctree E C X) (⪅L) (Ret r2 : ctree F D Y) ->
     L (val r1) (val r2).
   Proof.
     intro.
@@ -857,7 +857,7 @@ Section WithParams.
 
   Lemma ssim_vis_inv_type {X X1 X2}
         (e1 : E X1) (e2 : E X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree E C X) (x : X1):
-    Vis e1 k1 ≲ Vis e2 k2 ->
+    Vis e1 k1 ⪅ Vis e2 k2 ->
     X1 = X2.
   Proof.
     intros.
@@ -867,7 +867,6 @@ Section WithParams.
     step in H1; inv H1; reflexivity.
     Unshelve. admit.
   Admitted.
-  (* Marker *)
   
   Lemma ssbt_eq_vis_inv {X Y} (e1 e2 : E Y) (k1 k2 : Y -> ctree E C X) (x : Y) R :
     ss eq (t (ss eq) R) (Vis e1 k1) (Vis e2 k2) ->
@@ -889,8 +888,8 @@ Section WithParams.
   Qed.
 
   Lemma ssim_eq_vis_inv {X Y} (e1 e2 : E Y) (k1 k2 : Y -> ctree E C X) (x : Y) :
-    Vis e1 k1 ≲ Vis e2 k2 ->
-    e1 = e2 /\ forall x, k1 x ≲ k2 x.
+    Vis e1 k1 ⪅ Vis e2 k2 ->
+    e1 = e2 /\ forall x, k1 x ⪅ k2 x.
   Proof.
     intros.
     (* Why doesn't apply work directly here? *)
@@ -903,8 +902,8 @@ Section WithParams.
 
   Lemma ssim_brS_inv {X Y Z Z'}
         c1 c2 (k1 : X -> ctree E C Z) (k2 : Y -> ctree F D Z') :
-    BrS c1 k1 (≲L) BrS c2 k2 ->
-    (forall i1, exists i2, k1 i1 (≲L) k2 i2).
+    BrS c1 k1 (⪅L) BrS c2 k2 ->
+    (forall i1, exists i2, k1 i1 (⪅L) k2 i2).
   Proof.
     intros.
     eplay.
@@ -925,8 +924,8 @@ Section WithParams.
 
   Lemma ssim_brD_l_inv : forall {X Y Z}
     (t : ctree E C X) (c : D Y) (k : Y -> ctree F D Z) L,
-    BrD c k (≲L) t ->
-    forall x, k x (≲L) t.
+    BrD c k (⪅L) t ->
+    forall x, k x (⪅L) t.
   Proof.
     intros. step. step in H. eapply ss_brD_l_inv. apply H.
   Qed.
@@ -981,7 +980,7 @@ Qed.
 
 
 Lemma ssim_sbisim_equiv_gen :
-  forall {E F X Y} (L : rel _ _) `{Injective _ _ L}
+  forall {E F X Y} (L : rel _ _) `{Injective (@label E) (@label F) L}
     `{Deterministic _ _ L}
     (t : ctree E B01 X) (t' : ctree F B01 Y),
   ssim L t t' -> ssim (flip L) t' t -> sbisim L t t'.
