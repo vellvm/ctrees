@@ -1,6 +1,10 @@
 From CTree Require Import
      CTree Eq Interp.Interp.
 
+From ITree Require Import
+     Subevent
+     CategoryOps.
+
 Set Implicit Arguments.
 Set Contextual Implicit.
 
@@ -8,36 +12,26 @@ Import CTreeNotations.
 
 Section Internalize.
   Variable E C : Type -> Type.
-  Variable ExtChoice : Type -> Type.
-  Context `{C1 -< C}.
+  Variable ExtBr : Type -> Type.
+  Context `{B1 -< C}.
 
-<<<<<<< HEAD
-  Definition internalize_h : ExtChoice ~> ctree E (C +' ExtChoice) :=
-    fun _ e => choose true e.
+  Print Coercions.
+  (* LEF: Some reason the instance resolution doesn't coerce [ExtBr >-> C +' ExtBr] *)
+  Definition internalize_h:  ExtBr ~> ctree E (C +' ExtBr) :=
+    fun _ e => CTree.branch true 
+                         (@subevent ExtBr (sum1 C ExtBr)
+                                    (@CategoryOps.ReSum_inr (forall _ : Type, Type) IFun sum1 Cat_IFun Inr_sum1 ExtBr ExtBr C
+                                                            (@CategoryOps.ReSum_id (forall _ : Type, Type) IFun Id_IFun ExtBr)) _ e).
 
-  Definition internalize_h' : ExtChoice +' E ~> ctree E (C +' ExtChoice) :=
-=======
-  Variant ExtBr : Type -> Type :=
-    | ext_chose n : ExtBr (Fin.t n).
-  Arguments ext_chose n : clear implicits.
 
-  Definition internalize_h {E} : ExtBr ~> ctree E :=
-    fun _ '(ext_chose n) => CTree.br true n.
-
-  Definition internalize_h' {E} : ExtBr +' E ~> ctree E :=
->>>>>>> master
+  Definition internalize_h' : ExtBr +' E ~> ctree E (C +' ExtBr) :=
     fun _ e => match e with
             | inl1 e => internalize_h e
             | inr1 e => trigger e
             end.
-
-<<<<<<< HEAD
-  Definition internalize : ctree (ExtChoice +' E) C ~> ctree E (C +' ExtChoice) :=
+  
+  Definition internalize : ctree (ExtBr +' E) C ~> ctree E (C +' ExtBr) :=
     interpE internalize_h'.
-=======
-  Definition internalize : ctree (ExtBr +' E) ~> ctree E :=
-    interp internalize_h'.
->>>>>>> master
 
   Lemma internalize_ret {R} (r : R) : internalize (Ret r) ≅ Ret r.
   Proof.
@@ -55,4 +49,3 @@ Section Internalize.
   Qed.
 
 End Internalize.
-(* Arguments ext_chose n : clear implicits. *)

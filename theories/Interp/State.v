@@ -18,10 +18,11 @@ Open Scope monad_scope.
 
 Set Implicit Arguments.
 
-#[global] Instance MonadChoice_stateT {S M C} {MM : Monad M} {AM : MonadChoice M C}: MonadChoice (stateT S M) C :=
-  fun b X c s => f <- Utils.choice b _ c;; ret (s,f).
-
-<<<<<<< HEAD
+#[global] Instance MonadChoice_stateT {M} {MM : Monad M} {AM : MonadBr M}: MonadBr (stateT S M) :=
+  fun b n s =>
+    f <- mbr b n;;
+    ret (s, f).
+  
 Definition interp_state {E C M} S
            {FM : Functor M} {MM : Monad M} {IM : MonadIter M}
            (h : E ~> stateT S M) (h' : bool -> C ~> stateT S M) :
@@ -35,19 +36,6 @@ Section State.
 
   Definition get {E C} `{stateE -< E} : ctree E C S := trigger Get.
   Definition put {E C} `{stateE -< E} : S -> ctree E C unit := fun s => trigger (Put s).
-=======
-  #[global] Instance MonadChoice_stateT {M} {MM : Monad M} {AM : MonadBr M}: MonadBr (stateT S M) :=
-  fun b n s =>
-    f <- mbr b n;;
-    ret (s, f).
-
-  Definition interp_state {E M}
-           {FM : Functor M} {MM : Monad M}
-           {IM : MonadIter M}{MC: MonadBr M} (h : E ~> stateT S M) :
-    ctree E ~> stateT S M := interp h.
-
-  Notation stateE := (stateE S).
->>>>>>> master
 
   Definition h_state {E C} : stateE ~> stateT S (ctree E C) :=
     fun _ e s =>

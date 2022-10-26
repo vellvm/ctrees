@@ -19,13 +19,8 @@ Set Contextual Implicit.
 
 Definition h_embed {E C} : E ~> ctree E C :=
   fun _ e => CTree.trigger e.
-Definition embed' {E} : itree E ~> ctree E (C01) := interp h_embed.
-
-<<<<<<< HEAD:theories/ITree.v
-Definition embed {E C} : itree (C +' E) ~> ctree E (C01 +' C) :=
-=======
-Definition embed {E} : itree (ExtBr +' E) ~> ctree E :=
->>>>>>> master:theories/Interp/ITree.v
+Definition embed' {E} : itree E ~> ctree E (B01) := interp h_embed.
+Definition embed {E C} : itree (C +' E) ~> ctree E (B01 +' C) :=
   fun _ t => internalize (embed' t).
 
 Notation "t '-' l '→' u" := (trans l t u)
@@ -44,11 +39,7 @@ Notation "t '-' l '→' u" := (transR l t u)
 #[local] Notation iVis e k  := (Vis e k).
 #[local] Notation iTau t    := (Tau t).
 #[local] Notation cRet x    := (CTreeDefinitions.Ret x).
-<<<<<<< HEAD:theories/ITree.v
-#[local] Notation cTauI t   := (CTreeDefinitions.tauI t).
-=======
 #[local] Notation cGuard t   := (CTreeDefinitions.Guard t).
->>>>>>> master:theories/Interp/ITree.v
 #[local] Notation cVis e k  := (CTreeDefinitions.Vis e k).
 
 (** Unfolding of [interp]. *)
@@ -84,13 +75,8 @@ Proof.
   reflexivity.
 Qed.
 
-<<<<<<< HEAD:theories/ITree.v
-Lemma embed_eq {E C X}:
+#[global] Instance embed_eq {E C X}:
 	Proper (eq_itree eq ==> equ eq) (@embed E C X).
-=======
-#[global] Instance embed_eq {E X}:
-	Proper (eq_itree eq ==> equ eq) (@embed E X).
->>>>>>> master:theories/Interp/ITree.v
 Proof.
 	unfold Proper, respectful.
 	coinduction r CIH.
