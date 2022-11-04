@@ -70,56 +70,79 @@ Relation relaxing [equ] to become insensible to:
 
 Section WeakBisim.
 
-  Context {E C : Type -> Type} {X : Type} `{HasTau : C0 -< C}.
-  Notation S := (ctree E C X).
+  Arguments label: clear implicits.
 
-(*|
-The function defining weak simulations: [trans] plays must be answered
-using [wtrans].
-The [ws] definition stands for [weak simulation]. The bisimulation [wb]
-is once again obtained by expliciting the symmetric aspect of the definition.
-|*)
-  Program Definition ws: mon (rel S S) :=
+  (*|
+  The function defining weak simulations: [trans] plays must be answered
+  using [wtrans].
+  The [ws] definition stands for [weak simulation]. The bisimulation [wb]
+  is once again obtained by expliciting the symmetric aspect of the definition.
+  |*)
+  Program Definition ws {E F C D: Type -> Type} {X Y: Type} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+          (L: rel (label E) (label F)) : mon (rel (ctree E C X) (ctree F D Y)) :=
     {| body R p q :=
-      forall l p', trans l p p' -> exists2 q', wtrans l q q' & R p' q' |}.
-  Next Obligation. destruct (H0 _ _ H1). eauto. Qed.
+      forall l p', trans l p p' -> exists q' l', wtrans l' q q' /\ R p' q' /\ L l l' |}.
+  Next Obligation.
+    destruct (H0 _ _ H1) as (? & ? & ? & ? & ?).
+    do 2 eexists; intuition; eauto.
+  Qed.
 
-(*|
-The bisimulation is obtained by intersecting [ws] with its symmetrized version.
-|*)
-  Definition wb := (Coinduction.lattice.cap ws (comp converse (comp ws converse))).
-
-(*|
-The function defining one-sided expansion (standard notion in process algebra).
-This relation echoes [euttge] over [itrees]: the amount of fuel required on either
-side of the computation can only decrease from left to right, not the other way around.
-We are not interested in this relation by itself, but it is an important proof intermediate.
-|*)
-  Program Definition es: mon (rel S S) :=
+  (*|
+    The bisimulation is obtained by intersecting [ws] with its symmetrized version.
+    |*)
+  Program Definition wb {E F C D: Type -> Type} {X Y: Type} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+          (L: rel (label E) (label F)) : mon (rel (ctree E C X) (ctree F D Y)) :=
     {| body R p q :=
-      forall l p', trans l p p' -> exists2 q', etrans l q q' & R p' q' |}.
-  Next Obligation. destruct (H0 _ _ H1). eauto. Qed.
+      ws L R p q /\ ws (flip L) (flip R) q p
+    |}.
+  Next Obligation.
+    split; intros.
+    - destruct (H0 _ _ H2) as (? & ? & ? & ? & ?).
+      do 2 eexists; intuition; eauto.
+    - destruct (H1 _ _ H2) as (? & ? & ? & ? & ?).
+      do 2 eexists; intuition; eauto.
+  Qed.
+
+  (*|
+    The function defining one-sided expansion (standard notion in process algebra).
+    This relation echoes [euttge] over [itrees]: the amount of fuel required on either
+    side of the computation can only decrease from left to right, not the other way around.
+    We are not interested in this relation by itself, but it is an important proof intermediate.
+    |*)
+  Program Definition es {E F C D: Type -> Type} {X Y: Type} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+          (L: rel (label E) (label F)) : mon (rel (ctree E C X) (ctree F D Y)) :=
+    {| body R p q :=
+      forall l p', trans l p p' -> exists q' l', etrans l' q q' /\ R p' q' /\ L l l' |}.
+  Next Obligation.
+    destruct (H0 _ _ H1) as (? & ? & ? & ? & ?).
+    do 2 eexists; intuition; eauto.
+  Qed.
 
 End WeakBisim.
 
 (*|
 The relation itself
 |*)
-Definition wbisim {E C X} `{HasStuck : C0 -< C} := (gfp (@wb E C X _): hrel _ _).
+Definition wbisim {E F C D: Type -> Type} {X Y: Type} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+           (L: rel (@label E) (@label F)) := (gfp (@wb E F C D X Y _ _ L): hrel _ _).
 
 Module WBisimNotations.
 
-  Notation "p ≈ q" := (wbisim p q) (at level 70).
-  Notation wt := (coinduction.t wb).
-  Notation wT := (coinduction.T wb).
-  Notation wbt := (coinduction.bt wb).
-(*|
-Notations  for easing readability in proofs by enhanced coinduction
-|*)
-  Notation "x [≈] y" := (wt _ x y) (at level 80).
-  Notation "x {≈} y" := (wbt _ x y) (at level 80).
-  Notation "t {{≈}} u" := (wb _ t u) (at level 79).
-
+  Notation "p ≈ q" := (wbisim p q eq) (at level 70).
+  Notation "p (≈ L ) q" := (wbisim p q L) (at level 70).
+  Notation wt L := (coinduction.t (wb L)).
+  Notation wT L := (coinduction.T (wb L)).
+  Notation wbt L := (coinduction.bt (wb L)).
+  (*|
+    Notations  for easing readability in proofs by enhanced coinduction
+    |*)
+  Notation "x [≈] y" := (wt eq _ x y) (at level 80).
+  Notation "x {≈} y" := (wbt eq _ x y) (at level 80).
+  Notation "t {{≈}} u" := (wb eq _ t u) (at level 79).
+  Notation "x [≈ L ] y" := (wt L _ x y) (at level 80).
+  Notation "x {≈ L } y" := (wbt L _ x y) (at level 80).
+  Notation "t {{≈ L }} u" := (wb L _ t u) (at level 79).
+  
 End WBisimNotations.
 
 Import WBisimNotations.
@@ -127,8 +150,8 @@ Import WBisimNotations.
 Ltac fold_wbisim :=
   repeat
     match goal with
-    | h: context[@wb ?E ?C ?X ?HasStuck] |- _ => fold (@wbisim E C X HasStuck) in h
-    | |- context[@wb ?E ?C ?X ?HasStuck]      => fold (@wbisim E C X HasStuck)
+    | h: context[@wb ?E ?F ?C ?D ?X ?Y ?HS ?HS' ?L ] |- _ => fold (@wbisim E F C D X Y HS HS' L) in h
+    | |- context[@wb ?E ?F ?C ?D ?X ?Y ?HS ?HS' ?L ]      => fold (@wbisim E F C D X Y HS HS' L)
     end.
 
 Ltac __coinduction_wbisim R H :=
@@ -186,12 +209,12 @@ Tactic Notation "twplayR" tactic(t) := twplayR_ t.
 Ltac wplayR H := twplayR ltac:(apply @H).
 Ltac ewplayR := twplayR etrans.
 
-Section wbisim_theory.
+Section wbisim_homogenous_theory.
 
-  Context {E C : Type -> Type} {X : Type} `{HasStuck : C0 -< C}.
-  Notation ws := (@ws E C X HasStuck).
-  Notation wb := (@wb E C X HasStuck).
-  Notation wbisim  := (@wbisim E C X HasStuck).
+  Context {E C : Type -> Type} {X : Type} `{HasStuck : B0 -< C}.
+  Notation ws := (@ws E E C C X X HasStuck HasStuck eq).
+  Notation wb := (@wb E E C C X X HasStuck HasStuck eq).
+  Notation wbisim  := (@wbisim E E C C X X HasStuck HasStuck eq).
   Notation wt  := (coinduction.t wb).
   Notation wbt := (coinduction.bt wb).
   Notation wT  := (coinduction.T wb).
@@ -200,7 +223,7 @@ Section wbisim_theory.
 Elementary properties of [wbisim]
 ----------------------------------------------
 We have in short:
-- [ss ≤ es ≤ ws] (direct consequence of transition relations' properties)
+- [ss0 ≤ es ≤ ws] (direct consequence of transition relations' properties)
 - [sbisim] ⊆ [wbisim]
 - [equ] ⊆ [wbisim]
 - [wbisim] is closed under [equ]
@@ -216,31 +239,29 @@ on both arguments.
 We also get [wbisim] closed under [sbism] on both arguments, but need first to
 establish [wbisim]'s transitivity for that.
 |*)
-<<<<<<< HEAD
-    Lemma s_e: @ss E E C C X X _ _ eq <= es.
-    Proof.
-      intros R p q H l p' pp'. destruct (H _ _ pp').
-      destruct H0 as (? & ? & ? & <-). eauto using trans_etrans_.
-    Qed.
+  Lemma s_e: @ss0 E E C C X X _ _ eq <= es eq.
+  Proof.
+    intros R p q H l p' pp'. destruct (H _ _ pp').
+    destruct H0 as (? & ? & ? & <-).
+    do 2 eexists; intuition; eauto using trans_etrans_.
+  Qed.
 
-    Lemma e_w: es <= ws.
-    Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using etrans_wtrans_. Qed.
-    Lemma s_w: @ss E E C C X X _ _ eq <= ws.
-=======
-    Lemma s_e: @ss0 E X <= es.
-    Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using trans_etrans_. Qed.
-    Lemma e_w: es <= ws.
-    Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using etrans_wtrans_. Qed.
-    Lemma s_w: ss0 <= ws.
->>>>>>> master
-    Proof. rewrite s_e. apply e_w. Qed.
+  Lemma e_w: es eq <= ws.
+  Proof. intros R p q H l p' pp'.
+         destruct (H _ _ pp') as (? & ? & ? & ? & ?); subst.
+         do 2 eexists; intuition; eauto using etrans_wtrans_.
+  Admitted.
 
-    Corollary sbisim_wbisim: sbisim <= wbisim.
-    Proof.
-      apply gfp_leq.
-      apply Coinduction.lattice.cap_leq. apply s_w.
-      intros R p q. apply (@s_w (R°) q p).
-    Qed.
+  Lemma s_w: ss0 eq <= ws.
+  Proof. rewrite s_e. apply e_w. Qed.
+
+  (* MARKER *)
+  Corollary sbisim_wbisim: sbisim eq <= wbisim.
+  Proof.
+    apply gfp_leq.
+    apply Coinduction.lattice.cap_leq. apply s_w.
+    intros R p q. apply (@s_w (R°) q p).
+  Qed.
 
     #[global] Instance sbisim_wbisim_subrelation : subrelation sbisim wbisim.
     Proof.

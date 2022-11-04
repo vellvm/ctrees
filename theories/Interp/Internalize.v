@@ -1,10 +1,6 @@
 From CTree Require Import
      CTree Eq Interp.Interp.
 
-From ITree Require Import
-     Subevent
-     CategoryOps.
-
 Set Implicit Arguments.
 Set Contextual Implicit.
 
@@ -15,27 +11,25 @@ Section Internalize.
   Variable ExtBr : Type -> Type.
   Context `{B1 -< C}.
 
-  Print Coercions.
-  (* LEF: Some reason the instance resolution doesn't coerce [ExtBr >-> C +' ExtBr] *)
   Definition internalize_h:  ExtBr ~> ctree E (C +' ExtBr) :=
-    fun _ e => CTree.branch true 
-                         (@subevent ExtBr (sum1 C ExtBr)
-                                    (@CategoryOps.ReSum_inr (forall _ : Type, Type) IFun sum1 Cat_IFun Inr_sum1 ExtBr ExtBr C
-                                                            (@CategoryOps.ReSum_id (forall _ : Type, Type) IFun Id_IFun ExtBr)) _ e).
-
+    fun _ e => (CTree.branch true (subevent _ e)).  
 
   Definition internalize_h' : ExtBr +' E ~> ctree E (C +' ExtBr) :=
     fun _ e => match e with
             | inl1 e => internalize_h e
             | inr1 e => trigger e
             end.
-  
+
+  #[local] Instance MonadBr_ctree {E C D} `{C -< D}: MonadBr C (ctree E D) :=
+    fun b _ e => CTree.branch b (@subevent C D _ _ e).
+
   Definition internalize : ctree (ExtBr +' E) C ~> ctree E (C +' ExtBr) :=
     interpE internalize_h'.
 
   Lemma internalize_ret {R} (r : R) : internalize (Ret r) ≅ Ret r.
   Proof.
     unfold internalize.
+    Set Printing All.
     rewrite interp_ret.
     reflexivity.
   Qed.
