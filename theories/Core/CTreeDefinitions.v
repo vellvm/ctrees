@@ -373,7 +373,7 @@ Infinite taus.
 
 End CTree.
 
-Notation branch  b := (CTree.branch (subevent _ b)).
+Notation branch b c := (CTree.branch b (subevent _ c)).
 Notation trigger e := (CTree.trigger (subevent _ e)).
 Notation stuckD := (stuck false).
 Notation stuckS := (stuck true).

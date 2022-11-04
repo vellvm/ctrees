@@ -8,28 +8,24 @@ Import CTreeNotations.
 
 Section Internalize.
   Variable E C : Type -> Type.
-  Variable ExtBr : Type -> Type.
+  Variable ExtChoice : Type -> Type.
   Context `{B1 -< C}.
 
-  Definition internalize_h:  ExtBr ~> ctree E (C +' ExtBr) :=
-    fun _ e => (CTree.branch true (subevent _ e)).  
+  Definition internalize_h : ExtChoice ~> ctree E (C +' ExtChoice) :=
+    fun _ e => branch true e.
 
-  Definition internalize_h' : ExtBr +' E ~> ctree E (C +' ExtBr) :=
+  Definition internalize_h' : ExtChoice +' E ~> ctree E (C +' ExtChoice) :=
     fun _ e => match e with
             | inl1 e => internalize_h e
             | inr1 e => trigger e
             end.
 
-  #[local] Instance MonadBr_ctree {E C D} `{C -< D}: MonadBr C (ctree E D) :=
-    fun b _ e => CTree.branch b (@subevent C D _ _ e).
-
-  Definition internalize : ctree (ExtBr +' E) C ~> ctree E (C +' ExtBr) :=
+  Definition internalize : ctree (ExtChoice +' E) C ~> ctree E (C +' ExtChoice) :=
     interpE internalize_h'.
 
   Lemma internalize_ret {R} (r : R) : internalize (Ret r) ≅ Ret r.
   Proof.
     unfold internalize.
-    Set Printing All.
     rewrite interp_ret.
     reflexivity.
   Qed.

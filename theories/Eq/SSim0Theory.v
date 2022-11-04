@@ -421,8 +421,6 @@ Proof.
   eapply sst0_clo_bind; auto.
 Qed.
 
-Check @bind_ctx_ssim0_t.
-Check @ss0.
 Ltac __upto_bind_ssim0 :=
   match goal with
     |- @ssim0 ?E ?F ?C ?D ?X ?Y _ _ ?L (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>

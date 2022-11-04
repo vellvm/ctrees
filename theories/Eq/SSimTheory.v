@@ -1008,7 +1008,6 @@ Proof.
 Lemma ssim_sbisim_equiv_eq : forall {E X} (t t' : ctree E B01 X),
   ssim eq t t' -> ssim eq t' t -> sbisim eq t t'.
 Proof.
-  Print sb.
   intros. apply ssim_sbisim_equiv_gen; intros.
   - typeclasses eauto. 
   - typeclasses eauto.

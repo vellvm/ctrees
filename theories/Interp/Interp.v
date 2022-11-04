@@ -8,16 +8,14 @@ From ExtLib Require Import
      Structures.Monad.
 
 From ITree Require Import
-	Basics.Basics
-  Core.Subevent.
+     Basics.Basics
+     Core.Subevent.
 
 From CTree Require Import
-     CTreeDefinitions
      CTree.
 
 Import CTreeNotations.
 Open Scope ctree_scope.
-Import CTreeNotations.
 
 (* end hide *)
 Definition translateF {E F C R} (h : E ~> F) (rec: ctree E C R -> ctree F C R) (t : ctreeF E C R _) : ctree F C R  :=
@@ -57,7 +55,7 @@ Notation interp_ h h' t :=
 	| BrF b c k => bind (h' b _ c) (fun x => Guard (interp h h' (k x)))
   end)%function.
 
-Notation interpE h := (interp h (fun b _ c => mbr b c)).
+Notation interpE h := (interp h (fun b _ c => branch b c)).
 
 (* TODO [step] should refold  *)
 Lemma bind_br {E C R S X} b (c : C X) (k : _ -> ctree E C R) (h : _ -> ctree E C S):
