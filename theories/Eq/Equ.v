@@ -744,6 +744,14 @@ Next Obligation.
   apply LE; auto.
 Qed.
 
+(*|
+Sufficient condition to prove compatibility only over the simulation
+|*)
+Lemma equ_clos_sym {E C X} : compat converse (@equ_clos E E C C X X).
+Proof.
+  intros R t u EQ; inv EQ.
+  apply Equ_clos with u' t'; intuition.
+Qed.
 
 (*|
 Elementary equational theory

@@ -123,21 +123,17 @@ From Coq Require Import Datatypes.
 
  *)
 
-
-Definition embed_ t :=
+Notation embed_ t :=
   match iobserve t with
   | RetF r => CTreeDefinitions.Ret r
   | TauF t => cGuard (cGuard (embed t))
   | VisF (inl1 e) k =>
       match e,k with
-      | c, k => BrS c (fun x => cGuard (cGuard (cGuard (embed (k x)))))
+      | c, k => brS c (fun x => cGuard (cGuard (cGuard (embed (k x)))))
       end
   | VisF (inr1 e) k => CTreeDefinitions.vis e (fun x => cGuard (cGuard (cGuard (embed (k x)))))
   end.
 
-Section Foo.
-  Context {E C: Type -> Type} {X: Type} (t: itree (C +' E) X).
-  Check (embed_ t).
 Lemma unfold_embed {E C X} (t : itree (C +' E) X) : (embed t ≅ embed_ t)%ctree.
 Proof.
   unfold embed, embed', internalize at 1.
@@ -175,31 +171,20 @@ Proof.
       auto.
 Qed.
 
-<<<<<<< HEAD:theories/ITree.v
 Lemma trans_embed_inv E C X : forall (t1 : itree (C +' E) X) l t2',
     trans l (embed t1) t2' ->
-    (exists r : X, (t2' ≅ stuckI)%ctree /\ l = val r)
-=======
-Lemma trans_embed_inv E X : forall (t1 : itree (ExtBr +' E) X) l t2',
-    trans l (embed t1) t2' ->
-    (exists r : X, (t2' ≅ CTree.stuckD)%ctree /\ l = val r)
->>>>>>> master:theories/Interp/ITree.v
-    \/ exists t2, (t2' ~ embed t2)%ctree.
+    (exists r : X, (t2' ≅ stuckD)%ctree /\ l = val r)
+    \/ exists t2, (t2' ~ @embed E C X t2)%ctree.
 Proof.
   unfold trans.
   intros * TR.
   cbn in TR; red in TR.
   remember (embed t1) as et1.
   cut (
-<<<<<<< HEAD:theories/ITree.v
-      ((et1 ≅ embed t1)%ctree \/ (et1 ≅ cTauI (embed t1))%ctree) ->
-      (exists r : X, (t2' ≅ stuckI)%ctree /\ l = val r)
-      \/ exists t2 : itree (C +' E) X, t2' ~ embed t2).
-=======
       ((et1 ≅ embed t1)%ctree \/ (et1 ≅ cGuard (embed t1))%ctree) ->
-      (exists r : X, (t2' ≅ CTree.stuckD)%ctree /\ l = val r)
-      \/ exists t2 : itree (ExtBr +' E) X, t2' ~ embed t2).
->>>>>>> master:theories/Interp/ITree.v
+      (exists r : X, (t2' ≅ stuckD)%ctree /\ l = val r)
+      \/ exists t2 : itree (C +' E) X, t2' ~ embed t2).
+
   intros H; eapply H; eauto; left; subst; auto.
   clear Heqet1.
   revert t1.
@@ -266,13 +251,8 @@ Proof.
     + rewrite (ctree_eta et1), <- x1 in EQ;
         clear et1 x1.
       step in EQ; inv EQ.
-
   - intros * EQ.
-<<<<<<< HEAD:theories/ITree.v
-    assert (t2' ≅ ChoiceI choice0 k)%ctree by (step; now rewrite x).
-=======
-    assert (t2' ≅ Br false 0 k)%ctree by (step; now rewrite x).
->>>>>>> master:theories/Interp/ITree.v
+    assert (t2' ≅ br false branch0 k)%ctree by (step; now rewrite x).
     setoid_rewrite H.
     clear t2' x H.
     destruct EQ as [EQ | EQ].
@@ -282,13 +262,9 @@ Proof.
       destruct (iobserve t1) eqn:EQ1; try now step in EQ; inv EQ.
       * dependent induction EQ.
         left; eexists; split; eauto.
-<<<<<<< HEAD:theories/ITree.v
-        rewrite choiceStuckI_always_stuck; reflexivity.
-      * destruct e; step in EQ; inv EQ.
-=======
+
         rewrite brD0_always_stuck; reflexivity.
-      * destruct e; [destruct e |]; step in EQ; inv EQ.
->>>>>>> master:theories/Interp/ITree.v
+      * destruct e; step in EQ; inv EQ.
     + step in EQ; rewrite <- x0 in EQ; inv EQ.
 Qed.
 
@@ -312,7 +288,7 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma embed_trans_productive_aux E X : forall l t (T u : ctree E X),
+Lemma embed_trans_productive_aux E C X : forall l t (T u : ctree E (B01 +' C) X),
     trans l T u ->
     (equ eq T (embed t) \/ equ eq T (cGuard (embed t))) ->
     productive t.
@@ -337,7 +313,7 @@ Proof.
         step in EQ; dependent induction EQ.
         specialize (REL x).
         auto.
-      * destruct e; [destruct e |]; step in EQ; inv EQ.
+      * destruct e; step in EQ; inv EQ.
     + specialize (IHTR _ eq_refl _ eq_refl).
       rewrite ctree_eta, <- HeqoT in EQ.
       step in EQ; dependent induction EQ.
@@ -349,7 +325,7 @@ Proof.
       rewrite ctree_eta, <- HeqoT in EQ.
       rewrite unfold_embed in EQ.
       destruct (iobserve t0); try now step in EQ; inv EQ.
-      destruct e; [destruct e|]; eapply prod_vis; eauto.
+      destruct e; eapply prod_vis; eauto.
     + rewrite itree_eta.
       rewrite ctree_eta, <- HeqoT in EQ.
       step in EQ; inv EQ.
@@ -358,7 +334,7 @@ Proof.
       rewrite ctree_eta, <- HeqoT in EQ.
       rewrite unfold_embed in EQ.
       destruct (iobserve t0); try now step in EQ; inv EQ.
-      destruct e0; [destruct e0|]; eapply prod_vis; eauto.
+      destruct e0; eapply prod_vis; eauto.
     + rewrite itree_eta.
       rewrite ctree_eta, <- HeqoT in EQ.
       step in EQ; inv EQ.
@@ -374,31 +350,22 @@ Proof.
       step in EQ; inv EQ.
 Qed.
 
-<<<<<<< HEAD:theories/ITree.v
-Lemma bar E C X : forall (t1 u1 : itree (C +' E) X) l t2',
-    trans l (embed t1) t2' ->
-    t1 ≈ u1 ->
-    (exists t2 u2,
-        trans l (embed u1) (embed u2) /\
-          (t2' ~ embed t2)%ctree /\
-          t2 ≈ u2) \/
-      ((t2' ≅ stuckI)%ctree /\
-         trans l (embed u1) stuckI).
-=======
-Lemma embed_trans_productive E X : forall l t (u : ctree E X),
+Lemma embed_trans_productive E C X : forall l t (u : ctree E (B01 +' C) X),
     trans l (embed t) u ->
     productive t.
->>>>>>> master:theories/Interp/ITree.v
 Proof.
   intros * TR.
   eapply embed_trans_productive_aux; eauto.
 Qed.
 
 Lemma embed_eutt {E C X}:
-  Proper (eutt eq ==> sbisim) (@embed E C X).
+  Proper (eutt eq ==> sbisim eq) (@embed E C X).
 Proof.
   unfold Proper,respectful.
   coinduction ? CIH.
+  (* LEF: Here [sbisim eq] should be symmetric? *)
+Admitted.
+(*
   symmetric using idtac.
   - intros * HR * EQ.
     apply HR; symmetry; assumption.
@@ -528,6 +495,7 @@ Proof.
       auto.
       rewrite tau_eutt in EUTT; auto.
 Qed.
+ *)
 
 (* Other things to consider if time permitted:
    - partial inverse
@@ -562,18 +530,13 @@ Lemma partial_inject_eq {E X} :
 	Proper (equ eq ==> eq_itree (option_rel eq)) (@partial_inject E X).
 Admitted.*)
 
-Variant is_detF {E C X} `{C1 -< C} (is_det : ctree E C X -> Prop) : ctree E C X -> Prop :=
+Variant is_detF {E C X} `{B1 -< C} (is_det : ctree E C X -> Prop) : ctree E C X -> Prop :=
 | Ret_det : forall x, is_detF is_det (CTreeDefinitions.Ret x)
 | Vis_det : forall {Y} (e : E Y) k,
 	(forall y, is_det (k y)) ->
 	is_detF is_det (CTreeDefinitions.Vis e k)
 | Tau_det : forall t,
 	(is_det t) ->
-<<<<<<< HEAD:theories/ITree.v
-	is_detF is_det (CTreeDefinitions.tauI t)
-=======
-	is_detF is_det (CTreeDefinitions.Guard t)
->>>>>>> master:theories/Interp/ITree.v
-.
+	is_detF is_det (CTreeDefinitions.Guard t).
 
-Definition is_det {E C X} `{C1 -< C} := paco1 (@is_detF E C X _) bot1.
+Definition is_det {E C X} `{B1 -< C} := paco1 (@is_detF E C X _) bot1.

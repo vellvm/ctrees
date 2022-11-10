@@ -70,7 +70,8 @@ Relation relaxing [equ] to become insensible to:
 
 Section WeakBisim.
 
-  Arguments label: clear implicits.
+  Context {E C : Type -> Type} {X : Type} `{HasTau : B0 -< C}.
+  Notation S := (ctree E C X).
 
   (*|
   The function defining weak simulations: [trans] plays must be answered
@@ -78,8 +79,14 @@ Section WeakBisim.
   The [ws] definition stands for [weak simulation]. The bisimulation [wb]
   is once again obtained by expliciting the symmetric aspect of the definition.
   |*)
-  Program Definition ws {E F C D: Type -> Type} {X Y: Type} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
-          (L: rel (label E) (label F)) : mon (rel (ctree E C X) (ctree F D Y)) :=
+  Program Definition ws: mon (rel S S) :=
+    {| body R p q :=
+      forall l p', trans l p p' -> exists2 q', wtrans l q q' & R p' q' |}.
+  Next Obligation. destruct (H0 _ _ H1). eauto. Qed.
+
+  (*| Heterogenous version TODO: make ws |*)
+  Program Definition hws {E F C D: Type -> Type} {X Y: Type} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+          (L: rel (@label E) (@label F)) : mon (rel (ctree E C X) (ctree F D Y)) :=
     {| body R p q :=
       forall l p', trans l p p' -> exists q' l', wtrans l' q q' /\ R p' q' /\ L l l' |}.
   Next Obligation.
@@ -90,10 +97,13 @@ Section WeakBisim.
   (*|
     The bisimulation is obtained by intersecting [ws] with its symmetrized version.
     |*)
-  Program Definition wb {E F C D: Type -> Type} {X Y: Type} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
-          (L: rel (label E) (label F)) : mon (rel (ctree E C X) (ctree F D Y)) :=
+  Definition wb := (Coinduction.lattice.cap ws (comp converse (comp ws converse))).
+
+  (*| Heterogenous version TODO: make wb |*)
+  Program Definition hwb {E F C D: Type -> Type} {X Y: Type} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+          (L: rel (@label E) (@label F)) : mon (rel (ctree E C X) (ctree F D Y)) :=
     {| body R p q :=
-      ws L R p q /\ ws (flip L) (flip R) q p
+      hws L R p q /\ hws (flip L) (flip R) q p
     |}.
   Next Obligation.
     split; intros.
@@ -109,39 +119,41 @@ Section WeakBisim.
     side of the computation can only decrease from left to right, not the other way around.
     We are not interested in this relation by itself, but it is an important proof intermediate.
     |*)
-  Program Definition es {E F C D: Type -> Type} {X Y: Type} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
-          (L: rel (label E) (label F)) : mon (rel (ctree E C X) (ctree F D Y)) :=
+  
+  Program Definition es: mon (rel S S) :=
+    {| body R p q :=
+      forall l p', trans l p p' -> exists2 q', etrans l q q' & R p' q' |}.
+  Next Obligation. destruct (H0 _ _ H1). eauto. Qed.
+  
+  (*| Heterogenous version TODO: make es |*)
+  Program Definition hes {E F C D: Type -> Type} {X Y: Type} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+          (L: rel (@label E) (@label F)) : mon (rel (ctree E C X) (ctree F D Y)) :=
     {| body R p q :=
       forall l p', trans l p p' -> exists q' l', etrans l' q q' /\ R p' q' /\ L l l' |}.
   Next Obligation.
     destruct (H0 _ _ H1) as (? & ? & ? & ? & ?).
     do 2 eexists; intuition; eauto.
   Qed.
-
+  
 End WeakBisim.
 
 (*|
 The relation itself
 |*)
-Definition wbisim {E F C D: Type -> Type} {X Y: Type} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
-           (L: rel (@label E) (@label F)) := (gfp (@wb E F C D X Y _ _ L): hrel _ _).
+Definition wbisim {E C X} `{HasStuck : B0 -< C} := (gfp (@wb E C X _): hrel _ _).
 
 Module WBisimNotations.
 
-  Notation "p ≈ q" := (wbisim p q eq) (at level 70).
-  Notation "p (≈ L ) q" := (wbisim p q L) (at level 70).
-  Notation wt L := (coinduction.t (wb L)).
-  Notation wT L := (coinduction.T (wb L)).
-  Notation wbt L := (coinduction.bt (wb L)).
+  Notation "p ≈ q" := (wbisim p q) (at level 70).
+  Notation wt := (coinduction.t wb).
+  Notation wT := (coinduction.T wb).
+  Notation wbt := (coinduction.bt wb).
   (*|
     Notations  for easing readability in proofs by enhanced coinduction
     |*)
-  Notation "x [≈] y" := (wt eq _ x y) (at level 80).
-  Notation "x {≈} y" := (wbt eq _ x y) (at level 80).
-  Notation "t {{≈}} u" := (wb eq _ t u) (at level 79).
-  Notation "x [≈ L ] y" := (wt L _ x y) (at level 80).
-  Notation "x {≈ L } y" := (wbt L _ x y) (at level 80).
-  Notation "t {{≈ L }} u" := (wb L _ t u) (at level 79).
+  Notation "x [≈] y" := (wt _ x y) (at level 80).
+  Notation "x {≈} y" := (wbt _ x y) (at level 80).
+  Notation "t {{≈}} u" := (wb _ t u) (at level 79).
   
 End WBisimNotations.
 
@@ -150,8 +162,8 @@ Import WBisimNotations.
 Ltac fold_wbisim :=
   repeat
     match goal with
-    | h: context[@wb ?E ?F ?C ?D ?X ?Y ?HS ?HS' ?L ] |- _ => fold (@wbisim E F C D X Y HS HS' L) in h
-    | |- context[@wb ?E ?F ?C ?D ?X ?Y ?HS ?HS' ?L ]      => fold (@wbisim E F C D X Y HS HS' L)
+    | h: context[@wb ?E ?C ?X ?HS ] |- _ => fold (@wbisim E C X HS) in h
+    | |- context[@wb ?E ?C ?X ?HS ]      => fold (@wbisim E C X HS)
     end.
 
 Ltac __coinduction_wbisim R H :=
@@ -159,7 +171,7 @@ Ltac __coinduction_wbisim R H :=
 
 Tactic Notation "__step_wbisim" :=
   match goal with
-  | |- context[@wbisim ?E ?C ?X ?HasStuck] =>
+  | |- context[@wbisim ?E ?C ?X ?HasStuck ?L ] =>
       unfold wbisim;
       step;
       fold (@wbisim E C X HasStuck)
@@ -173,7 +185,7 @@ Tactic Notation "__step_wbisim" :=
 
 Ltac __step_in_wbisim H :=
   match type of H with
-  | context [@wbisim ?E ?C ?X ?HasStuck] =>
+  | context [@wbisim ?E ?C ?X ?HasStuck ] =>
       unfold wbisim in H;
       step in H;
       fold (@wbisim E C X HasStuck) in H
@@ -197,7 +209,7 @@ Ltac ewplayL := twplayL etrans.
 
 Ltac twplayR_ tac :=
   match goal with
-  | h : @wbisim ?E ?C ?X _ _ _ |- _ =>
+  | h : @wbisim ?E ?F ?C ?D ?X ?Y _ _ ?L |- _ =>
       step in h;
       let Hb := fresh "Hb" in
       destruct h as [_ Hb];
@@ -209,12 +221,12 @@ Tactic Notation "twplayR" tactic(t) := twplayR_ t.
 Ltac wplayR H := twplayR ltac:(apply @H).
 Ltac ewplayR := twplayR etrans.
 
-Section wbisim_homogenous_theory.
+Section wbisim_theory.
 
   Context {E C : Type -> Type} {X : Type} `{HasStuck : B0 -< C}.
-  Notation ws := (@ws E E C C X X HasStuck HasStuck eq).
-  Notation wb := (@wb E E C C X X HasStuck HasStuck eq).
-  Notation wbisim  := (@wbisim E E C C X X HasStuck HasStuck eq).
+  Notation ws := (@ws E C X HasStuck).
+  Notation wb := (@wb E C X HasStuck).
+  Notation wbisim  := (@wbisim E C X HasStuck).
   Notation wt  := (coinduction.t wb).
   Notation wbt := (coinduction.bt wb).
   Notation wT  := (coinduction.T wb).
@@ -239,36 +251,31 @@ on both arguments.
 We also get [wbisim] closed under [sbism] on both arguments, but need first to
 establish [wbisim]'s transitivity for that.
 |*)
-  Lemma s_e: @ss0 E E C C X X _ _ eq <= es eq.
+  Lemma s_e: @ss0 E E C C X X _ _ eq  <= es.
   Proof.
     intros R p q H l p' pp'. destruct (H _ _ pp').
     destruct H0 as (? & ? & ? & <-).
-    do 2 eexists; intuition; eauto using trans_etrans_.
+    eexists; intuition; eauto using trans_etrans_.
   Qed.
 
-  Lemma e_w: es eq <= ws.
-  Proof. intros R p q H l p' pp'.
-         destruct (H _ _ pp') as (? & ? & ? & ? & ?); subst.
-         do 2 eexists; intuition; eauto using etrans_wtrans_.
-  Admitted.
+  Lemma e_w: es <= ws.
+  Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using etrans_wtrans_. Qed.
 
   Lemma s_w: ss0 eq <= ws.
   Proof. rewrite s_e. apply e_w. Qed.
 
-  (* MARKER *)
   Corollary sbisim_wbisim: sbisim eq <= wbisim.
   Proof.
     apply gfp_leq.
-    simpl; intros.
-    (* FIXME *)
-       apply Coinduction.lattice.cap_leq. 
-       intros R p q. apply (@s_w (R°) q p). *)
+    (* apply Coinduction.lattice.cap_leq. apply s_w.
+    intros R p q. apply (@s_w (R°) q p).
+     *)
   Admitted.
 
-    #[global] Instance sbisim_wbisim_subrelation : subrelation (sbisim eq) wbisim.
-    Proof.
-      apply sbisim_wbisim.
-    Qed.
+  #[global] Instance sbisim_wbisim_subrelation : subrelation (sbisim eq) wbisim.
+  Proof.
+    apply sbisim_wbisim.
+  Qed.
 
 (*|
 Since [wt R] contains [wbisim] that contains [sbisim] which is known to be reflexive,
@@ -456,13 +463,15 @@ Finally, the proof of transitivity
 (*|
 We can now easily derive that [wbisim] is closed under [sbisim]
 |*)
-    #[global] Instance sbisim_wbisim_closed_goal : Proper (sbisim ==> sbisim ==> flip impl) wbisim.
+    #[global] Instance sbisim_wbisim_closed_goal :
+      Proper (sbisim eq ==> sbisim eq ==> flip impl) wbisim.
     Proof.
       repeat intro.
       now rewrite H, H0.
     Qed.
 
-    #[global] Instance sbisim_wbisim_closed_ctx : Proper (sbisim ==> sbisim ==> impl) wbisim.
+    #[global] Instance sbisim_wbisim_closed_ctx :
+      Proper (sbisim eq ==> sbisim eq ==> impl) wbisim.
     Proof.
       repeat intro.
       now rewrite <- H, <- H0.
@@ -510,8 +519,7 @@ We can therefore rewrite [equ] in the middle of bisimulation proofs
 (*|
 Contrary to what happens with [sbisim], weak bisimulation ignores both kinds of taus
 |*)
-
-    Lemma guard_wb `{C1 -< C} : forall (t : ctree E C X),
+    Lemma guard_wb `{B1 -< C} : forall (t : ctree E C X),
         Guard t ≈ t.
     Proof.
       intros. now rewrite sb_guard.
@@ -537,7 +545,7 @@ Disproving the transitivity of [wt R]
 -------------------------------------
 |*)
 
-    Lemma not_Transitive_wt `{HasTau : C1 -< C} Z: X -> Z -> E Z -> ~ forall R, Transitive (wt R).
+    Lemma not_Transitive_wt `{HasTau : B1 -< C} Z: X -> Z -> E Z -> ~ forall R, Transitive (wt R).
     Proof.
       intros x z e H.
       cut (Vis e (fun _ => Ret x) ≈ (Ret x : ctree E C X)).
@@ -572,7 +580,7 @@ Disproving the transitivity of [wt R]
           assumption.
     Qed.
 
-    Lemma not_square_wt `{HasTau : C1 -< C} Z: X -> Z -> E Z -> ~ square <= wt.
+    Lemma not_square_wt `{HasTau : B1 -< C} Z: X -> Z -> E Z -> ~ square <= wt.
     Proof.
       intros x z e H. elim (not_Transitive_wt _ x z e). intro R.
       intros ? y ???. apply (ft_t H). now exists y.
@@ -583,7 +591,7 @@ End wbisim_theory.
 Section bind.
 
   Obligation Tactic := idtac.
-  Context {E C : Type -> Type} {X Y: Type} `{HasStuck : C0 -< C}.
+  Context {E C : Type -> Type} {X Y: Type} `{HasStuck : B0 -< C}.
 
 (*|
 Specialization of [bind_ctx] to a function acting with [sbisim] on the bound value,
@@ -653,7 +661,7 @@ End bind.
 (*|
 Expliciting the reasoning rule provided by the up-to principles.
 |*)
-Lemma wbisim_clo_bind (E C: Type -> Type) (X Y : Type) `(HasStuck : C0 -< C) :
+Lemma wbisim_clo_bind (E C: Type -> Type) (X Y : Type) `(HasStuck : B0 -< C) :
 	forall (t1 t2 : ctree E C X) (k1 k2 : X -> ctree E C Y) RR,
 		t1 ≈ t2 ->
     (forall x, (wt RR) (k1 x) (k2 x)) ->
@@ -671,13 +679,13 @@ And in particular, we get the proper instance justifying rewriting [~]
 and [≈] to the left of a [bind].
 |*)
 #[global] Instance bind_wbisim_cong :
- forall (E C : Type -> Type) (X Y : Type) `{C0 -< C} (R : rel Y Y) RR,
+ forall (E C : Type -> Type) (X Y : Type) `{B0 -< C} (R : rel Y Y) RR,
    Proper (wbisim ==> pointwise_relation X (wt RR) ==> wt RR) (@bind E C X Y).
 Proof.
   repeat red; intros; eapply wbisim_clo_bind; eauto.
 Qed.
 
-Lemma wbisim_ret_inv {E C R} `{C0 -< C} : forall (x y : R),
+Lemma wbisim_ret_inv {E C R} `{B0 -< C} : forall (x y : R),
     Ret x ≈ (Ret y : ctree E C R) ->
     x = y.
 Proof.
@@ -692,14 +700,8 @@ Qed.
 Note: with brD2, these relations hold up-to strong bisimulation.
 With brS2 however they don't even hold up-to weak bisimulation.
 |*)
-<<<<<<< HEAD
-(*Lemma spinV_nary_0 : forall {E R}, @spinV_nary E R 0 ≈ spinV_nary 0.
-  ~(exists x: X) @spinV_gen E C R 0 ≈ spinV_nary 0.
-  ~(exists y: Y) ->
-  @spinV_gen E C R 0 ≈ spinV_nary 0.
-=======
+(*
 Lemma spinS_nary_0 : forall {E R}, @spinS_nary E R 0 ≈ spinS_nary 0.
->>>>>>> master
 Proof.
   intros E R.
   reflexivity.
@@ -718,13 +720,8 @@ Ltac wcase :=
       end
   end.
 
-<<<<<<< HEAD
-(*#[local] Arguments trans_choiceV21 [_ _].
-#[local] Arguments trans_choiceV22 [_ _].*)
-=======
 #[local] Arguments trans_brS21 [_ _].
 #[local] Arguments trans_brS22 [_ _].
->>>>>>> master
 #[local] Arguments trans_ret [_ _] _.
 
 (*|
@@ -732,13 +729,9 @@ With brS2 however they don't even hold up-to weak bisimulation.
 The proof is not interesting, but it would be good to have a
 light way to automate it, so it's a decent case study.
 |*)
-<<<<<<< HEAD
-(*Lemma choiceV2_not_assoc :
-	~ (choiceV2 (choiceV2 (Ret 0 : ctree Sum.void1 nat) (Ret 1)) (Ret 2) ≈ choiceV2 (Ret 0) (choiceV2 (Ret 1) (Ret 2)))%nat.
-=======
+(*
 Lemma brS2_not_assoc :
 	~ (brS2 (brS2 (Ret 0 : ctree Sum.void1 nat) (Ret 1)) (Ret 2) ≈ brS2 (Ret 0) (brS2 (Ret 1) (Ret 2)))%nat.
->>>>>>> master
 Proof.
   intros abs.
 
