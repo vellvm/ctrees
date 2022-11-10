@@ -43,7 +43,7 @@ Notation "t '-' l '→' u" := (transR l t u)
 #[local] Notation cVis e k  := (CTreeDefinitions.Vis e k).
 
 (** Unfolding of [interp]. *)
-Definition _interp {E F C R} `{C1 -< C} (f : E ~> ctree F C) (ot : itreeF E R _)
+Definition _interp {E F C R} `{B1 -< C} (f : E ~> ctree F C) (ot : itreeF E R _)
   : ctree F C R :=
   match ot with
   | RetF r => CTreeDefinitions.Ret r
@@ -51,7 +51,7 @@ Definition _interp {E F C R} `{C1 -< C} (f : E ~> ctree F C) (ot : itreeF E R _)
   | VisF e k => CTree.bind (f _ e) (fun x => cGuard (interp f (k x)))
   end.
 
-Lemma unfold_interp_ctree {E F C X} `{C1 -< C} (h: E ~> ctree F C) (t : itree E X):
+Lemma unfold_interp_ctree {E F C X} `{B1 -< C} (h: E ~> ctree F C) (t : itree E X):
   (interp h t ≅ _interp h (iobserve t))%ctree.
 Proof.
   revert t.
@@ -105,7 +105,6 @@ Qed.
 
 From Coq Require Import Datatypes.
 
-<<<<<<< HEAD:theories/ITree.v
 (* This is actually not trivial.
    There are two ways to encode itrees' taus:
    - If we use tauI, then I believe we have eutt mapping to sbisim I believe.
@@ -124,23 +123,21 @@ From Coq Require Import Datatypes.
 
  *)
 
-=======
->>>>>>> master:theories/Interp/ITree.v
-Notation embed_ t :=
+
+Definition embed_ t :=
   match iobserve t with
-  | RetF r => cRet r
+  | RetF r => CTreeDefinitions.Ret r
   | TauF t => cGuard (cGuard (embed t))
   | VisF (inl1 e) k =>
       match e,k with
-<<<<<<< HEAD:theories/ITree.v
-      | c, k => ChoiceV c (fun x => cTauI (cTauI (cTauI (embed (k x)))))
-=======
-      | ext_chose n, k => BrS n (fun x => cGuard (cGuard (cGuard (embed (k x)))))
->>>>>>> master:theories/Interp/ITree.v
+      | c, k => BrS c (fun x => cGuard (cGuard (cGuard (embed (k x)))))
       end
   | VisF (inr1 e) k => CTreeDefinitions.vis e (fun x => cGuard (cGuard (cGuard (embed (k x)))))
   end.
 
+Section Foo.
+  Context {E C: Type -> Type} {X: Type} (t: itree (C +' E) X).
+  Check (embed_ t).
 Lemma unfold_embed {E C X} (t : itree (C +' E) X) : (embed t ≅ embed_ t)%ctree.
 Proof.
   unfold embed, embed', internalize at 1.

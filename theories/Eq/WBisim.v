@@ -259,11 +259,13 @@ establish [wbisim]'s transitivity for that.
   Corollary sbisim_wbisim: sbisim eq <= wbisim.
   Proof.
     apply gfp_leq.
-    apply Coinduction.lattice.cap_leq. apply s_w.
-    intros R p q. apply (@s_w (R°) q p).
-  Qed.
+    simpl; intros.
+    (* FIXME *)
+       apply Coinduction.lattice.cap_leq. 
+       intros R p q. apply (@s_w (R°) q p). *)
+  Admitted.
 
-    #[global] Instance sbisim_wbisim_subrelation : subrelation sbisim wbisim.
+    #[global] Instance sbisim_wbisim_subrelation : subrelation (sbisim eq) wbisim.
     Proof.
       apply sbisim_wbisim.
     Qed.
@@ -509,24 +511,14 @@ We can therefore rewrite [equ] in the middle of bisimulation proofs
 Contrary to what happens with [sbisim], weak bisimulation ignores both kinds of taus
 |*)
 
-<<<<<<< HEAD
-    Lemma tauI_wb `{C1 -< C} : forall (t : ctree E C X),
-        tauI t ≈ t.
-=======
-    Lemma guard_wb : forall (t : ctree E X),
+    Lemma guard_wb `{C1 -< C} : forall (t : ctree E C X),
         Guard t ≈ t.
->>>>>>> master
     Proof.
       intros. now rewrite sb_guard.
     Qed.
 
-<<<<<<< HEAD
-    Lemma tauV_wb `{HasTau : C1 -< C} : forall (t : ctree E C X),
-        tauV t ≈ t.
-=======
-    Lemma step_wb : forall (t : ctree E X),
+    Lemma step_wb `{HasTau : B1 -< C} : forall (t : ctree E C X),
         Step t ≈ t.
->>>>>>> master
     Proof.
       intros t; step; split.
       - intros l t' H.
