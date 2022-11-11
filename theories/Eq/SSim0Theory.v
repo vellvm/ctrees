@@ -95,7 +95,7 @@ Section ssim0_homogenous_theory.
 
   #[global] Instance Transitive_ssT0 f R `{Transitive _ L}: Transitive (ssT0 L f R).
   Proof. apply build_transitive; apply fT_T; apply square_sst0. Qed.
-  
+
   (*| PreOrder |*)
   #[global] Instance PreOrder_sst0 R `{PreOrder _ L}: PreOrder (sst0 L R).
   Proof. split; typeclasses eauto. Qed.
@@ -108,7 +108,7 @@ Section ssim0_homogenous_theory.
 
   #[global] Instance PreOrder_ssT0 f R `{PreOrder _ L}: PreOrder (ssT0 L f R).
   Proof. split; typeclasses eauto. Qed.
-   
+
   (*|
     Aggressively providing instances for rewriting hopefully faster
     [sbisim] under all [ss1]-related contexts (consequence of the transitivity
@@ -172,7 +172,7 @@ Section ssim0_heterogenous_theory.
   Context {E F C D: Type -> Type} {X Y: Type}
           {L: rel (@label E) (@label F)}
           {HasStuck1: B0 -< C} {HasStuck2: B0 -< D}.
-  
+
   Notation ss0 := (@ss0 E F C D X Y _ _).
   Notation ssim0  := (@ssim0 E F C D X Y _ _).
   Notation sst0 L := (coinduction.t (ss0 L)).
@@ -222,7 +222,7 @@ Section ssim0_heterogenous_theory.
   #[global] Instance equ_ssbt0_closed_ctx {r} :
     Proper (equ eq ==> equ eq ==> impl) (ssbt0 L r).
   Proof.
-    cbn; intros.    
+    cbn; intros.
     now rewrite H, H0 in H1.
   Qed.
 
@@ -294,7 +294,7 @@ Section ssim0_heterogenous_theory.
   Proof.
     intros. step. apply stuckD_ss0.
   Qed.
-  
+
   Lemma spinD_ss0 (R : rel _ _) (t : ctree F D Y) `{HasTau: B1 -< C}: ss0 L R spinD t.
   Proof.
     repeat intro. now apply spinD_is_stuck in H.
@@ -337,14 +337,14 @@ Section bind.
   (*|
     The resulting enhancing function gives a valid up-to technique
   |*)
-  Lemma bind_ctx_ssim0_t {RV: Respects_val L}: 
+  Lemma bind_ctx_ssim0_t {RV: Respects_val L}:
     bind_ctx_ssim0 <= (sst0 L).
   Proof.
     apply Coinduction.
     intros R. apply (leq_bind_ctx _).
     intros t1 t2 tt k1 k2 kk.
     step in tt.
-    simpl; intros l u STEP; 
+    simpl; intros l u STEP;
       apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)];
       cbn in *.
     apply tt in STEP as (u' & l' & STEP & EQ' & ?).
@@ -364,13 +364,13 @@ Section bind.
       destruct (respects_val _ _ H) as [? _]. specialize (H0 (Is_val _)). destruct H0.
       pose proof (trans_val_invT STEPres); subst.
       pose proof (trans_val_inv STEPres) as EQ.
-      rewrite EQ in STEPres.      
-      specialize (kk v x0 H).      
+      rewrite EQ in STEPres.
+      specialize (kk v x0 H).
       apply kk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
       do 2 eexists; split.
       eapply trans_bind_r; eauto.
       split; auto.
-      eapply (id_T (ss0 L)); auto.      
+      eapply (id_T (ss0 L)); auto.
   Qed.
 
 End bind.
@@ -501,9 +501,9 @@ Section Proof_Rules.
     cbn; intros ? ? TR; inv_trans; subst;
       destruct (H0 x) as (x' & RR & LL);
       cbn; eexists; eexists; intuition.
-    - rewrite EQ; eauto. 
-    - assumption.      
-  Qed.     
+    - rewrite EQ; eauto.
+    - assumption.
+  Qed.
 
   Lemma step_ss0_vis {Y Z F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z)
         (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R L : rel _ _) :
@@ -564,7 +564,7 @@ Section Proof_Rules.
     L tau tau ->
     ssbt0 L R (BrS c k) (BrS c' k').
   Proof.
-    intros.    
+    intros.
     apply step_ss0_brS_gen; auto.
     typeclasses eauto.
   Qed.
@@ -578,7 +578,7 @@ Section Proof_Rules.
   Proof.
     intros; apply step_ss0_brS_gen; eauto.
   Qed.
-  
+
   Lemma step_ss0_brS_id {Z Y F} (c : C Z)
         (k: Z -> ctree E C X) (k': Z -> ctree F C Y)(R L : rel _ _) :
     (forall x, exists y, sst0 L R (k x) (k' y)) ->
@@ -586,7 +586,7 @@ Section Proof_Rules.
     ssbt0 L R (BrS c k) (BrS c k').
   Proof.
     intros.
-    apply step_ss0_brS_id_gen; eauto. 
+    apply step_ss0_brS_id_gen; eauto.
     typeclasses eauto.
   Qed.
 
@@ -721,10 +721,10 @@ Section Proof_Rules.
   Proof.
     intro.
     eplay.
-    destruct TR as (? & ? & ? & ?).    
+    destruct TR as (? & ? & ? & ?).
     inv_trans; subst; assumption.
   Qed.
-  
+
   Lemma ssim0_vis_inv_type {D Y X1 X2} {L: relation (label E)} `{HasStuck': B0 -< D}
         (e1 : E X1) (e2 : E X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree E D Y) (x : X1):
     ssim0 L (Vis e1 k1) (Vis e2 k2) ->
@@ -747,7 +747,7 @@ Section Proof_Rules.
       etrans; subst; destruct H0 as (? & ? & ? & ? );
       inv_trans; subst; eexists; auto.
     - now eapply H2.
-    - now apply H1. 
+    - now apply H1.
   Qed.
 
   Lemma ssim0_vis_inv {F D Y X1 X2} {L: rel (label E) (label F)} `{HasStuck': B0 -< D}
@@ -756,20 +756,19 @@ Section Proof_Rules.
     (exists y, L (obs e1 x) (obs e2 y)) /\ (forall x, exists y, ssim0 L (k1 x) (k2 y)).
   Proof.
     intros.
-    split. 
+    split.
       - eplay; destruct TR as (? & ? & ? & ?).
         inv_trans; subst; exists x2; eapply H1.
-      - epose proof (proj1 (enhanced_gfp (@ss0 E F C D X Y _ _ L) _ _)). apply H0 in H. clear H0.
-        step in H. eapply ssbt0_vis_inv in H.
-        destruct H as [[y Hy] ?].
-        intros.
-        destruct (H x0) as [y' Hy'].
+      - intros y.
+        step in H.
+        cbn in H.
+        edestruct H as (l' & u' & TR & IN & HL).
+        apply trans_vis with (x := y).
+        inv_trans.
         eexists.
-        step.
-        econstructor; eexists; eauto; esplit.
-        + (* LEF: Because the left transitions doesn't mean the right will as well -- right could be stuck? *)
-   Admitted.        
-  
+        apply IN.
+  Qed.
+
   Lemma ssim0_brS_inv {F D Y} {L: rel (label E) (label F)} `{HasStuck': B0 -< D}
         n m (cn: C n) (cm: D m) (k1 : n -> ctree E C X) (k2 : m -> ctree F D Y) :
     ssim0 L (BrS cn k1) (BrS cm k2) ->
@@ -849,7 +848,7 @@ Proof.
     apply step_ss0_brS; auto.
     intros _. exists true. reflexivity.
   - step. apply step_ss0_brS; auto.
-    intros [|]; exists tt. 
+    intros [|]; exists tt.
     + reflexivity.
     + step. apply stuckD_ss0.
   - step in H. cbn in H. destruct H as [_ ?].
@@ -861,4 +860,3 @@ Proof.
     intro; destruct H1 as (? & ? & ? & ? & ?).
     now apply stuckD_is_stuck in H1.
 Qed.
-
