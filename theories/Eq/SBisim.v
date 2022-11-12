@@ -80,12 +80,12 @@ Section StrongSim.
 (*|
 The function defining strong simulations: [trans] plays must be answered
 using [trans].
-The [ss0] definition stands for [strong simulation]. The bisimulation [sb]
+The [ss] definition stands for [strong simulation]. The bisimulation [sb]
 is obtained by expliciting the symmetric aspect of the definition following
 Pous'16 in order to be able to exploit symmetry arguments in proofs
 (see [square_st] for an illustration).
 |*)
-  Program Definition ss0 {E F C D : Type -> Type} {X Y : Type}
+  Program Definition ss {E F C D : Type -> Type} {X Y : Type}
     `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}
     (L : rel (@label E) (@label F)) :
     mon (ctree E C X -> ctree F D Y -> Prop) :=
@@ -98,13 +98,13 @@ Pous'16 in order to be able to exploit symmetry arguments in proofs
   Qed.
 
 (*|
-Complete strong simulation [ss].
+Complete strong simulation [css].
 |*)
-  Program Definition ss {E F C D : Type -> Type} {X Y : Type}
+  Program Definition css {E F C D : Type -> Type} {X Y : Type}
     `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}
     (L : rel (@label E) (@label F)) : mon (ctree E C X -> ctree F D Y -> Prop) :=
     {| body R t u :=
-        ss0 L R t u /\
+        ss L R t u /\
           forall l u', trans l u u' -> exists l' t', L l' l /\ trans l' t t'
     |}.
   Next Obligation.
@@ -123,7 +123,7 @@ Section StrongSBisim.
 In the heterogeneous case, the relation is not symmetric.
 |*)
   Program Definition sb L : mon (S -> S' -> Prop) :=
-    {| body R t u := ss0 L R t u /\ ss0 (flip L) (flip R) u t |}.
+    {| body R t u := ss L R t u /\ ss (flip L) (flip R) u t |}.
   Next Obligation.
     split; intros; [edestruct H0 as (? & ? & ?) | edestruct H1 as (? & ? & ?)]; eauto; eexists; eexists; intuition; eauto.
   Qed.
@@ -131,49 +131,52 @@ In the heterogeneous case, the relation is not symmetric.
 End StrongSBisim.
 
 (*|
-The relations themselves
+The relations themselves:
+- ssim  : strong simulation
+- cssim : complete strong simulation
+- sbisim: strong bisimulation
 |*)
 
-Definition ssim0 {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D} L :=
-  (gfp (@ss0 E F C D X Y _ _ L): hrel _ _).
-
 Definition ssim {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D} L :=
-  (gfp (@ss E F C D X Y _ _ L) : hrel _ _).
+  (gfp (@ss E F C D X Y _ _ L): hrel _ _).
+
+Definition cssim {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D} L :=
+  (gfp (@css E F C D X Y _ _ L) : hrel _ _).
 
 Definition sbisim {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck': B0 -< D} L :=
   (gfp (@sb E F C D X Y _ _ L) : hrel _ _).
 
 Module SBisimNotations.
 
-  (*| ss0 (simulation) notation |*)
-  Notation sst0 L := (t (ss0 L)).
-  Notation ssbt0 L := (bt (ss0 L)).
-  Notation ssT0 L := (T (ss0 L)).
-  Notation ssbT0 L := (bT (ss0 L)).
-
-  Notation "t (≲ L ) u" := (ssim0 L t u) (at level 70).
-  Notation "t ≲ u" := (ssim0 eq t u) (at level 70). (* FIXME we should ensure that return types are the same. *)
-  Notation "t [≲ L ] u" := (ss0 L _ t u) (at level 79).
-  Notation "t [≲] u" := (ss0 eq _ t u) (at level 79).
-  Notation "t {≲ L } u" := (sst0 L _ t u) (at level 79).
-  Notation "t {≲} u" := (sst0 eq _ t u) (at level 79).
-  Notation "t {{≲ L }} u" := (ssbt0 L _ t u) (at level 79).
-  Notation "t {{≲}} u" := (ssbt0 eq _ t u) (at level 79).
-
-  (*| ss (complete simulation) notation |*)
+  (*| ss (simulation) notation |*)
   Notation sst L := (t (ss L)).
   Notation ssbt L := (bt (ss L)).
   Notation ssT L := (T (ss L)).
   Notation ssbT L := (bT (ss L)).
 
-  Notation "t (⪅ L ) u" := (ssim L t u) (at level 70).
-  Notation "t ⪅ u" := (ssim eq t u) (at level 70).
-  Notation "t [⪅ L ] u" := (ss L _ t u) (at level 79).
-  Notation "t [⪅] u" := (ss eq _ t u) (at level 79).
-  Notation "t {⪅ L } u" := (sst L _ t u) (at level 79).
-  Notation "t {⪅} u" := (sst eq _ t u) (at level 79).
-  Notation "t {{⪅ L }} u" := (ssbt L _ t u) (at level 79).
-  Notation "t {{⪅}} u" := (ssbt eq _ t u) (at level 79).
+  Notation "t (≲ L ) u" := (ssim L t u) (at level 70).
+  Notation "t ≲ u" := (ssim eq t u) (at level 70). (* FIXME we should ensure that return types are the same. *)
+  Notation "t [≲ L ] u" := (ss L _ t u) (at level 79).
+  Notation "t [≲] u" := (ss eq _ t u) (at level 79).
+  Notation "t {≲ L } u" := (sst L _ t u) (at level 79).
+  Notation "t {≲} u" := (sst eq _ t u) (at level 79).
+  Notation "t {{≲ L }} u" := (ssbt L _ t u) (at level 79).
+  Notation "t {{≲}} u" := (ssbt eq _ t u) (at level 79).
+
+  (*| css (complete simulation) notation |*)
+  Notation csst L := (t (css L)).
+  Notation cssbt L := (bt (css L)).
+  Notation cssT L := (T (css L)).
+  Notation cssbT L := (bT (css L)).
+
+  Notation "t (⪅ L ) u" := (cssim L t u) (at level 70).
+  Notation "t ⪅ u" := (cssim eq t u) (at level 70).
+  Notation "t [⪅ L ] u" := (css L _ t u) (at level 79).
+  Notation "t [⪅] u" := (css eq _ t u) (at level 79).
+  Notation "t {⪅ L } u" := (csst L _ t u) (at level 79).
+  Notation "t {⪅} u" := (csst eq _ t u) (at level 79).
+  Notation "t {{⪅ L }} u" := (cssbt L _ t u) (at level 79).
+  Notation "t {{⪅}} u" := (cssbt eq _ t u) (at level 79).
 
   (*| sb (bisimulation) notation |*)
   Notation st L := (t (sb L)).
@@ -198,32 +201,32 @@ Ltac fold_sbisim :=
     match goal with
     | h: context[gfp (@sb ?E ?F ?C ?D ?X ?Y _ _ ?L)] |- _  => fold (@sbisim E F C D X Y _ _ L) in h
     | |- context[gfp (@sb ?E ?F ?C ?D ?X ?Y _ _ ?L)]   => fold (@sbisim E F C D X Y _ _ L)
-    | h: context[gfp (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)] |- _  => fold (@ssim E F C D X Y _ _ L) in h
-    | |- context[gfp (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)]       => fold (@ssim E F C D X Y _ _ L)
-    | h: context[gfp (@ss0 ?E ?F ?C ?D ?X ?Y _ _ ?L)] |- _ => fold (@ssim0 E F C D X Y _ _ L) in h
-    | |- context[gfp (@ss0 ?E ?F ?C ?D ?X ?Y _ _ ?L)]      => fold (@ssim0 E F C D X Y _ _ L)
+    | h: context[gfp (@css ?E ?F ?C ?D ?X ?Y _ _ ?L)] |- _  => fold (@cssim E F C D X Y _ _ L) in h
+    | |- context[gfp (@css ?E ?F ?C ?D ?X ?Y _ _ ?L)]       => fold (@cssim E F C D X Y _ _ L)
+    | h: context[gfp (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)] |- _ => fold (@ssim E F C D X Y _ _ L) in h
+    | |- context[gfp (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)]      => fold (@ssim E F C D X Y _ _ L)
     end.
 
 Ltac __coinduction_sbisim R H :=
   (try unfold sbisim);
-  (try unfold ssim0);
   (try unfold ssim);
+  (try unfold cssim);
   apply_coinduction; fold_sbisim; intros R H.
 
 Tactic Notation "__step_sbisim" :=
   match goal with
-  | |- context[@ssim0 ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
-      unfold ssim0;
-      step;
-      fold (@ssim0 E F C D X Y _ _ L)
   | |- context[@ssim ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
       unfold ssim;
       step;
       fold (@ssim E F C D X Y _ _ L)
-  | |- context[t (@ss ?E ?F ?C ?D ?X ?Y _ _ ?LR)] =>
-      unfold ss;
+  | |- context[@cssim ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
+      unfold cssim;
       step;
-      fold (@ss E F C D X Y _ _ L)
+      fold (@cssim E F C D X Y _ _ L)
+  | |- context[t (@css ?E ?F ?C ?D ?X ?Y _ _ ?LR)] =>
+      unfold css;
+      step;
+      fold (@css E F C D X Y _ _ L)
   | |- context[@sbisim ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
       unfold sbisim;
       step;
@@ -241,14 +244,14 @@ Tactic Notation "__step_sbisim" :=
 
 Ltac __step_in_sbisim H :=
   match type of H with
-  | context[@ssim0 ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
-      unfold ssim0 in H;
-      step in H;
-      fold (@ssim0 E F C D X Y _ _ L) in H
   | context[@ssim ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
       unfold ssim in H;
       step in H;
       fold (@ssim E F C D X Y _ _ L) in H
+  | context[@cssim ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
+      unfold cssim in H;
+      step in H;
+      fold (@cssim E F C D X Y _ _ L) in H
   | context [@sbisim ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
       unfold sbisim in H;
       step in H;
@@ -260,18 +263,18 @@ Ltac __step_in_sbisim H :=
 (*|
 A bisimulation trivially gives a simulation.
 |*)
-Lemma sb_ss : forall {E F C D X Y} `{B0 -< C} `{B0 -< D} L RR
+Lemma sb_css : forall {E F C D X Y} `{B0 -< C} `{B0 -< D} L RR
   (t : ctree E C X) (t' : ctree F D Y),
-  sb L RR t t' -> ss L RR t t'.
+  sb L RR t t' -> css L RR t t'.
 Proof.
   intros; split.
   - apply H1.
   - intros. apply H1 in H2 as (? & ? & ? & ? & ?). eauto.
 Qed.
 
-Lemma sbisim_ssim : forall {E F C D X Y} `{B0 -< C} `{B0 -< D} L
+Lemma sbisim_cssim : forall {E F C D X Y} `{B0 -< C} `{B0 -< D} L
   (t : ctree E C X) (t' : ctree F D Y),
-  sbisim L t t' -> ssim L t t'.
+  sbisim L t t' -> cssim L t t'.
 Proof.
   intros until L.
   coinduction R CH. simpl. intros.
@@ -280,9 +283,9 @@ Proof.
     exists x, x0; auto.
 Qed.
 
-Lemma ssim_ssim0 : forall {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} L
+Lemma cssim_ssim : forall {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} L
   (t : ctree E C X) (t' : ctree F D Y),
-  ssim L t t' -> ssim0 L t t'.
+  cssim L t t' -> ssim L t t'.
 Proof.
   intros until L.
   coinduction R CH. simpl. intros.
@@ -292,16 +295,16 @@ Proof.
   exists x, x0; eauto.
 Qed.
 
-Lemma sbisim_ssim0 : forall {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} L
+Lemma sbisim_ssim : forall {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} L
   (t : ctree E C X) (t' : ctree F D Y),
-  sbisim L t t' -> ssim0 L t t'.
+  sbisim L t t' -> ssim L t t'.
 Proof.
-  intros. apply ssim_ssim0. now apply sbisim_ssim.
+  intros. apply cssim_ssim. now apply sbisim_cssim.
 Qed.
 
 (*|
   This section should describe lemmas proved for the
-  heterogenous version of `ss`, parametric on
+  heterogenous version of `css`, parametric on
   - Return types X, Y
   - Label types E, F
   - Branch effects C, D
@@ -313,7 +316,7 @@ Section sbisim_heterogenous_theory.
           {L: rel (@label E) (@label F)}
           {HasStuck1: B0 -< C} {HasStuck2: B0 -< D}.
 
-  Notation ss := (@ss E F C D X Y _ _).
+  Notation css := (@css E F C D X Y _ _).
   Notation sb := (@sb E F C D X Y _ _).
   Notation sbisim := (@sbisim E F C D X Y _ _).
   Notation st L := (coinduction.t (sb L)).
@@ -395,21 +398,22 @@ Section sbisim_heterogenous_theory.
     apply (ft_t equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_ss0_closed_goal {r} : Proper (@equ E C X X eq ==> @equ F D Y Y eq ==> flip impl) (ss0 L r).
+  #[global] Instance equ_ss_closed_goal {r} : Proper (@equ E C X X eq ==> @equ F D Y Y eq ==> flip impl) (ss L r).
   Proof.
     intros t t' tt' u u' uu'; cbn; intros.
     rewrite tt' in H0. apply H in H0 as (? & ? & ? & ? & ?).
     eexists; eexists; eauto. rewrite uu'. eauto.
   Qed.
 
-  #[global] Instance equ_ss0_closed_ctx {r} : Proper (@equ E C X X eq ==> @equ F D Y Y eq ==> impl) (ss0 L r).
+  #[global] Instance equ_ss_closed_ctx {r} : Proper (@equ E C X X eq ==> @equ F D Y Y eq ==> impl) (ss L r).
   Proof.
     intros t t' tt' u u' uu'; intros.
     rewrite tt', uu'. reflexivity.
   Qed.
 
-
-  (*| Up-to-bisimulation enhancing function |*)
+(*|
+Up-to-bisimulation enhancing function
+|*)
   Variant sbisim_clos_body {LE LF}
           (R : rel (ctree E C X) (ctree F D Y)) : (rel (ctree E C X) (ctree F D Y)) :=
     | Sbisim_clos : forall t t' u' u
@@ -425,9 +429,9 @@ Section sbisim_heterogenous_theory.
     econstructor; eauto.
   Qed.
 
-  (*|
-    stuck ctrees can be simulated by anything.
-  |*)
+(*|
+stuck ctrees can be simulated by anything.
+|*)
   Lemma is_stuck_sb (R : rel _ _) (t : ctree E C X) (t': ctree F D Y):
     is_stuck t -> is_stuck t' -> sb L R t t'.
   Proof.
@@ -459,18 +463,18 @@ Section sbisim_homogenous_theory.
   Context {E C: Type -> Type} {X: Type} `{HasStuck: B0 -< C}
           (L: relation (@label E)).
 
-  Notation ss := (@ss E E C C X X _ _).
+  Notation css := (@css E E C C X X _ _).
   Notation sb  := (@sb E E C C X X _ _).
   Notation sbisim := (@sbisim E E C C X X _ _).
   Notation st L := (coinduction.t (sb L)).
   Notation sbt L := (coinduction.bt (sb L)).
   Notation sT  L := (coinduction.T (sb L)).
 
-  (*|
+(*|
     This is just a hack suggested by Damien Pous to avoid a
     universe inconsistency when using both the relational algebra
     and coinduction libraries (we fix the type at which we'll use [eq]).
-    |*)
+|*)
   Definition seq: relation (ctree E C X) := eq.
   Arguments seq/.
 
@@ -481,10 +485,10 @@ Section sbisim_homogenous_theory.
       exists l, t'; split; eauto.
   Qed.
 
-  (*|
+(*|
     [converse] is compatible
     i.e. validity of up-to symmetry
-    |*)
+|*)
   Lemma converse_st `{SL: Symmetric _ L}: converse <= (st L).
   Proof.
     apply leq_t; cbn.
@@ -493,10 +497,10 @@ Section sbisim_homogenous_theory.
     - destruct (H1 _ _ H) as (? & ? & ? & ? & ?); subst; symmetry in H4; eauto.
   Qed.
 
-  (*|
+(*|
     [square] is compatible
     i.e. validity of up-to transivitiy
-    |*)
+|*)
   Lemma square_st `{TR: Transitive _ L}: square <= (st L).
   Proof.
     apply Coinduction; cbn.
@@ -520,7 +524,9 @@ Section sbisim_homogenous_theory.
       transitivity l0; assumption.
   Qed.
 
-  (*| Reflexivity |*)
+(*|
+Reflexivity
+|*)
   #[global] Instance Reflexive_st R `{Reflexive _ L}: Reflexive (st L R).
   Proof. apply build_reflexive; apply ft_t; apply refl_st. Qed.
 
@@ -643,14 +649,14 @@ Section sbisim_homogenous_theory.
     rewrite H; auto. rewrite H0; auto.
   Qed.
 
-    #[global] Instance equ_ss_closed_goal `{EqL: Equivalence _ L} {r} : Proper (equ eq ==> equ eq ==> flip impl) (ss L r).
+    #[global] Instance equ_css_closed_goal `{EqL: Equivalence _ L} {r} : Proper (equ eq ==> equ eq ==> flip impl) (css L r).
   Proof.
     intros t t' tt' u u' uu'; split; intros.
     - rewrite tt', uu'. apply H.
     - rewrite uu' in H0. apply H in H0. setoid_rewrite tt'. apply H0.
   Qed.
 
-  #[global] Instance equ_ss_closed_ctx `{EqL: Equivalence _ L} {r} : Proper (equ eq ==> equ eq ==> impl) (ss L r).
+  #[global] Instance equ_css_closed_ctx `{EqL: Equivalence _ L} {r} : Proper (equ eq ==> equ eq ==> impl) (css L r).
   Proof.
     intros t t' tt' u u' uu'; intros.
     rewrite tt', uu'. reflexivity.

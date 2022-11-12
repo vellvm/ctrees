@@ -44,17 +44,17 @@ The [step], [step in] and [coinduction] tactics from [coinduction]
 (*|
 Assuming a goal of the shape [t ~ u], initialize the two challenges
 |*)
-#[global] Tactic Notation "play" := __play_sbisim || __play_ssim.
+#[global] Tactic Notation "play" := __play_sbisim || __play_cssim.
 
 
 (*|
 Assuming an hypothesis of the shape [t ~ u], extract the forward (playL)
 or backward (playR) challenge --- the e-versions looks for the hypothesis
 |*)
-#[global] Tactic Notation "play" "in" ident(H) := __play_ssim_in H.
+#[global] Tactic Notation "play" "in" ident(H) := __play_cssim_in H.
 #[global] Tactic Notation "playL" "in" ident(H) := __playL_sbisim H.
 #[global] Tactic Notation "playR" "in" ident(H) := __playR_sbisim H.
-#[global] Tactic Notation "eplay" := __eplay_ssim.
+#[global] Tactic Notation "eplay" := __eplay_cssim.
 #[global] Tactic Notation "eplayL" := __eplayL_sbisim.
 #[global] Tactic Notation "eplayR" := __eplayR_sbisim.
 
@@ -74,10 +74,10 @@ are identical: assumes [reflexivity] will solve the first goal, and proceed to s
 - [upto_bind with SS]: for [equ], provides explicitly the intermediate relation
 |*)
 #[global] Tactic Notation "upto_bind" :=
-  __eupto_bind_equ || __upto_bind_sbisim || __upto_bind_ssim.
+  __eupto_bind_equ || __upto_bind_sbisim || __upto_bind_cssim.
 
 #[global] Tactic Notation "upto_bind_eq" :=
-  __upto_bind_eq_equ || __upto_bind_eq_sbisim || __upto_bind_eq_ssim.
+  __upto_bind_eq_equ || __upto_bind_eq_sbisim || __upto_bind_eq_cssim.
 
 #[global] Tactic Notation "upto_bind" "with" uconstr(SS) :=
   __upto_bind_equ SS.

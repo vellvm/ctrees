@@ -119,12 +119,12 @@ Section WeakBisim.
     side of the computation can only decrease from left to right, not the other way around.
     We are not interested in this relation by itself, but it is an important proof intermediate.
     |*)
-  
+
   Program Definition es: mon (rel S S) :=
     {| body R p q :=
       forall l p', trans l p p' -> exists2 q', etrans l q q' & R p' q' |}.
   Next Obligation. destruct (H0 _ _ H1). eauto. Qed.
-  
+
   (*| Heterogenous version TODO: make es |*)
   Program Definition hes {E F C D: Type -> Type} {X Y: Type} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
           (L: rel (@label E) (@label F)) : mon (rel (ctree E C X) (ctree F D Y)) :=
@@ -134,7 +134,7 @@ Section WeakBisim.
     destruct (H0 _ _ H1) as (? & ? & ? & ? & ?).
     do 2 eexists; intuition; eauto.
   Qed.
-  
+
 End WeakBisim.
 
 (*|
@@ -154,7 +154,7 @@ Module WBisimNotations.
   Notation "x [≈] y" := (wt _ x y) (at level 80).
   Notation "x {≈} y" := (wbt _ x y) (at level 80).
   Notation "t {{≈}} u" := (wb _ t u) (at level 79).
-  
+
 End WBisimNotations.
 
 Import WBisimNotations.
@@ -235,7 +235,7 @@ Section wbisim_theory.
 Elementary properties of [wbisim]
 ----------------------------------------------
 We have in short:
-- [ss0 ≤ es ≤ ws] (direct consequence of transition relations' properties)
+- [ss ≤ es ≤ ws] (direct consequence of transition relations' properties)
 - [sbisim] ⊆ [wbisim]
 - [equ] ⊆ [wbisim]
 - [wbisim] is closed under [equ]
@@ -251,7 +251,7 @@ on both arguments.
 We also get [wbisim] closed under [sbism] on both arguments, but need first to
 establish [wbisim]'s transitivity for that.
 |*)
-  Lemma s_e: @ss0 E E C C X X _ _ eq  <= es.
+  Lemma s_e: @ss E E C C X X _ _ eq  <= es.
   Proof.
     intros R p q H l p' pp'. destruct (H _ _ pp').
     destruct H0 as (? & ? & ? & <-).
@@ -261,7 +261,7 @@ establish [wbisim]'s transitivity for that.
   Lemma e_w: es <= ws.
   Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using etrans_wtrans_. Qed.
 
-  Lemma s_w: ss0 eq <= ws.
+  Lemma s_w: ss eq <= ws.
   Proof. rewrite s_e. apply e_w. Qed.
 
   Corollary sbisim_wbisim: sbisim eq <= wbisim.
