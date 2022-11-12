@@ -1,6 +1,9 @@
 From Coq Require Import
-     Lia Basics Fin
+     Lia
+     Basics
+     Fin
      RelationClasses
+     Program.Equality
      Logic.Eqdep.
 
 From Coinduction Require Import
@@ -12,7 +15,6 @@ From CTree Require Import
      CTree
      Utils
      Eq.Equ
-     Eq.SBisim
      Eq.Shallow
      Eq.Trans.
 
@@ -20,20 +22,94 @@ From RelationAlgebra Require Export
      rel srel.
 
 Import CTree.
-
 Set Implicit Arguments.
 
 (* TODO: Decide where to set this *)
 Arguments trans : simpl never.
 
-#[local] Tactic Notation "step" := __step_sbisim || step.
+Section StrongSim.
+(*|
+The function defining strong simulations: [trans] plays must be answered
+using [trans].
+The [ss] definition stands for [strong simulation]. The bisimulation [sb]
+is obtained by expliciting the symmetric aspect of the definition following
+Pous'16 in order to be able to exploit symmetry arguments in proofs
+(see [square_st] for an illustration).
+|*)
+  Program Definition ss {E F C D : Type -> Type} {X Y : Type}
+    `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}
+    (L : rel (@label E) (@label F)) :
+    mon (ctree E C X -> ctree F D Y -> Prop) :=
+    {| body R t u :=
+      forall l t', trans l t t' -> exists l' u', trans l' u u' /\ R t' u' /\ L l l'
+    |}.
+  Next Obligation.
+    edestruct H0 as (u' & l' & ?); eauto.
+    eexists; eexists; intuition; eauto.
+  Qed.
+
+End StrongSim.
+
+Definition ssim {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D} L :=
+  (gfp (@ss E F C D X Y _ _ L): hrel _ _).
+
+Module SSimNotations.
+
+  (*| ss (simulation) notation |*)
+  Notation sst L := (t (ss L)).
+  Notation ssbt L := (bt (ss L)).
+  Notation ssT L := (T (ss L)).
+  Notation ssbT L := (bT (ss L)).
+
+  Notation "t (≲ L ) u" := (ssim L t u) (at level 70).
+  Notation "t ≲ u" := (ssim eq t u) (at level 70). (* FIXME we should ensure that return types are the same. *)
+  Notation "t [≲ L ] u" := (ss L _ t u) (at level 79).
+  Notation "t [≲] u" := (ss eq _ t u) (at level 79).
+  Notation "t {≲ L } u" := (sst L _ t u) (at level 79).
+  Notation "t {≲} u" := (sst eq _ t u) (at level 79).
+  Notation "t {{≲ L }} u" := (ssbt L _ t u) (at level 79).
+  Notation "t {{≲}} u" := (ssbt eq _ t u) (at level 79).
+
+End SSimNotations.
+
+Import SSimNotations.
+
+Ltac fold_ssim :=
+  repeat
+    match goal with
+    | h: context[gfp (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)] |- _ => fold (@ssim E F C D X Y _ _ L) in h
+    | |- context[gfp (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)]      => fold (@ssim E F C D X Y _ _ L)
+    end.
+
+Ltac __coinduction_ssim R H :=
+  (try unfold ssim);
+  apply_coinduction; fold_ssim; intros R H.
+
+Tactic Notation "__step_ssim" :=
+  match goal with
+  | |- context[@ssim ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
+      unfold ssim;
+      step;
+      fold (@ssim E F C D X Y _ _ L)
+  end.
+
+#[local] Tactic Notation "step" := __step_ssim || step.
+
 #[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
-  __coinduction_sbisim R H || coinduction R H.
-#[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
+  __coinduction_ssim R H || coinduction R H.
+
+Ltac __step_in_ssim H :=
+  match type of H with
+  | context[@ssim ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
+      unfold ssim in H;
+      step in H;
+      fold (@ssim E F C D X Y _ _ L) in H
+  end.
+
+#[local] Tactic Notation "step" "in" ident(H) := __step_in_ssim H || step in H.
 
 Import CTreeNotations.
 Import EquNotations.
-Import SBisimNotations.
 
 Section ssim_homogenous_theory.
   Context {E C: Type -> Type} {X: Type}
@@ -109,64 +185,11 @@ Section ssim_homogenous_theory.
   #[global] Instance PreOrder_ssT f R `{PreOrder _ L}: PreOrder (ssT L f R).
   Proof. split; typeclasses eauto. Qed.
 
-  (*|
-    Aggressively providing instances for rewriting hopefully faster
-    [sbisim] under all [ss1]-related contexts (consequence of the transitivity
-    of the companion).
-    |*)
-  #[global] Instance sbisim_clos_ssim_goal `{Symmetric _ L} `{Transitive _ L} :
-    Proper (sbisim L ==> sbisim L ==> flip impl) (ssim L).
-  Proof.
-    repeat intro.
-    transitivity y0. transitivity y.
-    - now apply sbisim_ssim in H1.
-    - now exact H3.
-    - symmetry in H2; now apply sbisim_ssim in H2.
-  Qed.
-
-  #[global] Instance sbisim_clos_ssim_ctx `{Equivalence _ L}:
-    Proper (sbisim L ==> sbisim L ==> impl) (ssim L).
-  Proof.
-    repeat intro. symmetry in H0, H1. eapply sbisim_clos_ssim_goal; eauto.
-  Qed.
-
-  #[global] Instance sbisim_clos_sst_goal RR `{Equivalence _ L}:
-    Proper (sbisim L ==> sbisim L ==> flip impl) (sst L RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H0.
-    symmetry in eq2. apply sbisim_ssim in eq1, eq2.
-    rewrite eq1, <- eq2.
-    auto.
-  Qed.
-
-  #[global] Instance sbisim_clos_sst_ctx RR `{Equivalence _ L}:
-    Proper (sbisim L ==> sbisim L ==> impl) (sst L RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    rewrite <- eq1, <- eq2.
-    auto.
-  Qed.
-
-  #[global] Instance sbisim_clos_ssT_goal RR f `{Equivalence _ L}:
-    Proper (sbisim L ==> sbisim L ==> flip impl) (ssT L f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    symmetry in eq2. apply sbisim_ssim in eq1, eq2.
-    rewrite eq1, <- eq2.
-    auto.
-  Qed.
-
-  #[global] Instance sbisim_clos_ssT_ctx RR f `{Equivalence _ L}:
-    Proper (sbisim L ==> sbisim L ==> impl) (ssT L f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    rewrite <- eq1, <- eq2.
-    auto.
-  Qed.
-
 End ssim_homogenous_theory.
 
-(*| Parametric theory of [ss] with heterogenous [L] |*)
+(*|
+Parametric theory of [ss] with heterogenous [L]
+|*)
 Section ssim_heterogenous_theory.
   Arguments label: clear implicits.
   Context {E F C D: Type -> Type} {X Y: Type}
@@ -179,10 +202,10 @@ Section ssim_heterogenous_theory.
   Notation ssbt L := (coinduction.bt (ss L)).
   Notation ssT L := (coinduction.T (ss L)).
 
-  (*|
+(*|
    Strong simulation up-to [equ] is valid
    ----------------------------------------
-  |*)
+|*)
   Lemma equ_clos_sst : equ_clos <= (sst L).
   Proof.
     apply Coinduction; cbn.
@@ -270,9 +293,9 @@ Section ssim_heterogenous_theory.
     do 2 eexists; eauto. rewrite <- uu'. eauto.
   Qed.
 
-  (*|
-    stuck ctrees can be simulated by anything.
-    |*)
+(*|
+  stuck ctrees can be simulated by anything.
+|*)
   Lemma is_stuck_ss (R : rel _ _) (t : ctree E C X) (t': ctree F D Y):
     is_stuck t -> ss L R t t'.
   Proof.
@@ -307,6 +330,7 @@ Section ssim_heterogenous_theory.
   Qed.
 
 End ssim_heterogenous_theory.
+
 
 (*|
 Up-to [bind] context simulations
@@ -410,6 +434,7 @@ Proof.
   apply EQs.
 Qed.
 
+
 (*|
 And in particular, we can justify rewriting [≲] to the left of a [bind].
 |*)
@@ -486,11 +511,11 @@ Section Proof_Rules.
     - apply H.
   Qed.
 
-  (*|
-    The vis nodes are deterministic from the perspective of the labeled
-    transition system, stepping is hence symmetric and we can just recover
-    the itree-style rule.
-  |*)
+(*|
+ The vis nodes are deterministic from the perspective of the labeled
+ transition system, stepping is hence symmetric and we can just recover
+ the itree-style rule.
+|*)
   Lemma step_ss_vis_gen {Y Z Z' F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z')
         (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R L: rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
@@ -687,13 +712,13 @@ Section Proof_Rules.
     apply step_ss_brD_id_gen.
   Qed.
 
-  (*|
+(*|
     Note that with visible schedules, nary-spins are equivalent only
     if neither are empty, or if both are empty: they match each other's
     tau challenge infinitely often.
     With invisible schedules, they are always equivalent: neither of them
     produce any challenge for the other.
-  |*)
+|*)
   Lemma spinS_gen_nonempty : forall {Z Y D F} {L: rel (label E) (label F)} `{HasStuck': B0 -< D}
                                (c: C X) (c': C Y) (x: X) (y: Y),
       L tau tau ->
@@ -711,10 +736,10 @@ Section Proof_Rules.
       + rewrite EQ; eauto.
   Qed.
 
-  (*|
-    Inversion principles
-    --------------------
-    |*)
+(*|
+Inversion principles
+--------------------
+|*)
   Lemma ssim_ret_inv {F D} {L: rel (label E) (label F)} `{HasStuck': B0 -< D} (r1 r2 : X) :
     ssim L (Ret r1 : ctree E C X) (Ret r2 : ctree F D X) ->
     L (val r1) (val r2).
@@ -725,20 +750,23 @@ Section Proof_Rules.
     inv_trans; subst; assumption.
   Qed.
 
-  Lemma ssim_vis_inv_type {D Y X1 X2} {L: relation (label E)} `{HasStuck': B0 -< D}
-        (e1 : E X1) (e2 : E X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree E D Y) (x : X1):
-    ssim L (Vis e1 k1) (Vis e2 k2) ->
+  Lemma ssim_vis_inv_type {D Y X1 X2} `{HasStuck': B0 -< D}
+    (e1 : E X1) (e2 : E X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree E D Y) (x1 : X1):
+    ssim eq (Vis e1 k1) (Vis e2 k2) ->
     X1 = X2.
   Proof.
     intros.
-    eplay.
-    destruct TR as (? & ? & ? & ?).
+    step in H; cbn in H.
+    edestruct H as (? & ? & ? & ? & ?).
+    etrans.
     inv_trans; subst; auto.
-    instantiate (1:=x) in H0.
-  Admitted.
+    eapply obs_eq_invT; eauto.
+    Unshelve.
+    exact x1.
+  Qed.
 
   Lemma ssbt_vis_inv {F D Y X1 X2} {L: rel (label E) (label F)} `{HasStuck': B0 -< D}
-        (e1 : E X1) (e2 : F X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree F D Y) (x : X1) R:
+    (e1 : E X1) (e2 : F X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree F D Y) (x : X1) R:
     ssbt L R (Vis e1 k1) (Vis e2 k2) ->
     (exists y, L (obs e1 x) (obs e2 y))  /\ (forall x, exists y, sst L R (k1 x) (k2 y)).
   Proof.
@@ -812,51 +840,3 @@ Section Proof_Rules.
   Qed.
 
 End Proof_Rules.
-
-(*|
-A strong bisimulation gives two strong simulations,
-but two strong simulations do not always give a strong bisimulation.
-This property is true if we only allow brs with 0 or 1 branch,
-but we prove a counter-example for a ctree with a binary br.
-|*)
-
-Lemma ss_sb : forall {E C X} RR {HasStuck: B0 -< C}
-  (t t' : ctree E C X),
-  ss eq RR t t' ->
-  ss eq (flip RR) t' t ->
-  sb eq RR t t'.
-Proof.
-  intros.
-  split; eauto.
-  simpl in *; intros.
-  destruct (H0 _ _ H1) as (? & ? & ? & ? & ?).
-  destruct (H _ _ H2) as (? & ? & ? & ? & ?).
-  subst; eauto.
-Qed.
-
-#[local] Definition t1 : ctree void1 (B0 +' B1 +' B2) unit :=
-  Step (Ret tt).
-
-#[local] Definition t2 : ctree void1 (B0 +' B1 +' B2) unit :=
-  brS2 (Ret tt) (stuckD).
-
-Lemma ssim_sbisim_nequiv :
-  ssim eq t1 t2 /\ ssim eq t2 t1 /\ ~ sbisim eq t1 t2.
-Proof.
-  unfold t1, t2. intuition.
-  - step.
-    apply step_ss_brS; auto.
-    intros _. exists true. reflexivity.
-  - step. apply step_ss_brS; auto.
-    intros [|]; exists tt.
-    + reflexivity.
-    + step. apply stuckD_ss.
-  - step in H. cbn in H. destruct H as [_ ?].
-    specialize (H tau stuckD). lapply H; [| etrans].
-    intros. destruct H0 as (? & ? & ? & ? & ?).
-    inv_trans. step in H1. cbn in H1. destruct H1 as [? _].
-    specialize (H0 (val tt) stuckD). lapply H0.
-    2: subst; etrans.
-    intro; destruct H1 as (? & ? & ? & ? & ?).
-    now apply stuckD_is_stuck in H1.
-Qed.

@@ -1,7 +1,9 @@
 From Coq Require Import
-     Classes.RelationClasses
+     Lia
      Basics
      Fin
+     RelationClasses
+     Program.Equality
      Logic.Eqdep.
 
 From Coinduction Require Import
@@ -13,34 +15,199 @@ From CTree Require Import
      CTree
      Utils
      Eq.Equ
-     Eq.SBisim
-     Eq.SSim0Theory
      Eq.Shallow
-     Eq.Trans.
-
+     Eq.Trans
+     Eq.SSim.
 
 From RelationAlgebra Require Export
      rel srel.
 
-Set Implicit Arguments.
-
 Import CTree.
-Import EquNotations.
-Import SBisimNotations.
-Import CTreeNotations.
+Set Implicit Arguments.
 
 (* TODO: Decide where to set this *)
 Arguments trans : simpl never.
 
-#[local] Tactic Notation "step" := __step_sbisim || step.
-#[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
-  __coinduction_sbisim R H || coinduction R H.
-#[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
+Section CompleteStrongSim.
 
-(*| Very polymorphic definitions and lemmas
-  - Polymorphic on labels, by heterogenous relation [L].
-  - Polymorphic on return type.
-  - Polymorphic on branch effects. |*)
+(*|
+Complete strong simulation [css].
+|*)
+  Program Definition css {E F C D : Type -> Type} {X Y : Type}
+    `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}
+    (L : rel (@label E) (@label F)) : mon (ctree E C X -> ctree F D Y -> Prop) :=
+    {| body R t u :=
+        ss L R t u /\
+          forall l u', trans l u u' -> exists l' t', L l' l /\ trans l' t t'
+    |}.
+  Next Obligation.
+    split; eauto. intros.
+    edestruct H0 as (? & ? & ? & ? & ?); repeat econstructor; eauto.
+  Qed.
+
+End CompleteStrongSim.
+
+Definition cssim {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D} L :=
+  (gfp (@css E F C D X Y _ _ L) : hrel _ _).
+
+Module CSSimNotations.
+
+  (*| css (complete simulation) notation |*)
+  Notation csst L := (t (css L)).
+  Notation cssbt L := (bt (css L)).
+  Notation cssT L := (T (css L)).
+  Notation cssbT L := (bT (css L)).
+
+  Notation "t (⪅ L ) u" := (cssim L t u) (at level 70).
+  Notation "t ⪅ u" := (cssim eq t u) (at level 70).
+  Notation "t [⪅ L ] u" := (css L _ t u) (at level 79).
+  Notation "t [⪅] u" := (css eq _ t u) (at level 79).
+  Notation "t {⪅ L } u" := (csst L _ t u) (at level 79).
+  Notation "t {⪅} u" := (csst eq _ t u) (at level 79).
+  Notation "t {{⪅ L }} u" := (cssbt L _ t u) (at level 79).
+  Notation "t {{⪅}} u" := (cssbt eq _ t u) (at level 79).
+
+End CSSimNotations.
+
+Import CSSimNotations.
+
+Ltac fold_cssim :=
+  repeat
+    match goal with
+    | h: context[gfp (@css ?E ?F ?C ?D ?X ?Y _ _ ?L)] |- _ => fold (@cssim E F C D X Y _ _ L) in h
+    | |- context[gfp (@css ?E ?F ?C ?D ?X ?Y _ _ ?L)]      => fold (@cssim E F C D X Y _ _ L)
+    end.
+
+Ltac __coinduction_cssim R H :=
+  (try unfold cssim);
+  apply_coinduction; fold_cssim; intros R H.
+
+Tactic Notation "__step_cssim" :=
+  match goal with
+  | |- context[@cssim ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
+      unfold cssim;
+      step;
+      fold (@cssim E F C D X Y _ _ L)
+  end.
+
+#[local] Tactic Notation "step" := __step_cssim || step.
+
+#[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
+  __coinduction_cssim R H || coinduction R H.
+
+Ltac __step_in_cssim H :=
+  match type of H with
+  | context[@cssim ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
+      unfold cssim in H;
+      step in H;
+      fold (@cssim E F C D X Y _ _ L) in H
+  end.
+
+#[local] Tactic Notation "step" "in" ident(H) := __step_in_cssim H || step in H.
+
+Import CTreeNotations.
+Import EquNotations.
+
+Section cssim_homogenous_theory.
+
+  Context {E C : Type -> Type} {X : Type}
+          {L: relation (@label E)}
+          {HasStuck: B0 -< C}.
+
+  Notation css := (@css E E C C X X _ _).
+  Notation cssim  := (@cssim E E C C X X _ _).
+  Notation csst L := (coinduction.t (css L)).
+  Notation cssbt L := (coinduction.bt (css L)).
+  Notation cssT L := (coinduction.T (css L)).
+
+  Lemma cssim_subrelation : forall (t t' : ctree E C X) L',
+      subrelation L L' -> cssim L t t' -> cssim L' t t'.
+  Proof.
+    intros. revert t t' H0. coinduction R CH.
+    intros. step in H0. simpl; split; intros; cbn in H0; destruct H0 as [H0' H0''].
+    - cbn in H0'; apply H0' in H1 as (? & ? & ? & ? & ?);
+        apply H in H2. exists x, x0. auto.
+    - cbn in H0''; apply H0'' in H1 as (? & ? & ? & ?).
+      apply H in H0. exists x, x0. auto.
+  Qed.
+
+(*|
+    Various results on reflexivity and transitivity.
+|*)
+  Lemma refl_csst `{Reflexive _ L}: const seq <= (csst L).
+  Proof.
+    intros. apply leq_t.
+    cbn. intros. unfold seq in H0. subst. split; eauto.
+  Qed.
+
+  #[global] Instance Reflexive_css R `{Reflexive _ L} : Reflexive (csst L R).
+  Proof.
+    apply build_reflexive, ft_t, refl_csst.
+  Qed.
+
+  #[global] Instance Reflexive_cssim `{Reflexive _ L}: Reflexive (cssim L).
+  Proof.
+    cbn.  coinduction R CH.
+    intros t.
+    split; simpl; intros l t' TR; exists l, t'; split; auto.
+  Qed.
+
+  Lemma square_csst `{Transitive _ L}: square <= (csst L).
+  Proof.
+    apply Coinduction; cbn.
+    intros R x z [y [xy yx] [yz zy]].
+    split.
+    - intros l x' xx'.
+      destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
+      destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
+      exists l'', z'.
+      split; [assumption |split].
+      + apply (f_Tf (css L)).
+        exists y'; eauto.
+      + transitivity l'; auto.
+    - intros l z' zz'.
+      destruct (zy _ _ zz') as (l' & y' & ? & yy').
+      destruct (yx _ _ yy') as (l'' & x' & ? & xx').
+      exists l'', x'.
+      split; eauto with trans.
+  Qed.
+
+  Lemma Transitive_css R `{Transitive _ L} `{Transitive _ R}: Transitive (css L R).
+  Proof.
+
+    cbn.
+    intros x y z [xy yx] [yz zy].
+    split.
+    - intros l x' xx'.
+      destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
+      destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
+      exists l'', z'.
+      split; [assumption | split].
+      + now transitivity y'.
+      + now transitivity l'.
+    - intros l z' zz'.
+      destruct (zy _ _ zz') as (l' & y' & ? & yy').
+      destruct (yx _ _ yy') as (l'' & x' & ? & xx').
+      exists l'', z'.
+      split.
+      + now transitivity l'.
+      + admit. (* LEF: not sure why this doesn't work *)
+  Admitted.
+
+  #[global] Instance PreOrder_csst R `{PreOrder _ L}: PreOrder (csst L R).
+  Proof. apply PreOrder_t. apply refl_csst. apply square_csst. Qed.
+
+  Corollary PreOrder_cssim `{PreOrder _ L}:  PreOrder (cssim L).
+  Proof. now apply PreOrder_csst. Qed.
+
+  #[global] Instance PreOrder_cssbt R `{PreOrder _ L}: PreOrder (cssbt L R).
+  Proof. apply rel.PreOrder_bt. now apply refl_csst. apply square_csst. Qed.
+
+  #[global] Instance PreOrder_cssT f R `{PreOrder _ L}: PreOrder ((T (css L)) f R).
+  Proof. apply rel.PreOrder_T. now apply refl_csst. apply square_csst. Qed.
+
+End cssim_homogenous_theory.
+
 Section cssim_heterogenous_theory.
 
   Arguments label: clear implicits.
@@ -48,112 +215,16 @@ Section cssim_heterogenous_theory.
           {L: rel (@label E) (@label F)}
           {HasStuck1: B0 -< C} {HasStuck2: B0 -< D}.
 
-  Notation ss := (@ss E F C D X Y _ _).
   Notation css := (@css E F C D X Y _ _).
   Notation cssim  := (@cssim E F C D X Y _ _).
   Notation csst L := (coinduction.t (css L)).
   Notation cssbt L := (coinduction.bt (css L)).
   Notation cssT L := (coinduction.T (css L)).
 
-  (*|
-    Various results on reflexivity and transitivity.
-    |*)
-  Lemma sbisim_clos_css : @sbisim_clos E F C D X Y _ _ eq eq <= (csst L).
-  Proof.
-    intro R1. apply Coinduction.
-    cbn; intros Rs x y [z x' y' z' SBzx' [x'y' y'x'] SBy'z']; split.
-    - intros l t zt.
-      step in SBzx'.
-      apply SBzx' in zt as (l' & t' & x't' & ? & ?); subst.
-      destruct (x'y' _ _ x't') as (l'' & t'' & y't'' & ? & ?).
-
-      step in SBy'z'.
-      apply SBy'z' in y't'' as (ll & tt & z'tt & ? & ?); subst.
-      exists ll, tt; split; trivial.
-      + split; trivial.
-        apply (f_Tf (css L)).
-        econstructor; eauto.
-    - intros l t z't.
-      step in SBy'z'.
-      symmetry in SBy'z'.
-      apply SBy'z' in z't as (l' & t' & y't' & ? & ?); subst.
-      destruct (y'x' _ _ y't') as (l'' & t'' & y't'' & ?).
-      step in SBzx'.
-      apply SBzx' in H0 as (ll & tt & ztt & ? & ?); subst.
-      exists ll, tt; split; trivial.
-      simpl in H0, H1; subst; assumption.
-  Qed.
-
-  (*|
-    Aggressively providing instances for rewriting hopefully faster
-    [sbisim] under all [ss1]-related contexts (consequence of the transitivity
-    of the companion).
-  |*)
-  #[global] Instance sbisim_clos_cssim_goal:
-    Proper (sbisim eq ==> sbisim eq ==> flip impl) (cssim L).
-  Proof.
-    cbn.
-    coinduction R CH. intros.
-    do 2 red; cbn; split; intros.
-    - symmetry in H0.
-      step in H; apply H in H2 as (? & ? & ? & ? & ?).
-      step in H1; apply H1 in H2 as (? & ? & ? & ? & ?).
-      step in H0; apply H0 in H2 as (? & ? & ? & ? & ?); subst.
-      exists x5, x6.
-      split; [assumption |].
-      split; [| assumption].
-      symmetry in H7. eapply CH; eassumption.
-    - step in H0; apply H0 in H2 as (? & ? & ? & ? & ?).
-      step in H1. apply H1 in H2 as (? & ? & ? & ?).
-      step in H. apply H in H5 as (? & ? & ? & ? & ?); simpl in *; subst.
-      exists x3, x6.
-      split; assumption.
-  Qed.
-
-  #[global] Instance sbisim_clos_cssim_ctx :
-    Proper (sbisim eq ==> sbisim eq ==> impl) (cssim L).
-  Proof.
-    repeat intro. symmetry in H, H0. eapply sbisim_clos_cssim_goal; eauto.
-  Qed.
-
-  #[global] Instance sbisim_clos_csst_goal RR :
-    Proper (sbisim eq ==> sbisim eq ==> flip impl) (csst L RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t sbisim_clos_css). cbn.
-    econstructor; eauto.
-    now rewrite eq2.
-  Qed.
-
-  #[global] Instance sbisim_clos_csst_ctx RR :
-    Proper (sbisim eq ==> sbisim eq ==> impl) (csst L RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    rewrite <- eq1, <- eq2.
-    auto.
-  Qed.
-
-  #[global] Instance sbisim_clos_cssT_goal RR f :
-    Proper (sbisim eq ==> sbisim eq ==> flip impl) (cssT L f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T sbisim_clos_css). cbn.
-    econstructor; eauto.
-    now rewrite eq2.
-  Qed.
-
-  #[global] Instance sbisim_clos_ccssT_ctx RR f :
-    Proper (sbisim eq ==> sbisim eq ==> impl) (cssT L f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 ?.
-    rewrite <- eq1, <- eq2.
-    auto.
-  Qed.
-
-  (*|
-    Strong simulation up-to [equ] is valid
-    ----------------------------------------
-    |*)
+(*|
+Strong simulation up-to [equ] is valid
+----------------------------------------
+|*)
   Lemma equ_clos_css : equ_clos <= t (css L).
   Proof.
     apply Coinduction.
@@ -279,106 +350,6 @@ Section cssim_heterogenous_theory.
 
 End cssim_heterogenous_theory.
 
-Section cssim_homogenous_theory.
-
-  Context {E C : Type -> Type} {X : Type}
-          {L: relation (@label E)}
-          {HasStuck: B0 -< C}.
-
-  Notation ss := (@ss E E C C X X _ _).
-  Notation css := (@css E E C C X X _ _).
-  Notation cssim  := (@cssim E E C C X X _ _).
-  Notation csst L := (coinduction.t (css L)).
-  Notation cssbt L := (coinduction.bt (css L)).
-  Notation cssT L := (coinduction.T (css L)).
-
-  Lemma cssim_subrelation : forall (t t' : ctree E C X) L',
-      subrelation L L' -> cssim L t t' -> cssim L' t t'.
-  Proof.
-    intros. revert t t' H0. coinduction R CH.
-    intros. step in H0. simpl; split; intros; cbn in H0; destruct H0 as [H0' H0''].
-    - cbn in H0'; apply H0' in H1 as (? & ? & ? & ? & ?);
-        apply H in H2. exists x, x0. auto.
-    - cbn in H0''; apply H0'' in H1 as (? & ? & ? & ?).
-      apply H in H0. exists x, x0. auto.
-  Qed.
-
-  (*|
-    Various results on reflexivity and transitivity.
-    |*)
-  Lemma refl_csst `{Reflexive _ L}: const seq <= (csst L).
-  Proof.
-    intros. apply leq_t.
-    cbn. intros. unfold seq in H0. subst. split; eauto.
-  Qed.
-
-  #[global] Instance Reflexive_ss R `{Reflexive _ L} : Reflexive (csst L R).
-  Proof.
-    apply build_reflexive, ft_t, refl_csst.
-  Qed.
-
-  #[global] Instance Reflexive_cssim `{Reflexive _ L}: Reflexive (cssim L).
-  Proof.
-    cbn.  coinduction R CH.
-    intros t.
-    split; simpl; intros l t' TR; exists l, t'; split; auto.
-  Qed.
-
-  Lemma square_csst `{Transitive _ L}: square <= (csst L).
-  Proof.
-    apply Coinduction; cbn.
-    intros R x z [y [xy yx] [yz zy]].
-    split.
-    - intros l x' xx'.
-      destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
-      destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
-      exists l'', z'.
-      split; [assumption |split].
-      + apply (f_Tf (css L)).
-        exists y'; eauto.
-      + transitivity l'; auto.
-    - intros l z' zz'.
-      destruct (zy _ _ zz') as (l' & y' & ? & yy').
-      destruct (yx _ _ yy') as (l'' & x' & ? & xx').
-      exists l'', x'.
-      split; eauto with trans.
-  Qed.
-
-  Lemma Transitive_ss R `{Transitive _ L} `{Transitive _ R}: Transitive (css L R).
-  Proof.
-
-    cbn.
-    intros x y z [xy yx] [yz zy].
-    split.
-    - intros l x' xx'.
-      destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
-      destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
-      exists l'', z'.
-      split; [assumption | split].
-      + now transitivity y'.
-      + now transitivity l'.
-    - intros l z' zz'.
-      destruct (zy _ _ zz') as (l' & y' & ? & yy').
-      destruct (yx _ _ yy') as (l'' & x' & ? & xx').
-      exists l'', z'.
-      split.
-      + now transitivity l'.
-      + admit. (* LEF: not sure why this doesn't work *)
-  Admitted.
-
-  #[global] Instance PreOrder_csst R `{PreOrder _ L}: PreOrder (csst L R).
-  Proof. apply PreOrder_t. apply refl_csst. apply square_csst. Qed.
-
-  Corollary PreOrder_cssim `{PreOrder _ L}:  PreOrder (cssim L).
-  Proof. now apply PreOrder_csst. Qed.
-
-  #[global] Instance PreOrder_cssbt R `{PreOrder _ L}: PreOrder (cssbt L R).
-  Proof. apply rel.PreOrder_bt. now apply refl_csst. apply square_csst. Qed.
-
-  #[global] Instance PreOrder_cssT f R `{PreOrder _ L}: PreOrder ((T (css L)) f R).
-  Proof. apply rel.PreOrder_T. now apply refl_csst. apply square_csst. Qed.
-
-End cssim_homogenous_theory.
 
 (*|
 Up-to [bind] context simulations
@@ -396,10 +367,10 @@ Section bind.
           `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}
           (L : hrel (@label E) (@label F)).
 
-  (*|
-    Specialization of [bind_ctx] to a function acting with [cssim] on the bound value,
-    and with the argument (pointwise) on the continuation.
-    |*)
+(*|
+Specialization of [bind_ctx] to a function acting with [cssim] on the bound value,
+and with the argument (pointwise) on the continuation.
+|*)
   Program Definition bind_ctx_cssim : mon (rel (ctree E C X') (ctree F D Y')) :=
     {|body := fun R => @bind_ctx E F C D X Y X' Y' (cssim L) (pointwise (fun x y => L (val x) (val y)) R) |}.
   Next Obligation.
@@ -515,7 +486,9 @@ Proof.
   intros; eapply csst_clo_bind; red in H2; eauto.
 Qed.
 
-(*| Ltac automation rule for [bind] and [cssim] |*)
+(*|
+Ltac automation rule for [bind] and [cssim]
+|*)
 Ltac __upto_bind_cssim :=
   match goal with
     |- @cssim _ _ _ _ ?X ?X' _ _ _ (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
@@ -575,11 +548,11 @@ Section Proof_Rules.
     - apply H.
   Qed.
 
-  (*|
-    The vis nodes are deterministic from the perspective of the labeled
-    transition system, stepping is hence symmetric and we can just recover
-    the itree-style rule.
-  |*)
+(*|
+The vis nodes are deterministic from the perspective of the labeled
+transition system, stepping is hence symmetric and we can just recover
+the itree-style rule.
+|*)
   (* LEF: Here, I got lazy -- it would be nice to have [k': Z' -> ctree F D Y]
      see [step_ss0_vis_gen] *)
    Lemma step_css_vis_gen {Y Z F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z)
@@ -605,9 +578,9 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
-  (*|
-    Same goes for visible tau nodes.
-  |*)
+(*|
+Same goes for visible tau nodes.
+|*)
   Lemma step_ss_step_gen{Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C} `{HasTau': B1 -< D}
         (t : ctree E C X) (t' : ctree F D Y) (R L: rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
@@ -632,13 +605,13 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
-  (*|
+(*|
     When matching visible brs one against another, in general we need to explain how
     we map the branches from the left to the branches to the right.
     A useful special case is the one where the arity coincide and we simply use
     the identity in both directions. We can in this case have [n] rather than [2n]
     obligations.
-  |*)
+|*)
   (** LEF: Here I need to show [Z] is inhabited,
       I think the way to go is to axiomatize it. Maybe it's possible
       to extract a [Z] from [HasTau: B1 -< C]? YZ says no,
@@ -696,10 +669,10 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
-  (*|
-    For invisible nodes, the situation is different: we may kill them, but that
-    execution cannot act as going under the guard.
-  |*)
+(*|
+For invisible nodes, the situation is different: we may kill them, but that
+execution cannot act as going under the guard.
+|*)
   Lemma step_css_guard_gen {Y F D} `{HasStuck': B0 -< D}`{HasTau: B1 -< C} `{HasTau': B1 -< D}
         (t : ctree E C X) (t' : ctree F D Y) (R L: rel _ _) :
     css L R t t' ->
@@ -819,13 +792,13 @@ Section WithParams.
   Context {HasTau' : B1 -< D}.
   Context (L : rel (@label E) (@label F)).
 
-  (*|
-    Note that with visible schedules, nary-spins are equivalent only
-    if neither are empty, or if both are empty: they match each other's
-    tau challenge infinitely often.
-    With invisible schedules, they are always equivalent: neither of them
-    produce any challenge for the other.
-    |*)
+(*|
+Note that with visible schedules, nary-spins are equivalent only
+if neither are empty, or if both are empty: they match each other's
+tau challenge infinitely often.
+With invisible schedules, they are always equivalent: neither of them
+produce any challenge for the other.
+|*)
   Lemma spinS_gen_nonempty : forall {Z Z' X Y} (c: C X) (c': D Y) (x: X) (y: Y) (L : rel _ _),
     L tau tau ->
     cssim L (@spinS_gen E C Z X c) (@spinS_gen F D Z' Y c').
@@ -843,10 +816,10 @@ Section WithParams.
     - econstructor; auto.
   Qed.
 
-  (*|
-    Inversion principles
-    --------------------
-  |*)
+(*|
+Inversion principles
+--------------------
+|*)
   Lemma cssim_ret_inv X Y (r1 : X) (r2 : Y) :
     (Ret r1 : ctree E C X) (⪅L) (Ret r2 : ctree F D Y) ->
     L (val r1) (val r2).
@@ -879,6 +852,7 @@ Section WithParams.
     - cbn. intros. edestruct H as [? ? ?].
   Admitted.
 
+  (* What's this? TODO move *)
   Lemma t_gfp_bt : forall {X} `{CompleteLattice X} (b : mon X),
     weq (t b (gfp (bt b))) (gfp b).
   Proof.
@@ -942,105 +916,3 @@ Section WithParams.
   Qed.
 
 End WithParams.
-
-(*|
-A strong bisimulation gives two strong simulations,
-but two strong simulations do not always give a strong bisimulation.
-This property is true if we only allow choices with 0 or 1 branch,
-but we prove a counter-example for a ctree with a binary choice.
-|*)
-
-Lemma css_sb : forall {E F C D X Y} `{B0 -< C} `{B0 -< D} L RR
-  (t : ctree E C X) (t' : ctree F D Y),
-  css L RR t t' ->
-  css (flip L) (flip RR) t' t ->
-  sb L RR t t'.
-Proof.
-  split; cbn; intros.
-  - apply H1 in H3 as (? & ? & ? & ? & ?); eauto.
-  - apply H2 in H3 as (? & ? & ? & ? & ?); eauto.
-Qed.
-
-Lemma ctree_B01_trans_det : forall {E X} l (t t' t'' : ctree E B01 X),
-  trans l t t' -> trans l t t'' -> t' ≅ t''.
-Proof.
-  intros. do 3 red in H.
-  rewrite ctree_eta in H0.
-  genobs t ot. genobs t' ot'. rewrite ctree_eta, <- Heqot'.
-  clear t t' Heqot Heqot'. revert t'' H0.
-  dependent induction H; intros; inv_trans.
-  - eapply IHtrans_; cbn.
-    rewrite <- ctree_eta.
-    destruct c, b, x0, x; intuition.
-  - rewrite <- ctree_eta. destruct c, b, x, x0.
-    now rewrite <- H, EQ.
-  - subst. rewrite <- ctree_eta. now rewrite <- H, EQ.
-  - rewrite EQ. apply br0_always_stuck.
-Qed.
-
-
-Lemma cssim_sbisim_equiv_gen :
-  forall {E F X Y} (L : rel _ _) `{Injective (@label E) (@label F) L}
-    `{Deterministic _ _ L}
-    (t : ctree E B01 X) (t' : ctree F B01 Y),
-  cssim L t t' -> cssim (flip L) t' t -> sbisim L t t'.
-Proof.
-  intros until 2.
-  coinduction R CH. red. red. cbn. split; intros.
-  - step in H1. cbn in H1.
-    apply H1 in H3 as H3'. destruct H3' as (? & ? & ? & ? & ?).
-    exists x, x0. intuition. apply CH.
-    + apply H5.
-    + step in H2. cbn in H2. apply H2 in H4 as (? & ? & ? & ? & ?).
-      do_inj.
-      assert (t'0 ≅ x2) by (eapply ctree_B01_trans_det; eauto).
-      now rewrite H6.
-  - step in H2. cbn in H2.
-    apply H2 in H3 as H3'. destruct H3' as (? & ? & ? & ? & ?).
-    exists x, x0. intuition. apply CH.
-    + step in H1. cbn in H1. apply H1 in H4 as (? & ? & ? & ? & ?).
-      do_det.
-      assert (t'0 ≅ x2) by (eapply ctree_B01_trans_det; eauto).
-      now rewrite H6.
-    + apply H5.
-  Qed.
-
-Lemma cssim_sbisim_equiv_eq : forall {E X} (t t' : ctree E B01 X),
-  cssim eq t t' -> cssim eq t' t -> sbisim eq t t'.
-Proof.
-  intros. apply cssim_sbisim_equiv_gen; intros.
-  - typeclasses eauto.
-  - typeclasses eauto.
-  - apply H.
-  - apply (@cssim_subrelation _ _ _ eq); auto.
-    red. intros. subst. reflexivity.
-Qed.
-
-#[local] Definition t1 : ctree void1 (B01 +' B2) unit :=
-  Step (Ret tt).
-
-#[local] Definition t2 : ctree void1 (B01 +' B2) unit :=
-  brS2 (Ret tt) (stuckD).
-
-Lemma cssim_sbisim_nequiv :
-  cssim eq t1 t2 /\ cssim (flip eq) t2 t1 /\ ~ sbisim eq t1 t2.
-Proof.
-  unfold t1, t2. intuition.
-  - step. eapply step_css_brS; auto.
-    exact  (exist _ tt I).
-    intros _. exists true. reflexivity.
-  - step. eapply step_css_brS; auto.
-    exact  (exist _ true I).
-    intro. exists tt. destruct x.
-    + reflexivity.
-    + step. apply css_is_stuck.
-      * apply stuckD_is_stuck.
-      * admit. (* This looks wrong, Ret is not stuck *)
-  - step in H. cbn in H. destruct H as [_ ?].
-    specialize (H tau stuckD). lapply H; [| etrans].
-    intros. destruct H0 as (? & ? & ? & ? & ?). subst.
-    inv_trans. step in H1. cbn in H1. destruct H1 as [? _].
-    specialize (H0 (val tt) stuckD). lapply H0. 2: { etrans. }
-    intro. destruct H1 as (? & ? & ? & ? & ?). subst.
-    now apply stuckD_is_stuck in H1.
-Admitted.
