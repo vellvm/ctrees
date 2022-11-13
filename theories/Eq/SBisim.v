@@ -1884,12 +1884,10 @@ Section StrongSimulations.
     Notation ssbt L := (coinduction.bt (ss L)).
     Notation ssT L := (coinduction.T (ss L)).
 
-
-
 (*|
-    Aggressively providing instances for rewriting hopefully faster
-    [sbisim] under all [ss1]-related contexts (consequence of the transitivity
-    of the companion).
+Aggressively providing instances for rewriting hopefully faster
+[sbisim] under all [ss1]-related contexts (consequence of the transitivity
+of the companion).
 |*)
   #[global] Instance sbisim_clos_ssim_goal `{Symmetric _ L} `{Transitive _ L} :
     Proper (sbisim L ==> sbisim L ==> flip impl) (ssim L).

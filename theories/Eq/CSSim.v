@@ -872,27 +872,27 @@ Inversion principles
   Proof.
     intros.
     eplay.
-    inv_trans;
-      eexists; eauto.
-  Admitted.
+    inv_trans; eexists; eauto.
+  Qed.
 
-  Lemma css_brD_l_inv : forall {X Y Z}
-    (t : ctree E C X) (c : D Y) (k : Y -> ctree F D Z) L R,
-    css L R (BrD c k) t ->
-    forall x, css L R (k x) t.
+  Lemma css_brD_l_inv :
+    forall {X Y Z} (t : ctree E C X) (c : D Y) (k : Y -> ctree F D Z) L R x,
+      css L R (BrD c k) t ->
+      (exists l t', trans l (k x) t') ->
+      css L R (k x) t.
   Proof.
-    cbn. intros; split; intros.
-    eapply trans_brD in H0; [| reflexivity].
-    - apply H in H0 as (? & ? & ? & ? & ?); exists x0, x1; auto.
-    - apply H in H0 as (? & ? & ?). apply trans_brD_inv in H0 as (x' & y').
-  Admitted.
+    split.
+    - eapply ss_brD_l_inv. now apply H.
+    - intros. apply H0.
+  Qed.
 
-  Lemma cssim_brD_l_inv : forall {X Y Z}
-    (t : ctree E C X) (c : D Y) (k : Y -> ctree F D Z) L,
-    BrD c k (⪅L) t ->
-    forall x, k x (⪅L) t.
+  Lemma cssim_brD_l_inv :
+    forall {X Y Z} (t : ctree E C X) (c : D Y) (k : Y -> ctree F D Z) L x,
+      BrD c k (⪅L) t ->
+      (exists l t', trans l (k x) t') ->
+      k x (⪅L) t.
   Proof.
-    intros. step. step in H. eapply css_brD_l_inv. apply H.
+    intros. step. step in H. eapply css_brD_l_inv. apply H. auto.
   Qed.
 
   (* This one isn't very convenient... *)
