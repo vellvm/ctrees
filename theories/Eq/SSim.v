@@ -467,7 +467,7 @@ Ltac __play_ssim := step; cbn; intros ? ? ?TR.
 
 Ltac __play_ssim_in H :=
   step in H;
-  cbn in H; edestruct H as [? ?TR ?EQ];
+  cbn in H; edestruct H as (? & ? & ?TR & ?EQ & ?HL);
   clear H; [etrans |].
 
 Ltac __eplay_ssim :=
@@ -645,7 +645,7 @@ Section Proof_Rules.
   Proof.
     intros EQs.
     intros ? ? TR; inv_trans; subst.
-    apply EQs in TR; destruct TR as [u' TR' EQ'].
+    apply EQs in TR; destruct TR as (u' & TR' & EQ').
     eauto.
   Qed.
 
@@ -746,7 +746,6 @@ Inversion principles
   Proof.
     intro.
     eplay.
-    destruct TR as (? & ? & ? & ?).
     inv_trans; subst; assumption.
   Qed.
 
@@ -771,8 +770,8 @@ Inversion principles
     (exists y, L (obs e1 x) (obs e2 y))  /\ (forall x, exists y, sst L R (k1 x) (k2 y)).
   Proof.
     intros.
-    split; intros; edestruct H as [? ? ?];
-      etrans; subst; destruct H0 as (? & ? & ? & ? );
+    split; intros; edestruct H as (? & ? & ? & ? & ?);
+      etrans; subst;
       inv_trans; subst; eexists; auto.
     - now eapply H2.
     - now apply H1.
@@ -785,8 +784,8 @@ Inversion principles
   Proof.
     intros.
     split.
-      - eplay; destruct TR as (? & ? & ? & ?).
-        inv_trans; subst; exists x2; eapply H1.
+      - eplay.
+        inv_trans; subst; exists x2; eauto.
       - intros y.
         step in H.
         cbn in H.
@@ -804,8 +803,7 @@ Inversion principles
   Proof.
     intros EQ i1.
     eplay.
-    destruct TR as (? & ? & ? & ?); subst.
-    inv_trans.
+    subst; inv_trans.
     eexists; eauto.
   Qed.
 
