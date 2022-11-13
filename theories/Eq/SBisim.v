@@ -294,10 +294,30 @@ stuck ctrees can be simulated by anything.
     - now apply H0 in H1.
   Qed.
 
-  Theorem sbisim_clos_upto {LE LF} R: @sbisim_clos LE LF R <= st L R.
+  Theorem sbisim_clos_upto R: @sbisim_clos eq eq R <= st L R.
   Proof.
-
-  Admitted.
+    apply leq_t.
+    intros S t u HRel.
+    split; cbn; intros ? ? TR.
+    - inv HRel.
+      step in Sbisimt; apply Sbisimt in TR; destruct TR as (? & ? & TR & Sbis & <-).
+      apply HR in TR; destruct TR as (? & ? & TR & Sbis' & HL).
+      step in Sbisimu; apply Sbisimu in TR; destruct TR as (? & ? & TR & Sbis'' & <-).
+      do 2 eexists; repeat split; eauto.
+      econstructor.
+      apply Sbis.
+      eauto.
+      apply Sbis''.
+    - inv HRel.
+      step in Sbisimu; apply Sbisimu in TR; destruct TR as (? & ? & TR & Sbis & <-).
+      apply HR in TR; destruct TR as (? & ? & TR & Sbis' & HL).
+      step in Sbisimt; apply Sbisimt in TR; destruct TR as (? & ? & TR & Sbis'' & <-).
+      do 2 eexists; repeat split; eauto.
+      econstructor.
+      apply Sbis''.
+      eauto.
+      apply Sbis.
+  Qed.
 
 End sbisim_heterogenous_theory.
 
@@ -540,57 +560,60 @@ The resulting enhancing function gives a valid up-to technique
     apply Coinduction.
     intros R. apply (leq_bind_ctx _).
     intros t1 t2 tt k1 k2 kk.
-    step in tt;
-      split; simpl;  intros l u STEP;
-      apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
-    - apply tt in STEP as (u' & l' & STEP & EQ' & ?).
-      do 2 eexists. split.
-      apply trans_bind_l; eauto.
-      + intro Hl. destruct Hl. apply RV in H0 as [_ ?]. specialize (H0 (Is_val _)). auto.
-      + split; auto.
-        apply (fT_T equ_clos_st).
-        econstructor; [exact EQ | | reflexivity].
-        apply (fTf_Tf (sb L)).
-        apply in_bind_ctx; auto.
-        intros ? ? ?.
-        apply (b_T (sb L)).
-        red in kk; now apply kk.
-    - apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
-      destruct RV as [RV].
-      specialize (RV _ _ H) as [? _]. specialize (H0 (Is_val _)). destruct H0.
-      pose proof (trans_val_invT STEPres). subst.
-      pose proof (trans_val_inv STEPres) as EQ.
-      rewrite EQ in STEPres.
-      specialize (kk _ _ H).
-      apply kk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
-      do 2 eexists; split.
-      eapply trans_bind_r; eauto.
-      split; auto.
-      eapply (id_T (sb L)); auto.
+    step in tt; split; simpl;  intros l u STEP.
+    - apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
+      + apply tt in STEP as (u' & l' & STEP & EQ' & ?).
+        do 2 eexists. split.
+        apply trans_bind_l; eauto.
+        * intro Hl. destruct Hl. apply RV in H0 as [_ ?]. specialize (H0 (Is_val _)). auto.
+        * split; auto.
+          apply (fT_T equ_clos_st).
+          econstructor; [exact EQ | | reflexivity].
+          apply (fTf_Tf (sb L)).
+          apply in_bind_ctx; auto.
+          intros ? ? ?.
+          apply (b_T (sb L)).
+          red in kk; now apply kk.
+      + apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
+        destruct RV as [RV].
+        specialize (RV _ _ H) as [? _]. specialize (H0 (Is_val _)). destruct H0.
+        pose proof (trans_val_invT STEPres). subst.
+        pose proof (trans_val_inv STEPres) as EQ.
+        rewrite EQ in STEPres.
+        specialize (kk _ _ H).
+        apply kk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
+        do 2 eexists; split.
+        eapply trans_bind_r; eauto.
+        split; auto.
+        eapply (id_T (sb L)); auto.
 
-    - apply tt in STEP as (u' & l' & STEP & EQ' & ?).
-      do 2 eexists; split.
-      apply trans_bind_l; eauto.
-      + intro Hl. destruct Hl. apply RV in H0 as [? _]. specialize (H0 (Is_val _)). auto.
-      + split; auto.
-        apply (fT_T equ_clos_st).
-        econstructor; eauto.
-        apply (fTf_Tf (sb L)).
-        (* How to rewrite with EQ here? *)
-        admit.
-    - apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
-      destruct RV as [RV].
-      specialize (RV _ _ H) as [_ ?]; specialize (H0 (Is_val _)); destruct H0.
-      pose proof (trans_val_invT STEPres). subst.
-      pose proof (trans_val_inv STEPres) as EQ.
-      rewrite EQ in STEPres.
-      specialize (kk _ _ H).
-      apply kk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
-      do 2 eexists; split.
-      eapply trans_bind_r; eauto.
-      split; auto.
-      eapply (id_T (sb L)); auto.
-  Admitted.
+    - apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
+      + apply tt in STEP as (u' & l' & STEP & EQ' & ?).
+        do 2 eexists; split.
+        apply trans_bind_l; eauto.
+        * intro Hl. destruct Hl. apply RV in H0 as [? _]. specialize (H0 (Is_val _)). auto.
+        * split; auto.
+          apply (fT_T equ_clos_st).
+          symmetry in EQ.
+          econstructor; [reflexivity | | exact EQ].
+          apply (fTf_Tf (sb L)).
+          apply in_bind_ctx; auto.
+          intros ? ? ?.
+          apply (b_T (sb L)).
+          red in kk; now apply kk.
+      + apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
+        destruct RV as [RV].
+        specialize (RV _ _ H) as [_ ?]; specialize (H0 (Is_val _)); destruct H0.
+        pose proof (trans_val_invT STEPres). subst.
+        pose proof (trans_val_inv STEPres) as EQ.
+        rewrite EQ in STEPres.
+        specialize (kk _ _ H).
+        apply kk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
+        do 2 eexists; split.
+        eapply trans_bind_r; eauto.
+        split; auto.
+        eapply (id_T (sb L)); auto.
+  Qed.
 
 End bind.
 
