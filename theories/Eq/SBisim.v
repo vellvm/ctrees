@@ -1632,11 +1632,10 @@ Various results on reflexivity and transitivity.
       step in SBy'z'.
       symmetry in SBy'z'.
       apply SBy'z' in z't as (l' & t' & y't' & ? & ?); subst.
-      destruct (y'x' _ _ y't') as (l'' & t'' & y't'' & ?).
+      destruct (y'x' _ _ y't') as (l'' & t'' & y't'').
       step in SBzx'.
-      apply SBzx' in H0 as (ll & tt & ztt & ? & ?); subst.
-      exists ll, tt; split; trivial.
-      simpl in H0, H1; subst; assumption.
+      apply SBzx' in y't'' as (ll & tt & ztt & ?); subst.
+      exists ll, tt; trivial.
   Qed.
 
 (*|
@@ -1648,21 +1647,21 @@ Various results on reflexivity and transitivity.
     Proper (sbisim eq ==> sbisim eq ==> flip impl) (cssim L).
   Proof.
     cbn.
-    coinduction R CH. intros.
-    do 2 red; cbn; split; intros.
-    - symmetry in H0.
-      step in H; apply H in H2 as (? & ? & ? & ? & ?).
-      step in H1; apply H1 in H2 as (? & ? & ? & ? & ?).
-      step in H0; apply H0 in H2 as (? & ? & ? & ? & ?); subst.
-      exists x5, x6.
-      split; [assumption |].
-      split; [| assumption].
-      symmetry in H7. eapply CH; eassumption.
-    - step in H0; apply H0 in H2 as (? & ? & ? & ? & ?).
-      step in H1. apply H1 in H2 as (? & ? & ? & ?).
-      step in H. apply H in H5 as (? & ? & ? & ? & ?); simpl in *; subst.
-      exists x3, x6.
-      split; assumption.
+    coinduction R CH. intros * EQ1 * EQ2 SIM.
+    do 2 red; cbn; split; intros * TR.
+    - symmetry in EQ2.
+      step in EQ1; apply EQ1 in TR as (? & ? & ? & ? & ?).
+      step in SIM; apply SIM in H as (? & ? & ? & ? & ?).
+      step in EQ2; apply EQ2 in H as (? & ? & ? & ? & ?); subst.
+      do 2 eexists.
+      split; [eassumption |].
+      split; [| eassumption].
+      symmetry in H4. eapply CH; eassumption.
+    - step in EQ2; apply EQ2 in TR as (? & ? & ? & ? & ?).
+      step in SIM. apply SIM in H as (? & ? & ?).
+      step in EQ1. apply EQ1 in H as (? & ? & ? & ?); simpl in *; subst.
+      do 2 eexists.
+      eauto.
   Qed.
 
   #[global] Instance sbisim_clos_cssim_ctx :
