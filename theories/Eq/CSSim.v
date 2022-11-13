@@ -822,22 +822,26 @@ Inversion principles
   Proof.
     intros.
     eplay.
-    inv H2.
-    apply inj_pair2 in H6, H7; subst.
-    step in H1; inv H1; reflexivity.
-    Unshelve. admit.
-  Admitted.
+    subst.
+    inv_trans.
+    eapply obs_eq_invT; eauto.
+    Unshelve. auto.
+  Qed.
 
   Lemma cssbt_eq_vis_inv {X Y} (e1 e2 : E Y) (k1 k2 : Y -> ctree E C X) (x : Y) R :
-    css eq (t (css eq) R) (Vis e1 k1) (Vis e2 k2) ->
+    cssbt eq R (Vis e1 k1) (Vis e2 k2) ->
     e1 = e2 /\ forall x, csst eq R (k1 x) (k2 x).
   Proof.
     intros.
     split.
-    - cbn in H. edestruct H as (? & ? & ? & ? & ?).
-      etrans. subst. now inv_trans.
-    - cbn. intros. edestruct H as [? ? ?].
-  Admitted.
+    - edestruct H as [(? & ? & ?TR & ?EQ & ?HL) ?PROG].
+      etrans. subst.
+      now inv_trans.
+    - intros.
+      edestruct H as [(? & ? & ? & ? & ?) _].
+      etrans. subst. inv_trans. subst. apply H1.
+    Unshelve. auto.
+  Qed.
 
   (* What's this? TODO move *)
   Lemma t_gfp_bt : forall {X} `{CompleteLattice X} (b : mon X),
@@ -880,7 +884,7 @@ Inversion principles
     cbn. intros; split; intros.
     eapply trans_brD in H0; [| reflexivity].
     - apply H in H0 as (? & ? & ? & ? & ?); exists x0, x1; auto.
-    - apply H in H0 as (? & ? & ? & ?). apply trans_brD_inv in H1 as (x' & y').
+    - apply H in H0 as (? & ? & ?). apply trans_brD_inv in H0 as (x' & y').
   Admitted.
 
   Lemma cssim_brD_l_inv : forall {X Y Z}
