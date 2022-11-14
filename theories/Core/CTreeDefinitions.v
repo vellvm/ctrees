@@ -418,11 +418,17 @@ Instances
 #[global] Instance MonadIter_ctree {E B} `{B1 -< B} : MonadIter (ctree E B) :=
   fun R I => @CTree.iter E B _ R I.
 
-#[global] Instance MonadTrigger_ctree {E B} : MonadTrigger E (ctree E B) :=
-  @CTree.trigger _ _.
+(* #[global] Instance MonadTrigger_ctree {E B} : MonadTrigger E (ctree E B) | 1 := *)
+(*   @CTree.trigger _ _. *)
 
-#[global] Instance MonadBr_ctree {E B} : MonadBr B (ctree E B) :=
-  @CTree.branch _ _.
+#[global] Instance MonadTrigger_ctree {E F B} `{E -< F} : MonadTrigger E (ctree F B) :=
+  fun _ e => trigger e.
+
+(* #[global] Instance MonadBr_ctree {E B} : MonadBr B (ctree E B) | 1 := *)
+(*   @CTree.branch _ _. *)
+
+#[global] Instance MonadBr_ctree {E C D} `{C -< D} : MonadBr C (ctree E D) :=
+  fun b _ c => branch b c.
 
 (*|
 ====================================
