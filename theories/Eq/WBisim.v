@@ -50,6 +50,7 @@ From CTree Require Import
      Eq.Equ
      Eq.Shallow
      Eq.Trans
+     Eq.SSim
      Eq.SBisim.
 
 From RelationAlgebra Require Export

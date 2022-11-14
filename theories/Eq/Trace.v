@@ -5,8 +5,11 @@ From Coinduction Require Import
 
 From ITree Require Import Core.Subevent.
 From CTree Require Import
-     CTree Eq.Equ Eq.Trans Eq.SBisim Eq.SSimTheory.
-
+  CTree
+  Eq.Equ
+  Eq.Trans
+  Eq.SSim
+  Eq.SBisim.
 
 (*|
 Base coinductive definitions for execution traces and trace equivalence.
@@ -27,7 +30,6 @@ Program Definition htr {E C X} `{HasStuck : B0 -< C} :
 Next Obligation.
   destruct a. destruct H0 as (? & ? & ?). eauto. apply I.
 Defined.
-
 
 Definition has_trace {E C X} `{HasStuck : B0 -< C} := gfp (@htr E C X _).
 
