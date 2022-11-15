@@ -172,7 +172,7 @@ Ltac __coinduction_wbisim R H :=
 
 Tactic Notation "__step_wbisim" :=
   match goal with
-  | |- context[@wbisim ?E ?C ?X ?HasStuck ?L ] =>
+  | |- context[@wbisim ?E ?C ?X ?HasStuck ] =>
       unfold wbisim;
       step;
       fold (@wbisim E C X HasStuck)

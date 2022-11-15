@@ -11,23 +11,20 @@ Import ITree.Basics.Basics.Monads.
 Import MonadNotation.
 Open Scope monad_scope.
 
-#[global] Instance stateT_trigger {E S M} {MM : Monad M} {MT: MonadTrigger E M} :
-  MonadTrigger E (stateT S M) :=
-  fun _ e s => v <- mtrigger _ e;; ret (s, v).
-
-Definition refine {E M : Type -> Type}
-					 {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {FoM : MonadTrigger E M}
-           {CM : MonadBr M}
-           (h : bool -> forall n, M (fin n)) :
-	ctree E ~> M :=
+Check BrF.
+Definition refine {E C M : Type -> Type}
+	   {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {FoM : MonadTrigger E M}
+           {CM : MonadBr C M}
+           (h : bool -> C ~> M ) :
+  ctree E C ~> M :=
   fun R =>
-		iter (fun t =>
-				    match observe t with
-				    | RetF r => ret (inr r)
-				    | @BrF _ _ _ b n k =>
-                bind (h b n) (fun x => ret (inl (k x)))
-				    | VisF e k => bind (mtrigger _ e) (fun x => ret (inl (k x)))
-				    end).
+    iter (fun t =>
+	    match observe t with
+	    | RetF r => ret (inr r)
+	    | BrF b c k =>
+                bind (h b c) (fun x => ret (inl (k x)))
+	    | VisF e k => bind (mtrigger _ e) (fun x => ret (inl (k x)))
+	    end).
 
 Variant pureb {E X} (rec : ctree E X -> Prop) : ctree' E X -> Prop :=
   | pure_ret   (v : X) : pureb rec (RetF v)

@@ -18,11 +18,13 @@ Open Scope monad_scope.
 
 Set Implicit Arguments.
 
-#[global] Instance MonadChoice_stateT {M} {MM : Monad M} {AM : MonadBr M}: MonadBr (stateT S M) :=
-  fun b n s =>
-    f <- mbr b n;;
-    ret (s, f).
-  
+#[global] Instance MonadBr_stateT {S M C} {MM : Monad M} {AM : MonadBr C M}: MonadBr C (stateT S M) :=
+  fun b X c s => f <- mbr b c;; ret (s,f).
+
+#[global] Instance MonadTrigger_stateT {E S M} {MM : Monad M} {MT: MonadTrigger E M} :
+  MonadTrigger E (stateT S M) :=
+  fun _ e s => v <- mtrigger _ e;; ret (s, v).
+
 Definition interp_state {E C M} S
            {FM : Functor M} {MM : Monad M} {IM : MonadIter M}
            (h : E ~> stateT S M) (h' : bool -> C ~> stateT S M) :
@@ -40,17 +42,17 @@ Section State.
   Definition h_state {E C} : stateE ~> stateT S (ctree E C) :=
     fun _ e s =>
       match e with
-      | Get _ => Ret (s, s)
-      | Put _ s' => Ret (s', tt)
+      | Get => Ret (s, s)
+      | Put s' => Ret (s', tt)
       end.
 
   Definition pure_state {E C} : E ~> stateT S (ctree E C)
     := fun _ e s => Vis e (fun x => Ret (s, x)).
 
   Definition pure_state_choice {E C} b : C ~> stateT S (ctree E C)
-    := fun _ c s => Choice b c (fun x => Ret (s, x)).
+    := fun _ c s => br b c (fun x => Ret (s, x)).
 
-  Definition run_state {E C} `{C1 -< C}
+  Definition run_state {E C} `{B1 -< C}
     : ctree (stateE +' E) C ~> stateT S (ctree E C) :=
     interp_state (case_ h_state pure_state) pure_state_choice.
 
@@ -63,13 +65,12 @@ Section State.
 
   Variable (S : Type).
   Context {E F C D : Type -> Type}
-          `{C1 -< D}
+          `{B1 -< D}
           {R : Type}
           (h : E ~> stateT S (ctree F D))
           (h' : bool -> C ~> stateT S (ctree F D)).
 
   (** Facts about state (equational theory) *)
-<<<<<<< HEAD
   Definition _interp_state
              (h  : E ~> stateT S (ctree F D))
              (h' : bool -> C ~> stateT S (ctree F D))
@@ -78,8 +79,8 @@ Section State.
     fun s =>
       match ot with
       | RetF r        => Ret (s, r)
-      | ChoiceF b c k => h' b _ c s >>= fun sx => tauI (interp_state h h' (k (snd sx)) (fst sx))
-      | VisF e k      => h _ e s    >>= fun sx => tauI (interp_state h h' (k (snd sx)) (fst sx))
+      | BrF b c k => h' b _ c s >>= fun sx => Guard (interp_state h h' (k (snd sx)) (fst sx))
+      | VisF e k      => h _ e s    >>= fun sx => Guard (interp_state h h' (k (snd sx)) (fst sx))
       end.
 
   Lemma interp_interp_state (t : ctree E C R) (s : S) :
@@ -90,43 +91,15 @@ Section State.
 
   Lemma unfold_interp_state t s :
     interp_state h h' t s ≅ _interp_state h h' (observe t) s.
-=======
-  Definition _interp_state {E F R}
-           (f : E ~> stateT S (ctree F)) (ot : ctreeF E R _)
-  : stateT S (ctree F) R := fun s =>
-  match ot with
-  | RetF r => Ret (s, r)
-  | BrF b n' k =>
-      Br b n' (fun i => Guard (interp_state f (k i) s))
-  | VisF e k => f _ e s >>= (fun sx => Guard (interp_state f (k (snd sx)) (fst sx)))
-  end.
-
-  Lemma unfold_interp_state {E F R}
-        (h : E ~> Monads.stateT S (ctree F))
-        (t : ctree E R) s :
-    interp_state h t s ≅ _interp_state h (observe t) s.
->>>>>>> master
   Proof.
     unfold interp_state, interp, Basics.iter, MonadIter_stateT0, Basics.iter, MonadIter_ctree; cbn.
     rewrite unfold_iter; destruct observe eqn:Hobs; cbn.
     - rewrite 2 bind_ret_l; reflexivity.
     - rewrite bind_map, bind_bind; cbn; setoid_rewrite bind_ret_l.
       reflexivity.
-<<<<<<< HEAD
     - rewrite !bind_bind, bind_map; cbn.
       upto_bind_eq.
       rewrite bind_ret_l.
-=======
-    - do 2 rewrite bind_bind; cbn; do 2 setoid_rewrite bind_ret_l; cbn.
-      rewrite bind_bind.
-      setoid_rewrite bind_ret_l; cbn.
-      setoid_rewrite bind_br.
-      setoid_rewrite bind_ret_l.
-
-      apply br_equ; intros t'.
-      step; econstructor.
-      intros.
->>>>>>> master
       reflexivity.
   Qed.
 
@@ -155,40 +128,30 @@ Section State.
     rewrite ctree_eta. reflexivity.
   Qed.
 
-<<<<<<< HEAD
   Lemma interp_state_vis {T : Type}
   (e : E T) (k : T -> ctree E C R) (s : S)
     : interp_state h h' (Vis e k) s
-                   ≅ h e s >>= fun sx => tauI (interp_state h h' (k (snd sx)) (fst sx)).
-=======
-  Lemma interp_state_vis {E F : Type -> Type} {T U : Type}
-        (e : E T) (k : T -> ctree E U) (h : E ~> Monads.stateT S (ctree F)) (s : S)
-    : interp_state h (Vis e k) s
-                   ≅ h T e s >>= fun sx => Guard (interp_state h (k (snd sx)) (fst sx)).
+                   ≅ h e s >>= fun sx => Guard (interp_state h h' (k (snd sx)) (fst sx)).
   Proof.
     rewrite unfold_interp_state; reflexivity.
   Qed.
 
-  Lemma interp_state_br {E F : Type -> Type} {T : Type}
-        (b : bool) (n : nat) (k : fin n -> ctree E T) (h : E ~> stateT S (ctree F)) (s : S)
-    : interp_state h (Br b n k) s
-                   ≅ Br b n (fun sx => Guard (interp_state h (k sx) s)).
->>>>>>> master
+  Lemma interp_state_br {T: Type} `{C -< D }
+        (b : bool) (c : C T) (k : T -> ctree E C R) (s : S)
+    : interp_state h h' (br b c k) s
+                   ≅ br b c (fun sx => Guard (interp_state h h' (k sx) s)).
   Proof.
-    rewrite unfold_interp_state; reflexivity.
-  Qed.
+    rewrite !unfold_interp_state; simpl.
+    (* Lef: This looks wrong? *)
+  Abort.
 
-<<<<<<< HEAD
-  Lemma interp_state_tau `{C1 -< C}
+  Lemma interp_state_tau `{B1 -< C}
         (t : ctree E C R) (s : S)
-        : interp_state h h' (tauI t) s ≅ tauI (tauI (interp_state h h' t s)).
-=======
-  Lemma interp_state_tau {E F : Type -> Type} {T : Type}
-        (t : ctree E T) (h : E ~> Monads.stateT S (ctree F)) (s : S)
-    : interp_state h (Guard t) s ≅ Guard (Guard (interp_state h t s)).
->>>>>>> master
+        : interp_state h h' (Guard t) s ≅ Guard (Guard (interp_state h h' t s)).
   Proof.
     rewrite unfold_interp_state.
+    simpl.
+    (* LEF: This was already aborted *)
   Abort.
 
 End State.
@@ -198,17 +161,16 @@ End State.
    [itree E ~> stateT S (itree F)]. *)
 Section State.
 
-<<<<<<< HEAD
   Variable (S : Type).
   Context {E F C D : Type -> Type}
-          `{C1 -< D}
+          `{B1 -< D}
           {R : Type}
           (h : E ~> stateT S (ctree F D))
           (h' : bool -> C ~> stateT S (ctree F D)).
 
   Lemma interp_state_trigger_eqit
         (e : E R) (s : S)
-    : (interp_state h h' (CTree.trigger e) s) ≅ (h e s >>= fun x => tauI (Ret x)).
+    : (interp_state h h' (CTree.trigger e) s) ≅ (h e s >>= fun x => Guard (Ret x)).
   Proof.
     unfold CTree.trigger. rewrite interp_state_vis; cbn.
     upto_bind_eq.
@@ -216,21 +178,11 @@ Section State.
        TODO: proof system for [equ] similar to the one for [sbisim]
      *)
     step. constructor. intros.
-=======
-  Lemma interp_state_trigger_eqit {E F : Type -> Type} {R: Type}
-        (e : E R) (f : E ~> Monads.stateT S (ctree F)) (s : S)
-    : (interp_state f (CTree.trigger e) s) ≅ (f _ e s >>= fun x => Guard (Ret x)).
-  Proof.
-    unfold CTree.trigger. rewrite interp_state_vis; cbn.
-    upto_bind_eq.
-    (* TODO: proof system for [equ] similar to the one for [sbisim] *)
-    apply br_equ. intros _.
->>>>>>> master
     rewrite interp_state_ret.
     now destruct x1.
   Qed.
 
-  Lemma interp_state_trigger `{C0 -< D}
+  Lemma interp_state_trigger `{B0 -< D}
         (e : E R) (s : S)
     : interp_state h h' (CTree.trigger e) s ~ h e s.
   Proof.
@@ -240,10 +192,12 @@ Section State.
       |- ?y ~ ?x => remember y; rewrite <- (bind_ret_r x); subst
     end.
     cbn.
+    (* LEF: Why does it introduce two binders? *)
     upto_bind_eq.
+    intros [ys yr].
     rewrite sb_guard, interp_state_ret.
-    now destruct x.
-  Qed.
+    Fail now destruct x.
+  Admitted.
 
   Lemma interp_state_bind {A B}
         (t : ctree E C A) (k : A -> ctree E C B)
@@ -265,24 +219,19 @@ Section State.
       cbn.
       rewrite bind_bind. cbn.
       upto_bind_eq.
-      rewrite bind_Guard.
+      rewrite bind_guard.
       constructor; intros ?; apply IH.
     - rewrite unfold_interp_state.
       cbn.
-<<<<<<< HEAD
+
       rewrite bind_bind.
       upto_bind_eq.
-      rewrite bind_tauI.
+      rewrite bind_guard.
       constructor; intros ?; apply IH.
-=======
-      rewrite bind_br.
-      constructor; intros ?.
-      rewrite bind_Guard.
-      step; constructor; intros ?.
-      apply IH.
->>>>>>> master
   Qed.
 
+  (** LEF: This looks like it depends on [SBisimInterp.v] *)
+  (*
 Lemma trans0_interp_state : forall {E F X} (h : E ~> stateT S (ctree F)) (t t' : ctree E X) s,
   trans0 t t' -> trans0 (interp_state h t s) (interp_state h t' s).
 Proof.
@@ -633,10 +582,12 @@ Proof.
   red; eauto.
   setoid_rewrite bind_ret_l in H0. rewrite !sb_guard in H0. apply H0.
 Qed.
-
+   *)
+  
 End State.
 
 Arguments get {S E _}.
 Arguments put {S E _}.
 Arguments run_state {S E} [_] _ _.
 Arguments interp_state {E C M S FM MM IM} h h' [T].
+

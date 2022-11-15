@@ -122,8 +122,8 @@ node, labelling the transition by the returned value.
     trans_ (val r) (RetF r) (brDF branch0 k).
   Hint Constructors trans_ : core.
 
-	Definition transR l : hrel S S :=
-		fun u v => trans_ l (observe u) (observe v).
+  Definition transR l : hrel S S :=
+    fun u v => trans_ l (observe u) (observe v).
 
   Ltac FtoObs :=
     match goal with
