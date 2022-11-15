@@ -100,15 +100,6 @@ Definition translate {E F C} (h : E ~> F) : ctree E C ~> ctree F C
 
 Arguments translate {E F C} h [T].
 
-
-(* TODO MOVE *)
-Lemma bind_br {E C R S X} b (c : C X) (k : _ -> ctree E C R) (h : _ -> ctree E C S):
-      (Br b c k) >>= h ≅ Br b c (fun x => k x >>= h).
-Proof.
-  step; cbn; constructor; intros ?.
-  reflexivity.
-Qed.
-
 (** Establishing generic results on [fold] is tricky: because it goes into
     a very generic monad [M], it requires some heavy axiomatization of this
     monad. Yoon et al.'s ICFP'22 develop the necessary tools to this end.

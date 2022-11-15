@@ -3,7 +3,7 @@ From ExtLib Require Import
      Structures.Monad.
 
 From CTree Require Import
-     Eq.SSim0Theory
+     Eq.SSim
      Eq
      Interp.State.
 
@@ -11,7 +11,6 @@ Import ITree.Basics.Basics.Monads.
 Import MonadNotation.
 Open Scope monad_scope.
 
-Check BrF.
 Definition refine {E C M : Type -> Type}
 	   {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {FoM : MonadTrigger E M}
            {CM : MonadBr C M}
