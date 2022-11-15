@@ -50,6 +50,8 @@ Ltac break_match_in H :=
 
 Ltac step_ :=
   match goal with
+  | |- gfp ?b ?x ?y ?z => apply (proj2 (gfp_fp b x y z))
+  | |- body (t ?b) ?R ?x ?y ?z => apply (bt_t b R x y z)
   | |- gfp ?b ?x ?y => apply (proj2 (gfp_fp b x y))
   | |- body (t ?b) ?R ?x ?y => apply (bt_t b R x y)
   | |- gfp ?b ?x => apply (proj2 (gfp_fp b x))
@@ -59,13 +61,15 @@ Ltac step_ :=
 Ltac step := first [step_ | red; step_].
 
 Ltac step_in H :=
-match type of H with
-| gfp ?b ?x ?y => apply (gfp_fp b x y) in H
-| body (t ?b) ?R ?x ?y => apply (bt_t b R x y) in H
-| gfp ?b ?x => apply (gfp_fp b x) in H
-| body (t ?b) ?R ?x => apply (bt_t b R x) in H
-| _ => red in H; step_in H
-end.
+  match type of H with
+  | gfp ?b ?x ?y ?z => apply (gfp_fp b x y z) in H
+  | body (t ?b) ?R ?x ?y ?z => apply (bt_t b R x y z) in H
+  | gfp ?b ?x ?y => apply (gfp_fp b x y) in H
+  | body (t ?b) ?R ?x ?y => apply (bt_t b R x y) in H
+  | gfp ?b ?x => apply (gfp_fp b x) in H
+  | body (t ?b) ?R ?x => apply (bt_t b R x) in H
+  | _ => red in H; step_in H
+  end.
 Tactic Notation "step" "in" ident(H) := step_in H.
 
 Class Injective {A B}(R: rel A B) := {
