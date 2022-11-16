@@ -77,9 +77,6 @@ Module Bakery.
         }.
     Definition get_min_ticket{n: nat}(v: vec n agent_row) := get_min_ticket' v None.
 
-    Definition get_max {E} `{State -< E}: ctree E C nat :=
-      get >>= fun p => ret (fst p).
-
     Definition get_agents {E} `{State -< E}: ctree E C (vec n agent_row) :=
       get >>= fun p => ret (snd p). 
 
