@@ -5,11 +5,11 @@ From Coq Require Import
 From ITree Require Import
      Indexed.Sum
      Subevent
-     Events.State
      CategoryOps.
 
 From CTree Require Import
      CTree
+     Vectors
      Interp.State.
 
 From ExtLib Require Import
@@ -18,9 +18,6 @@ From ExtLib Require Import
      RelDec
      String
      Monad.
-
-From DSL Require Import
-     Vectors Storage.
 
 Import MonadNotation.
 Local Open Scope monad_scope.
@@ -34,33 +31,28 @@ Set Implicit Arguments.
 Module Log.
   Import Monads.
 
-  Section ParametricS.
-    Context {S: Type} {dec_S: RelDec (@eq S)}.
+  Inductive logE (S: Type): Type -> Type :=
+  | Log: S -> logE S unit.
 
-    Inductive logE (S: Type): Type -> Type :=
-    | Log: S -> logE S unit.
-
-    Arguments Log {S}.
-    Definition log {E} `{logE S -< E}: S -> ctree E unit := fun s => trigger (Log s).
+  Arguments Log {S}.
+  Definition log {E C S} `{logE S -< E}: S -> ctree E C unit := fun s => trigger (Log s).
     
-    Definition h_state_to_log {E}: stateE S ~> stateT S (ctree (logE S +' E)) :=
-      fun _ e s =>
-        match e with
-        | Get _ => Ret (s, s)
-        | Put _ s' => Vis (inl1 (Log s')) (fun _: unit => Ret (s', tt))
-        end.
+  Definition h_state_to_log {E C S}: stateE S ~> stateT S (ctree (E +' logE S) C) :=
+    fun _ e s =>
+      match e with
+      | Get _ => Ret (s, s)
+      | Put s' => Vis (inr1 (Log s')) (fun _: unit => Ret (s', tt))
+      end.
 
-    Definition pure_state_to_log {E} : E ~> stateT S (ctree (logE S +' E))
-      := fun _ e s => Vis (inr1 e) (fun x => Ret (s, x)).
+  Definition pure_state_to_log {E C S} : E ~> stateT S (ctree (E +' logE S) C)
+    := fun _ e s => Vis (inl1 e) (fun x => Ret (s, x)).
 
-    Definition run_state_log {E}: ctree (stateE S +' E) ~> stateT S (ctree (logE S +' E))
-      := interp_state (case_ h_state_to_log pure_state_to_log).
+  Definition run_state_log {E C S} `{B1 -< C}: ctree (E +' stateE S) C ~> stateT S (ctree (E +' logE S) C)
+    := fold_state (case_ pure_state_to_log h_state_to_log) (fun b => pure_state_choice b). 
 
-    Definition run_states_log {n E}(v: vec n (ctree (stateE S +' E) void)):
-      S -> vec n (ctree (logE S +' E) void) :=
-      fun st => Vector.map (fun a => CTree.map snd (run_state_log a st)) v.
-
-  End ParametricS.
+  Definition run_states_log {n E C S} `{B1 -< C}(v: vec n (ctree (E +' stateE S) C void)):
+    S -> vec n (ctree (E +' logE S) C void) :=
+    fun st => Vector.map (fun a => CTree.map snd (run_state_log a st)) v.
 
 End Log.
 

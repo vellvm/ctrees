@@ -585,8 +585,8 @@ Qed.
   
 End State.
 
-Arguments get {S E _}.
-Arguments put {S E _}.
-Arguments run_state {S E} [_] _ _.
+Arguments get {S} {E} {C} {_}.
+Arguments put {S} {E} {C} {_}.
+Arguments run_state {S} {E} {C} [_] _ _.
 Arguments fold_state {E C M S FM MM IM} h h' [T].
 

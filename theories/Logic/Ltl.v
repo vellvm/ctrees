@@ -100,18 +100,18 @@ Module LtlNotations.
   Notation Top := (Spec (fun _ => True)).
   Notation Bot := (Spec (fun _ => False)).
   Notation Eventually p := (Until Top p).
-  Notation InfinitelyOfter p := (Forever (Eventually p)).
+  Notation InfinitelyOften p := (Forever (Eventually p)).
   
   Notation entailst := (t entails_).
   Notation entailsbt := (bt entails_).
   Notation entailsT := (T entails_).
   Notation entailsbT := (bT entails_).
 
-  Notation "t , l |= p" := (entails l t p) (at level 40, left associativity).
-  Notation "t , l [|=] p" := (entails_ _ l t p) (at level 79).
-  Notation "t , l [[|=]] p" := (entailsF _ l t p) (at level 79).
-  Notation "t , l {|=} p" := (entailst _ l t p) (at level 79).
-  Notation "t , l {{|=}} p" := (entailsbt _ l t p) (at level 79).
+  Notation "t ∇ l |= p" := (entails l t p) (at level 40, left associativity).
+  Notation "t ∇ l [|=] p" := (entails_ _ l t p) (at level 79).
+  Notation "t ∇ l [[|=]] p" := (entailsF _ l t p) (at level 79).
+  Notation "t ∇ l {|=} p" := (entailst _ l t p) (at level 79).
+  Notation "t ∇ l {{|=}} p" := (entailsbt _ l t p) (at level 79).
   
   Notation "t |= p" := (entails tau t p) (at level 70).
   Notation "t [|=] p" := (entails_ _ tau t p) (at level 79).
@@ -198,6 +198,7 @@ Section Lemmas.
     - inv H3; econstructor; eauto; lright...
   Qed.
 
+  (*| Eventually p either p or next p *)
   Lemma eventually_next: forall p,
       t |= Eventually p <-> t |= Or p (Next (Eventually p)).
   Proof.

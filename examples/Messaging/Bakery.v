@@ -6,7 +6,6 @@ From ITree Require Import
 
 From Coq Require Import
      Fin
-     Lia
      Nat
      Vector
      Logic.Eqdep
@@ -17,8 +16,6 @@ From Equations Require Import Equations.
 
 From ExtLib Require Import
      RelDec
-     Functor
-     Traversable
      Monad
      Option.
 
@@ -27,245 +24,165 @@ From Coinduction Require Import
 
 From CTree Require Import
      CTree
+     Eq
      Interp
      Interp.State
-     State
-     Equ
-     Eq.
+     Interp.Log
+     Interp.Network
+     Logic.Ltl
+     Misc.Vectors.
 
-From DSL Require Import
-     System
-     Network
-     Storage
-     Log
-     LTL
-     Utils
-     Vectors.
-
-Import Coq.Lists.List.ListNotations.
-Open Scope fin_vector_scope.
-  
-Import CTreeNotations Log Ltl.
+Import CTreeNotations VectorNotations Log LtlNotations Monads Network CTree.  
+Local Open Scope fin_vector_scope.
 Local Open Scope ctree_scope.
-Local Open Scope vector_scope.
 
 Set Implicit Arguments.
 Set Maximal Implicit Insertion.
 Set Asymmetric Patterns.
 
-Module Baker.
-  Context {n: nat}.
-  Notation uid := fin.
-  Import CTree.  
-  Module BakerSystem <: Systems.
-    Inductive _msg_type :=
-    | Ack
+Module Bakery.
+  Section ParametricN.
+    Context {n: nat} {C: Type -> Type} {HasTau: B1 -< C}.
+
+    Inductive msg :=
     | GetNumber
     | CS.
 
-    Definition msg := _msg_type.
-
-    Record agent_mem := { choosing : bool; number: nat; id : uid n }.
+    Record agent_row := {
+        in_cs: bool;
+        ticket: option nat;
+        id : uid n
+      }.
    
-    Definition heap := (nat * vec n agent_mem)%type.
+    Notation heap := (nat * vec n agent_row)%type (only parsing).
+    Notation Net := (Net n msg).
+    Notation State := (stateE heap).
+    Notation Sys := (vec n (ctree (Net +' State))).
+    
+    (** ===================================================================== *)
+    (** Lamport's bakery algorithm *)
 
-  End BakerSystem.
+    (*| Utility function, find the agent with the earliest (min) issued ticket |*)
+    Equations get_min_ticket'{n: nat}(v: vec n agent_row)(sm: option agent_row): option agent_row :=
+      get_min_ticket' [] _ := sm;
+      get_min_ticket' (h:: ts) None => get_min_ticket' ts (Some h);
+      get_min_ticket' (h :: ts) (Some m) with (h.(ticket), m.(ticket)) => {
+        | (Some ht, Some mt) with ht <? mt => {            
+          | true := get_min_ticket' ts (Some h);
+          | false := get_min_ticket' ts (Some m);
+          };
+        | (None, Some _) := get_min_ticket' ts (Some m);
+        | (Some _, None) := get_min_ticket' ts (Some h);
+        | (None, None) := get_min_ticket' ts None
+        }.
+    Definition get_min_ticket{n: nat}(v: vec n agent_row) := get_min_ticket' v None.
 
-  Module NetworkM := Network(BakerSystem).                               
-  Module StorageM := Storage(BakerSystem).
-  Import Monads NetworkM StorageM BakerSystem.
-  (** ===================================================================== *)
-  (** Lamport's bakery algorithm *)
+    Definition get_max {E} `{State -< E}: ctree E C nat :=
+      get >>= fun p => ret (fst p).
 
-  Notation Sys := (vec n (ctree (Net n +' Storage heap))).
+    Definition get_agents {E} `{State -< E}: ctree E C (vec n agent_row) :=
+      get >>= fun p => ret (snd p). 
 
-  Equations find_max_number{n: nat}(v: vec n agent_mem)(m: option agent_mem): option agent_mem :=
-    find_max_number [] _ := m;
-    find_max_number (h :: ts) (Some m)  with ((number h) <? (number m)) => {
-        find_max_number _ _ false := find_max_number ts (Some m);
-        find_max_number _ _ true := find_max_number ts (Some h);
-      };
-    find_max_number (h:: ts) None => find_max_number ts (Some h).
+    Definition update_agents {E} `{State -< E}(m: agent_row): ctree E C unit :=
+      st <- get;;
+      match st with
+      | (cnt, v) => put (cnt, v @ m.(id) := m)
+      end.
 
-  Definition get_max {E} `{Storage -< E}: ctree E nat :=
-    get >>= fun p => ret (fst p).
+    (*| The baker process, synchronized access to CS through ticket |*)
+    Definition baker: ctree (Net +' State) C void :=
+      daemon (
+          (* 1. Schedule a Critical Section (CS) if possible *)
+          v <- get_agents;;
+          match get_min_ticket v with
+          | None => ret tt
+          | Some st =>
+              send st.(id) CS;; (* Baker sends [CS] msg to preempt clients to enter their CS *)
+              update_agents {| in_cs := true; ticket := None; id := st.(id) |}
+          end;;
+          (* 2. Listen to issue new ticket number *)
+          m <- recv;;
+          match m with
+          | Some (Build_req id GetNumber) =>
+              st <- get;;
+              match st with
+              | (cnt, v) => (* Bump the counter after assigning a ticket to client [id] *)
+                  put (S cnt, v @ id := {| in_cs := false; ticket := Some cnt; id := id |})
+              end
+          | Some (Build_req id CS) => (* Clients respond to the Baker's [CS] with [CS] when done *)
+              update_agents {| in_cs := false; ticket := None; id := id |}
+          | None =>
+              ret tt
+          end).                             
+    
+    (*| Client process |*)
+    Definition client (id: uid n)(bakery: uid n) : ctree (Net +' State) C void :=
+      daemon (
+          (* 1. Ask for a ticket number *)
+          send bakery GetNumber;;
+          (* 2. Loop until received [CS] message *)
+          CTree.iter (fun _: unit =>
+                        m <- recv;;
+                        match m with
+                        | Some (Build_req _ CS) =>
+                            (* ENTER CRITICAL SECTION *)
+                            send bakery CS;;
+                            (* When done send back [CS] to bakery and break inner loop *)
+                            ret (inr tt)
+                        | _ => ret (inl tt) (* Clients refuse to handle [GetNumber] *)
+                        end) tt).
 
-  Definition get_mem {E} `{Storage -< E}: ctree E (vec n agent_mem) :=
-    get >>= fun p => ret (snd p). 
+    (** ================================================================================ *)
+    (** This is the top-level denotation *)
+    Program Definition run_network_state{C} `{B1 -< C} `{B2 -< C} `{Bn -< C}
+            (v: vec n (ctree (Net +' State) C void)): heap -> ctree (frameE n +' logE heap) C void :=
+      fun st: heap => run_network (run_states_log v st).  
+  End ParametricN.
+End Bakery.
 
-  Definition update_mem {E} `{Storage -< E}(i: uid n)(m: agent_mem): ctree E unit :=
-    st <- get;;
-    match st with
-    | (a, v) => put (a, v @ i := m)
-    end.
-      
-  Definition baker: ctree (Net n +' Storage) void :=
-    daemon (
-        (* schedule a CS if it exists *)
-        v <- get_mem;;
-        match find_max_number v None with
-        | None => ret tt
-        | Some st =>
-            let i := id st in
-            send i CS;;
-            update_mem i {| choosing := true; number := 0; id := i |}
-        end;;
-        (* Issue new ticket number *)
-        m <- recv;;
-        match m with
-        | Some (Build_req id GetNumber) =>
-            st <- get;;
-            match st with
-            | (max, v) => 
-                put (S max, v @ id := {| choosing := false; number := max; id := id |})
-            end
-        | Some (Build_req _ _) =>
-            ret tt
-        | None =>
-            ret tt
-        end).                             
-            
-  (** Client participates in the bakery algorithm *)
-  Definition client(id: uid n)(bakery: uid n) : ctree (Net n) void :=
-    daemon (
-        (* number[i] := 1 + max(number) *)
-        send bakery GetNumber;;
-        (* Loop until their turn to run the critical section *)
-        CTree.iter (fun _: unit =>
-                      m <- recv;;
-                      match m with
-                      | Some (Build_req _ Ack) =>
-                          ret (inl tt)
-                      | Some (Build_req _ CS) =>
-                          (** ENTER CRITICAL SECTION!!! *)
-                          send (Done)
-                          ret (inr tt)
-                      | _ => ret (inl tt)
-                      end) tt).
+(*| Try out the bakery algorithm with 2 nodes and 1 baker |*)
+Module TestBakery.
+  Import Bakery.
   
-  Definition fair{S}: CProp S :=
-    always (fun t => exists (k: fin n -> _), t ~ Br true n k).
-  
-End Baker.
-
-
-Module RunBakery.
-  Import Baker.
-
-  Module NetworkM := Network(BakerSystem).                               
-  Module StorageM := Storage(BakerSystem).
-  Import Monads NetworkM StorageM BakerSystem.
-
+  (*| First client [A] |*)
   Program Definition A : uid 3 := @of_nat_lt 0 _ _.
+  (*| Second client [B] |*)
   Program Definition B : uid 3 := @of_nat_lt 1 _ _.
+  (*| Baker |*)
   Program Definition bakery: uid 3 := @of_nat_lt 2 _ _.
+  (*| Initial state of the baker, clients are stateless |*)
+  Program Definition init_state :=
+    (0, [
+        {| in_cs := false; ticket := None; id := A |};
+        {| in_cs := false; ticket := None; id := B |};
+        {| in_cs := false; ticket := None; id := bakery |}]).
+
+  (* Now we can generate all schedules for the bakery (slow) *)
+  (* Compute run_network_state [baker; client A bakery; client B bakery] init_state. *)
+  Notation heap := (nat * vec 3 (@agent_row 3))%type (only parsing).
+  Notation Trace := (frameE 3 +' logE heap).
+
+  Arguments label: clear implicits.
+
+  (*| A context switch event predicate -- process [m] is scheduled *)
+  Variant is_in_frame: uid 3 -> label Trace -> Prop :=
+    | ProcessEnter: forall m, is_in_frame m (obs (inl1 (Enter m)) tt).
   
+  (*| Is a process in their critical section? If yes, then safety property must be satisfied |*)
+  Variant is_in_cs: uid 3 -> label Trace -> Prop :=
+    | ProcessInCs: forall i agents a cnt,
+        (agents $ i).(in_cs) = true ->                       (* [i] is in their CS *)
+        get_min_ticket agents = Some a /\ a.(id) = i ->       (* [i] holds the min ticket *)
+        (forall j, j <> i -> (agents $ j).(in_cs) = false) ->       (* nobody else is in the CS *)
+        is_in_cs i (obs (inr1 (Log (cnt, agents))) tt).
 
-  Compute run_storage_network [baker; client A bakery; client B bakery].
-
-
-
-
-    Lemma liveness: forall id,
-        let sys := run [client A; client B] in
-        infinitely_often (lift (fun a => a = Start id)) sys -> (* fairness *)
-        eventually (lift (fun a => a = Done id)) sys. (* liveness *)
-    Proof.
-      unfold run.
-      intros.
-      rewrite unfold_schedule.
-      step in H.
-
-
-      inv H.
-      cbn*.
-      unfold run, client; intros.
-      rewrite unfold_schedule.
-      cbn; econstructor.
-      fold_subst; unfold observe; cbn.
-      simp schedule_one; cbn.
+  Lemma correctness_lemma: forall i,
+      let sys :=  run_network_state [baker; client A bakery; client B bakery] init_state in
+      sys |= InfinitelyOften (Spec (is_in_frame i)) ->      (* Axiomatize fairness *)
+      sys |= Eventually (Spec (is_in_cs i)).               (* Liveness + safety *)
+  Proof.
+    (* WIP *)
+  Admitted.
       
-    Admitted.
-    
+End TestBakery.
 
-  (** ================================================================================ *)
-  (** This is the top-level denotation of a distributed system to a ctree of behaviors *)
-  Definition run E {n} (s: vec n (ctree (Net n +' E) void)): ctree E void :=
-    schedule 0 (Vector.map (fun it => (it, {| choosing := false; number := 0 |}, []%list)) s).
-
-    (** Utility to find next customer *)
-    Check fold_left.
-  
-    Section N.
-      Variable (n: nat).
-      Inductive tr := Start(id: fin n) | Done(id: fin n).
-      Arguments Net {n}.
-      Notation start id := (log (Start id)).
-      Notation done id := (log (Done id)).
-      
-      Definition baker: ctree (Net +' stateE (nat * vec n store_type) +' Success) void :=
-        daemon (
-            start bakery_uid;;
-            forever (
-                v <- get;;
-                match find_max_number v None with
-                | Some {| choosing := c; number := n |} => 
-                let {| 
-                st $
-                m <- recv;;
-                match m with
-                | Some (Build_Msg id GetNumber) =>
-                    (max, v) <- get;;
-                    put (S max, v @ id := {| choosing := false; number := max |})
-                | Some (Build_Msg _ _) =>
-                    ret tt
-                             
-            
-      (** Client participates in the bakery algorithm *)
-      Definition client(id: uid n) : ctree (Net  +' logE tr) void :=
-        daemon (
-            (* To ensure fairness *)
-            start id;;
-            (* number[i] := 1 + max(number) *)
-            send bakery_uid GetNumber;;
-            (* Loop until their turn to run the critical section *)
-            CTree.iter (fun _: unit =>
-                          m <- recv;;
-                          match m with
-                          | Some (Build_Msg _ Ack) =>
-                              ret (inl tt)
-                          | Some (Build_Msg _ CS) =>
-                              (** ENTER CRITICAL SECTION!!! *)
-                              done id;;
-                              ret (inr tt)
-                          | _ => ret (inl tt)
-                          end) tt).
-
-      
-    End N.
-
-    Program Definition A : uid 2 := @of_nat_lt 0 _ _.
-    Program Definition B : uid 2 := @of_nat_lt 1 _ _.
-    
-    Lemma liveness: forall id,
-        let sys := run [client A; client B] in
-        infinitely_often (lift (fun a => a = Start id)) sys -> (* fairness *)
-        eventually (lift (fun a => a = Done id)) sys.
-    Proof.
-      unfold run.
-      intros.
-      rewrite unfold_schedule.
-      step in H.
-
-
-      inv H.
-      cbn*.
-      unfold run, client; intros.
-      rewrite unfold_schedule.
-      cbn; econstructor.
-      fold_subst; unfold observe; cbn.
-      simp schedule_one; cbn.
-      
-    Admitted.
-      
-End Baker.

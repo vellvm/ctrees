@@ -120,3 +120,18 @@ Section VInversion.
     intros. apply (inversion_aux (S n)).
   Qed.
 End VInversion.
+
+(** List utils *)
+Fixpoint last{A}(l: list A): option A :=
+  match l with
+  | List.nil => None
+  | List.cons h List.nil => Some h
+  | List.cons h ts => last ts
+  end.
+
+Fixpoint init{A}(l: list A): list A :=
+  match l with
+  | List.nil => List.nil
+  | List.cons h List.nil => List.nil
+  | List.cons h ts => List.cons h (init ts)
+  end.
