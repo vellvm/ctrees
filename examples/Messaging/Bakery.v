@@ -98,19 +98,22 @@ Module Bakery.
               update_agents {| in_cs := true; ticket := None; id := st.(id) |}
           end;;
           (* 2. Listen to issue new ticket number *)
-          m <- recv;;
-          match m with
-          | Some (Build_req id GetNumber) =>
-              st <- get;;
-              match st with
-              | (cnt, v) => (* Bump the counter after assigning a ticket to client [id] *)
-                  put (S cnt, v @ id := {| in_cs := false; ticket := Some cnt; id := id |})
-              end
-          | Some (Build_req id CS) => (* Clients respond to the Baker's [CS] with [CS] when done *)
-              update_agents {| in_cs := false; ticket := None; id := id |}
-          | None =>
-              ret tt
-          end).                             
+          CTree.iter (fun _: unit =>
+                        m <- recv;;
+                        match m with
+                        | Some (Build_req id GetNumber) =>
+                            st <- get;;
+                            match st with
+                            | (cnt, v) => (* Bump the counter after assigning a ticket to client [id] *)
+                                put (S cnt, v @ id := {| in_cs := false; ticket := Some cnt; id := id |});;
+                                ret (inr tt)
+                            end
+                        | Some (Build_req id CS) => (* Clients respond to the Baker's [CS] with [CS] when done *)
+                            update_agents {| in_cs := false; ticket := None; id := id |};;
+                            ret (inr tt)
+                        | None =>
+                            ret (inl tt)
+                        end) tt).                             
     
     (*| Client process |*)
     Definition client (id: uid n)(bakery: uid n) : ctree (Net +' State) C void :=
