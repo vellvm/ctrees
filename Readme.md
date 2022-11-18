@@ -8,6 +8,7 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
 - Author(s):
   - Paul He
   - Ludovic Henrio
+  - Lef Ioannidis
   - Yannick Zakowski
   - Steve Zdancewic
 - License: MIT License
