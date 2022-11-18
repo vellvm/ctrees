@@ -6,6 +6,7 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
 ## Meta
 
 - Author(s):
+  - Nicolas Chappe
   - Paul He
   - Ludovic Henrio
   - Lef Ioannidis
