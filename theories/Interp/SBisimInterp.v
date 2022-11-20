@@ -9,12 +9,13 @@ From ExtLib Require Import
 
 From ITree Require Import
      Basics.Basics
-     Core.Subevent
-     Interp.Interp.
+     Core.Subevent.
+     (* Interp.Interp. *)
 
 From CTree Require Import
      CTreeDefinitions
-     CTree.
+     CTree
+     Interp.
 
 Import CTreeNotations.
 Open Scope ctree_scope.
@@ -110,7 +111,7 @@ Proof.
   left. intros. apply trans_brD_inv in H as []. inv_trans. subst. constructor.
 Qed.
 
-Lemma is_simple_brD : forall {E C X} `{Stuck: B0 -< C} `{Tau: B1 -< C} (n: C X) (k : X -> ctree E C X) x,
+Lemma is_simple_brD : forall {E C X Y} `{Stuck: B0 -< C} `{Tau: B1 -< C} (n: C X) (k : X -> ctree E C Y) x,
   is_simple (BrD n k) -> is_simple (k x).
 Proof.
   intros. destruct H.
@@ -138,11 +139,13 @@ Proof.
   - pose (T0Id (go y) (go y0)). cbn in t0. apply t0.
     rewrite <- H0, <- H1, H. reflexivity.
   - destruct H. step in H. inv H. invert.
+    cbn in H2; subst.
+    econstructor.
     apply IHtrans0_.
     + constructor.
-      rewrite <- !ctree_eta. cbn in H2. Fail apply REL. admit.
+      rewrite <- !ctree_eta. apply REL.
     + apply H0.
-Admitted.
+Qed.
 
 #[global] Instance trans0_equ_' {E C X} :
   Proper (going (equ eq) ==> going (equ eq) ==> flip impl) (@trans0_ E C X).
@@ -178,15 +181,15 @@ Proof.
   - intros. subst. eapply T0Br. eapply IHtrans0_. reflexivity.
 Qed.
 
-Lemma trans0_interpE : forall {E C F X} `{Tau: B1 -< C} `{Stuck: B0 -< C}
+Lemma trans0_interp : forall {E C F X} `{Tau: B1 -< C} `{Stuck: B0 -< C}
                         (h : E ~> ctree F C) (t t' : ctree E C X),
-  trans0 t t' -> trans0 (interpE h t) (interpE h t').
+  trans0 t t' -> trans0 (interp h t) (interp h t').
 Proof.
   intros. red in H. setoid_rewrite (ctree_eta t). setoid_rewrite (ctree_eta t').
   genobs t ot. genobs t' ot'. clear t Heqot t' Heqot'.
   induction H.
   - constructor. rewrite H. reflexivity.
-  - rewrite unfold_interpE. cbn. setoid_rewrite bind_br.
+  - rewrite unfold_interp. cbn. setoid_rewrite bind_br.
     apply T0Br with (x := x). rewrite bind_ret_l.
     simpl. eapply T0Br with (x:=tt). apply IHtrans0_.
 Qed.
@@ -234,12 +237,12 @@ Proof.
     + rewrite br0_always_stuck. etrans.
 Qed.
 
-Lemma interpE_productive {E C F X}  `{Stuck: B0 -< C} `{Tau: B1 -< C} (h : E ~> ctree F C) : forall (t : ctree E C X),
-  productive (interpE h t) -> productive t.
+Lemma interp_productive {E C F X}  `{Stuck: B0 -< C} `{Tau: B1 -< C} (h : E ~> ctree F C) : forall (t : ctree E C X),
+  productive (interp h t) -> productive t.
 Proof.
   intros. inversion H;
     subst;
-    rewrite unfold_interpE in EQ;
+    rewrite unfold_interp in EQ;
     rewrite (ctree_eta t);
     destruct (observe t) eqn:?;
     (try destruct vis);
@@ -316,8 +319,8 @@ Inductive transi {E C F X} `{Stuck: B0 -< C} `{Tau: B1 -< C} (h : E ~> ctree F C
     trans (val x) (h _ e) stuckD ->
     transi h l t t''.
 
-Lemma transi_brD {E C F X} `{Stuck: B0 -< C} `{Tau: B1 -< C} (h : E ~> ctree F C) :
-  forall l (t' : ctree E C X) (c: C X) (k: X -> ctree E C X) (x: X),
+Lemma transi_brD {E C F X Y} `{Stuck: B0 -< C} `{Tau: B1 -< C} (h : E ~> ctree F C) :
+  forall l (t' : ctree E C X) (c: C Y) (k: Y -> ctree E C X) (x: Y),
   transi h l (k x) t' -> transi h l (BrD c k) t'.
 Proof.
   intros. inv H.
@@ -354,11 +357,10 @@ Proof.
   genobs t ot. genobs t' ot'. clear t Heqot. clear t' Heqot'.
   revert l t'' H0. induction H; intros.
   - rewrite H. apply H0.
-  - (* LEF: Type error by introducing C *)
-    Fail (eapply transi_brD; setoid_rewrite <- ctree_eta in IHtrans0_;
-          eapply transi_brD; apply IHtrans0_; apply H0).
-    admit.
-Admitted.
+  - eapply transi_brD.
+    setoid_rewrite <- ctree_eta in IHtrans0_.
+    apply IHtrans0_; apply H0.
+Qed.
 
 Lemma transi_sbisim {E C F X}  `{Stuck: B0 -< C} `{Tau: B1 -< C} (h : E ~> ctree F C) :
   forall l (t t' u : ctree E C X), transi h l t t' ->
@@ -378,138 +380,160 @@ Proof.
     eexists. split. eapply transi_obs0; eauto. apply H4.
 Qed.
 
-Lemma transi_trans {E C F X}  `{Stuck: B0 -< C} `{Tau: B1 -< C} (h : E ~> ctree F C)
+(* TODO move *)
+#[global] Instance equ_Guard:
+  forall {E B : Type -> Type} {R : Type} `{B1 -< B},
+    Proper (equ eq ==> equ eq) (@Guard E B R _).
+Proof.
+  repeat intro.
+  unfold Guard; now setoid_rewrite H0.
+Qed.
+
+Lemma void_unit_elim : @eq Type void unit -> False.
+Proof.
+  intros abs.
+  assert (forall x : unit, False) by (rewrite <- abs; intros []).
+  apply (H tt).
+Qed.
+
+Lemma transi_trans {E C F X} {Stuck: B0 -< C} {Tau: B1 -< C} (h : E ~> ctree F C)
       (Hh : forall X e, vsimple (h X e)) :
   forall l (t t' : ctree E C X),
-  transi h l t t' -> exists t0, trans l (interpE h t) t0 /\ t0_det t0 (interpE h t').
+  transi h l t t' -> exists t0, trans l (interp h t) t0 /\ t0_det t0 (interp h t').
 Proof.
   intros. induction H.
   - exists stuckD. apply trans_val_inv in H as ?.
     apply trans_val_trans0 in H as [].
-    eapply trans0_interpE in H. rewrite interpE_ret in H. setoid_rewrite H0.
-    setoid_rewrite interpE_br. setoid_rewrite bind_br. setoid_rewrite br0_always_stuck.
+    eapply trans0_interp in H. rewrite interp_ret in H. setoid_rewrite H0.
+    setoid_rewrite interp_br. setoid_rewrite bind_br. setoid_rewrite br0_always_stuck.
     eapply trans0_trans in H; etrans. split; etrans. now left.
-  - exists (Guard (interpE h t')). split; [| eright; eauto; now left ].
+  - exists (Guard (interp h t')). split; [| eright; eauto; now left ].
     apply trans_tau_trans0 in H as (? & ? & ? & ? & ? & ?).
-    eapply trans0_interpE in H.
+    eapply trans0_interp in H.
+    rewrite H0.
     eapply trans0_trans; etrans.
-    setoid_rewrite interpE_br. setoid_rewrite bind_br. setoid_rewrite bind_ret_l.
-    econstructor.
-    (* LEF: Why does this timeout *)
-    (* now setoid_rewrite <- H0. *)
-    admit.
-  - exists (x <- t'';; Guard (interpE h t')).
+    setoid_rewrite interp_br. setoid_rewrite bind_br. setoid_rewrite bind_ret_l.
+    econstructor. reflexivity.
+  - exists (x <- t'';; Guard (interp h t')).
     split. 2: { eapply t0_det_bind_ret_l; eauto. eright; eauto. now left. }
     apply trans_obs_trans0 in H as (? & ? & ?).
-    eapply trans0_interpE in H. eapply trans0_trans; etrans.
-    setoid_rewrite interpE_vis.
-    eapply trans_bind_l with (k := fun x => Guard (interpE h (x0 x))) in H1.
+    eapply trans0_interp in H. eapply trans0_trans; etrans.
+    setoid_rewrite interp_vis.
+    eapply trans_bind_l with (k := fun x => Guard (interp h (x0 x))) in H1.
     setoid_rewrite t0_det_bind_ret_l_equ in H1 at 2; eauto.
-    (* LEF: Why does this timeout *)
-    (* now setoid_rewrite H2. *)
-    admit.
-    { intro. inv H3. apply trans_val_inv in H1. rewrite H1 in H0. inv H0. step in H3. inv H3. step in H4. inv H3. }
+    now setoid_rewrite H2.
+    { intro. inv H3. apply trans_val_inv in H1. rewrite H1 in H0. inv H0. step in H3. inv H3. step in H4.
+      cbn in H4.
+      inv H4.
+      now apply void_unit_elim.
+    }
   - destruct IHtransi as (? & ? & ?).
     destruct (Hh Y e). 2: { destruct H4. rewrite H4 in H1. apply trans_vis_inv in H1 as (? & ? & ?). step in H1. inv H1. }
     destruct H4. rewrite H4 in H1. inv_trans. subst.
     exists x0. split. 2: auto.
-    apply trans_obs_trans0 in H as (? & ? & ?). eapply trans0_interpE in H.
-    setoid_rewrite interpE_vis in H. setoid_rewrite H4 in H. setoid_rewrite bind_ret_l in H.
+    apply trans_obs_trans0 in H as (? & ? & ?). eapply trans0_interp in H.
+    setoid_rewrite interp_vis in H. setoid_rewrite H4 in H. setoid_rewrite bind_ret_l in H.
     eapply trans0_trans; etrans. setoid_rewrite <- H1. etrans.
 Qed.
 
-(** Various lemmas for the proof that interpE preserves sbisim in some cases. *)
-Lemma interpE_ret_inv {E F X} (h : E ~> ctree F) : forall (t : ctree E X) r,
-  interpE h t ≅ Ret r -> t ≅ Ret r.
+(** Various lemmas for the proof that interp preserves sbisim in some cases. *)
+Lemma interp_ret_inv {E F B X} {Tau: B1 -< B} (h : E ~> ctree F B) :
+  forall (t : ctree E B X) r,
+  interp h t ≅ Ret r -> t ≅ Ret r.
 Proof.
   intros. setoid_rewrite (ctree_eta t) in H. setoid_rewrite (ctree_eta t).
   destruct (observe t) eqn:?.
-  - rewrite interpE_ret in H. step in H. inv H. reflexivity.
-  - rewrite interpE_vis in H. apply ret_equ_bind in H as (? & ? & ?). step in H0. inv H0.
-  - rewrite interpE_br in H. setoid_rewrite bind_br in H. step in H. inv H.
+  - rewrite interp_ret in H. step in H. inv H. reflexivity.
+  - rewrite interp_vis in H. apply ret_equ_bind in H as (? & ? & ?). step in H0. inv H0.
+  - rewrite interp_br in H. setoid_rewrite bind_br in H. step in H. inv H.
 Qed.
 
-Lemma bind_tau_r {E X Y} : forall (t : ctree E X) (k : X -> ctree E Y),
+Lemma bind_tau_r {E B X Y} {Tau: B1 -< B} : forall (t : ctree E B X) (k : X -> ctree E B Y),
   x <- t;; Guard (k x) ≅ x <- (x <- t;; Guard (Ret x));; k x.
 Proof.
-  intros. rewrite bind_bind. upto_bind_eq. rewrite bind_Guard. setoid_rewrite bind_ret_l. reflexivity.
+  intros. rewrite bind_bind. upto_bind_eq. rewrite bind_guard. setoid_rewrite bind_ret_l. reflexivity.
 Qed.
 
-Lemma trans_interpE_inv_gen {E F X Y} (h : E ~> ctree F) (Hh : forall X e, vsimple (h X e)) :
-  forall l (k : Y -> ctree E X) t' (pre : ctree F Y),
+Lemma trans_interp_inv_gen {E F B X Y} {Stuck: B0 -< B} {Tau: B1 -< B}
+  (h : E ~> ctree F B) (Hh : forall X e, vsimple (h X e)) :
+  forall l (k : Y -> ctree E B X) t' (pre : ctree F B Y),
   is_simple pre ->
-  trans l (x <- pre;; interpE h (k x)) t' ->
-  exists t0, t0_det t' (interpE h t0) /\
+  trans l (x <- pre;; interp h (k x)) t' ->
+  exists t0, t0_det t' (interp h t0) /\
     ((exists l t1 x, trans l pre t1 /\ t0_det t1 (Ret x) /\ t0 ≅ k x) \/
-    exists x, trans (val x) pre CTree.stuckD /\ trans l (interpE h (k x)) t' /\ transi h l (k x) t0).
+    exists x, trans (val x) pre stuckD /\ trans l (interp h (k x)) t' /\ transi h l (k x) t0).
 Proof.
   intros * Hpre H.
-  do 3 red in H. remember (observe (x <- pre;; interpE h (k x))) as oi.
+  do 3 red in H. remember (observe (x <- pre;; interp h (k x))) as oi.
   setoid_rewrite (ctree_eta t') at 1.
   setoid_rewrite (ctree_eta t') at 2.
   genobs t' ot'. clear t' Heqot'.
-  assert (go oi ≅ x <- pre;; interpE h (k x)).
+  assert (go oi ≅ x <- pre;; interp h (k x)).
   { rewrite Heqoi, <- ctree_eta. reflexivity. } clear Heqoi.
   revert Y k pre Hpre H0. induction H; intros.
   - (*apply Stepbr in H as ?.
     change (BrDF n k) with (observe (BrD n k)) in H1. rewrite H0 in H1.
        change t with (observe (go t)) in H1. rewrite trans__trans in H1.*)
-    destruct n. now apply Fin.case0.
+    (* destruct n. now apply Fin.case0. *)
     symmetry in H0. apply br_equ_bind in H0 as ?.
     destruct H1 as [[] | (? & ? & ?)].
     + rewrite H1 in H0. rewrite bind_ret_l in H0. setoid_rewrite H1. clear pre Hpre H1.
       rewrite (ctree_eta (k0 x0)) in H0. destruct (observe (k0 x0)) eqn:?.
-      * rewrite interpE_ret in H0. step in H0. inv H0.
-      * rewrite interpE_vis in H0. apply br_equ_bind in H0 as ?. destruct H1 as [[] | (? & ? & ?)].
+      * rewrite interp_ret in H0. step in H0. inv H0.
+      * rewrite interp_vis in H0. apply br_equ_bind in H0 as ?. destruct H1 as [[] | (? & ? & ?)].
         --rewrite H1, bind_ret_l in H0.
-          apply equ_br_invT in H0 as ?. destruct H2 as [? _]. apply eq_add_S in H2 as <-.
-          simple apply equ_br_invE with (x := x) in H0.
+          apply equ_br_invT in H0 as ?. destruct H2 as [? _].
+          subst.
+          eapply equ_br_invE in H0 as [<- ?].
           rewrite <- H0 in H.
           specialize (IHtrans_ _ (fun (_ : unit) => k1 x1) (Ret tt)).
           edestruct IHtrans_. { apply is_simple_ret. } { rewrite <- ctree_eta, bind_ret_l, H0. reflexivity. }
           destruct H2. exists x2. split; auto. right. destruct H3.
           { destruct H3 as (? & ? & ? & ? & ? & ?). inv_trans. subst.
-            inv H4. step in H3. inv H3. step in H6. inv H6. }
+            inv H4. step in H3. inv H3. step in H6. inv H6.
+            exfalso; now apply void_unit_elim.
+          }
           destruct H3 as (_ & _ & ? & ?). exists x0. split. etrans. split.
-          ++setoid_rewrite (ctree_eta (k0 x0)). rewrite Heqc.
-            setoid_rewrite interpE_vis. setoid_rewrite H1. setoid_rewrite bind_ret_l. apply trans_guard. apply H3.
-          ++setoid_rewrite (ctree_eta (k0 x0)). rewrite Heqc.
+          ++ setoid_rewrite (ctree_eta (k0 x0)). rewrite Heqc0.
+             setoid_rewrite interp_vis. setoid_rewrite H1. setoid_rewrite bind_ret_l. apply trans_guard. apply H3.
+          ++setoid_rewrite (ctree_eta (k0 x0)). rewrite Heqc0.
             eapply transi_obs0; etrans. rewrite H1. etrans.
-        --destruct (Hh X0 e).
+        --destruct (Hh _ e).
           destruct H3. rewrite H3 in H1. step in H1. inv H1.
           destruct H3. rewrite H3 in H1. step in H1. inv H1.
-      * rewrite interpE_br in H0. setoid_rewrite bind_br in H0. setoid_rewrite bind_ret_l in H0.
+      * rewrite interp_br in H0. setoid_rewrite bind_br in H0. setoid_rewrite bind_ret_l in H0.
         apply equ_br_invT in H0 as ?. destruct H1 as [-> ->].
-        simple apply equ_br_invE with (x := x) in H0 as ?.
+        apply equ_br_invE in H0 as [<- ?].
         specialize (IHtrans_ _ (fun _ : unit => k1 x) (Guard (Ret tt))).
         edestruct IHtrans_ as (? & ? & ?).
         { apply is_simple_guard_ret. }
-        { rewrite <- ctree_eta. setoid_rewrite bind_br. setoid_rewrite bind_ret_l. now rewrite H1. }
-        destruct H3.
-        { destruct H3 as (? & ? & ? & ? & ? & ?). inv_trans. subst.
-          inv H4. step in H3. inv H3. step in H5. inv H5. }
-        destruct H3 as (? & ? & ? & ?).
+        { rewrite <- ctree_eta. setoid_rewrite bind_br. setoid_rewrite bind_ret_l. unfold Guard in H0. now rewrite H0. }
+        destruct H2.
+        { destruct H2 as (? & ? & ? & ? & ? & ?). inv_trans. subst.
+          inv H3. step in H2. inv H2. step in H4. inv H4.
+          exfalso; now apply void_unit_elim.
+        }
+        destruct H2 as (? & ? & ? & ?).
         exists x1. split; auto. right. exists x0. split; etrans. split.
-        rewrite (ctree_eta (k0 x0)), Heqc, interpE_br. setoid_rewrite bind_br. setoid_rewrite bind_ret_l.
-        eapply trans_brD. 2: reflexivity. apply trans_guard. apply H4.
-        rewrite (ctree_eta (k0 x0)), Heqc. eapply transi_brD; etrans.
+        rewrite (ctree_eta (k0 x0)), Heqc0, interp_br. setoid_rewrite bind_br. setoid_rewrite bind_ret_l.
+        eapply trans_brD. 2: reflexivity. apply trans_guard. apply H3.
+        rewrite (ctree_eta (k0 x0)), Heqc0. eapply transi_brD; etrans.
     + specialize (IHtrans_ _ k0 (x0 x)).
       edestruct IHtrans_ as (? & ? & ?).
-      { apply is_simple_brD. red. setoid_rewrite <- H1. apply Hpre. }
+      { eapply is_simple_brD. red. setoid_rewrite <- H1. apply Hpre. }
       rewrite <- ctree_eta. apply H2. destruct H4 as [(? & ? & ? & ? & ? & ?) | (? & ? & ? & ?)].
       * (*setoid_rewrite H5 in H3. clear x1 H5.*)
         exists (k0 x4). split. { now rewrite H6 in H3. }
         left. eapply trans_brD in H4. 2: reflexivity. rewrite <- H1 in H4. eauto 6.
       * exists x1. split; auto. right. exists x2. rewrite H1. etrans.
-  - destruct n. now apply Fin.case0.
-    symmetry in H0. apply br_equ_bind in H0 as ?. destruct H1 as [[] | (? & ? & ?)].
+  - symmetry in H0. apply br_equ_bind in H0 as ?. destruct H1 as [[] | (? & ? & ?)].
     + rewrite H1 in H0. rewrite bind_ret_l in H0.
       rewrite (ctree_eta (k0 x0)) in H0. destruct (observe (k0 x0)) eqn:?.
-      * rewrite interpE_ret in H0. step in H0. inv H0.
-      * rewrite interpE_vis in H0. apply br_equ_bind in H0 as ?.
+      * rewrite interp_ret in H0. step in H0. inv H0.
+      * rewrite interp_vis in H0. apply br_equ_bind in H0 as ?.
         destruct H2 as [[] | (? & ? & ?)].
         { rewrite H2, bind_ret_l in H0. step in H0. inv H0. }
-        pose proof (trans_brS x1 x). rewrite <- H2 in H4.
+        pose proof (trans_brS c x1 x). rewrite <- H2 in H4.
         edestruct Hh. { destruct H5. rewrite H5 in H4. inv_trans. }
         destruct H5. rewrite H5 in H4. apply trans_vis_inv in H4 as (? & ? & ?). discriminate.
         (*--specialize (H3 x).
@@ -522,17 +546,19 @@ Proof.
           { setoid_rewrite interpE_vis. setoid_rewrite H2. setoid_rewrite bind_br.
             econstructor. rewrite <- ctree_eta, H3. reflexivity. }
           eapply transi_vis; eauto. rewrite H2. etrans.*)
-      * rewrite interpE_br in H0. setoid_rewrite bind_br in H0.
+      * rewrite interp_br in H0. setoid_rewrite bind_br in H0.
         apply equ_br_invT in H0 as ?. destruct H2 as [-> ->].
-        simple eapply equ_br_invE in H0 as ?. rewrite bind_ret_l in H2. rewrite H in H2.
-        exists (k1 x). symmetry in H2. split.
-        { rewrite <- ctree_eta. rewrite H2. eapply t0_det_tau; auto. apply t0_det_id; auto. }
+        simple eapply equ_br_invE in H0 as [<- ?].
+        specialize (H0 x).
+        rewrite bind_ret_l,H in H0.
+        exists (k1 x). symmetry in H0. split.
+        { rewrite <- ctree_eta. rewrite H0. eapply t0_det_tau; auto. apply t0_det_id; auto. }
         right. exists x0. rewrite H1. split; etrans.
-        setoid_rewrite (ctree_eta (k0 x0)). setoid_rewrite Heqc. split.
-        { setoid_rewrite interpE_br. rewrite H2. setoid_rewrite bind_br. setoid_rewrite bind_ret_l.
+        setoid_rewrite (ctree_eta (k0 x0)). setoid_rewrite Heqc0. split.
+        { setoid_rewrite interp_br. rewrite H0. setoid_rewrite bind_br. setoid_rewrite bind_ret_l.
           econstructor. now rewrite <- ctree_eta. }
         econstructor; etrans.
-    + pose proof (trans_brS x0 x).
+    + pose proof (trans_brS c x0 x).
       rewrite <- H1 in H3. edestruct Hpre.
       { apply H4 in H3. inv H3. }
       apply H4 in H3 as [].
@@ -543,8 +569,8 @@ Proof.
   - symmetry in H0. apply vis_equ_bind in H0 as ?. destruct H1 as [[] | (? & ? & ?)].
     + rewrite H1 in H0. rewrite bind_ret_l in H0.
      rewrite (ctree_eta (k0 x0)) in H0. destruct (observe (k0 x0)) eqn:?.
-      * rewrite interpE_ret in H0. step in H0. inv H0.
-      * rewrite interpE_vis in H0. apply vis_equ_bind in H0 as ?.
+      * rewrite interp_ret in H0. step in H0. inv H0.
+      * rewrite interp_vis in H0. apply vis_equ_bind in H0 as ?.
         destruct H2 as [[] | (? & ? & ?)].
         { rewrite H2, bind_ret_l in H0. step in H0. inv H0. }
         pose proof (trans_vis e x x1). rewrite <- H2 in H4.
@@ -559,10 +585,10 @@ Proof.
         right.
         exists x0. rewrite H1. split; etrans.
         setoid_rewrite (ctree_eta (k0 x0)). setoid_rewrite Heqc. split.
-        { setoid_rewrite interpE_vis. rewrite H5. setoid_rewrite bind_vis.
+        { setoid_rewrite interp_vis. rewrite H5. setoid_rewrite bind_vis.
           econstructor. rewrite bind_ret_l. rewrite <- H3, <- ctree_eta. reflexivity. }
         eapply transi_obs; etrans. 2: { rewrite H5. etrans. } now left.
-      * rewrite interpE_br in H0. setoid_rewrite bind_br in H0.
+      * rewrite interp_br in H0. setoid_rewrite bind_br in H0.
         step in H0. inv H0.
     + pose proof (trans_vis e x x0).
       rewrite <- H1 in H3. edestruct Hpre.
@@ -572,37 +598,42 @@ Proof.
       exists (k0 x1). rewrite H in H2. split.
       { rewrite <- ctree_eta, H2. eapply t0_det_bind_ret_l; eauto. now left. }
       left. exists (obs e x), (x0 x), x1. split; auto. rewrite H1. etrans.
-     - exists (CTree.stuckD). split.
+     - exists (stuckD). split.
        + left.
-         setoid_rewrite interpE_br. setoid_rewrite bind_br. rewrite !br0_always_stuck. reflexivity.
+         setoid_rewrite interp_br. setoid_rewrite bind_br.
+         rewrite !br0_always_stuck.
+         step. constructor; intros [].
        + right. symmetry in H0. apply ret_equ_bind in H0 as (? & ? & ?).
          exists x. rewrite H. split; etrans. split.
          rewrite H0. rewrite br0_always_stuck. etrans.
-         apply interpE_ret_inv in H0. rewrite H0. constructor; etrans.
+         apply interp_ret_inv in H0. rewrite H0. constructor; etrans.
 Qed.
 
-Lemma trans_interpE_inv {E F X} (h : E ~> ctree F) (Hh : forall X e, vsimple (h X e)) :
-  forall l (t : ctree E X) t',
-  trans l (interpE h t) t' ->
-  exists l t0, t0_det t' (interpE h t0) /\ transi h l t t0.
+Lemma trans_interpE_inv {E F B X} {Stuck: B0 -< B} {Tau: B1 -< B}
+  (h : E ~> ctree F B) (Hh : forall X e, vsimple (h X e)) :
+  forall l (t : ctree E B X) t',
+  trans l (interp h t) t' ->
+  exists l t0, t0_det t' (interp h t0) /\ transi h l t t0.
 Proof.
   intros.
-   assert (trans l (Guard (Ret tt);; interpE h t) t').
+   assert (trans l (Guard (Ret tt);; interp h t) t').
    { etrans. }
-  eapply trans_interpE_inv_gen in H0; eauto. destruct H0 as (? & ? & ?).
+  eapply trans_interp_inv_gen in H0; eauto. destruct H0 as (? & ? & ?).
   destruct H1 as [(? & ? & ? & ? & ? & ?) | (? & ? & ? & ?)].
   - inv_trans. subst. inv H2. step in H1. inv H1. step in H3. inv H3.
+    exfalso; now apply void_unit_elim.
   - inv_trans. subst. eauto.
   - left. intros. inv_trans. subst. constructor.
 Qed.
 
-(** The main theorem stating that interpE preserves sbisim. *)
-Theorem interpE_sbisim_gen {E F X Y} (h : E ~> ctree F) (Hh : forall X e, vsimple (h X e)) :
-  forall (k k' : X -> ctree E Y) (pre pre' : ctree F X),
-  (forall x, sbisim (k x) (k' x)) ->
+(** The main theorem stating that interp preserves sbisim. *)
+Theorem interp_sbisim_gen {E F B X Y} {Stuck: B0 -< B} {Tau: B1 -< B}
+  (h : E ~> ctree F B) (Hh : forall X e, vsimple (h X e)) :
+  forall (k k' : X -> ctree E B Y) (pre pre' : ctree F B X),
+  (forall x, sbisim eq (k x) (k' x)) ->
   pre ≅ pre' ->
   vsimple pre ->
-  sbisim (a <- pre;; Guard (interpE h (k a))) (a <- pre';; Guard (interpE h (k' a))).
+  sbisim eq (a <- pre;; Guard (interp h (k a))) (a <- pre';; Guard (interp h (k' a))).
 Proof.
   revert X. coinduction R CH.
   symmetric using idtac.
