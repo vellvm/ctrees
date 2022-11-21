@@ -25,37 +25,40 @@ From CTree.Eq Require Export
 
 From CTree Require Export CTree.
 
-(* Export CTreeNotations. *)
+(* Export CTreeNotations.
+   Exporting everything right now, probably completely unreasonable.
+ *)
 Export EquNotations.
 Export SBisimNotations.
+Export SSimNotations.
+Export CSSimNotations.
 
 (*|
 The [step], [step in] and [coinduction] tactics from [coinduction]
  with additional unfolding and refolding of [equ] and [sbisim]
 |*)
 #[global] Tactic Notation "step" :=
-  __step_equ || __step_sbisim || step.
+  __step_equ || __step_sbisim || __step_ssim || __step_cssim || step.
 
 #[global] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
-  __coinduction_equ R H || __coinduction_sbisim R H || coinduction R H.
+  __coinduction_equ R H || __coinduction_sbisim R H || __coinduction_ssim R H || __coinduction_cssim R H || coinduction R H.
 
 #[global] Tactic Notation "step" "in" ident(H) :=
-  __step_in_equ H || __step_in_sbisim H || step_in H.
+  __step_in_equ H || __step_in_sbisim H || __step_in_ssim H || __step_in_cssim H || step_in H.
 
 (*|
 Assuming a goal of the shape [t ~ u], initialize the two challenges
 |*)
-#[global] Tactic Notation "play" := __play_sbisim || __play_cssim.
-
+#[global] Tactic Notation "play" := __play_sbisim || __play_ssim || __play_cssim.
 
 (*|
 Assuming an hypothesis of the shape [t ~ u], extract the forward (playL)
 or backward (playR) challenge --- the e-versions looks for the hypothesis
 |*)
-#[global] Tactic Notation "play" "in" ident(H) := __play_cssim_in H.
+#[global] Tactic Notation "play" "in" ident(H) := __play_ssim_in H || __play_cssim_in H.
 #[global] Tactic Notation "playL" "in" ident(H) := __playL_sbisim H.
 #[global] Tactic Notation "playR" "in" ident(H) := __playR_sbisim H.
-#[global] Tactic Notation "eplay" := __eplay_cssim.
+#[global] Tactic Notation "eplay" := __eplay_ssim || __eplay_cssim.
 #[global] Tactic Notation "eplayL" := __eplayL_sbisim.
 #[global] Tactic Notation "eplayR" := __eplayR_sbisim.
 
@@ -75,10 +78,10 @@ are identical: assumes [reflexivity] will solve the first goal, and proceed to s
 - [upto_bind with SS]: for [equ], provides explicitly the intermediate relation
 |*)
 #[global] Tactic Notation "upto_bind" :=
-  __eupto_bind_equ || __upto_bind_sbisim || __upto_bind_cssim.
+  __eupto_bind_equ || __upto_bind_sbisim || __upto_bind_ssim || __upto_bind_cssim.
 
 #[global] Tactic Notation "upto_bind_eq" :=
-  __upto_bind_eq_equ || __upto_bind_eq_sbisim || __upto_bind_eq_cssim.
+  __upto_bind_eq_equ || __upto_bind_eq_sbisim || __upto_bind_eq_ssim || __upto_bind_eq_cssim.
 
 #[global] Tactic Notation "upto_bind" "with" uconstr(SS) :=
   __upto_bind_equ SS.
