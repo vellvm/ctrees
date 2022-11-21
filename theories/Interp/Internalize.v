@@ -21,7 +21,7 @@ Section Internalize.
             end.
 
   Definition internalize : ctree (ExtChoice +' E) C ~> ctree E (C +' ExtChoice) :=
-    interpE internalize_h'.
+    interp internalize_h'.
 
   Lemma internalize_ret {R} (r : R) : internalize (Ret r) ≅ Ret r.
   Proof.

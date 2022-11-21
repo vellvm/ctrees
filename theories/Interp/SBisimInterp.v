@@ -10,7 +10,6 @@ From ExtLib Require Import
 From ITree Require Import
      Basics.Basics
      Core.Subevent.
-     (* Interp.Interp. *)
 
 From CTree Require Import
      CTreeDefinitions
