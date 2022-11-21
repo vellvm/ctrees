@@ -453,7 +453,7 @@ Ltac __upto_bind_ssim :=
   | |- body (t (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
       apply (ft_t (@bind_ctx_ssim_t E F C D T X T' Y _ L)), in_bind_ctx
   | |- body (bt (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
-      apply (fbt_bt (@bind_ctx_ssim_t E F C D T X T' Y _ L)), in_bind_ctx
+      apply (fbt_bt (@bind_ctx_ssim_t E F C D T X T' Y _ _ L _)), in_bind_ctx
   end.
 
 Ltac __upto_bind_eq_ssim :=
