@@ -9,7 +9,7 @@ Import Basics.Monads.
 
 From CTree Require Import
      CTree
-     Interp.Interp
+     Fold
      Eq.
 
 Import SBisimNotations.

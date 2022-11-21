@@ -9,7 +9,9 @@ From ITree Require Import
      Core.Subevent.
 
 From CTree Require Import
-     CTree Eq Interp.
+  CTree
+  Eq
+  Fold.
 
 Import CTreeNotations.
 Open Scope ctree_scope.

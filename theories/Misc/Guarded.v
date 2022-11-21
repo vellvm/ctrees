@@ -5,8 +5,7 @@ From ExtLib Require Import
 From CTree Require Import
      CTree
      Eq
-     Interp.Interp
-     Interp.State.
+     Interp.Fold.
 
 Import MonadNotation.
 Open Scope monad_scope.

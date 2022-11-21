@@ -1,7 +1,7 @@
 From Paco Require Import paco.
 
 From CTree Require Import
-	   CTree Eq Interp.Internalize.
+	   CTree Eq Interp.Internalize Interp.FoldCTree.
 
 (* Universe issue, TO FIX *)
 Unset Universe Checking.
@@ -82,7 +82,7 @@ Proof.
 	coinduction r CIH.
 	intros t u bisim. unfold embed, embed', internalize.
   rewrite 2 unfold_interp_ctree.
-  rewrite 2 Interp.unfold_interp.
+  rewrite 2 FoldCTree.unfold_interp.
 	punfold bisim.
 	inv bisim; pclearbot; try easy.
 	- cbn*.
@@ -94,7 +94,7 @@ Proof.
 	- cbn.
     upto_bind_eq.
     constructor; intros ?.
-    rewrite 2 Interp.unfold_interp.
+    rewrite 2 FoldCTree.unfold_interp.
     cbn.
     step; cbn*.
     constructor; intros ?.
@@ -137,7 +137,7 @@ Notation embed_ t :=
 Lemma unfold_embed {E C X} (t : itree (C +' E) X) : (embed t ≅ embed_ t)%ctree.
 Proof.
   unfold embed, embed', internalize at 1.
-  rewrite unfold_interp_ctree, Interp.unfold_interp.
+  rewrite unfold_interp_ctree, FoldCTree.unfold_interp.
   cbn.
   destruct (iobserve t) eqn:EQ; cbn; auto.
   - step; cbn.
@@ -151,7 +151,7 @@ Proof.
       step; cbn; constructor; intros ?.
       rewrite Equ.bind_ret_l.
       step; cbn; constructor; intros ?.
-      rewrite Interp.unfold_interp; cbn.
+      rewrite FoldCTree.unfold_interp; cbn.
       rewrite Equ.unfold_bind at 1.
       step; cbn; constructor; intros ?.
       rewrite Equ.bind_ret_l.
@@ -163,7 +163,7 @@ Proof.
       step; cbn; constructor; intros ?.
       rewrite Equ.bind_ret_l.
       step; cbn; constructor; intros ?.
-      rewrite Interp.unfold_interp; cbn.
+      rewrite FoldCTree.unfold_interp; cbn.
       rewrite Equ.unfold_bind at 1.
       step; cbn; constructor; intros ?.
       rewrite Equ.bind_ret_l.
@@ -268,6 +268,7 @@ Proof.
     + step in EQ; rewrite <- x0 in EQ; inv EQ.
 Qed.
 
+(* TODO THIS IS REDUNDANT WITH THE DEF IN FOLDCTREE! *)
 Inductive productive {E X} : itree E X -> Prop :=
 | prod_ret {r t} (EQ: eq_itree eq t (Ret r)) : productive t
 | prod_vis {Y} {e : E Y} {k t} (EQ: eq_itree eq t (Vis e k)) : productive t
