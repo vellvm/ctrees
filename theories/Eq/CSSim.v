@@ -474,6 +474,7 @@ Proof.
   intros; eapply csst_clo_bind; red in H2; eauto.
 Qed.
 
+(* TODO: This has been specialized to [eq] rather than any [L] respecting [val] as in the other cases, it should be regeneralized. *)
 (*|
 Ltac automation rule for [bind] and [cssim]
 |*)

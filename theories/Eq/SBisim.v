@@ -535,7 +535,7 @@ We now prove the same result, but for strong and weak bisimulation.
 Section bind.
   Obligation Tactic := trivial.
   Arguments label: clear implicits.
-  Context {E F C D: Type -> Type} {X Y X' Y': Type}
+  Context {E F C D: Type -> Type} {X X' Y Y': Type}
           `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
           {L: rel (label E) (label F)}.
 
@@ -617,8 +617,6 @@ The resulting enhancing function gives a valid up-to technique
 
 End bind.
 
-
-(* LEF: Marker, got to heterogenize everything under here as well... *)
 Import CTree.
 Import CTreeNotations.
 Import EquNotations.
@@ -635,7 +633,7 @@ Lemma st_clo_bind {E F C D: Type -> Type} {X Y X' Y'} `{HasStuck:B0 -< C} `{HasS
   st L RR (t1 >>= k1) (t2 >>= k2).
 Proof.
   intros ? ?.
-  apply (ft_t (@bind_ctx_sbisim_t E F C D X Y X' Y' _ _ L RV)).
+  apply (ft_t (@bind_ctx_sbisim_t E F C D X X' Y Y' _ _ L RV)).
   apply in_bind_ctx; auto.
   intros ? ? ?; auto.
 Qed.
@@ -652,7 +650,7 @@ Lemma sbisim_clo_bind {E F C D: Type -> Type} {X Y X' Y'} `{HasStuck: B0 -< C} `
   t1 >>= k1 (~ L) t2 >>= k2.
 Proof.
   intros * EQ EQs.
-  apply (ft_t (@bind_ctx_sbisim_t E F C D X Y X' Y' _ _ L RV)).
+  apply (ft_t (@bind_ctx_sbisim_t E F C D X X' Y Y' _ _ L RV)).
   apply in_bind_ctx; auto.
   intros ? ? ?; auto.
   apply EQs.
@@ -674,10 +672,10 @@ Ltac __upto_bind_sbisim :=
               (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) => apply sbisim_clo_bind
   | |- body (t (@sb ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R
            (CTree.bind (T := ?X') _ _) (CTree.bind (T := ?Y') _ _) =>
-      apply (ft_t (@bind_ctx_sbisim_t E F C D X Y X' Y' _ _ L)), in_bind_ctx
+      apply (ft_t (@bind_ctx_sbisim_t E F C D X' X Y' Y _ _ L _)), in_bind_ctx
   | |- body (bt (@sb ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R
            (CTree.bind (T := ?X') _ _) (CTree.bind (T := ?Y') _ _) =>
-      apply (fbt_bt (@bind_ctx_sbisim_t E F C D X Y X' Y' _ _ L)), in_bind_ctx
+      apply (fbt_bt (@bind_ctx_sbisim_t E F C D X' X Y' Y _ _ L _)), in_bind_ctx
   end.
 
 Ltac __upto_bind_eq_sbisim :=
@@ -685,7 +683,7 @@ Ltac __upto_bind_eq_sbisim :=
   | |- @sbisim ?E ?F ?C ?D ?X ?Y _ _ eq (CTree.bind (T := ?Z) _ _) (CTree.bind (T := ?Z) _ _) =>
       __upto_bind_sbisim; [reflexivity | intros ?]
   | _ =>
-      __upto_bind_sbisim; [reflexivity | intros ? ? <-]
+      __upto_bind_sbisim; [reflexivity | intros ? ? EQl]
   end.
 
 Section Ctx.

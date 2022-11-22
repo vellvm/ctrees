@@ -347,10 +347,10 @@ Section bind.
   Context {E F C D: Type -> Type} {X X' Y Y': Type}
           `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}
           (L : hrel (@label E) (@label F)).
-  (*|
-    Specialization of [bind_ctx] to a function acting with [ssim] on the bound value,
-    and with the argument (pointwise) on the continuation.
-    |*)
+(*|
+Specialization of [bind_ctx] to a function acting with [ssim] on the bound value,
+and with the argument (pointwise) on the continuation.
+|*)
   Program Definition bind_ctx_ssim: mon (rel (ctree E C X') (ctree F D Y')) :=
     {|body := fun R => @bind_ctx E F C D X Y X' Y' (ssim L) (pointwise (fun x y => L (val x) (val y)) R) |}.
   Next Obligation.
@@ -358,9 +358,9 @@ Section bind.
     apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
   Qed.
 
-  (*|
+(*|
     The resulting enhancing function gives a valid up-to technique
-  |*)
+|*)
   Lemma bind_ctx_ssim_t {RV: Respects_val L}:
     bind_ctx_ssim <= (sst L).
   Proof.
@@ -451,7 +451,7 @@ Ltac __upto_bind_ssim :=
     |- @ssim ?E ?F ?C ?D ?X ?Y _ _ ?L (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
       apply ssim_clo_bind
   | |- body (t (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
-      apply (ft_t (@bind_ctx_ssim_t E F C D T X T' Y _ L)), in_bind_ctx
+      apply (ft_t (@bind_ctx_ssim_t E F C D T X T' Y _ _ L _)), in_bind_ctx
   | |- body (bt (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
       apply (fbt_bt (@bind_ctx_ssim_t E F C D T X T' Y _ _ L _)), in_bind_ctx
   end.
@@ -460,7 +460,7 @@ Ltac __upto_bind_eq_ssim :=
   match goal with
   | |- @ssim ?E ?F ?C ?D ?X ?Y _ _ ?L (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
       __upto_bind_ssim; [reflexivity | intros ?]
-  | _ => __upto_bind_ssim; [reflexivity | intros ? ? <-]
+  | _ => __upto_bind_ssim; [reflexivity | intros ? ? ?EQl]
   end.
 
 Ltac __play_ssim := step; cbn; intros ? ? ?TR.
@@ -530,6 +530,7 @@ Section Proof_Rules.
     - assumption.
   Qed.
 
+  (* TODO specialized version pointwise *)
   Lemma step_ss_vis {Y Z F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z)
         (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R L : rel _ _) :
     (forall x, exists y, sst L R (k x) (k' y) /\ L (obs e x) (obs f y)) ->
