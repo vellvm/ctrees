@@ -26,8 +26,8 @@ From Coinduction Require Import
 From CTree Require Import
      CTree
      Eq
-     Interp.Interp
-     Interp.State.
+     Interp.Fold
+     Interp.FoldStateT.
 
 Import ListNotations.
 Import MonadNotation.
@@ -69,7 +69,10 @@ Variant MemE : Type -> Type :=
 | wr (x : var) (v : value) : MemE unit.
 
 Section Semantics.
-  Fixpoint denote_expr (e : expr) : ctree MemE value :=
+
+  Notation computation := (ctree MemE B02).
+
+  Fixpoint denote_expr (e : expr) : computation value :=
     match e with
     | Var v     => trigger (rd v)
     | Lit n     => ret n
@@ -78,12 +81,12 @@ Section Semantics.
     | Mult a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l * r)
     end.
 
-  Definition while (step : ctree MemE (unit + unit)) : ctree MemE unit :=
+  Definition while (step : computation (unit + unit)) : computation unit :=
     CTree.iter (fun _ => step) tt.
 
   Definition is_true (v : value) : bool := if (v =? 0)%nat then false else true.
 
-  Fixpoint denote_imp (s : stmt) : ctree MemE unit :=
+  Fixpoint denote_imp (s : stmt) : computation unit :=
     match s with
     | Assign x e =>  v <- denote_expr e ;; trigger (wr x v)
     | Seq a b    =>  denote_imp a ;; denote_imp b
@@ -101,21 +104,21 @@ Section Semantics.
 
     | Skip => ret tt
 
-    | Block => CTree.stuckD
+    | Block => stuckD
 
     end.
 
   (* list of key value pairs *)
   Definition env := alist var value.
 
-  Definition handle_imp : MemE ~> Monads.stateT env (ctree void1) :=
+  Definition handle_imp : MemE ~> Monads.stateT env (ctree void1 B02) :=
     fun _ e s =>
       match e with
       | rd x => Ret (s, lookup_default x 0 s)
       | wr x v => Ret (Maps.add x v s, tt)
       end.
 
-  Definition interp_imp t : Monads.stateT env (ctree void1) unit :=
+  Definition interp_imp t : Monads.stateT env (ctree void1 B02) unit :=
     interp_state handle_imp t.
 
 End Semantics.
