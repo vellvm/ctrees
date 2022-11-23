@@ -37,14 +37,6 @@ Definition fold {E B M : Type -> Type}
 
 Arguments fold {E B M FM MM IM} h g [T].
 
-(** Unfolding of [fold]. *)
-Notation fold_ h g t :=
-  (match observe t with
-  | RetF r => Ret r
-	| VisF e k => bind (h _ e) (fun x => Guard (fold h g (k x)))
-	| BrF b c k => bind (g b _ c) (fun x => Guard (fold h g (k x)))
-  end)%function.
-
 (** Implementing simultaneously external events while refining
     the internal non-determinism is somewhat uncommon.
     We hence also define two particular case:
@@ -60,27 +52,11 @@ Definition interp {E B M : Type -> Type}
 
 Arguments interp {E B M FM MM IM BM} h [T].
 
-(** Unfolding of [interp]. *)
-Notation interp_ h t :=
-  (match observe t with
-  | RetF r => Ret r
-	| VisF e k => bind (h _ e) (fun x => Guard (interp h (k x)))
-	| BrF b c k => bind (mbr b c) (fun x => Guard (interp h (k x)))
-  end)%function.
-
 Definition refine {E B M : Type -> Type}
   {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {TM : MonadTrigger E M}
   (g : bool -> B ~> M) := fold (fun _ e => mtrigger e) g.
 
 Arguments refine {E B M FM MM IM TM} g [T].
-
-(** Unfolding of [refine]. *)
-Notation refine_ g t :=
-  (match observe t with
-  | RetF r => Ret r
-	| VisF e k => bind (mtrigger e) (fun x => Guard (refine g (k x)))
-	| BrF b c k => bind (g b _ c) (fun x => Guard (refine g (k x)))
-  end)%function.
 
 Definition translateF {E F C R}
   (h : E ~> F)

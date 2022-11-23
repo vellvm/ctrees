@@ -26,9 +26,19 @@ Set Implicit Arguments.
   fun _ e s => v <- mtrigger e;; ret (s, v).
 
 Definition fold_state {E C M} S
-           {FM : Functor M} {MM : Monad M} {IM : MonadIter M}
-           (h : E ~> stateT S M) (h' : bool -> C ~> stateT S M) :
-  ctree E C ~> stateT S M := fold h h'.
+  {FM : Functor M} {MM : Monad M} {IM : MonadIter M}
+  (h : E ~> stateT S M) (g : bool -> C ~> stateT S M) :
+  ctree E C ~> stateT S M := fold h g.
+
+Definition interp_state {E C M} S
+  {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {BM : MonadBr C M}
+  (h : E ~> stateT S M) :
+  ctree E C ~> stateT S M := interp h.
+
+Definition refine_state {E C M} S
+  {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {TM : MonadTrigger E M}
+  (g : bool -> C ~> stateT S M) :
+  ctree E C ~> stateT S M := refine g.
 
 Section State.
   Variable (S : Type).
@@ -58,6 +68,11 @@ Section State.
 
 End State.
 
+Ltac break :=
+  match goal with
+  | v: _ * _ |- _ => destruct v
+  end.
+
 (* Stateful handlers [E ~> stateT S (itree F)] and morphisms
    [E ~> state S] define stateful itree morphisms
    [itree E ~> stateT S (itree F)]. *)
@@ -68,54 +83,42 @@ Section State.
           `{B1 -< D}
           {R : Type}
           (h : E ~> stateT S (ctree F D))
-          (h' : bool -> C ~> stateT S (ctree F D)).
+          (g : bool -> C ~> stateT S (ctree F D)).
 
-  (** Facts about state (equational theory) *)
-  Definition _fold_state
-             (h  : E ~> stateT S (ctree F D))
-             (h' : bool -> C ~> stateT S (ctree F D))
-             (ot : ctreeF E C R (ctree E C R)) :
-    stateT S (ctree F D) R :=
-    fun s =>
-      match ot with
-      | RetF r        => Ret (s, r)
-      | BrF b c k => h' b _ c s >>= fun sx => Guard (fold_state h h' (k (snd sx)) (fst sx))
-      | VisF e k      => h _ e s    >>= fun sx => Guard (fold_state h h' (k (snd sx)) (fst sx))
-      end.
+  (** Unfolding of [fold]. *)
+  Notation fold_state_ h g t s :=
+    (match observe t with
+     | RetF r => Ret (s, r)
+	   | VisF e k => bind (h _ e s) (fun xs => Guard (fold_state h g (k (snd xs)) (fst xs)))
+	   | BrF b c k => bind (g b _ c s) (fun xs => Guard (fold_state h g (k (snd xs)) (fst xs)))
+     end)%function.
 
-  Lemma interp_interp_state (t : ctree E C R) (s : S) :
-    fold h h' t s ≅ fold_state h h' t s.
+  Lemma unfold_fold_state (t : ctree E C R) (s : S) :
+    fold_state h g t s ≅ fold_state_ h g t s.
   Proof.
-    reflexivity.
-  Qed.
-
-  Lemma unfold_fold_state t s :
-    fold_state h h' t s ≅ _fold_state h h' (observe t) s.
-  Proof.
-    unfold fold_state, fold, Basics.iter, MonadIter_stateT0, Basics.iter, MonadIter_ctree; cbn.
-    rewrite unfold_iter; destruct observe eqn:Hobs; cbn.
-    - rewrite 2 bind_ret_l; reflexivity.
-    - rewrite bind_map, bind_bind; cbn; setoid_rewrite bind_ret_l.
-      reflexivity.
-    - rewrite !bind_bind, bind_map; cbn.
+    unfold fold_state, fold, Basics.iter, MonadIter_stateT0, iter, MonadIter_ctree.
+    rewrite unfold_iter at 1.
+    cbn.
+    rewrite bind_bind.
+    destruct (observe t); cbn.
+    - now repeat (cbn; rewrite ?bind_ret_l).
+    - rewrite bind_map. cbn.
       upto_bind_eq.
-      rewrite bind_ret_l.
-      reflexivity.
+      now cbn; rewrite ?bind_ret_l.
+    - rewrite bind_map. cbn.
+      upto_bind_eq.
+      now cbn; rewrite ?bind_ret_l.
   Qed.
 
-  (* TODO: in the following proof, [cbn] reduces too much.
-     Need to diagnostic and fix
-   *)
-  #[global]
-  Instance equ_interp_state:
+  #[global] Instance equ_fold_state:
     Proper (equ eq ==> eq ==> equ eq)
-           (@fold_state _ _ _ _ _ _ _ h h' R).
+           (fold_state h g (T := R)).
   Proof.
     unfold Proper, respectful.
     coinduction ? IH; intros * EQ1 * <-.
     rewrite !unfold_fold_state.
-    step in EQ1; inv EQ1; cbn [_fold_state]; auto.
-    - simpl bind. upto_bind_eq.
+    step in EQ1; inv EQ1; auto.
+    - cbn. upto_bind_eq.
       constructor; intros; auto.
     - simpl bind. upto_bind_eq.
       constructor; auto.
@@ -123,111 +126,242 @@ Section State.
 
   Lemma fold_state_ret
         (s : S) (r : R) :
-    (fold_state h h' (Ret r) s) ≅ (Ret (s, r)).
+    (fold_state h g (Ret r) s) ≅ (Ret (s, r)).
   Proof.
     rewrite ctree_eta. reflexivity.
   Qed.
 
   Lemma fold_state_vis {T : Type}
-  (e : E T) (k : T -> ctree E C R) (s : S)
-    : fold_state h h' (Vis e k) s
-                   ≅ h e s >>= fun sx => Guard (fold_state h h' (k (snd sx)) (fst sx)).
+    (e : E T) (k : T -> ctree E C R) (s : S) :
+    fold_state h g (Vis e k) s ≅ h e s >>= fun sx => Guard (fold_state h g (k (snd sx)) (fst sx)).
   Proof.
     rewrite unfold_fold_state; reflexivity.
   Qed.
 
   Lemma fold_state_br {T: Type} `{C -< D}
-        (b : bool) (c : C T) (k : T -> ctree E C R) (s : S)
-    : fold_state h h' (br b c k) s
-                   ≅ h' b c s >>= fun sx => Guard (fold_state h h' (k (snd sx)) (fst sx)). 
+    (b : bool) (c : C T) (k : T -> ctree E C R) (s : S) :
+    fold_state h g (br b c k) s ≅ g b c s >>= fun sx => Guard (fold_state h g (k (snd sx)) (fst sx)).
   Proof.
     rewrite !unfold_fold_state; reflexivity.
   Qed.
 
-  Lemma fold_state_tau `{B1 -< C}
-        (t : ctree E C R) (s : S)
-        : fold_state h h' (Guard t) s ≅ Guard (Guard (fold_state h h' t s)).
+  (* TODO move *)
+  #[global] Instance equ_Guard:
+    forall {E B : Type -> Type} {R : Type} `{B1 -< B},
+      Proper (equ eq ==> equ eq) (@Guard E B R _).
   Proof.
-    rewrite unfold_fold_state.
-    simpl.
-    (* LEF: This was already aborted, I don't think it's salvagable? *)
-  Abort.
+    repeat intro.
+    unfold Guard; now setoid_rewrite H1.
+  Qed.
+
+  Lemma fold_state_trigger (e : E R) (s : S) :
+    fold_state h g (CTree.trigger e) s ≅
+    h e s >>= fun x => Guard (Ret x).
+  Proof.
+    unfold CTree.trigger.
+    rewrite fold_state_vis; cbn.
+    upto_bind_eq; cbn.
+    rewrite fold_state_ret.
+    now break.
+  Qed.
+
+  Lemma fold_state_trigger_sb `{B0 -< D} (e : E R) (s : S)
+    : fold_state h g (CTree.trigger e) s ~ h e s.
+  Proof.
+    unfold CTree.trigger. rewrite fold_state_vis.
+    rewrite <- (bind_ret_r (h e s)) at 2.
+    cbn.
+    upto_bind_eq.
+    rewrite sb_guard, fold_state_ret.
+    now break.
+  Qed.
+
+  (** Unfolding of [interp]. *)
+  Notation interp_state_ h t s :=
+    (match observe t with
+     | RetF r => Ret (s, r)
+	   | VisF e k => bind (h _ e s) (fun xs => Guard (interp_state h (k (snd xs)) (fst xs)))
+	   | BrF b c k => bind (mbr (M := stateT _ _) b c s) (fun xs => Guard (interp_state h (k (snd xs)) (fst xs)))
+     end)%function.
+
+  Lemma unfold_interp_state `{C-<D} (t : ctree E C R) (s : S) :
+    interp_state h t s ≅ interp_state_ h t s.
+  Proof.
+    unfold interp_state, interp, Basics.iter, MonadIter_stateT0, fold, MonadIter_ctree, iter.
+    rewrite unfold_iter at 1.
+    cbn.
+    rewrite bind_bind.
+    destruct (observe t); cbn.
+    - now repeat (cbn; rewrite ?bind_ret_l).
+    - rewrite bind_map. cbn.
+      upto_bind_eq.
+      now cbn; rewrite ?bind_ret_l.
+    - rewrite bind_map. cbn.
+      upto_bind_eq.
+      now cbn; rewrite ?bind_ret_l.
+  Qed.
+
+  #[global] Instance equ_interp_state `{C-<D}:
+    Proper (equ eq ==> eq ==> equ eq)
+           (interp_state (C := C) h (T := R)).
+  Proof.
+    unfold Proper, respectful.
+    coinduction ? IH; intros * EQ1 * <-.
+    rewrite !unfold_interp_state.
+    step in EQ1; inv EQ1; auto.
+    - cbn. upto_bind_eq.
+      constructor; intros; auto.
+    - simpl bind. upto_bind_eq.
+      constructor; auto.
+  Qed.
+
+  Lemma interp_state_ret `{C-<D}
+        (s : S) (r : R) :
+    (interp_state (C := C) h (Ret r) s) ≅ (Ret (s, r)).
+  Proof.
+    rewrite ctree_eta. reflexivity.
+  Qed.
+
+  Lemma interp_state_vis `{C-<D} {T : Type}
+    (e : E T) (k : T -> ctree E C R) (s : S) :
+    interp_state h (Vis e k) s ≅ h e s >>= fun sx => Guard (interp_state h (k (snd sx)) (fst sx)).
+  Proof.
+    rewrite unfold_interp_state; reflexivity.
+  Qed.
+
+  Lemma interp_state_br {T: Type} `{C -< D}
+    (b : bool) (c : C T) (k : T -> ctree E C R) (s : S) :
+    interp_state h (Br b c k) s ≅ branch b c >>= fun x => Guard (interp_state h (k x) s).
+  Proof.
+    rewrite !unfold_interp_state; cbn.
+    rewrite bind_bind.
+    upto_bind_eq.
+    rewrite bind_ret_l.
+    reflexivity.
+  Qed.
+
+  Lemma interp_state_guard `{B1 -< C} `{C -< D}
+    (t : ctree E C R) (s : S) :
+    interp_state h (Guard t) s ≅
+    brD (▷ branch1: C _) (fun _ => (Guard (interp_state h t s))).
+  Proof.
+    unfold Guard at 1.
+    rewrite interp_state_br.
+    cbn.
+    unfold branch; rewrite bind_br.
+    step; constructor; intros [].
+    rewrite bind_ret_l.
+    reflexivity.
+  Qed.
+
+  (** Unfolding of [refine]. *)
+  Notation refine_state_ g t s :=
+    (match observe t with
+     | RetF r => Ret (s, r)
+	   | VisF e k => bind (mtrigger e) (fun x => Guard (refine_state g (k x) s))
+	   | BrF b c k => bind (g b _ c s) (fun xs => Guard (refine_state g (k (snd xs)) (fst xs)))
+     end)%function.
+
+  Lemma unfold_refine_state `{E-<F} (t : ctree E C R) (s : S) :
+    refine_state g t s ≅ refine_state_ g t s.
+  Proof.
+    unfold refine_state, refine, Basics.iter, MonadIter_stateT0, fold, MonadIter_ctree, iter.
+    rewrite unfold_iter at 1.
+    cbn.
+    rewrite !bind_bind.
+    destruct (observe t); cbn.
+    - now repeat (cbn; rewrite ?bind_ret_l).
+    - rewrite bind_map. cbn.
+      rewrite !bind_bind.
+      upto_bind_eq.
+      now cbn; rewrite ?bind_ret_l.
+    - rewrite bind_map. cbn.
+      upto_bind_eq.
+      now cbn; rewrite ?bind_ret_l.
+  Qed.
+
+  #[global] Instance equ_refine_state `{E-<F}:
+    Proper (equ eq ==> eq ==> equ eq)
+           (refine_state (E := E) g (T := R)).
+  Proof.
+    unfold Proper, respectful.
+    coinduction ? IH; intros * EQ1 * <-.
+    rewrite !unfold_refine_state.
+    step in EQ1; inv EQ1; auto.
+    - cbn. upto_bind_eq.
+      constructor; intros; auto.
+    - simpl bind. upto_bind_eq.
+      constructor; auto.
+  Qed.
+
+  Lemma refine_state_ret `{E-<F}
+        (s : S) (r : R) :
+    (refine_state (E := E) g (Ret r) s) ≅ (Ret (s, r)).
+  Proof.
+    rewrite ctree_eta. reflexivity.
+  Qed.
+
+  Lemma refine_state_vis `{E-<F} {T : Type}
+    (e : E T) (k : T -> ctree E C R) (s : S) :
+    refine_state g (Vis e k) s ≅
+      trigger e >>= fun x => Guard (refine_state g (k x) s).
+  Proof.
+    rewrite unfold_refine_state; reflexivity.
+  Qed.
+
+  Lemma refine_state_br {T: Type} `{E -< F}
+    (b : bool) (c : C T) (k : T -> ctree E C R) (s : S) :
+    refine_state g (Br b c k) s ≅
+    g b c s >>= fun xs => Guard (refine_state g (k (snd xs)) (fst xs)).
+  Proof.
+    rewrite !unfold_refine_state; cbn.
+    now upto_bind_eq.
+  Qed.
 
 End State.
 
 (* Stateful handlers [E ~> stateT S (itree F)] and morphisms
    [E ~> state S] define stateful itree morphisms
    [itree E ~> stateT S (itree F)]. *)
-Section State.
+(* Section State. *)
 
-  Variable (S : Type).
-  Context {E F C D : Type -> Type}
-          `{B1 -< D}
-          {R : Type}
-          (h : E ~> stateT S (ctree F D))
-          (h' : bool -> C ~> stateT S (ctree F D)).
+(*   Variable (S : Type). *)
+(*   Context {E F C D : Type -> Type} *)
+(*           `{B1 -< D} *)
+(*           {R : Type} *)
+(*           (h : E ~> stateT S (ctree F D)) *)
+(*           (h' : bool -> C ~> stateT S (ctree F D)). *)
 
-  Lemma fold_state_trigger_eqit
-        (e : E R) (s : S)
-    : (fold_state h h' (CTree.trigger e) s) ≅ (h e s >>= fun x => Guard (Ret x)).
-  Proof.
-    unfold CTree.trigger. rewrite fold_state_vis; cbn.
-    upto_bind_eq.
-    (* TODO: why is this rewrite so slow?
-       TODO: proof system for [equ] similar to the one for [sbisim]
-     *)
-    step. constructor. intros.
-    rewrite fold_state_ret.
-    now destruct x1.
-  Qed.
+(*   Lemma fold_state_bind {A B} *)
+(*         (t : ctree E C A) (k : A -> ctree E C B) *)
+(*         (s : S) : *)
+(*     (fold_state h h' (t >>= k) s) *)
+(*       ≅ *)
+(*       (fold_state h h' t s >>= fun st => fold_state h h' (k (snd st)) (fst st)). *)
+(*   Proof. *)
+(*     revert s t. *)
+(*     coinduction ? IH; intros. *)
+(*     rewrite (ctree_eta t). *)
+(*     cbn. *)
+(*     rewrite unfold_bind. *)
+(*     rewrite unfold_fold_state. *)
+(*     destruct (observe t) eqn:Hobs; cbn. *)
+(*     - rewrite fold_state_ret. rewrite bind_ret_l. cbn. *)
+(*       rewrite unfold_fold_state. reflexivity. *)
+(*     - rewrite fold_state_vis. *)
+(*       cbn. *)
+(*       rewrite bind_bind. cbn. *)
+(*       upto_bind_eq. *)
+(*       rewrite bind_guard. *)
+(*       constructor; intros ?; apply IH. *)
+(*     - rewrite unfold_fold_state. *)
+(*       cbn. *)
 
-  Lemma fold_state_trigger `{B0 -< D}
-        (e : E R) (s : S)
-    : fold_state h h' (CTree.trigger e) s ~ h e s.
-  Proof.
-    unfold CTree.trigger. rewrite fold_state_vis.
-    rewrite <- (bind_ret_r (h e s)).
-    match goal with
-      |- ?y ~ ?x => remember y; rewrite <- (bind_ret_r x); subst
-    end.
-    cbn.
-    (* LEF: Why does it introduce two binders? *)
-    upto_bind_eq.
-    intros [ys yr].
-    rewrite sb_guard, fold_state_ret.
-    Fail now destruct x.
-  Admitted.
-
-  Lemma fold_state_bind {A B}
-        (t : ctree E C A) (k : A -> ctree E C B)
-        (s : S) :
-    (fold_state h h' (t >>= k) s) 
-      ≅
-      (fold_state h h' t s >>= fun st => fold_state h h' (k (snd st)) (fst st)).
-  Proof.
-    revert s t.
-    coinduction ? IH; intros.
-    rewrite (ctree_eta t).
-    cbn.
-    rewrite unfold_bind.
-    rewrite unfold_fold_state.
-    destruct (observe t) eqn:Hobs; cbn.
-    - rewrite fold_state_ret. rewrite bind_ret_l. cbn.
-      rewrite unfold_fold_state. reflexivity.
-    - rewrite fold_state_vis.
-      cbn.
-      rewrite bind_bind. cbn.
-      upto_bind_eq.
-      rewrite bind_guard.
-      constructor; intros ?; apply IH.
-    - rewrite unfold_fold_state.
-      cbn.
-
-      rewrite bind_bind.
-      upto_bind_eq.
-      rewrite bind_guard.
-      constructor; intros ?; apply IH.
-  Qed.
+(*       rewrite bind_bind. *)
+(*       upto_bind_eq. *)
+(*       rewrite bind_guard. *)
+(*       constructor; intros ?; apply IH. *)
+(*   Qed. *)
 
   (** LEF: This looks like it depends on [SBisimInterp.v]? Move there? *)
   (*
@@ -582,11 +716,10 @@ Proof.
   setoid_rewrite bind_ret_l in H0. rewrite !sb_guard in H0. apply H0.
 Qed.
    *)
-  
-End State.
+
+(* End State. *)
 
 Arguments get {S E _}.
 Arguments put {S E _}.
 Arguments run_state {S E} [_] _ _.
-Arguments fold_state {E C M S FM MM IM} h h' [T].
-
+Arguments fold_state {E C M S FM MM IM} h g [T].

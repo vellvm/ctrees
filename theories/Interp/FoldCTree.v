@@ -33,6 +33,14 @@ Section FoldCTree.
 
     (** ** [interpE] and constructors *)
 
+    (** Unfolding of [fold]. *)
+    Notation fold_ h g t :=
+      (match observe t with
+       | RetF r => Ret r
+	     | VisF e k => bind (h _ e) (fun x => Guard (fold h g (k x)))
+	     | BrF b c k => bind (g b _ c) (fun x => Guard (fold h g (k x)))
+       end)%function.
+
     (** Unfold lemma. *)
     Lemma unfold_fold (t: ctree E C X):
       fold h g t ≅ fold_ h g t.
@@ -73,6 +81,14 @@ Section FoldCTree.
         constructor; intros ?; auto.
     Qed.
 
+    (** Unfolding of [interp]. *)
+    Notation interp_ h t :=
+      (match observe t with
+       | RetF r => Ret r
+	     | VisF e k => bind (h _ e) (fun x => Guard (interp h (k x)))
+	     | BrF b c k => bind (mbr b c) (fun x => Guard (interp h (k x)))
+       end)%function.
+
     (** Unfold lemma. *)
     Lemma unfold_interp `{C -< D} (t: ctree E C X):
       interp h t ≅ interp_ h t.
@@ -112,6 +128,14 @@ Section FoldCTree.
         upto_bind_eq.
         constructor; intros ?; auto.
     Qed.
+
+    (** Unfolding of [refine]. *)
+    Notation refine_ g t :=
+      (match observe t with
+       | RetF r => Ret r
+	     | VisF e k => bind (mtrigger e) (fun x => Guard (refine g (k x)))
+	     | BrF b c k => bind (g b _ c) (fun x => Guard (refine g (k x)))
+       end)%function.
 
     (** Unfold lemma. *)
     Lemma unfold_refine `{E -< F} (t: ctree E C X):
