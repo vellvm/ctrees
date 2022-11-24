@@ -27,6 +27,7 @@ From CTree Require Import
      CTree
      Eq
      Interp.Fold
+     Interp.FoldCTree
      Interp.FoldStateT.
 
 Import ListNotations.
@@ -118,7 +119,7 @@ Section Semantics.
       | wr x v => Ret (Maps.add x v s, tt)
       end.
 
-  Definition interp_imp t : Monads.stateT env (ctree void1 B02) unit :=
+  Definition interp_imp (t : computation _) : Monads.stateT env (ctree void1 B02) unit :=
     interp_state handle_imp t.
 
 End Semantics.
@@ -189,8 +190,10 @@ Section Theory.
     ℑ (Branch a Block) s ~
     ℑ a s.
   Proof.
-    epose proof interp_state_sbisim handle_imp handle_imp_is_simple.
-    intros. rewrite branch_block_r. reflexivity.
+    epose proof interp_state_sbisim (X := unit) handle_imp handle_imp_is_simple.
+    intros.
+    unfold interp_imp.
+    rewrite branch_block_r. reflexivity.
   Qed.
 
   Lemma filter_filter : forall {A} f (l : list A), filter f (filter f l) = filter f l.
@@ -224,21 +227,25 @@ from Section 2 are indeed equivalent.
     intros...
     rewrite branch_block_r_interp...
     rewrite 2 unfold_interp_state.
-    cbn. setoid_rewrite sb_guard.
-    setoid_rewrite bind_ret_l. rewrite interp_state_ret.
+    cbn.
+    repeat setoid_rewrite bind_ret_l.
+    repeat setoid_rewrite sb_guard.
+    cbn.
+    rewrite interp_state_ret.
     play.
     - rewrite unfold_interp_state in TR. cbn in TR. rewrite bind_ret_l in TR.
       inv_trans. cbn in TR.
       rewrite unfold_interp_state in TR. cbn in TR.
       inv_trans. subst.
       rewrite alist_add_alist_add. 2: apply RelDec_Correct_string.
-      apply equ_sbisim_subrelation in EQ.
+      eapply equ_sbisim_subrelation with (L := eq) in EQ; [| typeclasses eauto].
       eexists; etrans.
-    - inv_trans. subst. eexists.
+    - inv_trans. subst. do 2 eexists; split; [| split].
       rewrite unfold_interp_state. cbn. rewrite bind_ret_l.
       apply trans_guard. rewrite unfold_interp_state. cbn.
       rewrite alist_add_alist_add. 2: apply RelDec_Correct_string.
       etrans. now rewrite EQ.
+      auto.
   Qed.
 
 End Theory.
