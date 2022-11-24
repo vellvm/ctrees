@@ -190,7 +190,7 @@ Section FoldCTree.
     rewrite bind_ret_l. reflexivity.
   Qed.
 
-  Section InterpBind.
+  Section FoldBind.
 
     Context {E F C D: Type -> Type} {X : Type} `{B1 -< D}.
 
@@ -227,7 +227,7 @@ Section FoldCTree.
       now rewrite fold_bind.
     Qed.
 
-  End InterpBind.
+  End FoldBind.
 
 End FoldCTree.
 
@@ -304,7 +304,7 @@ Helper inductive: [t0_det t t'] judges that [t' ≡ Guard* t]
 (*|
 Helper inductive: [productive t] judges that [t]'s head constructor is not a [BrD]
 |*)
-   Inductive productive {E C X} : ctree E C X -> Prop :=
+  Inductive productive {E C X} : ctree E C X -> Prop :=
   | prod_ret {r t} (EQ: t ≅ Ret r) : productive t
   | prod_vis {Y} {e : E Y} {k t} (EQ: t ≅ Vis e k) : productive t
   | prod_tau {X} {c: C X} {k t} (EQ: t ≅ BrS c k) : productive t.
@@ -741,7 +741,7 @@ Proof.
   - rewrite interp_br in H. setoid_rewrite bind_br in H. step in H. inv H.
 Qed.
 
-Lemma bind_tau_r {E B X Y} {Tau: B1 -< B} : forall (t : ctree E B X) (k : X -> ctree E B Y),
+Lemma bind_guard_r {E B X Y} {Tau: B1 -< B} : forall (t : ctree E B X) (k : X -> ctree E B Y),
   x <- t;; Guard (k x) ≅ x <- (x <- t;; Guard (Ret x));; k x.
 Proof.
   intros. rewrite bind_bind. upto_bind_eq. rewrite bind_guard. setoid_rewrite bind_ret_l. reflexivity.
@@ -942,7 +942,7 @@ Proof.
   }
   intros. setoid_rewrite <- H0. clear pre' H0.
   split; cbn; intros.
-  - copy H0. rewrite bind_tau_r in H0.
+  - copy H0. rewrite bind_guard_r in H0.
     eapply trans_interp_inv_gen in H0 as (? & ? & ?); auto.
     2: { destruct H1 as [[] | []]; rewrite H1.
          rewrite bind_ret_l. apply is_simple_guard_ret.
@@ -981,7 +981,7 @@ Proof.
       rewrite sbisim_t0_det. 2: apply H0.
       setoid_rewrite sbisim_t0_det at 3. 2: apply H5.
       apply H6.
-  - copy H0. rewrite bind_tau_r in H0.
+  - copy H0. rewrite bind_guard_r in H0.
     eapply trans_interp_inv_gen in H0 as (? & ? & ?); auto.
     2: { destruct H1 as [[] | []]; rewrite H1.
          rewrite bind_ret_l. apply is_simple_guard_ret.
