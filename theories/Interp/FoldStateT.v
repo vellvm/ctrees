@@ -40,7 +40,7 @@ Definition refine_state {E C M} S
   (g : bool -> C ~> stateT S M) :
   ctree E C ~> stateT S M := refine g.
 
-Typeclasses Opaque fold_state interp_state refine_state.
+#[global] Typeclasses Opaque fold_state interp_state refine_state.
 
 Section State.
   Variable (S : Type).
@@ -758,7 +758,7 @@ Section transi_state.
     }
     intros. setoid_rewrite <- H0. clear pre' H0. cbn.
     split; cbn; intros.
-    - copy H0. rewrite bind_tau_r in H0.
+    - copy H0. rewrite bind_guard_r in H0.
       eapply trans_interp_state_inv_gen in H0 as (? & ? & ? & ?); auto.
       2: { destruct H1 as [[] | []]; rewrite H1.
            rewrite bind_ret_l. apply is_simple_guard_ret.
@@ -796,7 +796,7 @@ Section transi_state.
         rewrite sbisim_t0_det. 2: apply H0.
         apply sbisim_t0_det in H5; rewrite H5.
         apply H6.
-    - copy H0. rewrite bind_tau_r in H0.
+    - copy H0. rewrite bind_guard_r in H0.
       eapply trans_interp_state_inv_gen in H0 as (? & ? & ? & ?); auto.
       2: { destruct H1 as [[] | []]; rewrite H1.
            rewrite bind_ret_l. apply is_simple_guard_ret.
