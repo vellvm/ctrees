@@ -80,7 +80,7 @@ Section Trans.
   Definition SS : EqType :=
     {| type_of := S ; Eq := equ eq |}.
 
-(*|
+  (*|
 The domain of labels of the LTS.
 Note that it could be typed more strongly: [val] labels can only
 be of type [R]. However typing it statically makes lemmas about
@@ -95,7 +95,7 @@ least annoying solution.
   Variant is_val : label -> Prop :=
     | Is_val : forall X (x : X), is_val (val x).
 
-(*|
+  (*|
 The transition relation over [ctree]s.
 It can either:
 - recursively crawl through invisible [br] node;
@@ -111,7 +111,7 @@ node, labelling the transition by the returned value.
     trans_ l (BrF false c k) t
 
   | Steptau {X} (c : B X) x k t :
-		k x ≅ t ->
+    k x ≅ t ->
     trans_ tau (BrSF c k) (observe t)
 
   | Stepobs {X} (e : E X) k x t :
@@ -131,53 +131,53 @@ node, labelling the transition by the returned value.
         change t with (observe {| _observe := t |})
     end.
 
-	#[local] Instance trans_equ_aux1 l t :
-		Proper (going (equ eq) ==> flip impl) (trans_ l t).
-	Proof.
-		intros u u' equ; intros TR.
-		inv equ; rename H into equ.
-		step in equ.
-		revert u equ.
-		dependent induction TR; intros; subst; eauto.
-		+ inv equ.
-			* rewrite H2; eauto.
-			* FtoObs.
-			  apply (Steptau c x).
-				rewrite H.
-				rewrite (ctree_eta t), <- H2.
-				step; constructor; intros; symmetry; auto.
-			* FtoObs.
-			  apply (Steptau c x).
-				rewrite H.
-				rewrite (ctree_eta t), <- H2.
-				step; constructor; intros; symmetry; auto.
-		+ FtoObs.
-			econstructor.
-			rewrite H; symmetry; step; auto.
+  #[local] Instance trans_equ_aux1 l t :
+    Proper (going (equ eq) ==> flip impl) (trans_ l t).
+  Proof.
+    intros u u' equ; intros TR.
+    inv equ; rename H into equ.
+    step in equ.
+    revert u equ.
+    dependent induction TR; intros; subst; eauto.
+    + inv equ.
+      * rewrite H2; eauto.
+      * FtoObs.
+	apply (Steptau c x).
+	rewrite H.
+	rewrite (ctree_eta t), <- H2.
+	step; constructor; intros; symmetry; auto.
+      * FtoObs.
+	apply (Steptau c x).
+	rewrite H.
+	rewrite (ctree_eta t), <- H2.
+	step; constructor; intros; symmetry; auto.
+    + FtoObs.
+      econstructor.
+      rewrite H; symmetry; step; auto.
     + inv equ. dependent destruction H3. econstructor.
-	Qed.
+  Qed.
 
-	#[local] Instance trans_equ_aux2 l :
-		Proper (going (equ eq) ==> going (equ eq) ==> impl) (trans_ l).
-	Proof.
-		intros t t' eqt u u' equ TR.
-		rewrite <- equ; clear u' equ.
-		inv eqt; rename H into eqt.
-		revert t' eqt.
-		dependent induction TR; intros; auto.
-		+ step in eqt; dependent induction eqt.
-			apply (Stepbr c x).
-			apply IHTR.
-			rewrite REL; reflexivity.
-	 	+ step in eqt; dependent induction eqt.
-			econstructor.
-			rewrite <- REL; eauto.
-	 	+ step in eqt; dependent induction eqt.
-			econstructor.
-			rewrite <- REL; eauto.
-	 	+ step in eqt; dependent induction eqt.
-			econstructor.
-	Qed.
+  #[local] Instance trans_equ_aux2 l :
+    Proper (going (equ eq) ==> going (equ eq) ==> impl) (trans_ l).
+  Proof.
+    intros t t' eqt u u' equ TR.
+    rewrite <- equ; clear u' equ.
+    inv eqt; rename H into eqt.
+    revert t' eqt.
+    dependent induction TR; intros; auto.
+    + step in eqt; dependent induction eqt.
+      apply (Stepbr c x).
+      apply IHTR.
+      rewrite REL; reflexivity.
+    + step in eqt; dependent induction eqt.
+      econstructor.
+      rewrite <- REL; eauto.
+    + step in eqt; dependent induction eqt.
+      econstructor.
+      rewrite <- REL; eauto.
+    + step in eqt; dependent induction eqt.
+      econstructor.
+  Qed.
 
   #[global] Instance trans_equ_ l :
     Proper (going (equ eq) ==> going (equ eq) ==> iff) (trans_ l).
@@ -187,7 +187,7 @@ node, labelling the transition by the returned value.
     - symmetry in equ; symmetry in eqt; eapply trans_equ_aux2; eauto.
   Qed.
 
-(*|
+  (*|
 [equ] is congruent for [trans], we can hence build a [srel] and build our
 relations in this model to still exploit the automation from the [RelationAlgebra]
 library.
@@ -202,18 +202,18 @@ library.
   Definition trans l : srel SS SS := {| hrel_of := transR l : hrel SS SS |}.
 
   Lemma trans__trans : forall l t u,
-    trans_ l (observe t) (observe u) = trans l t u.
+      trans_ l (observe t) (observe u) = trans l t u.
   Proof.
     reflexivity.
   Qed.
 
   Lemma transR_trans : forall l (t t' : S),
-    transR l t t' = trans l t t'.
+      transR l t t' = trans l t t'.
   Proof.
     reflexivity.
   Qed.
 
-(*|
+  (*|
 Extension of [trans] with its reflexive closure, labelled by [tau].
 |*)
   Definition etrans (l : label) : srel SS SS :=
@@ -222,7 +222,7 @@ Extension of [trans] with its reflexive closure, labelled by [tau].
     | _ => trans l
     end.
 
-(*|
+  (*|
 The transition for the weak bisimulation: a sequence of
 internal steps, a labelled step, and a new sequence of internal ones
 |*)
@@ -235,7 +235,7 @@ internal steps, a labelled step, and a new sequence of internal ones
   Definition tautrans : srel SS SS :=
     (trans tau)^+.
 
-(*|
+  (*|
 ----------------------------------------------
 Elementary theory for the transition relations
 ----------------------------------------------
@@ -343,7 +343,7 @@ Elimination rules for [trans]
     now (apply (str_refl (trans tau)); cbn).
     intros ?????. apply wtrans_tau. apply (str_trans (trans tau)).
     eexists; apply wtrans_tau; eassumption.
-    Qed.
+  Qed.
 
 
 End Trans.
@@ -361,8 +361,8 @@ Class Respects_tau {E F} (L : rel (@label E) (@label F)) :=
 
 Definition eq_obs {E} (L : relation (@label E)) : Prop :=
   forall X X' e e' (x : X) (x' : X'),
-  L (obs e x) (obs e' x') ->
-  obs e x = obs e' x'.
+    L (obs e x) (obs e' x') ->
+    obs e x = obs e' x'.
 
 #[global] Instance Respects_val_eq A: @Respects_val A A eq.
 split; intros; subst; reflexivity.
@@ -385,54 +385,54 @@ Section backward.
   Context `{B0 -< B}.
   Context `{B1 -< B}.
 
-(*|
+  (*|
 Structural rules
 |*)
 
-	Lemma trans_ret : forall (x : X),
-		  trans (E := E) (B := B) (val x) (Ret x) stuckD.
-	Proof.
+  Lemma trans_ret : forall (x : X),
+      trans (E := E) (B := B) (val x) (Ret x) stuckD.
+  Proof.
     intros; constructor.
   Qed.
 
-	Lemma trans_vis : forall {Y} (e : E Y) x (k : Y -> ctree E B X),
-		  trans (obs e x) (Vis e k) (k x).
-	Proof.
+  Lemma trans_vis : forall {Y} (e : E Y) x (k : Y -> ctree E B X),
+      trans (obs e x) (Vis e k) (k x).
+  Proof.
     intros; constructor; auto.
   Qed.
 
   Lemma trans_brD : forall {Y} l (t t' : ctree E B X) (c : B Y) k x,
-		  trans l t t' ->
+      trans l t t' ->
       k x ≅ t ->
-		  trans l (BrD c k) t'.
-	Proof.
-		intros * TR Eq.
+      trans l (BrD c k) t'.
+  Proof.
+    intros * TR Eq.
     apply Stepbr with x.
     rewrite Eq; auto.
   Qed.
 
   Lemma trans_brS : forall {Y} (c : B Y) (k : _ -> ctree E B X) x,
-		  trans tau (BrS c k) (k x).
-	Proof.
-		intros.
+      trans tau (BrS c k) (k x).
+  Proof.
+    intros.
     apply Steptau with x; reflexivity.
   Qed.
 
-(*|
+  (*|
 Ad-hoc rules for pre-defined finite branching
 |*)
 
   Variable (l : @label E) (t t' u u' v v' w w' : ctree E B X).
 
-	Lemma trans_step :
-		  trans tau (Step t) t.
-	Proof.
+  Lemma trans_step :
+    trans tau (Step t) t.
+  Proof.
     intros; apply (@trans_brS unit _ (fun _ => t) tt).
-	Qed.
+  Qed.
 
   Lemma trans_guard :
-      trans l t t' ->
-      trans l (Guard t) t'.
+    trans l t t' ->
+    trans l (Guard t) t'.
   Proof.
     intros * TR; eapply trans_brD; eauto; exact F1.
   Qed.
@@ -449,7 +449,7 @@ Section BackwardBounded.
   Variable (l : @label E) (t t' u u' v v' w w' : ctree E B X).
 
   Lemma trans_brS21 :
-      trans tau (brS2 t u) t.
+    trans tau (brS2 t u) t.
   Proof.
     intros.
     unfold brS2.
@@ -459,7 +459,7 @@ Section BackwardBounded.
   Qed.
 
   Lemma trans_brS22 :
-      trans tau (brS2 t u) u.
+    trans tau (brS2 t u) u.
   Proof.
     intros.
     unfold brS2.
@@ -469,23 +469,23 @@ Section BackwardBounded.
   Qed.
 
   Lemma trans_brD21 :
-      trans l t t' ->
-      trans l (brD2 t u) t'.
+    trans l t t' ->
+    trans l (brD2 t u) t'.
   Proof.
     intros * TR.
     eapply trans_brD with (x := true); eauto.
   Qed.
 
   Lemma trans_brD22 :
-      trans l u u' ->
-      trans l (brD2 t u) u'.
+    trans l u u' ->
+    trans l (brD2 t u) u'.
   Proof.
     intros * TR.
     eapply trans_brD with (x := false); eauto.
   Qed.
 
   Lemma trans_brS31 :
-      trans tau (brS3 t u v) t.
+    trans tau (brS3 t u v) t.
   Proof.
     intros.
     unfold brS3.
@@ -495,7 +495,7 @@ Section BackwardBounded.
   Qed.
 
   Lemma trans_brS32 :
-      trans tau (brS3 t u v) u.
+    trans tau (brS3 t u v) u.
   Proof.
     intros.
     unfold brS3.
@@ -505,7 +505,7 @@ Section BackwardBounded.
   Qed.
 
   Lemma trans_brS33 :
-      trans tau (brS3 t u v) v.
+    trans tau (brS3 t u v) v.
   Proof.
     intros.
     unfold brS3.
@@ -515,31 +515,31 @@ Section BackwardBounded.
   Qed.
 
   Lemma trans_brD31 :
-      trans l t t' ->
-      trans l (brD3 t u v) t'.
+    trans l t t' ->
+    trans l (brD3 t u v) t'.
   Proof.
     intros * TR.
     eapply trans_brD with (x := t31); eauto.
   Qed.
 
   Lemma trans_brD32 :
-      trans l u u' ->
-      trans l (brD3 t u v) u'.
+    trans l u u' ->
+    trans l (brD3 t u v) u'.
   Proof.
     intros * TR.
     eapply trans_brD with (x := t32); eauto.
   Qed.
 
   Lemma trans_brD33 :
-      trans l v v' ->
-      trans l (brD3 t u v) v'.
+    trans l v v' ->
+    trans l (brD3 t u v) v'.
   Proof.
     intros * TR.
     eapply trans_brD with (x := t33); eauto.
   Qed.
 
   Lemma trans_brS41 :
-      trans tau (brS4 t u v w) t.
+    trans tau (brS4 t u v w) t.
   Proof.
     intros.
     unfold brS4.
@@ -549,7 +549,7 @@ Section BackwardBounded.
   Qed.
 
   Lemma trans_brS42 :
-      trans tau (brS4 t u v w) u.
+    trans tau (brS4 t u v w) u.
   Proof.
     intros.
     unfold brS4.
@@ -559,7 +559,7 @@ Section BackwardBounded.
   Qed.
 
   Lemma trans_brS43 :
-      trans tau (brS4 t u v w) v.
+    trans tau (brS4 t u v w) v.
   Proof.
     intros.
     unfold brS4.
@@ -569,7 +569,7 @@ Section BackwardBounded.
   Qed.
 
   Lemma trans_brS44 :
-      trans tau (brS4 t u v w) w.
+    trans tau (brS4 t u v w) w.
   Proof.
     intros.
     unfold brS4.
@@ -579,32 +579,32 @@ Section BackwardBounded.
   Qed.
 
   Lemma trans_brD41 :
-      trans l t t' ->
-      trans l (brD4 t u v w) t'.
+    trans l t t' ->
+    trans l (brD4 t u v w) t'.
   Proof.
     intros * TR.
     eapply trans_brD with (x := t41); eauto.
   Qed.
 
   Lemma trans_brD42 :
-      trans l u u' ->
-      trans l (brD4 t u v w) u'.
+    trans l u u' ->
+    trans l (brD4 t u v w) u'.
   Proof.
     intros * TR.
     eapply trans_brD with (x := t42); eauto.
   Qed.
 
   Lemma trans_brD43 :
-      trans l v v' ->
-      trans l (brD4 t u v w) v'.
+    trans l v v' ->
+    trans l (brD4 t u v w) v'.
   Proof.
     intros * TR.
     eapply trans_brD with (x := t43); eauto.
   Qed.
 
   Lemma trans_brD44 :
-      trans l w w' ->
-      trans l (brD4 t u v w) w'.
+    trans l w w' ->
+    trans l (brD4 t u v w) w'.
   Proof.
     intros * TR.
     eapply trans_brD with (x := t44); eauto.
@@ -621,7 +621,7 @@ Section forward.
 
   Context {E B : Type -> Type} `{HasStuck : B0 -< B} {X : Type}.
 
-(*|
+  (*|
 Inverting equalities between labels
 |*)
 
@@ -645,21 +645,21 @@ Inverting equalities between labels
     now dependent induction EQ.
   Qed.
 
-(*|
+  (*|
 Structural rules
 |*)
 
   Lemma trans_ret_inv : forall x l (t : ctree E B X),
       trans l (Ret x) t ->
-       t ≅ stuckD /\ l = val x.
+      t ≅ stuckD /\ l = val x.
   Proof.
     intros * TR; inv TR; intuition.
     rewrite ctree_eta, <- H2; auto.
     step; constructor; intros abs; inv abs.
   Qed.
 
-	Lemma trans_vis_inv : forall {Y} (e : E Y) k l (u : ctree E B X),
-		  trans l (Vis e k) u ->
+  Lemma trans_vis_inv : forall {Y} (e : E Y) k l (u : ctree E B X),
+      trans l (Vis e k) u ->
       exists x, u ≅ k x /\ l = obs e x.
   Proof.
     intros * TR.
@@ -684,7 +684,7 @@ Structural rules
     induction TR; intros; inv Heqox; eauto.
   Qed.
 
-(*|
+  (*|
 Ad-hoc rules for pre-defined finite branching
 |*)
 
@@ -692,30 +692,30 @@ Ad-hoc rules for pre-defined finite branching
   Context `{B1 -< B} `{B2 -< B} `{B3 -< B} `{B4 -< B}.
 
   Lemma trans_guard_inv :
-      trans l (Guard t) t' ->
-      trans l t t'.
+    trans l (Guard t) t' ->
+    trans l t t'.
   Proof.
     intros * TR; apply trans_brD_inv in TR as [_ TR]; auto.
   Qed.
 
   Lemma trans_brD2_inv :
-      trans l (brD2 t u) t' ->
-      (trans l t t' \/ trans l u t').
+    trans l (brD2 t u) t' ->
+    (trans l t t' \/ trans l u t').
   Proof.
     intros * TR; apply trans_brD_inv in TR as [[] TR]; auto.
   Qed.
 
   Lemma trans_brD3_inv :
-      trans l (brD3 t u v) t' ->
-      (trans l t t' \/ trans l u t' \/ trans l v t').
+    trans l (brD3 t u v) t' ->
+    (trans l t t' \/ trans l u t' \/ trans l v t').
   Proof.
     intros * TR; apply trans_brD_inv in TR as [n TR].
     destruct n; auto.
   Qed.
 
   Lemma trans_brD4_inv :
-      trans l (brD4 t u v w) t' ->
-      (trans l t t' \/ trans l u t' \/ trans l v t' \/ trans l w t').
+    trans l (brD4 t u v w) t' ->
+    (trans l t t' \/ trans l u t' \/ trans l v t' \/ trans l w t').
   Proof.
     intros * TR; apply trans_brD_inv in TR as [n TR].
     destruct n; auto.
@@ -733,37 +733,37 @@ Ad-hoc rules for pre-defined finite branching
   Qed.
 
   Lemma trans_step_inv :
-      trans l (Step t) t' ->
-      t' ≅ t /\ l = tau.
+    trans l (Step t) t' ->
+    t' ≅ t /\ l = tau.
   Proof.
     intros * TR; apply trans_brS_inv in TR as (_ & ? & ?); auto.
   Qed.
 
   Lemma trans_brS2_inv :
-      trans l (brS2 t u) t' ->
-      (l = tau /\ (t' ≅ t \/ t' ≅ u)).
+    trans l (brS2 t u) t' ->
+    (l = tau /\ (t' ≅ t \/ t' ≅ u)).
   Proof.
     intros * TR; apply trans_brS_inv in TR as (? & TR & ->); split; auto.
     destruct x; auto.
   Qed.
 
   Lemma trans_brS3_inv :
-      trans l (brS3 t u v) t' ->
-      (l = tau /\ (t' ≅ t \/ t' ≅ u \/ t' ≅ v)).
+    trans l (brS3 t u v) t' ->
+    (l = tau /\ (t' ≅ t \/ t' ≅ u \/ t' ≅ v)).
   Proof.
     intros * TR; apply trans_brS_inv in TR as (? & TR & ->); split; auto.
     destruct x; auto.
   Qed.
 
   Lemma trans_brS4_inv :
-      trans l (brS4 t u v w) t' ->
-      (l = tau /\ (t' ≅ t \/ t' ≅ u \/ t' ≅ v \/ t' ≅ w)).
+    trans l (brS4 t u v w) t' ->
+    (l = tau /\ (t' ≅ t \/ t' ≅ u \/ t' ≅ v \/ t' ≅ w)).
   Proof.
     intros * TR; apply trans_brS_inv in TR as (? & TR & ->); split; auto.
     destruct x; auto.
   Qed.
 
-(*|
+  (*|
 Inversion rules for [trans] based on the value of the label
 -----------------------------------------------------------
 In general, these would require to introduce the relation that
@@ -818,8 +818,8 @@ Proof.
 Qed.
 
 Lemma etrans_ret_inv {E B X} `{HasStuck : B0 -< B} : forall x l (t : ctree E B X),
-		etrans l (Ret x) t ->
-		(l = tau /\ t ≅ Ret x) \/ (l = val x /\ t ≅ stuckD).
+    etrans l (Ret x) t ->
+    (l = tau /\ t ≅ Ret x) \/ (l = val x /\ t ≅ stuckD).
 Proof.
   intros ? [] ? step; cbn in step.
   - intuition; try (eapply trans_ret in step; now apply step).
@@ -852,9 +852,9 @@ Section stuck.
   Qed.
 
   Lemma etrans_is_stuck_inv (v v' : ctree E B X) :
-      is_stuck v ->
-      etrans l v v' ->
-      (l = tau /\ v ≅ v').
+    is_stuck v ->
+    etrans l v v' ->
+    (l = tau /\ v ≅ v').
   Proof.
     intros * ST TR.
     edestruct @etrans_case; eauto.
@@ -862,9 +862,9 @@ Section stuck.
   Qed.
 
   Lemma transs_is_stuck_inv (v v' : ctree E B X) :
-      is_stuck v ->
-      (trans tau)^* v v' ->
-      v ≅ v'.
+    is_stuck v ->
+    (trans tau)^* v v' ->
+    v ≅ v'.
   Proof.
     intros * ST TR.
     destruct TR as [[] TR]; intuition.
@@ -873,9 +873,9 @@ Section stuck.
   Qed.
 
   Lemma wtrans_is_stuck_inv :
-      is_stuck t ->
-      wtrans l t u ->
-      (l = tau /\ t ≅ u).
+    is_stuck t ->
+    wtrans l t u ->
+    (l = tau /\ t ≅ u).
   Proof.
     intros * ST TR.
     destruct TR as [? [? ?] ?].
@@ -967,27 +967,27 @@ Section wtrans.
     apply trans_step.
   Qed.
 
-	Lemma trans_tau_str_ret_inv : forall x (t : ctree E B X),
-		  (trans tau)^* (Ret x) t ->
-		  t ≅ Ret x.
-	Proof.
-		intros * [[|] step].
-		- cbn in *; symmetry; eauto.
-		- destruct step.
+  Lemma trans_tau_str_ret_inv : forall x (t : ctree E B X),
+      (trans tau)^* (Ret x) t ->
+      t ≅ Ret x.
+  Proof.
+    intros * [[|] step].
+    - cbn in *; symmetry; eauto.
+    - destruct step.
       apply trans_ret_inv in H; intuition congruence.
-	Qed.
+  Qed.
 
-	Lemma wtrans_ret_inv : forall x l (t : ctree E B X),
-		  wtrans l (Ret x) t ->
-		  (l = tau /\ t ≅ Ret x) \/ (l = val x /\ t ≅ stuckD).
-	Proof.
-		intros * step.
-		destruct step as [? [? step1 step2] step3].
-		apply trans_tau_str_ret_inv in step1.
-		rewrite step1 in step2; clear step1.
-		apply etrans_ret_inv in step2 as [[-> EQ] |[-> EQ]].
-		rewrite EQ in step3; apply trans_tau_str_ret_inv in step3; auto.
-		rewrite EQ in step3.
+  Lemma wtrans_ret_inv : forall x l (t : ctree E B X),
+      wtrans l (Ret x) t ->
+      (l = tau /\ t ≅ Ret x) \/ (l = val x /\ t ≅ stuckD).
+  Proof.
+    intros * step.
+    destruct step as [? [? step1 step2] step3].
+    apply trans_tau_str_ret_inv in step1.
+    rewrite step1 in step2; clear step1.
+    apply etrans_ret_inv in step2 as [[-> EQ] |[-> EQ]].
+    rewrite EQ in step3; apply trans_tau_str_ret_inv in step3; auto.
+    rewrite EQ in step3.
     apply transs_is_stuck_inv in step3; [| apply stuckD_is_stuck].
     intuition.
   Qed.
@@ -1150,8 +1150,8 @@ Proof.
 Qed.
 
 Lemma is_stuck_bind : forall {E B X Y} `{B0 -< B}
-    (t : ctree E B X) (k : X -> ctree E B Y),
-  is_stuck t -> is_stuck (bind t k).
+                        (t : ctree E B X) (k : X -> ctree E B Y),
+    is_stuck t -> is_stuck (bind t k).
 Proof.
   repeat intro.
   apply trans_bind_inv in H1 as [].
@@ -1183,7 +1183,7 @@ Proof.
 Qed.
 
 Lemma transs_bind_inv {E B X Y} `{B0 -< B} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) :
- 	(trans tau)^* (t >>= k) u ->
+  (trans tau)^* (t >>= k) u ->
   (exists t', (trans tau)^* t t' /\ u ≅ t' >>= k) \/
     (exists (x : X), wtrans (val x) t stuckD /\ (trans tau)^* (k x) u).
 Proof.
@@ -1315,11 +1315,11 @@ Qed.
 
 Lemma wtrans_case' {E B X} `{HasStuck : B0 -< B} (t u : ctree E B X) l:
   wtrans l t u ->
-    match l with
-    | tau => (t ≅ u \/ exists v, trans tau t v /\ wtrans tau v u)
-    | _   => (exists v, trans l t v /\ wtrans tau v u) \/
+  match l with
+  | tau => (t ≅ u \/ exists v, trans tau t v /\ wtrans tau v u)
+  | _   => (exists v, trans l t v /\ wtrans tau v u) \/
             (exists v, trans tau t v /\ wtrans l v u)
-    end.
+  end.
 Proof.
   intros [t2 [t1 [n TR1] TR2] TR3].
   destruct n as [| n].
@@ -1336,7 +1336,7 @@ Proof.
     destruct l; right.
     all:eexists; split; eauto.
     all:exists t2; [exists t1|]; eauto.
-    all:exists n; eauto.
+          all:exists n; eauto.
 Qed.
 
 Lemma wtrans_stuckD_inv {E B R} `{HasStuck : B0 -< B} :
@@ -1456,7 +1456,7 @@ Proof.
 Qed.
 
 Lemma trans_trigger : forall {E B X Y} `{B0 -< B} (e : E X) x (k : X -> ctree E B Y),
-		trans (obs e x) (trigger e >>= k) (k x).
+    trans (obs e x) (trigger e >>= k) (k x).
 Proof.
   intros.
   unfold CTree.trigger.
@@ -1466,7 +1466,7 @@ Proof.
 Qed.
 
 Lemma trans_trigger' : forall {E B X Y} `{B0 -< B} (e : E X) x (t : ctree E B Y),
-		trans (obs e x) (trigger e;; t) t.
+    trans (obs e x) (trigger e;; t) t.
 Proof.
   intros.
   unfold CTree.trigger.
@@ -1476,7 +1476,7 @@ Proof.
 Qed.
 
 Lemma trans_trigger_inv : forall {E B X Y} `{HasStuck : B0 -< B} (e : E X) (k : X -> ctree E B Y) l u,
-		trans l (trigger e >>= k) u ->
+    trans l (trigger e >>= k) u ->
     exists x, u ≅ k x /\ l = obs e x.
 Proof.
   intros * TR.

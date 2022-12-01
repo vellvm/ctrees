@@ -3,3 +3,4 @@ _build
 .nia.cache
 *~
 .lia.cache
+.aux
