@@ -849,9 +849,9 @@ Section transi_state.
 
 End transi_state.
 
-Arguments get {S E _}.
-Arguments put {S E _}.
-Arguments run_state {S E} [_] _ _.
+Arguments get {S E C _}.
+Arguments put {S E C _}.
+Arguments run_state {S E C} [_] _ _.
 Arguments fold_state {E C M S FM MM IM} h g [T].
 Arguments interp_state {E C M S FM MM IM BM} h [T].
 Arguments refine_state {E C M S FM MM IM TM} g [T].

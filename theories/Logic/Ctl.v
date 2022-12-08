@@ -66,7 +66,7 @@ Section Ctl.
 
   (* Exists Next *)
   Definition ex: SP -> SP :=
-    fun p t _ => exists l t', trans l t t' -> p t' l.
+    fun p t _ => exists l t', trans l t t' /\ p t' l.
 
   (* Forall strong until *)
   Inductive au: SP -> SP -> SP :=
@@ -84,7 +84,7 @@ Section Ctl.
       q t l -> eu p q t l
   | StepE: forall t l (p q: SP),       (* Matches one next state [t'] *)
       p t l ->
-      (exists l' t', trans l' t t' ->                
+      (exists l' t', trans l' t t' /\                
                 eu p q t' l') ->
       eu p q t l.
   
@@ -105,7 +105,7 @@ Section Ctl.
   Definition egF (R: SP -> SP): SP -> SP :=
     fun (p: SP) t l =>
       p t l /\
-      (exists t' l', trans l' t t' -> R p t' l').
+      (exists t' l', trans l' t t' /\ R p t' l').
 
   Hint Constructors eu au: core.
   Hint Unfold lift cand cor cimpl cnot af ef ax ex agF egF: core.
@@ -116,8 +116,8 @@ Section Ctl.
   Qed.
 
   Program Definition eg_: mon (SP -> SP) := {| body := egF  |}.  
-  Next Obligation.
-    destruct H0 as (A & t' & l' & H'); split; eauto. 
+  Next Obligation.    
+    destruct H0 as (A & t' & l' & Htr & ?); split; eauto.
   Qed.
 
   Definition ag := (gfp (@ag_)).
@@ -142,20 +142,23 @@ Module CtlNotations.
   Notation "p '|||' q" := (cor p q) (at level 89, left associativity).
   Notation "p '->>' q" := (cimpl p q) (at level 99, right associativity).
   Notation "'!' p" := (cnot p) (at level 89).
+
+  Notation "[ 'AG' ] p" := (ag_ _ p) (at level 40).
+  Notation "[ 'EG' ] p" := (eg_ _ p) (at level 40).
   
-  Notation "[ 'EG' ] p" := (eg_ p) (at level 40).
+  Notation "[[ 'AG' ]] p" := (agF _ p) (at level 40).
+  Notation "[[ 'EG' ]] p" := (egF _ p) (at level 40).
   
-  Notation "[[ 'AG' ]] p" := (agF p) (at level 40).
-  Notation "[[ 'EG' ]] p" := (egF p) (at level 40).
+  Notation "{ 'AG' } p" := ((t ag_) _ p) (at level 40).
+  Notation "{ 'EG' } p" := ((t eg_) _ p) (at level 40).
   
-  Notation "{ 'AG' } p" := ((t ag_) p) (at level 40).
-  Notation "{ 'EG' } p" := ((t eg_) p) (at level 40).
-  
-  Notation "{{ 'AG' }} p" := ((bt ag_) p) (at level 40).
-  Notation "{{ 'EG' }} p" := ((bt eg_) p) (at level 40).
+  Notation "{{ 'AG' }} p" := ((bt ag_) _ p) (at level 40).
+  Notation "{{ 'EG' }} p" := ((bt eg_) _ p) (at level 40).
   
 End CtlNotations.
 
+
+  
 Import CtlNotations.
 
 Ltac fold_g :=
@@ -314,7 +317,7 @@ Section Congruences.
   Qed.
 
   #[global] Instance proper_ax_equ (P: SP) {HasStuck: B0 -< C} :
-    Proper (@equ E C X X eq ==> eq ==> iff) (ax P).
+    Proper (@equ E C X X eq ==> eq ==> iff) (AX P).
   Proof.
     unfold Proper, respectful, impl; cbn.      
     intros x y EQ ? l <-; split; intro NEXT;
@@ -325,19 +328,65 @@ Section Congruences.
   Qed.
 
   #[global] Instance proper_ex_equ (P: SP) {HasStuck: B0 -< C} :
-    Proper (@equ E C X X eq ==> eq ==> iff) (ex P).
+    Proper (@equ E C X X eq ==> eq ==> iff) (EX P).
   Proof.
     unfold Proper, respectful, impl; cbn.      
     intros x y EQ ? l <-; split; intro NEXT;
-      unfold ex in *; destruct NEXT as (l' & t' & NEXT);
-      do 2 eexists; intro TR; apply NEXT.
-    - now rewrite EQ.
+      unfold ex in *; destruct NEXT as (l' & t' & NEXT & ?);
+      do 2 eexists; split; eauto. 
     - now rewrite <- EQ.
+    - now rewrite EQ.
   Qed.
 
+  #[global] Instance proper_au_equ (P Q: SP) {HasStuck: B0 -< C}
+   {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}
+   {PrQ: Proper (@equ E C X X eq ==> eq ==> iff) Q}:
+    Proper (@equ E C X X eq ==> eq ==> iff) (P AU Q).
+  Proof.
+    unfold Proper, respectful, impl; cbn.
+    intros x y EQ ? l <-; split; intro au; induction au.
+    (* -> *)
+    - rewrite EQ in H; now apply MatchA.
+    - eapply StepA.
+      + now rewrite <- EQ.
+      + intros l' t' TR.
+        eapply H0.
+        now rewrite EQ.
+    (* -> *)
+    - rewrite <- EQ in H; now apply MatchA.
+    - eapply StepA.
+      + now rewrite EQ.
+      + intros l' t' TR.
+        eapply H0.
+        now rewrite <- EQ.
+  Qed.  
+
+  #[global] Instance proper_eu_equ (P Q: SP) {HasStuck: B0 -< C}
+   {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}
+   {PrQ: Proper (@equ E C X X eq ==> eq ==> iff) Q}:
+    Proper (@equ E C X X eq ==> eq ==> iff) (P EU Q).
+  Proof.
+    unfold Proper, respectful, impl; cbn.
+    intros x y EQ ? l <-; split; intro au; induction au.
+    (* -> *)
+    - rewrite EQ in H; now apply MatchE.
+    - eapply StepE.
+      + now rewrite <- EQ.
+      + destruct H0 as (l' & t' & TR & ?).
+        exists l', t'; split; trivial.
+        * now rewrite <- EQ.
+    (* -> *)
+    - rewrite <- EQ in H; now apply MatchE.
+    - eapply StepE.
+      + now rewrite EQ.
+      + destruct H0 as (l' & t' & TR & ?).
+        exists l', t'; split; trivial.
+        now rewrite EQ.
+  Qed.
+  
   #[global] Instance proper_ag_equ (P: SP) {HasStuck: B0 -< C}
    {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}:
-    Proper (@equ E C X X eq ==> eq ==> iff) (ag P).
+    Proper (@equ E C X X eq ==> eq ==> iff) (AG P).
   Proof.
     unfold Proper, respectful, impl; cbn.
     intros x y EQ ? l <-; split; intro G; step in G; inv G;
@@ -356,7 +405,7 @@ Section Congruences.
 
   #[global] Instance proper_eg_equ (P: SP) {HasStuck: B0 -< C}
    {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}:
-    Proper (@equ E C X X eq ==> eq ==> iff) (eg P).
+    Proper (@equ E C X X eq ==> eq ==> iff) (EG P).
   Proof.
     unfold Proper, respectful, impl; cbn.
     intros x y EQ ? l <-; split; intro G; step in G; inv G;
@@ -372,5 +421,45 @@ Section Congruences.
       exists t', l'.
       now rewrite <- EQ in TR.
   Qed.
+  
+  #[global] Instance proper_cand_equ (P Q: SP) {HasStuck: B0 -< C}
+   {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}
+   {PrQ: Proper (@equ E C X X eq ==> eq ==> iff) Q}:
+    Proper (@equ E C X X eq ==> eq ==> iff) (P &&& Q).
+  Proof.
+    unfold Proper, respectful, impl, cand; cbn.
+    intros x y EQ ? l <-; split; intros (? & ?); split.
+    - now rewrite <- EQ.
+    - now rewrite <- EQ.
+    - now rewrite EQ.
+    - now rewrite EQ.
+  Qed.    
+
+    
+  #[global] Instance proper_cor_equ (P Q: SP) {HasStuck: B0 -< C}
+   {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}
+   {PrQ: Proper (@equ E C X X eq ==> eq ==> iff) Q}:
+    Proper (@equ E C X X eq ==> eq ==> iff) (P ||| Q).
+  Proof.
+    unfold Proper, respectful, impl, cand; cbn.
+    intros x y EQ ? l <-; split; intros [? | ?].
+    - left; now rewrite <- EQ.
+    - right; now rewrite <- EQ.
+    - left; now rewrite EQ.
+    - right; now rewrite EQ.
+  Qed.
+  
+  #[global] Instance proper_cimpl_equ (P Q: SP) {HasStuck: B0 -< C}
+   {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}
+   {PrQ: Proper (@equ E C X X eq ==> eq ==> iff) Q}:
+    Proper (@equ E C X X eq ==> eq ==> iff) (P ->> Q).
+  Proof.
+    unfold Proper, respectful, impl, cimpl; cbn.
+    intros x y EQ ? l <-; split; intros G HP.
+    - rewrite <- EQ; apply G.
+      now rewrite EQ.
+    - rewrite EQ; apply G.
+      now rewrite <- EQ.
+  Qed.    
   
 End Congruences.
