@@ -346,13 +346,19 @@ Section bind.
 
   Context {E F C D: Type -> Type} {X X' Y Y': Type}
           `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}
-          (L : hrel (@label E) (@label F)).
+          (L : hrel (@label E) (@label F)) (R0 : rel X Y).
+
+  (* Mix of R0 for val and L for tau/obs. *)
+  Variant update_val_rel : @label E -> @label F -> Prop :=
+  | update_Val (v1 : X) (v2 : Y) : R0 v1 v2 -> update_val_rel (val v1) (val v2)
+  | update_NonVal l1 l2 : ~is_val l1 -> ~is_val l2 -> L l1 l2 -> update_val_rel l1 l2
+  .
 (*|
 Specialization of [bind_ctx] to a function acting with [ssim] on the bound value,
 and with the argument (pointwise) on the continuation.
 |*)
   Program Definition bind_ctx_ssim: mon (rel (ctree E C X') (ctree F D Y')) :=
-    {|body := fun R => @bind_ctx E F C D X Y X' Y' (ssim L) (pointwise (fun x y => L (val x) (val y)) R) |}.
+    {|body := fun R => @bind_ctx E F C D X Y X' Y' (ssim update_val_rel) (pointwise R0 R) |}.
   Next Obligation.
     intros ?? H. apply leq_bind_ctx. intros ?? H' ?? H''.
     apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
@@ -361,7 +367,7 @@ and with the argument (pointwise) on the continuation.
 (*|
     The resulting enhancing function gives a valid up-to technique
 |*)
-  Lemma bind_ctx_ssim_t {RV: Respects_val L}:
+  Lemma bind_ctx_ssim_t (*{RV: Respects_val L}*):
     bind_ctx_ssim <= (sst L).
   Proof.
     apply Coinduction.
@@ -374,7 +380,7 @@ and with the argument (pointwise) on the continuation.
     apply tt in STEP as (u' & l' & STEP & EQ' & ?).
     do 2 eexists. split.
     apply trans_bind_l; eauto.
-    + intro Hl. destruct Hl. apply RV in H0 as [_ ?]. specialize (H0 (Is_val _)). auto.
+    + intro Hl. destruct Hl. inversion H0; subst. apply H. constructor. apply H2. constructor.
     + split; auto.
         apply (fT_T equ_clos_sst).
         econstructor; [exact EQ | | reflexivity].
@@ -383,13 +389,13 @@ and with the argument (pointwise) on the continuation.
         intros ? ? ?.
         apply (b_T (ss L)).
         red in kk; cbn; now apply kk.
+        destruct H0. exfalso. apply H. constructor. apply H2.
     + apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
-      destruct RV.
-      destruct (respects_val _ _ H) as [? _]. specialize (H0 (Is_val _)). destruct H0.
-      pose proof (trans_val_invT STEPres); subst.
+      dependent destruction H.
+      2: { exfalso. apply H. constructor. }
       pose proof (trans_val_inv STEPres) as EQ.
       rewrite EQ in STEPres.
-      specialize (kk v x0 H).
+      specialize (kk v v2 H).
       apply kk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
       do 2 eexists; split.
       eapply trans_bind_r; eauto.
@@ -403,64 +409,61 @@ End bind.
 Expliciting the reasoning rule provided by the up-to principles.
 |*)
 Lemma sst_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L: rel (@label E) (@label F)}
-      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} {RV: Respects_val L}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} (R0 : rel X Y)
       (t1 : ctree E C X) (t2: ctree F D Y)
       (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') RR:
-  ssim L t1 t2 ->
-  (forall x y, (sst L RR) (k1 x) (k2 y)) ->
+  ssim (update_val_rel L R0) t1 t2 ->
+  (forall x y, R0 x y -> (sst L RR) (k1 x) (k2 y)) ->
   sst L RR (t1 >>= k1) (t2 >>= k2).
 Proof.
   intros ? ?.
-  apply (ft_t (@bind_ctx_ssim_t E F C D X X' Y Y' _ _ L RV)).
+  apply (ft_t (@bind_ctx_ssim_t E F C D X X' Y Y' _ _ L R0)).
   apply in_bind_ctx; eauto.
-  intros ? ? ?; auto.
 Qed.
 
 (*|
 Specializing the congruence principle for [≲]
 |*)
 Lemma ssim_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type}  {L: rel (@label E) (@label F)}
-      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} {RV: Respects_val L}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} (R0 : rel X Y)
       (t1 : ctree E C X) (t2: ctree F D Y)
       (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y'):
-  ssim L t1 t2 ->
-  (forall x y, ssim L (k1 x) (k2 y)) ->
+  ssim (update_val_rel L R0) t1 t2 ->
+  (forall x y, R0 x y -> ssim L (k1 x) (k2 y)) ->
   ssim L (t1 >>= k1) (t2 >>= k2).
 Proof.
   intros * EQ EQs.
-  apply (ft_t (@bind_ctx_ssim_t E F C D X X' Y Y' _ _ L RV)).
+  apply (ft_t (@bind_ctx_ssim_t E F C D X X' Y Y' _ _ L R0)).
   apply in_bind_ctx; auto.
-  intros ? ? ?; auto.
-  apply EQs.
 Qed.
 
 
 (*|
 And in particular, we can justify rewriting [≲] to the left of a [bind].
 |*)
-Lemma bind_ssim_cong_gen {E C X X'} RR {HasStuck: B0 -< C}
-      {L: relation (@label E)} {RV: Respects_val L}:
+(*Lemma bind_ssim_cong_gen {E C X X'} RR {HasStuck: B0 -< C}
+      {L: relation (@label E)} (R0 : relation X):
   Proper (ssim L ==> (fun f g => forall x y, sst L RR (f x) (g y)) ==> sst L RR) (@bind E C X X').
 Proof.
   do 4 red; intros.
   eapply sst_clo_bind; auto.
-Qed.
+Qed.*)
 
-Ltac __upto_bind_ssim :=
+Ltac __upto_bind_ssim R0 :=
   match goal with
     |- @ssim ?E ?F ?C ?D ?X ?Y _ _ ?L (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
-      apply ssim_clo_bind
+      apply (ssim_clo_bind R0)
   | |- body (t (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
-      apply (ft_t (@bind_ctx_ssim_t E F C D T X T' Y _ _ L _)), in_bind_ctx
+      apply (ft_t (@bind_ctx_ssim_t E F C D T X T' Y _ _ L R0)), in_bind_ctx
   | |- body (bt (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
-      apply (fbt_bt (@bind_ctx_ssim_t E F C D T X T' Y _ _ L _)), in_bind_ctx
+      apply (fbt_bt (@bind_ctx_ssim_t E F C D T X T' Y _ _ L R0)), in_bind_ctx
   end.
 
-Ltac __upto_bind_eq_ssim :=
+Ltac __upto_bind_eq_ssim R0 :=
   match goal with
   | |- @ssim ?E ?F ?C ?D ?X ?Y _ _ ?L (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
-      __upto_bind_ssim; [reflexivity | intros ?]
-  | _ => __upto_bind_ssim; [reflexivity | intros ? ? ?EQl]
+      __upto_bind_ssim R0; [reflexivity | intros ?]
+  | _ => __upto_bind_ssim R0; [reflexivity | intros ? ? ?EQl]
   end.
 
 Ltac __play_ssim := step; cbn; intros ? ? ?TR.

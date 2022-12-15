@@ -78,10 +78,10 @@ are identical: assumes [reflexivity] will solve the first goal, and proceed to s
 - [upto_bind with SS]: for [equ], provides explicitly the intermediate relation
 |*)
 #[global] Tactic Notation "upto_bind" :=
-  __eupto_bind_equ || __upto_bind_sbisim || __upto_bind_ssim || __upto_bind_cssim.
+  __eupto_bind_equ || __upto_bind_sbisim || __upto_bind_ssim eq || __upto_bind_cssim.
 
 #[global] Tactic Notation "upto_bind_eq" :=
-  __upto_bind_eq_equ || __upto_bind_eq_sbisim || __upto_bind_eq_ssim || __upto_bind_eq_cssim.
+  __upto_bind_eq_equ || __upto_bind_eq_sbisim || __upto_bind_eq_ssim eq || __upto_bind_eq_cssim.
 
 #[global] Tactic Notation "upto_bind" "with" uconstr(SS) :=
   __upto_bind_equ SS.
