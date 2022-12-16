@@ -97,7 +97,7 @@ Proof.
 Qed.
 
 #[global] Instance refine_equ {E C X} `{HasTau: B1 -< C} h:
-  Proper (@equ E C X X eq ==> equ eq) (@refine E C _ _ _ _ _ h X).
+  Proper (equ eq ==> @equ E C X X eq) (@refine E C _ _ _ _ _ h X).
 Proof.
   cbn.
   coinduction R CH.
