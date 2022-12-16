@@ -91,8 +91,8 @@ Section State.
   Notation fold_state_ h g t s :=
     (match observe t with
      | RetF r => Ret (s, r)
-	   | VisF e k => bind (h _ e s) (fun xs => Guard (fold_state h g (k (snd xs)) (fst xs)))
-	   | BrF b c k => bind (g b _ c s) (fun xs => Guard (fold_state h g (k (snd xs)) (fst xs)))
+     | VisF e k => bind (h _ e s) (fun xs => Guard (fold_state h g (k (snd xs)) (fst xs)))
+     | BrF b c k => bind (g b _ c s) (fun xs => Guard (fold_state h g (k (snd xs)) (fst xs)))
      end)%function.
 
   Lemma unfold_fold_state (t : ctree E C R) (s : S) :

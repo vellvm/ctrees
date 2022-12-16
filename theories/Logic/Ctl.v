@@ -3,25 +3,19 @@
 Modal logics over ctrees
 =========================================
 |*)
-From Coq Require Import
-     Lia
-     Basics
-     Fin
-     RelationClasses
-     Program.Equality
-     Logic.Eqdep.
+From ExtLib Require Import
+     Structures.Functor
+     Structures.Monad.
 
-From Coinduction Require Import
-     coinduction rel tactics.
-
-From ITree Require Import Core.Subevent.
+From ITree Require Import
+     Events.State
+     CategoryOps.
+Import Basics.Monads.
 
 From CTree Require Import
      CTree
-     Utils
-     Interp.FoldStateT
-     Eq
-     Eq.Trans.
+     Fold
+     Eq.
 
 From RelationAlgebra Require Export
      rel srel.

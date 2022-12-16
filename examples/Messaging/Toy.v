@@ -17,11 +17,12 @@ From CTree Require Import
      CTree
      Interp.FoldStateT
      Interp.Log
+     Interp.Fold
      Interp.Network
      Logic.Ctl
      Misc.Vectors
-     Eq
-     SBisim.
+     Eq.
+
 
 From Equations Require Import Equations.
 
@@ -34,6 +35,10 @@ Set Implicit Arguments.
 Set Maximal Implicit Insertion.
 Set Asymmetric Patterns.
 
+
+    
+
+   
 (** ================================================================================ *)
 (** This is the top-level denotation *)
 Program Definition run{n C S} `{B1 -< C} `{B2 -< C} `{Bn -< C}
@@ -55,6 +60,8 @@ Module Toy.
         - Process [inc] waits to hear a number [n], then
           sends back [S n], repeats forever.
     |*)
+
+
     Definition echo(them: uid 2): ctree (Net +' State) C void :=
       daemon (
           v <- get ;;
@@ -98,78 +105,158 @@ Module Toy.
     Ltac take_branch n :=
       match goal with
       | [ |- Logic.ex (fun l => Logic.ex (fun t =>  hrel_of (trans l) (brS (branchn ?m) ?k) t /\ _)) ] => exists tau, (k (n: fin m))
-      end.
+      end;
+      split; [econstructor; reflexivity|];
+      simp schedule_one;  unfold schedule_one_clause_1_clause_1; cbn;
+      simp vector_replace; simpl; fold_subst.
 
     Ltac take_enter :=
       match goal with
       | [ |- Logic.ex (fun l' => Logic.ex (fun t' => hrel_of (trans l') (enter ?i ;; ?k) _ /\ _)) ] => exists (obs (subevent _ (Enter i)) tt), k
       end.
-    
+
+    Ltac step_ef :=
+      rewrite ctl_ef_ex; right; unfold ex.
+
+    Ltac run n :=
+      instantiate (1:=n);
+      rewrite ctl_ef_ex; right; unfold ex;
+      do 2 eexists; split; [eapply trans_trigger|];
+      rewrite ctl_ef_ex; right; unfold ex;
+      exists tau; eexists;
+      simp schedule_one; cbn; simp vector_replace; split; cbn;
+      (* For solving the [trans] *)
+      [eapply trans_guard; rewrite unfold_schedule; cbn;
+       eapply trans_bind_l; [intros Hyp; inv Hyp|];
+       eapply trans_brS; rewrite bind_ret_l
+      | rewrite bind_ret_l; fold_subst].
+
+ 
+    Lemma trans_bind_inv_void: forall (E B : Type -> Type) (X : Type)
+                                 (H : B0 -< B) (t : ctree E B X) (k : X -> ctree E B void) (u : ctree E B void) (l : label E),
+       trans l (x <- t;; k x) u ->
+       ~ is_val l /\ (exists t' : Trans.SS, trans l t t' /\ u ≅ x <- t';; k x).
+
+
+      forall {E B : Type -> Type} {H : B0 -< B}
+                                 (t : ctree E B void) (k : X -> ctree E B void) [u : ctree E B Y] [l : label E],
+  trans l (x <- t;; k x) u ->
+  ~ is_val l /\ (exists t' : Trans.SS, trans l t t' /\ u ≅ x <- t';; k x) \/ (exists x : X, trans (val x) t stuckD /\ trans l (k x) u)
+etrans_bind_inv:
+    (* Will count to [1] infinitely often *)
     Lemma eventually_counts: forall l,
         let sys := run [echo b; inc]%vector 0 in
-        sys, l |= EF (lift (is_eq 1)).      (* Will count to [1] *)
+        sys, l |= AF (lift (is_eq 1)).
     Proof.
       intros l sys.
-      unfold sys, echo, inc, run, run_network, run_state_log in *.
-      clear sys.
-      cbn.
-      rewrite unfold_schedule.
-      rewrite bind_branch.
-      cbn.
-      (* Step the [EF] *)
-      rewrite ctl_ef_ex; right; unfold ex.
-      (* Take the branch [F1],  *)
-      take_branch b; split; [econstructor; reflexivity|].
-      simp schedule_one.
-      simp vector_replace; simpl.
-      (* Step the [EF] *)
-      rewrite ctl_ef_ex; right; unfold ex;
-        do 2 eexists; split; [eapply trans_trigger|].
-      (* Step the [EF] *)
-      rewrite ctl_ef_ex; right; unfold ex.
-      cbn.
-      exists tau; eexists; split.
-      eapply trans_guard.
-      simp vector_replace; simpl.
-      (* schedule *)
-      rewrite unfold_schedule; cbn.
-      apply trans_bind_l; [intro HV; inv HV |].
-      eapply trans_brS.
-      (* Better way to instantiate using Ltac ? *)
-      instantiate (1 := a).
-      rewrite bind_ret_l.
-      (* Step the [EF] *)
-      rewrite ctl_ef_ex; right; unfold ex;
-        do 2 eexists; split; [eapply trans_trigger|].
-      (* Step the [EF] *)
-      rewrite ctl_ef_ex; right; unfold ex.
-      exists tau; eexists.
-      simp schedule_one; cbn.
-      simp vector_replace; simpl; split.
-      eapply trans_guard.
-      (* Schedule  *)
-      rewrite unfold_schedule; cbn.
-      apply trans_bind_l; [intro HV; inv HV |].
-      eapply trans_brS.
-      rewrite bind_ret_l.
-      fold_subst.
-     
-      (* Semi Automated!! *)
-      (* Step the [EF] and schedule [a] *)
-      instantiate (1:=a);
-      rewrite ctl_ef_ex; right; unfold ex;
-        do 2 eexists; split; [eapply trans_trigger|];
+      (* AF (is_eq 1) sys l *)
+      rewrite ctl_af_ax.
+      right.
+      unfold ax.
+      intros.
+      unfold sys in *.
+      unfold run in H3.      
+      unfold sys, echo, inc, run, run_network, run_state_log, run_state_log in H3.
+      rewrite unfold_schedule in H3.
+      (* Hm the [trans_bind_inv] lemma is too verbose
+         specifically for infinite programs we know it will 
+         always be stepping. *)
+      apply trans_bind_inv in H3.
+      destruct H3. as (l' & TR).
+      apply trans_brS_inv in TR.
+      destruct TR as (i & t''eq & ltau).
+      subst.
+      Search trans.
+        (* Step in the scheduler *)
+        rewrite unfold_schedule; rewrite bind_branch; cbn.
+        (* Step the [EF] and schedule [inc] *)
+        step_ef; take_branch b.
+        
+        (* [inc] is now blocked waiting for a message *)        
         rewrite ctl_ef_ex; right; unfold ex;
-        exists tau; eexists;
-        simp schedule_one; cbn; simp vector_replace; split; cbn;
-      (* For solving the [trans] *)
-        [eapply trans_guard; rewrite unfold_schedule; cbn;
-         eapply trans_bind_l; [intro HV; inv HV|];
-         eapply trans_brS; rewrite bind_ret_l
-        | rewrite bind_ret_l; fold_subst].
-      (* Now continuing...  *)
-      (* Ah I forgot which process to schedule now... *)
-      instantiate (1:= b). (* ? *)
+          do 2 eexists; split; [eapply trans_trigger|].
+        (* Step the [EF] *)
+        rewrite ctl_ef_ex; right; unfold ex.
+        exists tau; eexists; split.
+        eapply trans_guard.
+        simp vector_replace; simpl.
+        (* schedule *)
+        rewrite unfold_schedule; cbn.
+        apply trans_bind_l; [intro HV; inv HV |].
+        eapply trans_brS.
+        rewrite bind_ret_l.        
+
+        run a.
+        run a.
+        run b.
+        run b.
+        run a.
+        run a.
+        run b.
+        run b.
+        (* Better way to instantiate using Ltac ? *)
+        instantiate (1 := a).
+        (* Step the [EF] *)
+        rewrite ctl_ef_ex; right; unfold ex;
+          do 2 eexists; split; [eapply trans_trigger|].
+        (* Step the [EF] *)
+        rewrite ctl_ef_ex; right; unfold ex.
+        exists tau; eexists.
+        simp schedule_one; cbn.
+        simp vector_replace; simpl; split.
+        eapply trans_guard.
+        (* Schedule  *)
+        rewrite unfold_schedule; cbn.
+        apply trans_bind_l; [intro HV; inv HV |].
+        eapply trans_brS.
+        rewrite bind_ret_l.
+        fold_subst.
+        
+        (* Semi Automated!! *)
+        (* Step the [EF] and schedule [a] *)
+        instantiate (1:=b);
+          rewrite ctl_ef_ex; right; unfold ex;
+          do 2 eexists; split; [eapply trans_trigger|];
+          rewrite ctl_ef_ex; right; unfold ex;
+          exists tau; eexists;
+          simp schedule_one; cbn; simp vector_replace; split; cbn;
+          (* For solving the [trans] *)
+          [eapply trans_guard; rewrite unfold_schedule; cbn;
+           eapply trans_bind_l; [intro HV; inv HV|];
+           eapply trans_brS; rewrite bind_ret_l
+          | rewrite bind_ret_l; fold_subst].
+        (* Now continuing...  *)
+        
+        (* Ah I forgot which process to schedule now... let's do the same *)
+         instantiate (1:=b);
+          rewrite ctl_ef_ex; right; unfold ex;
+          do 2 eexists; split; [eapply trans_trigger|];
+          rewrite ctl_ef_ex; right; unfold ex;
+          exists tau; eexists;
+          simp schedule_one; cbn; simp vector_replace; split; cbn;
+          (* For solving the [trans] *)
+          [eapply trans_guard; rewrite unfold_schedule; cbn;
+           eapply trans_bind_l; [intro HV; inv HV|];
+           eapply trans_brS; rewrite bind_ret_l
+          | rewrite bind_ret_l; fold_subst].
+
+         (* Schedule [b] now *)
+         instantiate (1:=b);
+          rewrite ctl_ef_ex; right; unfold ex;
+          do 2 eexists; split; [eapply trans_trigger|];
+          rewrite ctl_ef_ex; right; unfold ex;
+          exists tau; eexists;
+          simp schedule_one; cbn; simp vector_replace; split; cbn;
+          (* For solving the [trans] *)
+          [eapply trans_guard; rewrite unfold_schedule; cbn;
+           eapply trans_bind_l; [intro HV; inv HV|];
+           eapply trans_brS; rewrite bind_ret_l
+          | rewrite bind_ret_l; fold_subst].
+                
+        instantiate (1:= b). (* ? *)
+        do 4 (rewrite ctree_eta; cbn; fold_subst).
+        
+      }.
     Admitted.
 
   End ParametricC.

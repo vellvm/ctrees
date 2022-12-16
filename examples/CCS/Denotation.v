@@ -23,13 +23,13 @@ From RelationAlgebra Require Import
      normalisation.
 
 From CTreeCCS Require Import
-	   Syntax.
+     Syntax.
 
 From CTree Require Import Head.
 From CTree Require Import
-	   CTree
+     CTree
      Eq
- 	   Interp.Interp.
+     Interp.Interp.
 
 Import CTree.
 
@@ -45,7 +45,7 @@ unary visible br nodes.
 |*)
 
 Variant ActionE : Type -> Type :=
-	| Act (a : action) : ActionE unit.
+  | Act (a : action) : ActionE unit.
 
 Notation ccsE := ActionE.
 Notation ccsC := (C0 +' C1 +' C2 +' C3 +' C4).
@@ -377,40 +377,9 @@ Proof.
 	intros * eq; rewrite eq; apply trans_vis.
 Qed.
 
-<<<<<<< HEAD
-Lemma new_tau : forall c t, new c (tauI t) ≅ tauI (tauI (new c t)).
-=======
-Lemma new_tau : forall c t, new c (Guard t) ≅ Guard (Guard (new c t)).
->>>>>>> master
+Lemma new_guard : forall c t, new c (Guard t) ≅ Guard (Guard (new c t)).
 Proof.
-  intros; unfold new; now rewrite interp_tau.
-Qed.
-
-Ltac eq2bisim H :=
-  match type of H with
-  | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ~ t) by (subst; reflexivity); clear H
-  end.
-
-#[global] Instance interp_equ {E F C R} `{HasTau : C1 -< C} (h : E ~> ctree F C) :
-  Proper (equ (C := C) eq ==> equ eq) (interpE h (T := R)).
-Proof.
-  unfold Proper, respectful.
-  coinduction ? CIH.
-  intros t u eq.
-  step in eq; inv eq; auto.
-  - rewrite 2 unfold_interp, <-H0, <-H; auto.
-  - rewrite 2 unfold_interp.
-    (* Can we make the up-to bind here nicer to use? *)
-    rewrite <- H0, <-H.
-    simpl Monad.bind.
-    upto_bind_eq.
-    constructor; intros ?.
-    auto.
-  - rewrite 2 unfold_interp, <-H0, <-H. cbn*.
-    constructor; intros ?.
-    step.
-    cbn*; constructor; intros ?.
-    auto.
+  intros; unfold new; now rewrite interp_guard.
 Qed.
 
 #[global] Instance new_equ c :
