@@ -10,7 +10,8 @@ Import Basics.Monads.
 From CTree Require Import
      CTree
      Fold
-     Eq.
+     Eq
+     Eq.Trans0.
 
 Import SBisimNotations.
 Import MonadNotation.
