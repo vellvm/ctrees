@@ -602,8 +602,8 @@ Section Proof_Rules.
     cbn; do 2 eexists; split; [etrans | split; [rewrite EQ; eauto|assumption]].
   Qed.
 
-  Lemma step_ss_brS {Z Z' Y F} (c : C Z) (c' : C Z')
-        (k : Z -> ctree E C X) (k' : Z' -> ctree F C Y) (R L: rel _ _) :
+  Lemma step_ss_brS {Z Z' Y F D} `{HasStuck' : B0 -< D} (c : C Z) (c' : D Z')
+        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R L: rel _ _) :
     (forall x, exists y, sst L R (k x) (k' y)) ->
     L tau tau ->
     ssbt L R (BrS c k) (BrS c' k').
