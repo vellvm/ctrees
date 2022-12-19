@@ -395,7 +395,7 @@ Lemma trans_branch :
     trans l t t' -> k x ≅ t -> trans l (CTree.branch false c >>= k) t'.
 Proof.
   intros.
-  rewrite bind_branch.
+  setoid_rewrite bind_branch.
   eapply trans_brD; eauto.
 Qed.
 
@@ -532,14 +532,14 @@ Section transi_state.
       split.
       eapply trans0_trans in H; etrans.
       left.
-      rewrite bind_branch.
+      setoid_rewrite bind_branch.
       step.
       constructor; intros [].
 
     - exists (Guard (interp_state h t' s)). split; [| eright; eauto; now left ].
       apply trans_tau_trans0 in H as (? & ? & ? & ? & ? & ?).
       eapply trans0_interp_state in H. setoid_rewrite H0. eapply trans0_trans; etrans.
-      rewrite interp_state_br, bind_branch.
+      rewrite interp_state_br. setoid_rewrite bind_branch.
       econstructor. reflexivity.
     - exists (x <- t'';; Guard (interp_state h t' s')).
       split.
@@ -615,7 +615,7 @@ Section transi_state.
              destruct H3. rewrite H3 in H1. step in H1. inv H1.
              destruct H3. rewrite H3 in H1. step in H1. inv H1.
         * rewrite interp_state_br in H0.
-          rewrite bind_branch in H0.
+          setoid_rewrite bind_branch in H0.
           apply equ_br_invT in H0 as ?. destruct H1 as [-> ->].
           apply equ_br_invE in H0 as [<- ?].
           specialize (IHtrans_ _ s (fun _ : unit => k1 x) (Guard (Ret tt))).
@@ -651,7 +651,7 @@ Section transi_state.
           edestruct Hh. { destruct H5. rewrite H5 in H4. inv_trans. }
           destruct H5. rewrite H5 in H4. apply trans_vis_inv in H4 as (? & ? & ?). discriminate.
         * rewrite interp_state_br in H0.
-          rewrite bind_branch in H0.
+          setoid_rewrite bind_branch in H0.
           apply equ_br_invT in H0 as ?. destruct H2 as [-> ->].
           simple eapply equ_br_invE in H0 as ?. destruct H2 as [<- ?].
           specialize (H2 x). rewrite H in H2.
@@ -660,7 +660,7 @@ Section transi_state.
           right. exists x0. rewrite H1. split; etrans.
           split; setoid_rewrite (ctree_eta (k0 x0)); setoid_rewrite Heqc0.
           { setoid_rewrite interp_state_br. rewrite H2.
-            rewrite bind_branch.
+            setoid_rewrite bind_branch.
             econstructor. now rewrite <- ctree_eta. }
           econstructor; etrans.
       + pose proof (trans_brS c x0 x).
@@ -705,7 +705,7 @@ Section transi_state.
     - exists stuckD, (fst r). split.
       + left. unfold stuck. rewrite interp_state_br.
         rewrite !br0_always_stuck.
-        rewrite bind_branch.
+        setoid_rewrite bind_branch.
         step.
         constructor; intros [].
       + right. symmetry in H0. apply ret_equ_bind in H0 as (? & ? & ?).
