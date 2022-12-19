@@ -24,7 +24,7 @@ Definition iter_gen {E B X I} `{B1 -< B}
   | inr x => Ret x
   end.
 
-Section SBisimIter.
+Section TransIter.
 
 Context {E B : Type -> Type} {X : Type} {I : Type}.
 Context `{HasB0 : B0 -< B} `{HasB1 : B1 -< B}.
@@ -152,7 +152,103 @@ Proof.
     apply br0_always_stuck.
 Qed.
 
-End SBisimIter.
+End TransIter.
+
+Theorem ssim_iter_gen {E F C D A B B'}
+  `{HasB0 : B0 -< C} `{HasB1 : B1 -< C} `{HasB0' : B0 -< D} `{HasB1' : B1 -< D}
+  (L : rel (@label E) (@label F)) (Ra : relation A) (Rb : rel B B') L0
+  (HL0 : is_update_val_rel L (sum_rel Ra Rb) L0)
+  (HRb : forall b b', Rb b b' <-> L (val b) (val b')) :
+  forall (step : A -> ctree E C (A + B)) (step' : A -> ctree F D (A + B')),
+  (forall a a' : A, Ra a a' -> step a (≲L0) step' a') ->
+  forall (t : ctree E C (A + B)) (t' : ctree F D (A + B')),
+  t (≲L0) t' ->
+  iter_gen step t (≲L) iter_gen step' t'.
+Proof.
+  repeat intro.
+  revert step step' t t' H H0.
+  coinduction R CH.
+  do 3 red. cbn. intros.
+  apply trans_iter_gen in H1.
+  revert t' H0. induction H1; intros.
+  - step in H2. apply H2 in H0 as (? & ? & ? & ? & ?).
+    apply HL0 in H4.
+    2: apply wf_val_val. 2: now apply wf_val_trans in H0.
+    apply update_val_rel_val_l in H4 as (? & -> & ?).
+    apply trans_val_inv in H0 as ?. rewrite H5 in H0. clear x0 H3 H5.
+    destruct x1. 2: { destruct H4. } cbn in H4.
+    apply H in H4.
+    apply IHtrans_it in H4 as (? & ? & ? & ? & ?). subst. clear IHtrans_it.
+    exists x, x0; auto. split; auto.
+    unfold iter_gen.
+    apply trans_bind_r with (x := inl a); auto.
+    apply trans_guard. apply H3.
+  - destruct H0 as (? & ? & ?).
+    step in H1. apply H1 in H0 as (? & ? & ? & ? & ?). subst.
+    exists x, (iter_gen step' x0).
+    apply HL0 in H5.
+    2: { eapply wf_val_nonval in H3. apply H3. }
+    2: now apply wf_val_trans in H0.
+    apply update_val_rel_nonval_l in H5 as []; auto.
+    split; [| split]; auto.
+    + apply trans_bind_l; auto.
+    + rewrite H2. apply CH; auto.
+  - subst.
+    step in H3. apply H3 in H0 as (? & ? & ? & ? & ?). subst.
+    apply HL0 in H4.
+    2: apply wf_val_val.
+    2: now apply wf_val_trans in H0.
+    apply update_val_rel_val_l in H4 as (? & -> & ?).
+    apply trans_val_inv in H0 as ?. rewrite H5 in H0. clear x0 H1 H5.
+    destruct x1. 1: { destruct H4. } cbn in H4.
+    exists (val b), stuckD. split.
+    2: { split. rewrite H2. step. apply stuckD_ss. apply HRb. apply H4. }
+    eapply trans_bind_r. apply H0. cbn. etrans.
+Qed.
+
+#[global] Instance ssim_iter_gen_eq {E B X Y} `{HasB0 : B0 -< B} `{HasB1 : B1 -< B} :
+  @Proper ((X -> ctree E B (X + Y)) -> ctree E B (X + Y) -> ctree E B Y)
+    (pointwise_relation _ (ssim eq) ==> (ssim eq) ==> (ssim eq))
+    iter_gen.
+Proof.
+  repeat intro.
+  eapply ssim_iter_gen with (L := eq) (L0 := eq) (Ra := eq) (Rb := eq).
+  - split; intro.
+    + subst. destruct l2.
+      * constructor; auto.
+        all: intro; inv H3.
+      * constructor; auto.
+        all: intro; inv H3.
+      * red in H. specialize (H1 X0 v eq_refl). subst.
+        constructor. destruct v; reflexivity.
+    + inv H3. 2: reflexivity. destruct v1, v2; inv H4; reflexivity.
+  - split; intro. now subst. now apply val_eq_inv in H1.
+  - intros. subst. apply H.
+  - apply H0.
+Qed.
+
+Theorem ssim_iter {E F C D A B B'} `{B0 -< C} `{B1 -< C} `{B0 -< D} `{B1 -< D}
+  (L : rel (@label E) (@label F)) (Ra : relation A) (Rb : rel B B') L0
+  (HL0 : is_update_val_rel L (sum_rel Ra Rb) L0)
+  (HRb : forall b b', Rb b b' <-> L (val b) (val b')) :
+  forall (step : A -> ctree E C (A + B)) (step' : A -> ctree F D (A + B')),
+  (forall a a' : A, Ra a a' -> step a (≲L0) step' a') ->
+  forall a a' : A, Ra a a' -> iter step a (≲L) iter step' a'.
+Proof.
+  repeat intro.
+  rewrite !iter_iter_gen.
+  eapply ssim_iter_gen; eauto.
+Qed.
+
+#[global] Instance ssim_iter_eq {E B X Y} `{HasB0 : B0 -< B} `{HasB1 : B1 -< B} :
+  @Proper ((X -> ctree E B (X + Y)) -> X -> ctree E B Y)
+    (pointwise_relation _ (ssim eq) ==> pointwise_relation _ (ssim eq))
+    iter.
+Proof.
+  repeat intro.
+  rewrite !iter_iter_gen.
+  apply ssim_iter_gen_eq; auto.
+Qed.
 
 #[global] Instance sbisim_iter_gen {E B X Y} `{HasB0 : B0 -< B} `{HasB1 : B1 -< B} :
   @Proper ((X -> ctree E B (X + Y)) -> ctree E B (X + Y) -> ctree E B Y)

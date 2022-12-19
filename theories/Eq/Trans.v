@@ -1490,6 +1490,34 @@ Proof.
     destruct TR as (? & ? & abs); inv abs.
 Qed.
 
+(*|
+[wf_val] states that a [label] is well-formed:
+if it is a [val] it should be of the right type.
+|*)
+Definition wf_val {E} X l := forall Y (v : Y), l = @val E Y v -> X = Y.
+
+Lemma wf_val_val {E} X (v : X) : wf_val X (@val E X v).
+Proof.
+  red. intros. apply val_eq_invT in H. assumption.
+Qed.
+
+Lemma wf_val_nonval {E} X (l : @label E) : ~is_val l -> wf_val X l.
+Proof.
+  red. intros. subst. exfalso. apply H. constructor.
+Qed.
+
+Lemma wf_val_trans {E B X} `{B0 -< B} (l : @label E) (t t' : ctree E B X) :
+  trans l t t' -> wf_val X l.
+Proof.
+  red. intros. subst.
+  now apply trans_val_invT in H0.
+Qed.
+
+(*|
+[inv_trans] is an helper tactic to automatically
+invert hypotheses involving [trans].
+|*)
+
 #[local] Notation trans' l t u := (hrel_of (trans l) t u).
 
 Ltac inv_trans_one :=

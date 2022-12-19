@@ -354,8 +354,46 @@ Section bind.
   | update_NonVal l1 l2 : ~is_val l1 -> ~is_val l2 -> L l1 l2 -> update_val_rel l1 l2
   .
 
+  Lemma update_val_rel_val_l : forall (v1 : X) l2,
+    update_val_rel (val v1) l2 ->
+    exists v2 : Y, l2 = val v2 /\ R0 v1 v2.
+  Proof.
+    intros. remember (val v1) as l1. destruct H.
+    - apply val_eq_inv in Heql1. subst. eauto.
+    - subst. exfalso. apply H. constructor.
+  Qed.
+
+  Lemma update_val_rel_val_r : forall l1 (v2 : Y),
+    update_val_rel l1 (val v2) ->
+    exists v1 : X, l1 = val v1 /\ R0 v1 v2.
+  Proof.
+    intros. remember (val v2) as l2. destruct H.
+    - apply val_eq_inv in Heql2. subst. eauto.
+    - subst. exfalso. apply H0. constructor.
+  Qed.
+
+  Lemma update_val_rel_nonval_l : forall l1 l2,
+    update_val_rel l1 l2 ->
+    ~is_val l1 ->
+    ~is_val l2 /\ L l1 l2.
+  Proof.
+    intros. destruct H.
+    - exfalso. apply H0. constructor.
+    - auto.
+  Qed.
+
+  Lemma update_val_rel_nonval_r : forall l1 l2,
+    update_val_rel l1 l2 ->
+    ~is_val l2 ->
+    ~is_val l1 /\ L l1 l2.
+  Proof.
+    intros. destruct H.
+    - exfalso. apply H0. constructor.
+    - auto.
+  Qed.
+
   Definition is_update_val_rel (L0 : rel (@label E) (@label F)) : Prop :=
-    forall l1 l2, L0 l1 l2 <-> update_val_rel l1 l2.
+    forall l1 l2, wf_val X l1 -> wf_val Y l2 -> (L0 l1 l2 <-> update_val_rel l1 l2).
 
   Theorem update_val_rel_correct : is_update_val_rel update_val_rel.
   Proof.
@@ -389,19 +427,28 @@ and with the argument (pointwise) on the continuation.
     apply tt in STEP as (u' & l' & STEP & EQ' & ?).
     do 2 eexists. split.
     apply trans_bind_l; eauto.
-    + intro Hl. destruct Hl. apply HL0 in H0. inversion H0; subst. apply H. constructor. apply H2. constructor.
-    + split; auto.
-        apply (fT_T equ_clos_sst).
+    + intro Hl. destruct Hl.
+      apply HL0 in H0.
+      2: now apply wf_val_nonval.
+      2: now apply wf_val_trans in STEP.
+      inversion H0; subst. apply H. constructor. apply H2. constructor.
+    + split.
+      * apply (fT_T equ_clos_sst).
         econstructor; [exact EQ | | reflexivity].
         apply (fTf_Tf (ss L)).
         apply in_bind_ctx; auto.
         intros ? ? ?.
         apply (b_T (ss L)).
         red in kk; cbn; now apply kk.
-        apply HL0 in H0. destruct H0. exfalso. apply H. constructor. apply H2.
+      * apply HL0 in H0.
+        2: now apply wf_val_nonval.
+        2: now apply wf_val_trans in STEP.
+        destruct H0. exfalso. apply H. constructor. apply H2.
     + apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
-      apply HL0 in H. dependent destruction H.
-      2: { exfalso. apply H. constructor. }
+      apply HL0 in H.
+      2: apply wf_val_val.
+      2: now apply wf_val_trans in STEPres.
+      dependent destruction H. 2: { exfalso. apply H. constructor. }
       pose proof (trans_val_inv STEPres) as EQ.
       rewrite EQ in STEPres.
       specialize (kk v v2 H).
@@ -413,6 +460,19 @@ and with the argument (pointwise) on the continuation.
   Qed.
 
 End bind.
+
+Theorem is_update_val_rel_eq {E X} : @is_update_val_rel E E X X eq eq eq.
+Proof.
+  split; intro.
+  - subst. destruct l2.
+    + constructor; auto.
+      all: intro; inv H1.
+    + constructor; auto.
+      all: intro; inv H1.
+    + red in H. specialize (H X0 v eq_refl). subst.
+      constructor. reflexivity.
+  - inv H1; reflexivity.
+Qed.
 
 (*|
 Expliciting the reasoning rule provided by the up-to principles.
