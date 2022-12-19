@@ -862,6 +862,13 @@ Proof.
   now rewrite unfold_bind.
 Qed.
 
+Lemma bind_branch : forall {E C X Y} (c : C Y) (b : bool) (k : Y -> ctree E C X),
+    CTree.branch b c >>= k ≅ Br b c k.
+Proof.
+  intros. rewrite unfold_bind. cbn. setoid_rewrite bind_ret_l.
+  reflexivity.
+Qed.
+
 Lemma bind_guard {E B X Y} `{B1 -< B} (t : ctree E B X) (g : X -> ctree E B Y):
   Guard t >>= g ≅ Guard (t >>= g).
 Proof.

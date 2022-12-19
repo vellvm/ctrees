@@ -389,12 +389,6 @@ End FoldBind.
 From CTree Require Import FoldCTree.
 
 (* TODO MOVE *)
-Lemma bind_branch : forall {E C X Y} (c : C Y) (b : bool) (k : Y -> ctree E C X),
-    CTree.branch b c >>= k ≅ Br b c k.
-Proof.
-  intros; cbn; unfold CTree.branch; rewrite bind_br; step; constructor; intros ?; now rewrite bind_ret_l.
-Qed.
-
 Lemma trans_branch :
   forall {E B : Type -> Type} {X : Type} {H : B0 -< B} {Y : Type}
     [l : label] [t t' : ctree E B X] (c : B Y) (k : Y -> ctree E B X) (x : Y),
