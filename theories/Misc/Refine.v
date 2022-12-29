@@ -27,6 +27,7 @@ Qed.
 
 Definition pure {E C R} := gfp (@fpure E C R).
 
+(* LEF: Progress pointer *)
 Definition refine_cst {E C} (h : bool -> forall n, fin (S n)) : ctree E C ~> ctree E C :=
   refine (fun b n =>
     match n with

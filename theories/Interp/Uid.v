@@ -74,16 +74,4 @@ End N.
 Arguments fold_n {n E B M FM MM IM} h g [T].
 Arguments interp_n {n E B M FM MM IM BM} h [T].
 
-(*| A transition relation on Uid (state) |*)
-Section Strans.
-  Context {C: Type -> Type} {X: Type} (S: Type) (n: nat) `{HasStuck: B0 -< C}.
-  Notation SS := (@Trans.SS (Uid n (stateE S)) C X).    
-  Notation SP := (S -> SS -> Prop).
-
-  (*| Finitely many [tau] and [obs Get s] labels, before getting a [obs (Put s') tt] |*)
-  Definition strans(i: uid n)(s s': S): srel SS SS :=
-    (cup (trans tau) (trans (obs (Frame (@Get S) i) s)))^* ⋅ trans (obs (Frame (Put s') i) tt).
-End Strans.
-
-
 
