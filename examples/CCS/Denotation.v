@@ -29,7 +29,8 @@ From CTree Require Import Head.
 From CTree Require Import
      CTree
      Eq
-     Interp.Interp.
+     Interp.Fold
+     Interp.FoldCTree.
 
 Import CTree.
 
@@ -48,7 +49,7 @@ Variant ActionE : Type -> Type :=
   | Act (a : action) : ActionE unit.
 
 Notation ccsE := ActionE.
-Notation ccsC := (C0 +' C1 +' C2 +' C3 +' C4).
+Notation ccsC := (B0 +' B1 +' B2 +' B3 +' B4).
 
 Definition ccsT' T := ctree' ccsE ccsC T.
 Definition ccsT := ctree ccsE ccsC.
@@ -61,20 +62,13 @@ Definition comm a : label := obs (Act a) tt.
 (*| Process algebra |*)
 Section Combinators.
 
-<<<<<<< HEAD
-	Definition nil : ccs := stuckV.
+  Definition nil : ccs := stuckS.
 
-	Definition prefix (a : action) (P: ccs) : ccs := trigger (Act a);; P.
+  Definition prefix (a : action) (P: ccs) : ccs :=
+    trigger (Act a);; P.
 
-	Definition plus (P Q : ccs) : ccs := chooseI2 P Q.
-=======
-	Definition nil : ccs := BrS 0 (fun x : fin 0 => match x with end).
-
-	Definition prefix (a : action) (P: ccs) : ccs := trigger (Act a);; P.
-
-	Definition plus (P Q : ccs) : ccs := brD2 P Q.
->>>>>>> master
-
+  Definition plus (P Q : ccs) : ccs := brD2 P Q.
+  
   (* Stuck? Failure event? *)
   Definition h_new (c : chan) : ActionE ~> ctree ccsE ccsC :=
     fun _ e => let '(Act a) := e in
@@ -86,38 +80,23 @@ Section Combinators.
   #[global] Arguments h_new c [T] _.
 
   Definition new : chan -> ccs -> ccs :=
-    fun c P => interpE (h_new c) P.
+    fun c P => interp (h_new c) P.
 
   Definition para : ccs -> ccs -> ccs :=
     cofix F (P : ccs) (Q : ccs) :=
-<<<<<<< HEAD
-      chooseI3
-        (rP <- get_head P;;
-         match rP with
-         | HRet rP => match rP with end
-         | HChoice c kP => ChoiceV c (fun i => F (kP i) Q)
-         | HVis e kP => Vis e (fun i => F (kP i) Q)
-=======
       brD3
         (rP <- head P;;
          match rP with
          | ARet rP => match rP with end
-         | ABr kP => BrS _ (fun i => F (kP i) Q)
+         | ABr c kP => BrS c (fun i => F (kP i) Q)
          | AVis e kP => Vis e (fun i => F (kP i) Q)
->>>>>>> master
          end)
 
         (rQ <- head Q;;
          match rQ with
-<<<<<<< HEAD
-         | HRet rQ => match rQ with end
-         | HChoice c kQ => ChoiceV c (fun i => F P (kQ i))
-         | HVis e kQ => Vis e (fun i => F P (kQ i))
-=======
          | ARet rQ => match rQ with end
-         | ABr kQ => BrS _ (fun i => F P (kQ i))
+         | ABr c kQ => BrS c (fun i => F P (kQ i))
          | AVis e kQ => Vis e (fun i => F P (kQ i))
->>>>>>> master
          end)
 
         (rP <- head P;;
@@ -128,11 +107,7 @@ Section Combinators.
              | Act a, kP, Act b, kQ =>
                  if are_opposite a b
                  then
-<<<<<<< HEAD
-                   tauV (F (kP tt) (kQ tt))
-=======
                    Step (F (kP tt) (kQ tt))
->>>>>>> master
                  else
                    stuckD
              end
@@ -152,39 +127,21 @@ The usual [bang p] is then defined as [parabang p p].
 
   Definition parabang : ccs -> ccs -> ccs :=
     cofix pB (p : ccs) (q:ccs) : ccs :=
-
-<<<<<<< HEAD
-      chooseI4
-=======
       brD4
->>>>>>> master
-
         (* Communication by p *)
         (rp <- head p;;
          match rp with
-<<<<<<< HEAD
-         | HRet rp => match rp with end
-         | HChoice c kp => ChoiceV c (fun i =>  pB (kp i) q )
-         | HVis e kp => Vis e (fun i => pB (kp i) q)
-=======
          | ARet rp => match rp with end
-         | ABr kp => BrS _ (fun i =>  pB (kp i) q )
+         | ABr c kp => BrS c (fun i =>  pB (kp i) q )
          | AVis e kp => Vis e (fun i => pB (kp i) q)
->>>>>>> master
          end)
 
         (* Communication by a fresh copy of q *)
         (rq <- head q;;
          match rq with
-<<<<<<< HEAD
-         | HRet rq => match rq with end
-         | HChoice c kq => ChoiceV c (fun i => (pB  (para p (kq i)) q))
-         | HVis e kq => Vis e (fun i => (pB  (para p (kq i)) q))
-=======
          | ARet rq => match rq with end
-         | ABr kq => BrS _ (fun i => (pB  (para p (kq i)) q))
+         | ABr c kq => BrS c (fun i => (pB  (para p (kq i)) q))
          | AVis e kq => Vis e (fun i => (pB  (para p (kq i)) q))
->>>>>>> master
          end)
 
         (* Communication between p and a fresh copy of q *)
@@ -196,11 +153,7 @@ The usual [bang p] is then defined as [parabang p p].
              | Act a, kp, Act b, kq =>
                  if are_opposite a b
                  then
-<<<<<<< HEAD
-                   tauV (pB (para (kp tt) (kq tt)) q)
-=======
                    Step (pB (para (kp tt) (kq tt)) q)
->>>>>>> master
                  else
                    stuckD
              end
@@ -217,11 +170,7 @@ The usual [bang p] is then defined as [parabang p p].
              | Act a, kq1, Act b, kq2 =>
                  if are_opposite a b
                  then
-<<<<<<< HEAD
-                   tauV (pB (para p (para (kq1 tt) (kq2 tt))) q)
-=======
                    Step (pB (para p (para (kq1 tt) (kq2 tt))) q)
->>>>>>> master
                  else
                    stuckD
              end
@@ -248,44 +197,43 @@ End CCSNotationsSem.
 Import CCSNotationsSem.
 Open Scope ccs_scope.
 
-#[global] Instance equ_clos_sb_goal {E R} RR :
-  Proper (equ eq ==> equ eq ==> flip impl) (@sb E ccsC R _ RR).
+(** TODO: Move these to [SSim.v] ? *)
+#[global] Instance equ_clos_sb_goal {E X} RR :
+  Proper (equ eq ==> equ eq ==> flip impl)
+         (@sb E E ccsC ccsC X X _ _ eq RR).
 Proof.
   cbn; unfold Proper, respectful; intros * eq1 * eq2 bis.
   destruct bis as [F B]; cbn in *.
   split.
   + intros ? ? TR.
     rewrite eq1 in TR.
-    apply F in TR as [].
-    eexists.
+    apply F in TR as (l1 & y1 & TR & ? & ->).
+    do 2 eexists.
     rewrite eq2; eauto.
-    eauto.
   + intros ? ? TR.
     rewrite eq2 in TR.
-    apply B in TR as [].
-    eexists.
+    apply B in TR as (l1 & y1 & TR & ? & <-).
+    do 2 eexists.
     rewrite eq1; eauto.
-    eauto.
 Qed.
 
-#[global] Instance equ_clos_sb_ctx {E R} RR :
-  Proper (gfp (@fequ E ccsC R R eq) ==> equ eq ==> impl) (sb RR).
+#[global] Instance equ_clos_sb_ctx {E X} RR :
+  Proper (gfp (@fequ E ccsC X X eq) ==> equ eq ==> impl)
+         (@sb E E ccsC ccsC X X _ _ eq RR).
 Proof.
   cbn; unfold Proper, respectful; intros * eq1 * eq2 bis.
   destruct bis as [F B]; cbn in *.
   split.
   + intros ? ? TR.
     rewrite <- eq1 in TR.
-    apply F in TR as [].
-    eexists.
+    apply F in TR as (l1 & y1 & TR & ? & ->).
+    do 2 eexists.
     rewrite <- eq2; eauto.
-    eauto.
   + intros ? ? TR.
     rewrite <- eq2 in TR.
-    apply B in TR as [].
-    eexists.
+    apply B in TR as (l1 & y1 & TR & ? & <-).
+    do 2 eexists.
     rewrite <- eq1; eauto.
-    eauto.
 Qed.
 
 Lemma trans_prefix_inv : forall l a p p',
@@ -303,9 +251,11 @@ Proof.
   intros; eapply trans_trigger.
 Qed.
 
+(** TODO: Hm should probably recover [Symmetric] for [st eq] *)
 (** ** prefix *)
-Lemma ctx_prefix_st a: unary_ctx (prefix a) <= st.
+Lemma ctx_prefix_st a: unary_ctx (prefix a) <= st eq.
 Proof.
+  (*
   apply Coinduction, by_Symmetry. apply unary_sym.
   rewrite <-b_T.
   intro R. apply (leq_unary_ctx (prefix a)). intros p q Hpq.
@@ -314,7 +264,8 @@ Proof.
   eexists.
   apply trans_prefix.
   rewrite EQ; auto.
-Qed.
+  *)
+Admitted.
 
 (** ** prefix *)
 Lemma ctx_prefix_tequ a: unary_ctx (prefix a) <= (et eq).
@@ -333,7 +284,7 @@ Proof.
   apply Hpq.
 Qed.
 
-#[global] Instance prefix_st a: forall R, Proper (st R ==> st R) (prefix a) := unary_proper_t (@ctx_prefix_st a).
+#[global] Instance prefix_st a: forall R, Proper (st eq R ==> st eq R) (prefix a) := unary_proper_t (@ctx_prefix_st a).
 
 #[global] Instance prefix_tequ a: forall R, Proper (et eq R ==> et eq R) (prefix a) := unary_proper_t (@ctx_prefix_tequ a).
 
@@ -347,7 +298,7 @@ Definition can_comm (c : chan) (a : @label ccsE) : bool :=
   | _ => true
   end.
 
-Lemma trans_trigger_inv' : forall {E C X} `{C0 -< C} (e : E X) l u,
+Lemma trans_trigger_inv' : forall {E C X} `{B0 -< C} (e : E X) l u,
 		trans l (trigger e : ctree E C X) u ->
     exists x, u ≅ Ret x /\ l = obs e x.
 Proof.
@@ -362,23 +313,19 @@ Lemma trans_hnew_inv : forall a l c p,
 Proof.
   intros * tr.
   cbn in *; destruct a; cbn in *; destruct (c =? c0) eqn:comm; cbn in *.
-<<<<<<< HEAD
-  all : try now eapply stuckI_is_stuck in tr.
-=======
-  all: try (exfalso; eapply stuckD_is_stuck, tr).
->>>>>>> master
+  all : try now eapply stuckD_is_stuck in tr.
   all: unfold can_comm; apply trans_trigger_inv' in tr as ([] & ? & ?); subst; rewrite comm; eauto.
 Qed.
 
-Lemma trans_vis' {E C R X} `{C0 -< C} : forall (e : E X) x (k : X -> ctree E C R) u,
+Lemma trans_vis' {E C R X} `{B0 -< C} : forall (e : E X) x (k : X -> ctree E C R) u,
     u ≅ k x ->
-		trans (obs e x) (Vis e k) u.
+    trans (obs e x) (Vis e k) u.
 Proof.
-	intros * eq; rewrite eq; apply trans_vis.
+  intros * eq; rewrite eq; apply trans_vis.
 Qed.
 
 Lemma new_guard : forall c t, new c (Guard t) ≅ Guard (Guard (new c t)).
-Proof.
+Proof.  
   intros; unfold new; now rewrite interp_guard.
 Qed.
 
@@ -401,7 +348,7 @@ Proof.
   - edestruct IHtr as (q & tr' & eq); eauto.
     exists q; split; auto.
     unfold new; rewrite unfold_interp, <- Heqobsp.
-    cbn; unfold Utils.mbr, MonadBr_ctree, br.
+    cbn; unfold Utils.mbr, MonadBr_ctree, branch.
     eapply trans_bind_r with x.
     eapply trans_brD; [|reflexivity].
     apply trans_ret.
@@ -409,24 +356,20 @@ Proof.
     apply tr'.
   - eexists; split.
     unfold new; rewrite unfold_interp, <- Heqobsp.
-    cbn; unfold Utils.mbr, MonadBr_ctree, br.
+    cbn; unfold Utils.mbr, MonadBr_ctree, branch.
     eapply trans_bind_l.
     intros abs; inv abs.
-<<<<<<< HEAD
-    apply trans_choiceV with (x := x).
-    rewrite bind_ret_l. rewrite sb_tauI.
-=======
     apply trans_brS with (x := x).
     rewrite bind_ret_l, sb_guard.
->>>>>>> master
     rewrite H.
-    unfold new; rewrite 2 unfold_interp, Heqop'.
+    unfold new. rewrite unfold_interp.
+    rewrite <- Heqop', <- unfold_interp.
     reflexivity.
   - destruct e, a.
     all: cbn in *; destruct (c =? c0) eqn:comm'; inv comm.
     + eexists; split.
       unfold new; rewrite unfold_interp, <- Heqobsp.
-      cbn; unfold Utils.mbr, MonadBr_ctree, br.
+      cbn; unfold Utils.mbr, MonadBr_ctree, branch.
       eapply trans_bind_l.
       intros abs; inv abs.
       rewrite comm'.
@@ -434,11 +377,13 @@ Proof.
       eapply trans_vis'.
       reflexivity.
       rewrite bind_ret_l, sb_guard, H.
-      unfold new; rewrite 2 unfold_interp, Heqop'.
+      unfold new. 
+      rewrite unfold_interp.
+      rewrite <- Heqop', <- unfold_interp.
       reflexivity.
     + eexists; split.
       unfold new; rewrite unfold_interp, <- Heqobsp.
-      cbn; unfold Utils.mbr, MonadBr_ctree, br.
+      cbn; unfold Utils.mbr, MonadBr_ctree, branch.
       eapply trans_bind_l.
       intros abs; inv abs.
       rewrite comm'.
@@ -446,7 +391,9 @@ Proof.
       eapply trans_vis'.
       reflexivity.
       rewrite bind_ret_l, sb_guard, H.
-      unfold new; rewrite 2 unfold_interp, Heqop'.
+      unfold new.
+      rewrite unfold_interp.
+      rewrite <- Heqop', <- unfold_interp.
       reflexivity.
   - tauto.
 Qed.
@@ -454,15 +401,9 @@ Qed.
 Lemma trans_new_inv_aux : forall l T U,
     trans_ l T U ->
     forall c p q,
-<<<<<<< HEAD
-      (go T ≅ new c p \/ go T ≅ tauI (new c p)) ->
-      go U ≅ q ->
-      exists q', can_comm c l = true /\ trans l p q' /\ q ≅ tauI (new c q').
-=======
       (go T ≅ new c p \/ go T ≅ Guard (new c p)) ->
       go U ≅ q ->
       exists q', can_comm c l = true /\ trans l p q' /\ q ≅ Guard (new c q').
->>>>>>> master
 Proof.
   intros * tr c.
   induction tr; intros * EQ1 EQ2; try destruct c2.
@@ -480,16 +421,12 @@ Proof.
            *** step in EQ1; inv EQ1.
       * cbn in EQ1.
         destruct vis; try now step in EQ1; inv EQ1.
-        unfold Utils.mbr, MonadBr_ctree, br in EQ1.
+        unfold Utils.mbr, MonadBr_ctree, branch in EQ1.
         cbn in * |-.
         rewrite unfold_bind in EQ1; cbn in EQ1.
-<<<<<<< HEAD
-        epose proof equ_choice_invT _ _ _ _ EQ1 as [<- _].
-        epose proof equ_choice_invE _ _ _ _ EQ1 x as eqx.
-=======
-        epose proof equ_br_invT _ _ EQ1 as [<- _].
-        epose proof equ_br_invE _ _ EQ1 x as eqx.
->>>>>>> master
+        epose proof equ_br_invT _ _ _ _ EQ1 as [<- _].
+        epose proof equ_br_invE _ _ _ _ EQ1 as (? & eqx).
+        specialize (eqx x).
         cbn in * |-; rewrite bind_ret_l in eqx.
         setoid_rewrite <- ctree_eta in IHtr.
         setoid_rewrite eqx in IHtr.
@@ -499,14 +436,10 @@ Proof.
         eauto.
         reflexivity.
         rewrite <- EQ, EQ2; auto.
-<<<<<<< HEAD
-    + epose proof equ_choice_invT _ _ _ _ EQ1 as [? _]; subst.
-      epose proof equ_choice_invE _ _ _ _ EQ1 x as eqx; clear EQ1.
-=======
-    + epose proof equ_br_invT _ _ EQ1 as [? _]; subst.
-      epose proof equ_br_invE _ _ EQ1 x as eqx.
+    + epose proof equ_br_invT _ _ _ _ EQ1 as [? _]; subst.
+      epose proof equ_br_invE _ _ _ _ EQ1 as (? & eqx).
+      specialize (eqx x).
       clear EQ1.
->>>>>>> master
       edestruct IHtr as (q' & comm & tr' & EQ); [| eassumption |].
       left. rewrite eqx, <- ctree_eta; reflexivity.
       exists q'; repeat split; auto.
@@ -517,29 +450,20 @@ Proof.
     + cbn in *.
       destruct e,a; cbn in *; destruct (c =? c1) eqn:EQ; step in EQ1; dependent induction EQ1.
     + cbn in *.
-      unfold Utils.mbr, MonadBr_ctree, br in EQ1.
+      unfold Utils.mbr, MonadBr_ctree, branch in EQ1.
       destruct vis; try now step in EQ1; inv EQ1.
       rewrite unfold_bind in EQ1; cbn in EQ1.
-<<<<<<< HEAD
-      epose proof equ_choice_invT _ _ _ _ EQ1 as [? _]; subst.
-      epose proof equ_choice_invE _ _ _ _ EQ1 x as eqx; clear EQ1.
-=======
-      epose proof equ_br_invT _ _ EQ1 as [<- _].
-      epose proof equ_br_invE _ _ EQ1 x as eqx; clear EQ1.
->>>>>>> master
+      epose proof equ_br_invT _ _ _ _ EQ1 as [<- _].
+      epose proof equ_br_invE _ _ _ _ EQ1 as (? & eqx); clear EQ1.
+      specialize (eqx x).
       rewrite bind_ret_l in eqx.
       rewrite H in eqx.
       rewrite <- ctree_eta in EQ2.
       rewrite EQ2 in eqx.
       clear k t EQ2 H.
-<<<<<<< HEAD
-      exists (k0 x); repeat split; auto.
-      apply trans_choiceV.
-=======
       exists (k0 x); repeat split.
       apply trans_brS.
       auto.
->>>>>>> master
   - destruct EQ1 as [EQ1 | EQ1]; [ | step in EQ1; inv EQ1].
     unfold new in EQ1; rewrite unfold_interp in EQ1.
     unfold trans,transR; cbn.
@@ -559,18 +483,10 @@ Qed.
 
 Lemma trans_new_inv : forall l c p p',
     trans l (new c p) p' ->
-<<<<<<< HEAD
-    exists q, can_comm c l = true /\ trans l p q /\ p' ≅ tauI (new c q).
+    exists q, can_comm c l = true /\ trans l p q /\ p' ≅ Guard (new c q).
 Proof.
   intros; eapply trans_new_inv_aux. eapply H.
   all: rewrite <- ctree_eta; auto.
-=======
-    exists q, can_comm c l = true /\ trans l p q /\ p' ≅ Guard (new c q).
-Proof.
-  intros; eapply trans_new_inv_aux; eauto.
-  eapply trans_brD with (x := Fin.F1); eauto.
-  symmetry; apply ctree_eta.
->>>>>>> master
 Qed.
 
 Lemma trans_new_inv' : forall l c p p',
@@ -583,8 +499,9 @@ Proof.
 Qed.
 
 (** ** name restriction *)
-Lemma ctx_new_st a: unary_ctx (new a) <= st.
+Lemma ctx_new_st a: unary_ctx (new a) <= st eq.
 Proof.
+  (** TODO: This will work assuming symmetry of [st eq]
   apply Coinduction, by_Symmetry. apply unary_sym.
   intro R. apply (leq_unary_ctx (new a)). intros p q Hpq l p0 Hp0.
   apply trans_new_inv in Hp0 as (? & comm & tr & EQ).
@@ -596,9 +513,10 @@ Proof.
   rewrite sb_guard.
   apply unary_proper_Tctx, (id_T sb).
   auto.
-Qed.
+  *)
+Admitted.
 
-#[global] Instance new_st a: forall R, Proper (st R ==> st R) (new a) := unary_proper_t (@ctx_new_st a).
+#[global] Instance new_st a: forall R, Proper (st eq R ==> st eq R) (new a) := unary_proper_t (@ctx_new_st a).
 
 Lemma trans_plus_inv : forall l p q r,
     trans l (p + q) r ->
@@ -609,17 +527,11 @@ Proof.
   apply trans_brD_inv in tr as ([|] & tr); eauto.
 Qed.
 
-<<<<<<< HEAD
-Lemma trans_choiceV' {E C X Y} `{C0 -< C} : forall (c : C Y) (k : Y -> ctree E C X) x u,
+Lemma trans_brS' {E C X Y} `{B0 -< C} : forall (c : C Y) (k : Y -> ctree E C X) x u,
     u ≅ k x ->
-		trans tau (ChoiceV c k) u.
-=======
-Lemma trans_brS' {E X} : forall n (k : fin n -> ctree E X) x u,
-    u ≅ k x ->
-		trans tau (BrS n k) u.
->>>>>>> master
+		trans tau (BrS c k) u.
 Proof.
-	intros * eq; rewrite eq; apply trans_brS.
+  intros * eq; rewrite eq; apply trans_brS.
 Qed.
 
 Lemma trans_plusL : forall l p p' q,
@@ -627,11 +539,7 @@ Lemma trans_plusL : forall l p p' q,
     trans l (p + q) p'.
 Proof.
   intros * tr.
-<<<<<<< HEAD
-  now apply trans_chooseI21.
-=======
   now apply trans_brD21.
->>>>>>> master
 Qed.
 
 Lemma trans_plusR : forall l p q q',
@@ -639,16 +547,13 @@ Lemma trans_plusR : forall l p q q',
     trans l (p + q) q'.
 Proof.
   intros * tr.
-<<<<<<< HEAD
-  now apply trans_chooseI22.
-=======
   now apply trans_brD22.
->>>>>>> master
 Qed.
 
 (** ** br *)
-Lemma ctx_plus_t: binary_ctx plus <= st.
+Lemma ctx_plus_t: binary_ctx plus <= st eq.
 Proof.
+  (** Same as above
   apply Coinduction, by_Symmetry. apply binary_sym.
   intro R. apply (leq_binary_ctx plus).
   intros * [F1 B1] * [F2 B2] ? * tr.
@@ -663,39 +568,26 @@ Proof.
     apply trans_plusR; eauto.
     rewrite EQ.
     now apply (id_T sb).
-Qed.
+  *)
+Admitted.
+
 #[global] Instance plus_t:
-  forall R, Proper (st R ==> st R ==> st R) plus := binary_proper_t ctx_plus_t.
+  forall R, Proper (st eq R ==> st eq R ==> st eq R) plus := binary_proper_t ctx_plus_t.
 
 Notation para_ p q :=
-<<<<<<< HEAD
-  (chooseI3
-     (rp <- get_head p;;
-      match rp with
-      | HRet rp => match rp with end
-      | HChoice c kp => ChoiceV c (fun i => para (kp i) q)
-      | HVis e kp => Vis e (fun i => para (kp i) q)
-=======
   (brD3
      (rp <- head p;;
       match rp with
       | ARet rp => match rp with end
-      | ABr kp => BrS _ (fun i => para (kp i) q)
+      | ABr c kp => BrS c (fun i => para (kp i) q)
       | AVis e kp => Vis e (fun i => para (kp i) q)
->>>>>>> master
       end)
 
      (rq <- head q;;
       match rq with
-<<<<<<< HEAD
-      | HRet rq => match rq with end
-      | HChoice c kq => ChoiceV c (fun i => para p (kq i))
-      | HVis e kq => Vis e (fun i => para p (kq i))
-=======
       | ARet rq => match rq with end
-      | ABr kq => BrS _ (fun i => para p (kq i))
+      | ABr c kq => BrS c (fun i => para p (kq i))
       | AVis e kq => Vis e (fun i => para p (kq i))
->>>>>>> master
       end)
 
      (rp <- head p;;
@@ -706,11 +598,7 @@ Notation para_ p q :=
           | Act a, kp, Act b, kq =>
               if are_opposite a b
               then
-<<<<<<< HEAD
-                tauV (para (kp tt) (kq tt))
-=======
                 Step (para (kp tt) (kq tt))
->>>>>>> master
               else
                 stuckD
           end
@@ -720,7 +608,7 @@ Notation para_ p q :=
 Lemma unfold_para : forall p q, para p q ≅ para_ p q.
 Proof.
   intros.
-	now step.
+  now step.
 Qed.
 
 #[global] Instance para_equ :
@@ -732,13 +620,8 @@ Proof.
   rewrite 2 unfold_para.
   constructor.
   intros i.
-<<<<<<< HEAD
   destruct i.
-  - upto_bind; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
-=======
-  destruct i; [| destruct i].
   - upto_bind; [apply head_equ; auto | intros hdp1 hdp2 eqp].
->>>>>>> master
     inv eqp; auto.
     step; constructor; auto.
     step; constructor; auto.
@@ -764,11 +647,7 @@ Proof.
   apply trans_head in TRp as (kp & TRp & Eqp).
   apply trans_head in TRq as (kq & TRq & Eqq).
   rewrite unfold_para.
-<<<<<<< HEAD
-  apply trans_chooseI33.
-=======
   apply trans_brD33.
->>>>>>> master
   eapply trans_bind_r; [apply TRp |].
   eapply trans_bind_r; [apply TRq |].
   cbn; rewrite Op.
@@ -783,17 +662,10 @@ Lemma trans_paraL :
 Proof.
   intros * TRp.
   rewrite unfold_para.
-<<<<<<< HEAD
-  apply trans_chooseI31.
-  destruct l.
-  - apply trans_get_head in TRp.
-    destruct TRp as (? & ? & ? & ? & TRp & Eqp).
-=======
   apply trans_brD31.
   destruct l.
   - apply trans_head in TRp.
-    destruct TRp as (? & ? & ? & TRp & Eqp).
->>>>>>> master
+    destruct TRp as (? & ? & ? & ? & TRp & Eqp).
     eapply trans_bind_r; eauto; cbn.
     econstructor.
     rewrite Eqp; reflexivity.
@@ -812,17 +684,10 @@ Lemma trans_paraR :
 Proof.
   intros * TRq.
   rewrite unfold_para.
-<<<<<<< HEAD
-  apply trans_chooseI32.
-  destruct l.
-  - apply trans_get_head in TRq.
-    destruct TRq as (? & ? & ? & ? & TRq & Eqq).
-=======
   apply trans_brD32.
   destruct l.
   - apply trans_head in TRq.
-    destruct TRq as (? & ? & ? & TRq & Eqq).
->>>>>>> master
+    destruct TRq as (? & ? & ? & ? & TRq & Eqq).
     eapply trans_bind_r; eauto; cbn.
     econstructor.
     rewrite Eqq; reflexivity.
@@ -848,13 +713,8 @@ Lemma trans_para_inv :
 Proof.
   intros * TR.
   rewrite unfold_para in TR.
-<<<<<<< HEAD
-  apply trans_choiceI_inv in TR as (x & TR).
-  destruct x.
-=======
   apply trans_brD_inv in TR as (x & TR).
-  destruct x; [| destruct x].
->>>>>>> master
+  destruct x.
   - left.
     edestruct @trans_bind_inv; [apply TR | | ]; clear TR.
     destruct H as (NOTV & ? & TR & EQ); apply trans_head_inv in TR; easy.
@@ -885,16 +745,6 @@ Proof.
     destruct H as (NOTV & ? & TR & EQ); apply trans_head_inv in TR; easy.
     destruct H as (hdq & TRhdq & TR).
     destruct hdp; try easy.
-<<<<<<< HEAD
-    now apply stuckI_is_stuck in TR.
-    destruct hdq; try easy.
-    now apply stuckI_is_stuck in TR.
-    destruct e, e0, (are_opposite a a0) eqn:?.
-    2: now apply stuckI_is_stuck in TR.
-    apply trans_tauV_inv in TR as [? ->].
-    eapply trans_HVis in TRhdp.
-    eapply trans_HVis in TRhdq.
-=======
     exfalso; eapply stuckD_is_stuck; eassumption.
     destruct hdq; try easy.
     exfalso; eapply stuckD_is_stuck; eassumption.
@@ -903,7 +753,6 @@ Proof.
     apply trans_step_inv in TR as [? ->].
     eapply trans_AVis in TRhdp.
     eapply trans_AVis in TRhdq.
->>>>>>> master
     do 4 eexists.
     repeat split; eauto.
 Qed.
@@ -915,8 +764,9 @@ Ltac trans_para_invT H :=
           (?p' & ?q' & ?a & ?b & ?TRp & ?TRq & ?Op & ? & ?EQ) ]]; subst.
 
 (** ** parallel composition *)
-Lemma ctx_para_t: binary_ctx para <= st.
+Lemma ctx_para_t: binary_ctx para <= st eq.
 Proof.
+  (*
   apply Coinduction, by_Symmetry. apply binary_sym.
   intro R. apply (leq_binary_ctx para).
   intros * [F1 B1] * [F2 B2] ? * tr.
@@ -941,9 +791,15 @@ Proof.
     eapply trans_paraSynch; eauto.
     rewrite EQ.
     apply (fTf_Tf sb). apply (in_binary_ctx para); now apply (id_T sb).
-Qed.
-#[global] Instance para_t: forall R, Proper (st R ==> st R ==> st R) para := binary_proper_t ctx_para_t.
-#[global] Instance para_T f: forall R, Proper (T sb f R ==> T sb f R ==> T sb f R) para := binary_proper_T ctx_para_t.
+   *)
+Admitted.
+
+#[global] Instance para_t: forall R, Proper (st eq R ==> st eq R ==> st eq R) para :=
+  binary_proper_t ctx_para_t.
+
+(* LEF: Progress pointer *)
+#[global] Instance para_T f: forall R, Proper (T sb f R ==> T sb f R ==> T sb f R) para :=
+  binary_proper_T ctx_para_t.
 
 
 Section Theory.
