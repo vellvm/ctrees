@@ -256,17 +256,15 @@ Qed.
 (** ** prefix *)
 Lemma ctx_prefix_st a: unary_ctx (prefix a) <= st eq.
 Proof.
-  (*
   apply Coinduction, by_Symmetry. apply unary_sym.
   rewrite <-b_T.
   intro R. apply (leq_unary_ctx (prefix a)). intros p q Hpq.
   intros l p' pp'.
   apply trans_prefix_inv in pp' as (EQ & ->).
-  eexists.
+  do 2 eexists; split.
   apply trans_prefix.
   rewrite EQ; auto.
-  *)
-Admitted.
+Qed.
 
 (** ** prefix *)
 Lemma ctx_prefix_tequ a: unary_ctx (prefix a) <= (et eq).
@@ -502,20 +500,19 @@ Qed.
 (** ** name restriction *)
 Lemma ctx_new_st a: unary_ctx (new a) <= st eq.
 Proof.
-  (** TODO: This will work assuming symmetry of [st eq]
   apply Coinduction, by_Symmetry. apply unary_sym.
   intro R. apply (leq_unary_ctx (new a)). intros p q Hpq l p0 Hp0.
   apply trans_new_inv in Hp0 as (? & comm & tr & EQ).
-  destruct (proj1 Hpq _ _ tr) as [???].
-  eapply trans_new in H as (q' & tr' & eq'); eauto.
-  exists q'; eauto.
+  destruct (proj1 Hpq _ _ tr) as (? & ? & TR & ? & ->).
+  eapply trans_new in TR as (q' & tr' & eq'); eauto.
+  eexists; exists q'; eauto.
+  split; [|split]; eauto.  
   rewrite EQ.
   rewrite eq'.
   rewrite sb_guard.
-  apply unary_proper_Tctx, (id_T sb).
+  apply unary_proper_Tctx, (id_T (sb eq)).
   auto.
-  *)
-Admitted.
+Qed.
 
 #[global] Instance new_st a: forall R, Proper (st eq R ==> st eq R) (new a) := unary_proper_t (@ctx_new_st a).
 
@@ -554,23 +551,23 @@ Qed.
 (** ** br *)
 Lemma ctx_plus_t: binary_ctx plus <= st eq.
 Proof.
-  (** Same as above
   apply Coinduction, by_Symmetry. apply binary_sym.
   intro R. apply (leq_binary_ctx plus).
   intros * [F1 B1] * [F2 B2] ? * tr.
   apply trans_plus_inv in tr as [(? & tr & EQ) | (? & tr & EQ)].
-  - apply F1 in tr as [? tr ?].
-    eexists.
+  - apply F1 in tr as [? (? & tr & ? & ->)].
+    do 2 eexists; split; [|split].
     apply trans_plusL; eauto.
     rewrite EQ.
-    now apply (id_T sb).
-  - apply F2 in tr as [? tr ?].
-    eexists.
+    now apply (id_T (sb eq)).
+    reflexivity.
+  - apply F2 in tr as [? (? & tr & ? & <-)].
+    do 2 eexists; split; [|split].
     apply trans_plusR; eauto.
     rewrite EQ.
-    now apply (id_T sb).
-  *)
-Admitted.
+    now apply (id_T (sb eq)).
+    reflexivity.
+Qed.
 
 #[global] Instance plus_t:
   forall R, Proper (st eq R ==> st eq R ==> st eq R) plus := binary_proper_t ctx_plus_t.
@@ -767,33 +764,34 @@ Ltac trans_para_invT H :=
 (** ** parallel composition *)
 Lemma ctx_para_t: binary_ctx para <= st eq.
 Proof.
-  (*
   apply Coinduction, by_Symmetry. apply binary_sym.
   intro R. apply (leq_binary_ctx para).
   intros * [F1 B1] * [F2 B2] ? * tr.
   trans_para_invT tr.
-  - apply F1 in TRp as [? tr ?].
-    eexists.
+  - apply F1 in TRp as [? (? & tr & ? & ?)].
+    do 2 eexists; split; [|split].
     apply trans_paraL; eauto.
     rewrite EQ.
-    apply (fTf_Tf sb). apply (in_binary_ctx para).
-    now apply (id_T sb).
-    now apply (b_T sb).
-  - apply F2 in TRq as [? tr ?].
-    eexists.
+    apply (fTf_Tf (sb eq)). apply (in_binary_ctx para).
+    now apply (id_T (sb eq)).
+    now apply (b_T (sb eq)).
+    assumption.
+  - apply F2 in TRq as [? (? & tr & ? & ?)].
+    do 2 eexists; split; [|split].
     apply trans_paraR; eauto.
     rewrite EQ.
-    apply (fTf_Tf sb). apply (in_binary_ctx para).
-    now apply (b_T sb).
-    now apply (id_T sb).
-  - apply F1 in TRp as [? trp ?].
-    apply F2 in TRq as [? trq ?].
-    eexists.
+    apply (fTf_Tf (sb eq)). apply (in_binary_ctx para).
+    now apply (b_T (sb eq)).
+    now apply (id_T (sb eq)).
+    assumption.
+  - apply F1 in TRp as [? (? & trp & ? & <-)].
+    apply F2 in TRq as [? (? & trq & ? & <-)].
+    do 2 eexists; split; [|split].
     eapply trans_paraSynch; eauto.
     rewrite EQ.
-    apply (fTf_Tf sb). apply (in_binary_ctx para); now apply (id_T sb).
-   *)
-Admitted.
+    apply (fTf_Tf (sb eq)). apply (in_binary_ctx para); now apply (id_T (sb eq)).
+    reflexivity.
+Qed.
 
 #[global] Instance para_t: forall R, Proper (st eq R ==> st eq R ==> st eq R) para :=
   binary_proper_t ctx_para_t.
@@ -835,22 +833,26 @@ Section Theory.
 
   Lemma paraC: forall (p q : ccs), p ∥ q ~ q ∥ p.
   Proof.
-    (** Where is [symmetric] coming from and why is it failing? 
     coinduction ? CIH; symmetric using idtac.
-    intros p q l r tr.
+    intros p q l r.
+    eauto.
+    simpl.
+    intros p q ? ? tr.
     trans_para_invT tr.
-    - eexists.
+    - do 2 eexists; split; [|split].
       eapply trans_paraR; eauto.
       rewrite EQ; auto.
-    - eexists.
+      reflexivity.
+    - do 2 eexists; split; [|split].
       eapply trans_paraL; eauto.
       rewrite EQ; auto.
-    - eexists.
+      reflexivity.
+    - do 2 eexists; split; [|split].
       eapply trans_paraSynch; eauto.
       symmetry; auto.
       rewrite EQ; auto.
-  *)
-  Admitted.
+      reflexivity.
+  Qed.
 
   Lemma para0p : forall (p : ccs), 0 ∥ p ~ p.
   Proof.
@@ -1261,53 +1263,56 @@ Qed.
 
 Lemma ctx_parabang_t: binary_ctx parabang <= st eq.
 Proof.
-  (* LEF: got to recover symmetry for [st eq], see [converse_st]
   apply Coinduction, by_Symmetry. apply binary_sym.
   intro R. apply (leq_binary_ctx parabang).
   intros * [F1 B1] * [F2 B2] ? * tr.
   trans_parabang_invT tr.
-  - apply F1 in TRp' as [? tr ?].
-    eexists.
+  - apply F1 in TRp' as [? (? & tr & ? & ?)].
+    do 2 eexists; split; [|split].
     pbL; eauto.
     rewrite EQ.
-    apply (fTf_Tf sb). apply (in_binary_ctx parabang).
-    now apply (id_T sb).
-    now apply (b_T sb).
-  - apply F2 in TRq' as [? tr ?].
-    eexists.
+    apply (fTf_Tf (sb eq)). apply (in_binary_ctx parabang).
+    now apply (id_T (sb eq)).
+    now apply (b_T (sb eq)).
+    assumption.
+  - apply F2 in TRq' as [? (? & tr & ? & ?)].
+    do 2 eexists; split; [|split].
     pbR; eauto.
     rewrite EQ.
-    apply (fTf_Tf sb). apply (in_binary_ctx parabang).
+    apply (fTf_Tf (sb eq)). apply (in_binary_ctx parabang).
     apply (fT_T ctx_para_t).
     apply (in_binary_ctx para).
-    now apply (b_T sb).
-    now apply (id_T sb).
-    now apply (b_T sb).
-  - apply F1 in TRp' as [? trp ?].
-    apply F2 in TRq' as [? trq ?].
-    eexists.
+    now apply (b_T (sb eq)).
+    now apply (id_T (sb eq)).
+    now apply (b_T (sb eq)).
+    assumption.
+  - apply F1 in TRp' as [? (? & trp & ? & <-)].
+    apply F2 in TRq' as [? (? & trq & ? & <-)].
+    do 2 eexists; split; [|split].
     pbSL; eauto.
     rewrite EQ.
-    apply (fTf_Tf sb). apply (in_binary_ctx parabang).
+    apply (fTf_Tf (sb eq)). apply (in_binary_ctx parabang).
     apply (fT_T ctx_para_t).
     apply (in_binary_ctx para).
-    now apply (id_T sb).
-    now apply (id_T sb).
-    now apply (b_T sb).
-  - apply F2 in TRq' as [? trp ?].
-    apply F2 in TRq'' as [? trq ?].
-    eexists.
+    now apply (id_T (sb eq)).
+    now apply (id_T (sb eq)).
+    now apply (b_T (sb eq)).
+    reflexivity.
+  - apply F2 in TRq' as  [? (? & trq' & ? & <-)].
+    apply F2 in TRq'' as  [? (? & trq'' & ? & <-)].
+    do 2 eexists; split; [|split].
     pbSR; eauto.
     rewrite EQ.
-    apply (fTf_Tf sb). apply (in_binary_ctx parabang).
+    apply (fTf_Tf (sb eq)). apply (in_binary_ctx parabang).
     apply (fT_T ctx_para_t), (in_binary_ctx para).
-    now apply (b_T sb).
+    now apply (b_T (sb eq)).
     apply (fT_T ctx_para_t), (in_binary_ctx para).
-    now apply (id_T sb).
-    now apply (id_T sb).
-    now apply (b_T sb).
-    *)
-Admitted.
+    now apply (id_T (sb eq)).
+    now apply (id_T (sb eq)).
+    now apply (b_T (sb eq)).
+    reflexivity.
+Qed.     
+
 #[global] Instance parabang_t: forall R, Proper (st eq R ==> st eq R ==> st eq R) parabang := binary_proper_t ctx_parabang_t.
 #[global] Instance parabang_T f: forall R, Proper (sT eq f R ==> sT eq f R ==> sT eq f R) parabang := binary_proper_T ctx_parabang_t.
 

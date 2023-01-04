@@ -356,11 +356,11 @@ Proof.
   step in EQtu; destruct EQtu as [F' B'].
   split; intros ? ? TRTt.
   - edestruct F as (T' & TRT' & ?); [apply EQtT | |]; eauto.
-    edestruct F' as [U' (? & TRU' & ? & <-) ?]; eauto.
+    edestruct F' as [U' (? & TRU' & ? & <-)]; eauto.
     edestruct B as (u' & TRu' & ?); [apply EQuU | |]; eauto.
     erewrite γι in TRu'; eauto.
   - edestruct F as (T' & TRT' & ?); [apply EQuU | |]; eauto.
-    edestruct B' as [U' (? & TRU' & ? & ?) ?]; cbn in *; subst; eauto.
+    edestruct B' as [U' (? & TRU' & ? & ?)]; cbn in *; subst; eauto.
     edestruct B as (u' & TRu' & ?); [apply EQtT | |]; eauto.
     erewrite γι in TRu'; eauto.
 Qed.
@@ -414,7 +414,7 @@ Proof.
     pose proof (@term_model_bisimilar u) as BISu.
     pose proof bisimilar_bisim as [F' B'].
     edestruct F' as (t' & TRt & EQTt); [apply BISt | ..]; eauto.
-    edestruct F as [u' (? & TR'' & ? & <-) EQtu]; eauto.
+    edestruct F as [u' (? & TR'' & ? & <-)]; eauto.
     edestruct B' as (U' & TRu & EQuU); [apply BISu |..]; eauto.
     erewrite γι in TRu; eauto.
     eexists. apply TRu.
@@ -425,7 +425,7 @@ Proof.
     pose proof bisimilar_inv_bisim_inv as [F' B'].
     cbn.
     edestruct B' as (u' & TRu & EQuU); [apply BISu |..]; eauto.
-    edestruct B as [t' (? & TR'' & ? & ->) EQtu]; eauto.
+    edestruct B as [t' (? & TR'' & ? & ->)]; eauto.
     edestruct F' as (T' & TRT & EQuT); [apply BISt |..]; eauto.
     erewrite γι in TRT; eauto.
     eexists. apply TRT.
