@@ -1447,19 +1447,16 @@ produce any challenge for the other.
       @spinS_gen E C Z X c ~ @spinS_gen E C Z Y c'.
   Proof.
     intros R.
-    coinduction S CIH; split; cbn; intros L t' TR;
-      rewrite ctree_eta in TR; cbn in TR;
-      apply trans_brS_inv in TR as (_ & EQ & ->);
-      eexists; eexists;
-      rewrite ctree_eta; cbn.
-    - split; [econstructor|].
-      + exact y.
-      + reflexivity.
-      + rewrite EQ; eauto.
-    - split; [econstructor|].
-      + exact x.
-      + reflexivity.
-      + rewrite EQ; eauto.
+    coinduction S CIH. symmetric.
+    intros ** L t' TR;
+    rewrite ctree_eta in TR; cbn in TR;
+    apply trans_brS_inv in TR as (_ & EQ & ->);
+    eexists; eexists;
+    rewrite ctree_eta; cbn.
+    split; [econstructor|].
+    - exact y.
+    - reflexivity.
+    - rewrite EQ; eauto.
   Qed.
 
   Lemma spinD_gen_bisim : forall {Z X Y} (c: C X) (c': C Y),

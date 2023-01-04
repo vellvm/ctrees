@@ -741,6 +741,8 @@ Section transi_state.
   Proof.
     revert Y. coinduction R CH.
     (* We would like to use a symmetry argument here, as is done in the 0.1 branch *)
+    symmetric using idtac.
+    { intros. apply H. now symmetry. now symmetry. red. now setoid_rewrite <- H1. }
     assert (CH' : forall (t t' : ctree E C X) s, t ~ t' -> st eq R (interp_state h t s) (interp_state h t' s)).
     {
       intros.
@@ -752,83 +754,45 @@ Section transi_state.
       apply H0.
     }
     intros. setoid_rewrite <- H0. clear pre' H0. cbn.
-    split; cbn; intros.
-    - copy H0. rewrite bind_guard_r in H0.
-      eapply trans_interp_state_inv_gen in H0 as (? & ? & ? & ?); auto.
-      2: { destruct H1 as [[] | []]; rewrite H1.
-           rewrite bind_ret_l. apply is_simple_guard_ret.
-           rewrite bind_trigger. right. intros. inv_trans. subst.
-           exists x0. rewrite EQ. eright. left. reflexivity. reflexivity.
-      }
-      destruct H2.
-      + destruct H2 as (? & ? & ? & ? & ? & ?). rewrite H4 in H0. clear x H4.
-        destruct H1 as [[] | []].
-        * rewrite H1, bind_ret_l in H2. rewrite H1, bind_ret_l in cpy. inv_trans. subst.
-          inv H3. step in H2. inv H2. step in H4. inv H4.
-          exfalso; now apply void_unit_elim.
-        * rewrite H1 in *. rewrite bind_trigger in H2. apply trans_vis_inv in H2 as (? & ? & ?). subst.
-          rewrite H2 in H3. inv H3. step in H4. inv H4.
-          apply equ_br_invE in H5 as [_ ?].
-          rewrite <- H3 in H4; auto. inv H4.
-          2: { step in H6. inv H6. }
-          step in H5. inv H5.
-          rewrite bind_trigger in cpy. apply trans_vis_inv in cpy. destruct cpy as (? & ? & ?). subst.
-          eexists. exists (Guard (interp_state h (k' x1) s)). rewrite H1. rewrite bind_trigger. split.
-          now constructor.
-          split; auto.
-          rewrite H4, !sb_guard. apply CH'. apply H.
-      + destruct H2 as (? & ? & ? & ?).
-        destruct H1 as [[] | []].
-        2: { rewrite H1 in H2. setoid_rewrite bind_trigger in H2. inv_trans. }
-        rewrite H1 in *. rewrite bind_ret_l in H2. inv_trans. subst. clear EQ.
-        eapply transis_sbisim in H4; eauto. destruct H4 as (? & ? & ?).
-        apply transis_trans in H2 as (? & ? & ?); auto.
-        eexists; exists x3. rewrite H1, bind_ret_l. split.
-        etrans.
-        assert (st eq R (interp_state h x x0) (interp_state h x1 x0)).
-        { apply CH'. apply H4. }
+    cbn; intros.
+    copy H0. rewrite bind_guard_r in H0.
+    eapply trans_interp_state_inv_gen in H0 as (? & ? & ? & ?); auto.
+    2: { destruct H1 as [[] | []]; rewrite H1.
+         rewrite bind_ret_l. apply is_simple_guard_ret.
+         rewrite bind_trigger. right. intros. inv_trans. subst.
+         exists x0. rewrite EQ. eright. left. reflexivity. reflexivity.
+    }
+    destruct H2.
+    + destruct H2 as (? & ? & ? & ? & ? & ?). rewrite H4 in H0. clear x H4.
+      destruct H1 as [[] | []].
+      * rewrite H1, bind_ret_l in H2. rewrite H1, bind_ret_l in cpy. inv_trans. subst.
+        inv H3. step in H2. inv H2. step in H4. inv H4.
+        exfalso; now apply void_unit_elim.
+      * rewrite H1 in *. rewrite bind_trigger in H2. apply trans_vis_inv in H2 as (? & ? & ?). subst.
+        rewrite H2 in H3. inv H3. step in H4. inv H4.
+        apply equ_br_invE in H5 as [_ ?].
+        rewrite <- H3 in H4; auto. inv H4.
+        2: { step in H6. inv H6. }
+        step in H5. inv H5.
+        rewrite bind_trigger in cpy. apply trans_vis_inv in cpy. destruct cpy as (? & ? & ?). subst.
+        eexists. exists (Guard (interp_state h (k' x1) s)). rewrite H1. rewrite bind_trigger. split.
+        now constructor.
         split; auto.
-        rewrite sbisim_t0_det. 2: apply H0.
-        apply sbisim_t0_det in H5; rewrite H5.
-        apply H6.
-    - copy H0. rewrite bind_guard_r in H0.
-      eapply trans_interp_state_inv_gen in H0 as (? & ? & ? & ?); auto.
-      2: { destruct H1 as [[] | []]; rewrite H1.
-           rewrite bind_ret_l. apply is_simple_guard_ret.
-           rewrite bind_trigger. right. intros. inv_trans. subst.
-           exists x0. rewrite EQ. eright. left. reflexivity. reflexivity.
-      }
-      destruct H2.
-      + destruct H2 as (? & ? & ? & ? & ? & ?). rewrite H4 in H0. clear x H4.
-        destruct H1 as [[] | []].
-        * rewrite H1, bind_ret_l in H2. rewrite H1, bind_ret_l in cpy. inv_trans. subst.
-          inv H3. step in H2. inv H2. step in H4. inv H4.
-          exfalso; now apply void_unit_elim.
-        * rewrite H1 in *. rewrite bind_trigger in H2. apply trans_vis_inv in H2 as (? & ? & ?). subst.
-          rewrite H2 in H3. inv H3. step in H4. inv H4.
-          apply equ_br_invE in H5 as [_ ?].
-          rewrite <- H3 in H4; auto. inv H4.
-          2: { step in H6. inv H6. }
-          step in H5. inv H5.
-          rewrite bind_trigger in cpy. apply trans_vis_inv in cpy. destruct cpy as (? & ? & ?). subst.
-          eexists. exists (Guard (interp_state h (k x1) s)). rewrite H1. rewrite bind_trigger. split.
-          now constructor.
-          split; auto.
-          rewrite H4, !sb_guard. apply CH'. apply H.
-      + destruct H2 as (? & ? & ? & ?).
-        destruct H1 as [[] | []].
-        2: { rewrite H1 in H2. setoid_rewrite bind_trigger in H2. inv_trans. }
-        rewrite H1 in *. rewrite bind_ret_l in H2. inv_trans. subst. clear EQ.
-        eapply transis_sbisim in H4; [| symmetry; apply H]. destruct H4 as (? & ? & ?).
-        apply transis_trans in H2 as (? & ? & ?); auto.
-        exists l. exists x3. rewrite H1, bind_ret_l. split.
-        etrans.
-        assert (st eq R (interp_state h x x0) (interp_state h x1 x0)).
-        { apply CH'. apply H4. }
-        split; auto.
-        rewrite sbisim_t0_det. 2: apply H5.
-        apply sbisim_t0_det in H0; rewrite H0.
-        symmetry; apply H6.
+        rewrite H4, !sb_guard. apply CH'. apply H.
+    + destruct H2 as (? & ? & ? & ?).
+      destruct H1 as [[] | []].
+      2: { rewrite H1 in H2. setoid_rewrite bind_trigger in H2. inv_trans. }
+      rewrite H1 in *. rewrite bind_ret_l in H2. inv_trans. subst. clear EQ.
+      eapply transis_sbisim in H4; eauto. destruct H4 as (? & ? & ?).
+      apply transis_trans in H2 as (? & ? & ?); auto.
+      eexists; exists x3. rewrite H1, bind_ret_l. split.
+      etrans.
+      assert (st eq R (interp_state h x x0) (interp_state h x1 x0)).
+      { apply CH'. apply H4. }
+      split; auto.
+      rewrite sbisim_t0_det. 2: apply H0.
+      apply sbisim_t0_det in H5; rewrite H5.
+      apply H6.
   Qed.
 
   #[global] Instance interp_state_sbisim (Hh : forall X (e : _ X) s, vsimple (h e s)) :
