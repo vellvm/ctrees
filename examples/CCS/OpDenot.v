@@ -109,46 +109,49 @@ Proof.
   intros * HR TR.
   revert q HR.
   induction TR; intros * HR; cbn in *.
-  - step in HR; edestruct HR as [[? TR] [? ?]].
+  - step in HR. edestruct HR as [[? (? & TR & ? & ->)] [? ?]]; eauto.
     apply trans_prefix.
-    cbn in *; eauto.
-    (* LEF: Progress pointer *)
-  - step in HR; edestruct HR as [[? TR EQ] _].
-    cbn; apply trans_step.
-    cbn in *; eauto.
+  - step in HR; edestruct HR as [[? (? & TR & ? & ->)] [? ?]]; eauto. 
+    apply trans_step.
   - edestruct IHTR as (q1 & TR1 & EQ1); eauto.
-    step in HR; edestruct HR as [[q' TR' EQ'] _].
+    step in HR; edestruct HR as [[? (? & ? & ? & ?)] [? (? & ? & ? & ?)]]; eauto. 
     apply trans_plusL; apply TR1. (* Need to fix automation w.r.t. trans/transR *)
-    eexists; split; [apply TR' |].
-    cbn; rewrite <- EQ', <- EQ1; auto.
+    cbn in *; subst.
+    eexists; split; [apply H |].
+    cbn; rewrite <- H0, <- EQ1; auto.
   - edestruct IHTR as (q2 & TR2 & EQ2); eauto.
-    step in HR; edestruct HR as [[q' TR' EQ'] _].
-    apply trans_plusR; apply TR2. (* Need to fix automation w.r.t. trans/transR *)
-    eexists; split; [apply TR' |].
-    cbn; rewrite <- EQ', <- EQ2; auto.
+    step in HR; edestruct HR as [[? (? & ? & ? & ->)] [? ?]]. 
+    apply trans_plusR. apply TR2. (* Need to fix automation w.r.t. trans/transR *)
+    eauto.
+    eexists; split; [apply H |].
+    cbn; rewrite <- H0, <- EQ2; auto.
   - edestruct IHTR as (q1 & TR1 & EQ1); eauto.
-    step in HR; edestruct HR as [[q' TR' EQ'] _].
+    step in HR; edestruct HR as [[? (? & ? & ? & ->)] [? ?]].
     pL; apply TR1. (* Need to fix automation w.r.t. trans/transR *)
-    eexists; split; [apply TR' |].
-    cbn; rewrite <- EQ', <- EQ1; auto.
+    eauto.
+    eexists; split; [apply H |].
+    cbn; rewrite <- H0, <- EQ1; auto.
   - edestruct IHTR as (q2 & TR2 & EQ2); eauto.
-    step in HR; edestruct HR as [[q' TR' EQ'] _].
+    step in HR; edestruct HR as [[? (? & ? & ? & ->)] [? ?]].
     pR; apply TR2. (* Need to fix automation w.r.t. trans/transR *)
-    eexists; split; [apply TR' |].
-    cbn; rewrite <- EQ', <- EQ2; auto.
+    eauto.
+    eexists; split; [apply H |].
+    cbn; rewrite <- H0, <- EQ2; auto.
   - edestruct IHTR1 as (q1 & TR1' & EQ1); eauto.
     edestruct IHTR2 as (q2 & TR2' & EQ2); eauto.
-    step in HR; edestruct HR as [[q' TR' EQ'] _].
+    step in HR; edestruct HR as [[? (? & ? & ? & ->)] [? ?]].
     pS; [apply TR1' | apply TR2' | apply are_opposite_op]. (* Need to fix automation w.r.t. trans/transR *)
-    eexists; split; [apply TR' |].
-    cbn; rewrite <- EQ', <- EQ1, <- EQ2; auto.
+    eauto.
+    eexists; split; [apply H |].
+    cbn; rewrite <- H0, <- EQ1, <- EQ2; auto.
   - edestruct IHTR as (q' & TR' & EQ'); eauto.
     eapply trans_new in TR' as (q'' & TR' & EQ''); [| apply use_channel_can_comm; eauto].
-    step in HR; edestruct HR as [[q''' TR'' EQ'''] _].
+    step in HR;  edestruct HR as [[? (? & ? & ? & ->)] [? ?]].
     apply TR'.
+    eauto.
     eexists; split.
-    apply TR''.
-    rewrite <- EQ''', EQ'', <- EQ'; auto.
+    apply H.
+    rewrite <- H0, EQ'', <- EQ'; auto.
   - rewrite unfold_bang', paraC in HR.
     exact (IHTR _ HR).
 Qed.
@@ -156,25 +159,25 @@ Qed.
 Lemma correct : backward bisim_model.
 Proof.
   unfold bisim_model; red.
-  induction P; intros * HR TR; copy TR; step in HR; destruct HR as [_ B]; apply B in TR as [? TR' EQ']; clear B; cbn in *.
+  induction P; intros * HR TR; copy TR; step in HR; destruct HR as [_ B]; apply B in TR as [? (? & TR' & ? & ->)]; clear B; cbn in *.
   - exfalso; eapply trans_nil_inv,TR'.
   - apply trans_step_inv in TR' as [EQ ->].
     eexists; split; [constructor |].
-    rewrite <- EQ',EQ; auto.
+    rewrite <- H, EQ; auto.
   - apply trans_prefix_inv in TR' as [EQ ->].
     eexists; split; [constructor |].
-    rewrite <- EQ', EQ.
+    rewrite <- H, EQ.
     auto.
   - trans_para_invT TR'.
     + edestruct IHP1 as (P' & STEP & EQ''); [reflexivity | apply TRp |].
       eexists; split.
       apply SParL; eauto.
-      rewrite <- EQ',EQ,<-EQ''.
+      rewrite <- H,EQ,<-EQ''.
       auto.
     + edestruct IHP2 as (P' & STEP & EQ''); [reflexivity | apply TRq |].
       eexists; split.
       apply SParR; eauto.
-      rewrite <- EQ',EQ,<-EQ''.
+      rewrite <- H,EQ,<-EQ''.
       auto.
     + edestruct IHP1 as (P' & STEP & EQ''); [reflexivity | apply TRp |].
       edestruct IHP2 as (P'' & STEP' & EQ'''); [reflexivity | apply TRq |].
@@ -184,18 +187,18 @@ Proof.
       apply are_opposite_sym in Op.
       rewrite <- (are_opposite_are_op _ Op).
       apply STEP'.
-      rewrite <- EQ',EQ,<-EQ'',<-EQ'''.
+      rewrite <- H,EQ,<-EQ'',<-EQ'''.
       auto.
   - apply trans_plus_inv in TR' as [(? & TRp & EQ) | (? & TRq & EQ)].
     + edestruct IHP1 as (P' & STEP & EQ''); [reflexivity | apply TRp |].
       eexists; split.
       apply SSumL; eauto.
-      rewrite <- EQ',EQ,<-EQ''.
+      rewrite <- H,EQ,<-EQ''.
       auto.
     + edestruct IHP2 as (P' & STEP & EQ''); [reflexivity | apply TRq |].
       eexists; split.
       apply SSumR; eauto.
-      rewrite <- EQ',EQ,<-EQ''.
+      rewrite <- H,EQ,<-EQ''.
       auto.
   - apply trans_new_inv in TR' as (p' & COM & TR & EQ).
     edestruct IHP as (P' & STEP & EQ''); [reflexivity | apply TR |].
@@ -203,19 +206,19 @@ Proof.
     apply SRes; auto.
     rewrite use_channel_can_comm.
     destruct l; auto; destruct e; auto.
-    rewrite <- EQ',EQ,sb_guard, <-EQ''; auto.
+    rewrite <- H,EQ,sb_guard, <-EQ''; auto.
   - trans_parabang_invT TR'.
     + edestruct IHP as (P' & STEP & EQ''); [reflexivity | apply TRp' |].
       exists (P' ∥ !P); split.
       apply SRep, SParL; auto.
-      rewrite <- EQ',EQ,<-EQ''.
+      rewrite <- H,EQ,<-EQ''.
       rewrite parabang_eq.
       reflexivity.
     + edestruct IHP as (P' & STEP & EQ''); [reflexivity | apply TRq' |].
-      rewrite EQ in EQ'; clear x EQ.
+      rewrite EQ in H; clear x0 EQ.
       exists (P' ∥ !P); split.
       apply SRep, SParL; auto.
-      rewrite <- EQ', <-EQ''.
+      rewrite <- H, <-EQ''.
       cbn.
       rewrite (paraC ⟦P⟧), parabang_aux, parabang_eq.
       auto.
@@ -229,15 +232,15 @@ Proof.
       apply are_opposite_sym in Op.
       rewrite <- (are_opposite_are_op _ Op).
       apply SRep', STEP'.
-      rewrite <- EQ',EQ,<-EQ'',<-EQ'''.
+      rewrite <- H,EQ,<-EQ'',<-EQ'''.
       rewrite parabang_eq.
       cbn.
       rewrite paraA; auto.
     + edestruct IHP as (P' & STEP & EQ''); [reflexivity | apply TRq' |].
       edestruct IHP as (P'' & STEP' & EQ'''); [reflexivity | apply TRq'' |].
-      rewrite EQ in EQ'; clear x EQ.
-      rewrite <- EQ'', <- EQ''' in EQ'.
-      rewrite paraC, parabang_aux, parabang_eq in EQ'.
+      rewrite EQ in H; clear x0 EQ.
+      rewrite <- EQ'', <- EQ''' in H.
+      rewrite paraC, parabang_aux, parabang_eq in H.
       exists (P' ∥ (P'' ∥ !P)).
       split.
       apply SRep.
@@ -246,7 +249,7 @@ Proof.
       apply are_opposite_sym in Op.
       rewrite <- (are_opposite_are_op _ Op).
       apply SRep', STEP'.
-      rewrite <- EQ'; cbn; rewrite paraA; auto.
+      rewrite <- H; cbn; rewrite paraA; auto.
 Qed.
 
 Theorem term_model_bisimilar : forall P, bisimilar P ⟦P⟧.
@@ -331,12 +334,14 @@ Proof.
   - edestruct B as (T' & TRT' & ?); [apply EQtT | |]; eauto.
     edestruct F' as [U' TRU' ?]; eauto.
     edestruct F as (u' & TRu' & ?); [apply EQuU | |]; eauto.
-    erewrite ιγ in TRu'; eauto.
+    erewrite ιγ in TRu'.
+    do 2 eexists; split; eauto.
+    eapply TRTt.
   - edestruct B as (T' & TRT' & ?); [apply EQuU | |]; eauto.
     edestruct B' as [U' TRU' ?]; eauto.
     edestruct F as (u' & TRu' & ?); [apply EQtT | |]; eauto.
     erewrite ιγ in TRu'; eauto.
-    cbn in *; eauto.
+    do 2 eexists; split; [|split]; cbn in *; eauto.
 Qed.
 
 Lemma cross_model_compose' : forall T t u U,
@@ -351,14 +356,13 @@ Proof.
   step in EQtu; destruct EQtu as [F' B'].
   split; intros ? ? TRTt.
   - edestruct F as (T' & TRT' & ?); [apply EQtT | |]; eauto.
-    edestruct F' as [U' TRU' ?]; eauto.
+    edestruct F' as [U' (? & TRU' & ? & <-) ?]; eauto.
     edestruct B as (u' & TRu' & ?); [apply EQuU | |]; eauto.
     erewrite γι in TRu'; eauto.
   - edestruct F as (T' & TRT' & ?); [apply EQuU | |]; eauto.
-    edestruct B' as [U' TRU' ?]; eauto.
+    edestruct B' as [U' (? & TRU' & ? & ?) ?]; cbn in *; subst; eauto.
     edestruct B as (u' & TRu' & ?); [apply EQtT | |]; eauto.
     erewrite γι in TRu'; eauto.
-    cbn in *; eauto.
 Qed.
 
 Lemma bisimilar_bisimilar_inv : forall t T,
@@ -384,7 +388,7 @@ Proof.
     edestruct F as [u' TR'' EQtu]; eauto.
     edestruct F' as (U' & TRu & EQuU); [apply BISu |..]; eauto.
     erewrite ιγ in TRu; eauto.
-    eexists. apply TRu.
+    do 2 eexists; split; [|split]; eauto.
     eapply cross_model_compose; eauto.
   - intros ? U' TR.
     pose proof (@term_model_bisimilar_inv u) as BISu.
@@ -395,7 +399,7 @@ Proof.
     edestruct B as [t' TR'' EQtu]; eauto.
     edestruct B' as (T' & TRT & EQuT); [apply BISt |..]; eauto.
     erewrite ιγ in TRT; eauto.
-    eexists. apply TRT.
+    do 2 eexists; split; [|split]; eauto. 
     apply bisimilar_bisimilar_inv in EQuU, EQuT.
     eapply cross_model_compose; eauto.
 Qed.
@@ -410,7 +414,7 @@ Proof.
     pose proof (@term_model_bisimilar u) as BISu.
     pose proof bisimilar_bisim as [F' B'].
     edestruct F' as (t' & TRt & EQTt); [apply BISt | ..]; eauto.
-    edestruct F as [u' TR'' EQtu]; eauto.
+    edestruct F as [u' (? & TR'' & ? & <-) EQtu]; eauto.
     edestruct B' as (U' & TRu & EQuU); [apply BISu |..]; eauto.
     erewrite γι in TRu; eauto.
     eexists. apply TRu.
@@ -421,7 +425,7 @@ Proof.
     pose proof bisimilar_inv_bisim_inv as [F' B'].
     cbn.
     edestruct B' as (u' & TRu & EQuU); [apply BISu |..]; eauto.
-    edestruct B as [t' TR'' EQtu]; eauto.
+    edestruct B as [t' (? & TR'' & ? & ->) EQtu]; eauto.
     edestruct F' as (T' & TRT & EQuT); [apply BISt |..]; eauto.
     erewrite γι in TRT; eauto.
     eexists. apply TRT.
