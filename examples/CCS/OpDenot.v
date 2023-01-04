@@ -1,7 +1,7 @@
 From CTree Require Import
      CTree
-	   Eq
-	   Interp.Interp.
+     Eq
+     Interp.Fold.
 
 From RelationAlgebra Require Import
      monoid
@@ -15,9 +15,9 @@ From RelationAlgebra Require Import
      normalisation.
 
 From CTreeCCS Require Import
-	   Syntax
-	   Denotation
-	   Operational.
+     Syntax
+     Denotation
+     Operational.
 
 Import CCSNotations.
 Import DenNotations.
@@ -36,11 +36,7 @@ Qed.
 
 Lemma trans_nil_inv : forall l p, ~ trans l nil p.
 Proof.
-<<<<<<< HEAD
-  intros * abs; eapply (stuckV_is_stuck (C := ccsC)); apply abs.
-=======
   intros * abs; eapply stuckS_is_stuck; apply abs.
->>>>>>> master
 Qed.
 
 Definition ι : option action -> @label ccsE :=
@@ -105,7 +101,7 @@ Proof.
     exists R; split; auto.
 Qed.
 
-Definition bisim_model := fun P q => ⟦P⟧ ~ q.
+Definition bisim_model := fun P (q: ccs) => ⟦P⟧ ~ q.
 
 Lemma complete : forward bisim_model.
 Proof.
@@ -113,9 +109,10 @@ Proof.
   intros * HR TR.
   revert q HR.
   induction TR; intros * HR; cbn in *.
-  - step in HR; edestruct HR as [[? TR EQ] _].
+  - step in HR; edestruct HR as [[? TR] [? ?]].
     apply trans_prefix.
     cbn in *; eauto.
+    (* LEF: Progress pointer *)
   - step in HR; edestruct HR as [[? TR EQ] _].
     cbn; apply trans_step.
     cbn in *; eauto.
@@ -264,15 +261,15 @@ Print Assumptions term_model_bisimilar.
 
 Definition forward_inv (R : ccs -> term -> Prop) : Prop :=
   forall p p' Q l,
-		R p Q ->
-		trans l p p' ->
-	  exists Q', Q ⊢ γ l →op Q' /\ R p' Q'.
+    R p Q ->
+    trans l p p' ->
+    exists Q', Q ⊢ γ l →op Q' /\ R p' Q'.
 
 Definition backward_inv (R : ccs -> term -> Prop) : Prop :=
   forall p Q Q' a,
-		R p Q ->
+    R p Q ->
     Q ⊢ a →op Q' ->
-	  exists p', trans (ι a) p p' /\ R p' Q'.
+    exists p', trans (ι a) p p' /\ R p' Q'.
 
 Definition bisim_inv R := forward_inv R /\ backward_inv R.
 Definition bisimilar_inv t u := exists R, bisim_inv R /\ R t u.

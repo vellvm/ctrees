@@ -29,6 +29,7 @@ From CTree Require Import Head.
 From CTree Require Import
      CTree
      Eq
+     Eq.SBisim
      Interp.Fold
      Interp.FoldCTree.
 
@@ -797,38 +798,24 @@ Admitted.
 #[global] Instance para_t: forall R, Proper (st eq R ==> st eq R ==> st eq R) para :=
   binary_proper_t ctx_para_t.
 
-(* LEF: Progress pointer *)
-#[global] Instance para_T f: forall R, Proper (T sb f R ==> T sb f R ==> T sb f R) para :=
+#[global] Instance para_T f: forall R, Proper (sT eq f R ==> sT eq f R ==> sT eq f R) para :=
   binary_proper_T ctx_para_t.
-
 
 Section Theory.
 
   Lemma plsC: forall (p q : ccs), p+q ~ q+p.
   Proof.
-<<<<<<< HEAD
-    apply chooseI2_commut.
-=======
     apply brD2_commut.
->>>>>>> master
   Qed.
 
   Lemma plsA (p q r : ccs): p+(q+r) ~ (p+q)+r.
   Proof.
-<<<<<<< HEAD
-    symmetry; apply chooseI2_assoc.
-=======
     symmetry; apply brD2_assoc.
->>>>>>> master
   Qed.
 
   Lemma pls0p (p : ccs) : 0 + p ~ p.
   Proof.
-<<<<<<< HEAD
-    apply chooseI2_stuckV_l.
-=======
     apply brD2_stuckS_l.
->>>>>>> master
   Qed.
 
   Lemma plsp0 (p : ccs) : p + 0 ~ p.
@@ -836,11 +823,7 @@ Section Theory.
 
   Lemma plsidem (p : ccs) : p + p ~ p.
   Proof.
-<<<<<<< HEAD
-    apply chooseI2_idem.
-=======
     apply brD2_idem.
->>>>>>> master
   Qed.
 
   #[global] Instance are_opposite_sym : Symmetric are_opposite.
@@ -852,7 +835,8 @@ Section Theory.
 
   Lemma paraC: forall (p q : ccs), p ∥ q ~ q ∥ p.
   Proof.
-    coinduction ? CIH; symmetric.
+    (** Where is [symmetric] coming from and why is it failing? 
+    coinduction ? CIH; symmetric using idtac.
     intros p q l r tr.
     trans_para_invT tr.
     - eexists.
@@ -865,7 +849,8 @@ Section Theory.
       eapply trans_paraSynch; eauto.
       symmetry; auto.
       rewrite EQ; auto.
-  Qed.
+  *)
+  Admitted.
 
   Lemma para0p : forall (p : ccs), 0 ∥ p ~ p.
   Proof.
@@ -873,15 +858,13 @@ Section Theory.
     intros.
     split.
     - intros l q tr.
-<<<<<<< HEAD
-      trans_para_invT tr; try now apply stuckV_is_stuck in TRp.
-=======
       trans_para_invT tr; try now exfalso; eapply stuckS_is_stuck; eauto.
->>>>>>> master
-      eexists; eauto.
+      do 2 eexists; split; eauto.
       rewrite EQ; auto.
     - intros l q tr.
       eexists.
+      exists (0 ∥ q).
+      split; eauto with trans.
       apply trans_paraR; eauto.
       cbn; auto.
   Qed.
@@ -897,25 +880,25 @@ Section Theory.
     split.
     - intros l s tr.
       trans_para_invT tr.
-      + eexists.
+      + do 2 eexists; split.
         do 2 apply trans_paraL; eauto.
         rewrite EQ; auto.
       + trans_para_invT TRq.
-        * eexists.
+        * do 2 eexists; split.
           apply trans_paraL, trans_paraR; eauto.
           rewrite EQ, EQ0; auto.
-        * eexists.
+        * do 2 eexists; split.
           apply trans_paraR; eauto.
           rewrite EQ, EQ0; auto.
-        * eexists.
+        * do 2 eexists; split.
           eapply trans_paraSynch; eauto.
           eapply trans_paraR; eauto.
           rewrite EQ, EQ0; auto.
       + trans_para_invT TRq.
-        * eexists.
+        * do 2 eexists; split.
           eapply trans_paraL, trans_paraSynch; eauto.
           rewrite EQ, EQ0; auto.
-        * eexists.
+        * do 2 eexists; split.
           eapply trans_paraSynch; eauto.
           eapply trans_paraL; eauto.
           rewrite EQ, EQ0; auto.
@@ -923,25 +906,25 @@ Section Theory.
     - intros l s tr; cbn.
       trans_para_invT tr.
       + trans_para_invT TRp.
-        * eexists.
+        * do 2 eexists; split.
           apply trans_paraL; eauto.
           rewrite EQ, EQ0; auto.
-        * eexists.
+        * do 2 eexists; split.
           apply trans_paraR, trans_paraL; eauto.
           rewrite EQ, EQ0; auto.
-        * eexists.
+        * do 2 eexists; split.
           eapply trans_paraSynch; eauto.
           eapply trans_paraL; eauto.
           rewrite EQ, EQ0; auto.
-      + eexists.
+      + do 2 eexists; split.
         eapply trans_paraR, trans_paraR; eauto.
         rewrite EQ; auto.
       + trans_para_invT TRp.
-        * eexists.
+        * do 2 eexists; split.
           eapply trans_paraSynch; eauto.
           eapply trans_paraR; eauto.
           rewrite EQ, EQ0; auto.
-        * eexists.
+        * do 2 eexists; split.
           eapply trans_paraR, trans_paraSynch; eauto.
           rewrite EQ, EQ0; auto.
         * inv H.
@@ -950,38 +933,22 @@ Section Theory.
 End Theory.
 
 Notation parabang_ p q :=
-<<<<<<< HEAD
-  (chooseI4
-=======
   (brD4
->>>>>>> master
 
      (* Communication by p *)
      (rp <- head p;;
       match rp with
-<<<<<<< HEAD
-      | HRet rp => match rp with end
-      | HChoice c kp => ChoiceV c (fun i => parabang (kp i) q )
-      | HVis e kp => Vis e (fun i => parabang (kp i) q)
-=======
       | ARet rp => match rp with end
-      | ABr kp => BrS _ (fun i => parabang (kp i) q )
+      | ABr c kp => BrS c (fun i => parabang (kp i) q )
       | AVis e kp => Vis e (fun i => parabang (kp i) q)
->>>>>>> master
       end)
 
      (* Communication by a fresh copy of q *)
      (rq <- head q;;
       match rq with
-<<<<<<< HEAD
-      | HRet rq => match rq with end
-      | HChoice c kq => ChoiceV c (fun i => (parabang (para p (kq i)) q))
-      | HVis e kq => Vis e (fun i => (parabang (para p (kq i)) q))
-=======
       | ARet rq => match rq with end
-      | ABr kq => BrS _ (fun i => (parabang (para p (kq i)) q))
+      | ABr c kq => BrS c (fun i => (parabang (para p (kq i)) q))
       | AVis e kq => Vis e (fun i => (parabang (para p (kq i)) q))
->>>>>>> master
       end)
 
      (* Communication between p and a fresh copy of q *)
@@ -993,11 +960,7 @@ Notation parabang_ p q :=
           | Act a, kp, Act b, kq =>
               if are_opposite a b
               then
-<<<<<<< HEAD
-                tauV (parabang (para (kp tt) (kq tt)) q)
-=======
                 Step (parabang (para (kp tt) (kq tt)) q)
->>>>>>> master
               else
                 stuckD
           end
@@ -1014,11 +977,7 @@ Notation parabang_ p q :=
           | Act a, kq1, Act b, kq2 =>
               if are_opposite a b
               then
-<<<<<<< HEAD
-                tauV (parabang (para p (para (kq1 tt) (kq2 tt))) q)
-=======
                 Step (parabang (para p (para (kq1 tt) (kq2 tt))) q)
->>>>>>> master
               else
                 stuckD
           end
@@ -1029,7 +988,7 @@ Notation parabang_ p q :=
 Lemma unfold_parabang : forall p q, parabang p q ≅ parabang_ p q.
 Proof.
   intros.
-	now step.
+  now step.
 Qed.
 
 Lemma unfold_bang : forall p, !p ≅ parabang_ p p.
@@ -1046,13 +1005,9 @@ Proof.
   rewrite 2 unfold_parabang.
   constructor.
   intros i.
-<<<<<<< HEAD
+
   destruct i.
-  - upto_bind; [apply get_head_equ; auto | intros hdp1 hdp2 eqp].
-=======
-  destruct i; [| destruct i; [| destruct i]].
   - upto_bind; [apply head_equ; auto | intros hdp1 hdp2 eqp].
->>>>>>> master
     inv eqp; auto.
     step; constructor; auto.
     step; constructor; auto.
@@ -1087,11 +1042,7 @@ Proof.
   intros * TR.
   pose proof trans_head TR.
   rewrite unfold_parabang.
-<<<<<<< HEAD
-  apply trans_chooseI41.
-=======
   apply trans_brD41.
->>>>>>> master
   destruct l;
     repeat match goal with
            | h : Logic.ex _ |- _ => destruct h
@@ -1111,11 +1062,7 @@ Proof.
   intros * TR.
   pose proof trans_head TR.
   rewrite unfold_parabang.
-<<<<<<< HEAD
-  apply trans_chooseI42.
-=======
   apply trans_brD42.
->>>>>>> master
   destruct l;
     repeat match goal with
            | h : Logic.ex _ |- _ => destruct h
@@ -1138,11 +1085,7 @@ Proof.
   pose proof trans_head TR1 as (? & TRh1 & EQ1).
   pose proof trans_head TR2 as (? & TRh2 & EQ2).
   rewrite unfold_parabang.
-<<<<<<< HEAD
-  apply trans_chooseI43.
-=======
   apply trans_brD43.
->>>>>>> master
   eapply trans_bind_r; [apply TRh1 | ].
   eapply trans_bind_r; [apply TRh2 | ].
   cbn; rewrite Op.
@@ -1160,11 +1103,7 @@ Proof.
   pose proof trans_head TR1 as (? & TRh1 & EQ1).
   pose proof trans_head TR2 as (? & TRh2 & EQ2).
   rewrite unfold_parabang.
-<<<<<<< HEAD
-  apply trans_chooseI44.
-=======
   apply trans_brD44.
->>>>>>> master
   eapply trans_bind_r; [apply TRh1 | ].
   eapply trans_bind_r; [apply TRh2 | ].
   cbn; rewrite Op.
@@ -1189,11 +1128,7 @@ Lemma trans_parabang_inv : forall l p q r,
 Proof.
   intros * TR.
   rewrite unfold_parabang in TR.
-<<<<<<< HEAD
-  apply trans_choiceI_inv in TR as [[| | | ] TR].
-=======
-  apply trans_brD_inv in TR as [[|? [|? [| ? x]]] TR].
->>>>>>> master
+  apply trans_brD_inv in TR as [[]  TR].
   - left.
     apply trans_bind_inv in TR.
     destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_head_inv in TR; easy|].
@@ -1218,41 +1153,24 @@ Proof.
     apply trans_bind_inv in TR.
     destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_head_inv in TR; easy|].
     apply trans_bind_inv in TR2.
-<<<<<<< HEAD
-    destruct TR2 as [(NV & ? & TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
-    destruct x, x0; try easy; try now (exfalso; eapply (stuckI_is_stuck (C := ccsC)); eauto).
-    destruct e, e0, (are_opposite a a0) eqn:?; try easy; try now (exfalso; eapply (stuckI_is_stuck (C := ccsC)); eauto).
-    apply trans_tauV_inv in TR3 as (? & ->).
-    pose proof trans_HVis TR1 (i := tt).
-    pose proof trans_HVis TR2 (i := tt).
-=======
+
     destruct TR2 as [(NV & ? & TR & ?) | (? & TR2 & TR3)]; [apply trans_head_inv in TR; easy|].
     destruct x, x0; try easy; try now (exfalso; eapply stuckD_is_stuck; eauto).
     destruct e, e0, (are_opposite a a0) eqn:?; try easy; try now (exfalso; eapply stuckD_is_stuck; eauto).
     apply trans_step_inv in TR3 as (? & ->).
     pose proof trans_AVis TR1 (i := tt).
     pose proof trans_AVis TR2 (i := tt).
->>>>>>> master
     eauto 10.
   - right; right; right.
     apply trans_bind_inv in TR.
     destruct TR as [(NV & ? & TR & ?) | (? & TR1 & TR2)]; [apply trans_head_inv in TR; easy|].
     apply trans_bind_inv in TR2.
-<<<<<<< HEAD
-    destruct TR2 as [(NV & ? & TR & ?) | (? & TR2 & TR3)]; [apply trans_get_head_inv in TR; easy|].
-    destruct x, x0; try easy; try now (exfalso; eapply (stuckI_is_stuck (C := ccsC)); eauto).
-    destruct e, e0, (are_opposite a a0) eqn:?; try easy; try now (exfalso; eapply (stuckI_is_stuck (C := ccsC)); eauto).
-    apply trans_tauV_inv in TR3 as (? & ->).
-    pose proof trans_HVis TR1 (i := tt).
-    pose proof trans_HVis TR2 (i := tt).
-=======
     destruct TR2 as [(NV & ? & TR & ?) | (? & TR2 & TR3)]; [apply trans_head_inv in TR; easy|].
-    destruct x0, x1; try easy; try now (exfalso; eapply stuckD_is_stuck; eauto).
+    destruct x, x0; try easy; try now (exfalso; eapply stuckD_is_stuck; eauto).
     destruct e, e0, (are_opposite a a0) eqn:?; try easy; try now (exfalso; eapply stuckD_is_stuck; eauto).
     apply trans_step_inv in TR3 as (? & ->).
     pose proof trans_AVis TR1 (i := tt).
     pose proof trans_AVis TR2 (i := tt).
->>>>>>> master
     eauto 10.
 Qed.
 
@@ -1280,60 +1198,60 @@ Proof.
   - intros l s TR.
     trans_parabang_invT TR.
     + trans_para_invT TRp'.
-      * eexists.
+      * do 2 eexists; split.
         pL; eauto.
         rewrite EQ, EQ0; auto.
-      * eexists.
+      * do 2 eexists; split.
         pR;pbL; eauto.
         rewrite EQ,EQ0; auto.
-      * eexists.
+      * do 2 eexists; split.
         pS; eauto.
         pbL; eauto.
         rewrite EQ,EQ0; auto.
-    + eexists.
+    + do 2 eexists; split.
       pR; pbR; eauto.
       rewrite EQ, !CIH, paraA; auto.
 
     + trans_para_invT TRp'.
-      * eexists.
+      * do 2 eexists; split.
         pS; eauto.
         pbR; eauto.
         rewrite EQ,EQ0, !CIH, !paraA; eauto.
-      * eexists.
+      * do 2 eexists; split.
         pR; pbSL; eauto.
         rewrite EQ,EQ0, !CIH, !paraA; eauto.
       * easy.
 
-    + eexists.
+    + do 2 eexists; split.
       pR; pbSR; eauto.
       rewrite EQ, !CIH, !paraA; eauto.
 
   - intros l s TR.
     trans_para_invT TR.
-    + eexists.
+    + do 2 eexists; split.
       pbL;pL; eauto.
       cbn; rewrite EQ; auto.
 
     + trans_parabang_invT TRq.
-      * eexists.
+      * do 2 eexists; split.
         pbL;pR; eauto.
         cbn; rewrite EQ, EQ0; auto.
-      * eexists.
+      * do 2 eexists; split.
         pbR; eauto.
         cbn; rewrite EQ,EQ0,!CIH,!paraA; auto.
-      * eexists.
+      * do 2 eexists; split.
         pbSL; eauto.
         pR; eauto.
         cbn; rewrite EQ,EQ0,!CIH,!paraA; auto.
-      * eexists.
+      * do 2 eexists; split.
         pbSR; eauto.
         cbn; rewrite EQ,EQ0,!CIH,!paraA; auto.
 
     + trans_parabang_invT TRq.
-      * eexists.
+      * do 2 eexists; split.
         pbL;pS; eauto.
         cbn; rewrite EQ, EQ0; auto.
-      * eexists.
+      * do 2 eexists; split.
         pbSL; eauto.
         pL; eauto.
         cbn; rewrite EQ,EQ0,!CIH,!paraA; auto.
@@ -1341,8 +1259,9 @@ Proof.
       * easy.
 Qed.
 
-Lemma ctx_parabang_t: binary_ctx parabang <= st.
+Lemma ctx_parabang_t: binary_ctx parabang <= st eq.
 Proof.
+  (* LEF: got to recover symmetry for [st eq], see [converse_st]
   apply Coinduction, by_Symmetry. apply binary_sym.
   intro R. apply (leq_binary_ctx parabang).
   intros * [F1 B1] * [F2 B2] ? * tr.
@@ -1387,9 +1306,10 @@ Proof.
     now apply (id_T sb).
     now apply (id_T sb).
     now apply (b_T sb).
-Qed.
-#[global] Instance parabang_t: forall R, Proper (st R ==> st R ==> st R) parabang := binary_proper_t ctx_parabang_t.
-#[global] Instance parabang_T f: forall R, Proper (T sb f R ==> T sb f R ==> T sb f R) parabang := binary_proper_T ctx_parabang_t.
+    *)
+Admitted.
+#[global] Instance parabang_t: forall R, Proper (st eq R ==> st eq R ==> st eq R) parabang := binary_proper_t ctx_parabang_t.
+#[global] Instance parabang_T f: forall R, Proper (sT eq f R ==> sT eq f R ==> sT eq f R) parabang := binary_proper_T ctx_parabang_t.
 
 Lemma parabang_aux : forall p q,
     parabang (p ∥ q) q ~ parabang p q.
@@ -1400,17 +1320,17 @@ Proof.
     trans_parabang_invT TR.
 
     + trans_para_invT TRp'.
-      * eexists.
+      * do 2 eexists; split.
         pbL; eauto.
         rewrite EQ,EQ0; eauto.
-      * eexists.
+      * do 2 eexists; split.
         pbR; eauto.
         rewrite EQ,EQ0; eauto.
-      * eexists.
+      * do 2 eexists; split.
         pbSL; eauto.
         rewrite EQ,EQ0; eauto.
 
-    + eexists.
+    + do 2 eexists; split.
       pbR; eauto.
       rewrite EQ.
       rewrite <- paraA.
@@ -1419,20 +1339,20 @@ Proof.
       auto.
 
     + trans_para_invT TRp'.
-      * eexists.
+      * do 2 eexists; split.
         pbSL; eauto.
         rewrite EQ, EQ0.
         rewrite <- paraA.
         rewrite (paraC q).
         rewrite paraA.
         auto.
-      * eexists.
+      * do 2 eexists; split.
         pbSR; eauto.
         rewrite EQ, EQ0.
         rewrite <- paraA; auto.
       * easy.
 
-    + eexists.
+    + do 2 eexists; split.
       pbSR; eauto.
       rewrite EQ.
       rewrite <- paraA.
@@ -1443,19 +1363,19 @@ Proof.
   - intros l p' TR.
     trans_parabang_invT TR.
 
-    + eexists.
+    + do 2 eexists; split.
       pbL;pL; eauto.
       cbn; rewrite EQ; eauto.
 
-    + eexists.
+    + do 2 eexists; split.
       pbL;pR; eauto.
       cbn; rewrite EQ; eauto.
 
-    + eexists.
+    + do 2 eexists; split.
       pbL;pS; eauto.
       cbn; rewrite EQ; eauto.
 
-    + eexists.
+    + do 2 eexists; split.
       pbSL; eauto.
       pR; eauto.
       cbn; rewrite EQ, !paraA; eauto.
@@ -1471,22 +1391,22 @@ Proof.
   - intros l p' TR.
     trans_parabang_invT TR.
 
-    + eexists.
+    + do 2 eexists; split.
       pL; eauto.
       rewrite EQ; eauto.
 
-    + eexists.
+    + do 2 eexists; split.
       pR; pbL; eauto.
       rewrite EQ; eauto.
       rewrite para_parabang; auto.
 
-    + eexists.
+    + do 2 eexists; split.
       pS; eauto.
       pbL; eauto.
       rewrite EQ; eauto.
       rewrite para_parabang; auto.
 
-    + eexists.
+    + do 2 eexists; split.
       pR; pbSL; eauto.
       rewrite EQ; eauto.
       rewrite para_parabang; auto.
@@ -1494,36 +1414,36 @@ Proof.
   - intros l p' TR.
     trans_para_invT TR.
 
-    + eexists.
+    + do 2 eexists; split.
       pbL; eauto.
       cbn; rewrite EQ; eauto.
 
     + trans_parabang_invT TRq.
-      * eexists.
+      * do 2 eexists; split.
         pbR; eauto.
         cbn; rewrite EQ,EQ0; eauto.
         rewrite !CIH, !paraA; eauto.
-      * eexists.
+      * do 2 eexists; split.
         pbR; eauto.
         cbn; rewrite EQ,EQ0; eauto.
         rewrite (paraC q), parabang_aux.
         rewrite !CIH, !paraA; eauto.
-      * eexists.
+      * do 2 eexists; split.
         pbSR; eauto.
         cbn; rewrite EQ,EQ0; eauto.
         rewrite !CIH, !paraA; eauto.
-      * eexists.
+      * do 2 eexists; split.
         pbSR; eauto.
         cbn; rewrite EQ,EQ0; eauto.
         rewrite (paraC q), parabang_aux.
         rewrite !CIH, !paraA; eauto.
 
     + trans_parabang_invT TRq.
-      * eexists.
+      * do 2 eexists; split.
         pbSL; eauto.
         cbn; rewrite EQ,EQ0; eauto.
         rewrite !CIH, !paraA; eauto.
-      * eexists.
+      * do 2 eexists; split.
         pbSL; eauto.
         cbn; rewrite EQ,EQ0; eauto.
         rewrite (paraC q), parabang_aux.
@@ -1546,11 +1466,7 @@ Fixpoint model (t : term) : ccs :=
 	match t with
 	| 0      => nil
 	| a · P  => prefix a (model P)
-<<<<<<< HEAD
-	| TauT P => tauV (model P)
-=======
 	| TauT P => Step (model P)
->>>>>>> master
 	| P ∥ Q  => para (model P) (model Q)
 	| P ⊕ Q  => plus (model P) (model Q)
 	| P ∖ c  => new c (model P)
