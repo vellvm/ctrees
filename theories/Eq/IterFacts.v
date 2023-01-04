@@ -259,9 +259,8 @@ Proof.
   rename x into step. rename y into step'.
   revert step step' x0 y0 H H0.
   coinduction R CH.
-  (*symmetric using idtac.
-     { intros. apply H. symmetry. apply H0. symmetry. apply H1. }*)
-  split. 2: admit.
+  symmetric using idtac.
+     { intros. apply H. symmetry. apply H0. symmetry. apply H1. }
   cbn. intros.
   apply trans_iter_gen in H1.
   revert y0 H0. induction H1; intros.
@@ -282,7 +281,7 @@ Proof.
     apply trans_val_inv in H0 as ?. rewrite H4 in H0. clear x0 H1 H4.
     exists (val r), stuckD. split. 2: { split. now rewrite H2. reflexivity. }
     eapply trans_bind_r. apply H0. cbn. etrans.
-Admitted.
+Qed.
 
 #[global] Instance sbisim_iter {E B X Y} `{HasB0 : B0 -< B} `{HasB1 : B1 -< B} :
   @Proper ((X -> ctree E B (X + Y)) -> X -> ctree E B Y)

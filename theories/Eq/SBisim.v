@@ -78,7 +78,7 @@ Relation relaxing [equ] to become insensitive to:
 - the particular branches taken during (any kind of) brs.
 |*)
 
-Section StrongSBisim.
+Section StrongBisim.
   Context {E F C D : Type -> Type} {X Y : Type} `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}.
   Notation S := (ctree E C X).
   Notation S' := (ctree F D Y).
@@ -92,10 +92,24 @@ In the heterogeneous case, the relation is not symmetric.
     split; intros; [edestruct H0 as (? & ? & ?) | edestruct H1 as (? & ? & ?)]; eauto; eexists; eexists; intuition; eauto.
   Qed.
 
-End StrongSBisim.
+End StrongBisim.
 
 Definition sbisim {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck': B0 -< D} L :=
   (gfp (@sb E F C D X Y _ _ L) : hrel _ _).
+
+(* This instance allows to use the symmetric tactic from coq-coinduction
+   for homogeneous bisimulations *)
+#[global] Instance sbisim_eq_sym {E C X} `{HasStuck : B0 -< C} :
+  Sym_from converse (@sb E E C C X X _ _ eq) (@ss E E C C X X _ _ eq).
+Proof.
+  split; intro.
+  - destruct H. split.
+    + apply H.
+    + cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?). eauto.
+  - destruct H. split.
+    + apply H.
+    + cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?). eauto.
+Qed.
 
 Module SBisimNotations.
 
