@@ -364,9 +364,6 @@ Lemma embed_eutt {E C X}:
 Proof.
   unfold Proper,respectful.
   coinduction ? CIH.
-  (* LEF: Here [sbisim eq] should be symmetric? *)
-Admitted.
-(*
   symmetric using idtac.
   - intros * HR * EQ.
     apply HR; symmetry; assumption.
@@ -386,86 +383,47 @@ Admitted.
       induction EUTT; subst; pclearbot; try now inv Heqot.
       * intros.
         inv Heqot.
-        eexists.
+        do 2 eexists; split; [|split].
         rewrite unfold_embed, <- Heqou.
-<<<<<<< HEAD:theories/ITree.v
-        apply trans_tauI, trans_tauI.
-        eauto.
-        rewrite EQ2.
-        apply CIH, EUTT2.
-      * exists stuckI.
-        2:setoid_rewrite EQ2; reflexivity.
-        rewrite unfold_embed, <- Heqou.
-        apply trans_tauI, trans_tauI.
-        auto.
-
-      + pclearbot.
-        destruct e.
-        * apply trans_choiceV_inv in TR as (u' & EQ & ->).
-          eexists.
-          rewrite unfold_embed, <- Heqou.
-          apply trans_choiceV.
-          rewrite EQ.
-          rewrite !sb_tauI.
-          auto.
-        * apply trans_vis_inv in TR as (u' & EQ & ->).
-          eexists.
-          rewrite unfold_embed, <- Heqou.
-          apply trans_vis.
-          rewrite EQ.
-          rewrite !sb_tauI.
-          auto.
-
-      + intros.
-        apply trans_tauI_inv, trans_tauI_inv in TR.
-        rewrite unfold_embed in TR.
-        eapply IHEUTT in TR; eauto.
-
-      + intros.
-        destruct (iobserve u) eqn:EQ; inv Heqou.
-        specialize (IHEUTT TR t0 eq_refl).
-        destruct IHEUTT as [? ? ?].
-        eexists; eauto.
-        rewrite unfold_embed, EQ.
-        apply trans_tauI, trans_tauI.
-=======
         etrans.
-        reflexivity.
+        all: reflexivity.
       * intros.
         edestruct IHEUTT; try reflexivity.
-        eexists.
+        destruct H as (? & ? & ? & ->).
+        do 2 eexists; split; [|split].
         rewrite unfold_embed, <- Heqou.
-        apply trans_guard, trans_guard.
->>>>>>> master:theories/Interp/ITree.v
-        eauto.
-        eauto.
+        apply trans_guard, trans_guard; eauto.
+        assumption.
+        reflexivity.
     + intros.
       rewrite EQ in EUTT,TR.
       rewrite unfold_embed in TR; cbn in TR.
       destruct e.
-      * destruct e.
-        apply trans_brS_inv in TR; destruct TR as (? & EQ' & ->).
+      * apply trans_brS_inv in TR; destruct TR as (? & EQ' & ->).
         punfold EUTT; cbn in EUTT; red in EUTT.
-        remember (iobserve (iVis (inl1 (ext_chose n)) k)) as ot;
+        remember (iobserve (iVis (inl1 c) k)) as ot;
           remember (iobserve u) as ou.
         revert u Heqou.
         induction EUTT; subst; try now inv Heqot.
         ** intros.
            dependent induction Heqot.
-           eexists.
+           do 2 eexists; split; [|split].
            rewrite unfold_embed, <- Heqou.
            etrans.
            rewrite EQ'.
            rewrite !sb_guard.
            apply CIH.
            pclearbot; apply REL.
+           reflexivity.
         ** intros.
            edestruct IHEUTT; try reflexivity.
-           eexists.
+           destruct H as (? & ? & ? & ->).
+           do 2 eexists; split; [|split].
            rewrite unfold_embed, <- Heqou.
            apply trans_guard, trans_guard.
            eauto.
-           eauto.
+           assumption.
+           reflexivity.
       * apply trans_vis_inv in TR; destruct TR as (? & EQ' & ->).
         punfold EUTT; cbn in EUTT; red in EUTT.
         remember (iobserve (iVis (inr1 e) k)) as ot;
@@ -474,20 +432,23 @@ Admitted.
         induction EUTT; subst; try now inv Heqot.
         ** intros.
            dependent induction Heqot.
-           eexists.
+           do 2 eexists; split; [|split].
            rewrite unfold_embed, <- Heqou.
            etrans.
            rewrite EQ'.
            rewrite !sb_guard.
            apply CIH.
            pclearbot; apply REL.
-        ** intros.
+           reflexivity.
+        ** intros.           
            edestruct IHEUTT; try reflexivity.
-           eexists.
+           destruct H as (? & ? & ? & ->).
+           do 2 eexists; split; [|split].
            rewrite unfold_embed, <- Heqou.
            apply trans_guard, trans_guard.
            eauto.
-           eauto.
+           assumption.
+           reflexivity.
     + intros.
       rewrite EQ in EUTT,TR.
       rewrite unfold_embed in TR; cbn in TR.
@@ -496,7 +457,6 @@ Admitted.
       auto.
       rewrite tau_eutt in EUTT; auto.
 Qed.
- *)
 
 (* Other things to consider if time permitted:
    - partial inverse
