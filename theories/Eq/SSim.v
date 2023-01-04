@@ -48,10 +48,33 @@ Pous'16 in order to be able to exploit symmetry arguments in proofs
     eexists; eexists; intuition; eauto.
   Qed.
 
+  #[global] Instance weq_ss : forall {E F C D X Y} `{B0 -< C} `{B0 -< D}, Proper (weq ==> weq) (@ss E F C D X Y _ _).
+  Proof.
+    cbn. intros. split.
+    - intros. apply H2 in H3 as (? & ? & ? & ? & ?).
+      exists x0, x1. split. apply H3. split. apply H4. apply H1. apply H5.
+    - intros. apply H2 in H3 as (? & ? & ? & ? & ?).
+      exists x0, x1. split. apply H3. split. apply H4. apply H1. apply H5.
+  Qed.
+
 End StrongSim.
 
 Definition ssim {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D} L :=
   (gfp (@ss E F C D X Y _ _ L): hrel _ _).
+
+#[global] Instance weq_ssim : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
+  Proper (weq ==> weq) (@ssim E F C D X Y _ _).
+Proof.
+  intros. split.
+  - intro. unfold ssim.
+    epose proof (gfp_weq (ss x) (ss y)). lapply H3.
+    + intro. red in H4. cbn in H4. rewrite <- H4. unfold ssim in H2. apply H2.
+    + now rewrite H1.
+  - intro. unfold ssim.
+    epose proof (gfp_weq (ss x) (ss y)). lapply H3.
+    + intro. red in H4. cbn in H4. rewrite H4. unfold ssim in H2. apply H2.
+    + now rewrite H1.
+Qed.
 
 Module SSimNotations.
 
@@ -472,6 +495,21 @@ Proof.
     + red in H. specialize (H X0 v eq_refl). subst.
       constructor. reflexivity.
   - inv H1; reflexivity.
+Qed.
+
+Theorem update_val_rel_update_val_rel {E F X0 X1 Y0 Y1}
+    (L : rel (@label E) (@label F)) (R0 : rel X0 Y0) (R1 : rel X1 Y1) :
+  update_val_rel (update_val_rel L R0) R1 == update_val_rel L R1.
+Proof.
+  split; intro.
+  - destruct H.
+    + now constructor.
+    + destruct H1. { exfalso. now apply H. }
+      constructor; auto.
+  - destruct H.
+    + now constructor.
+    + constructor; auto.
+      constructor; auto.
 Qed.
 
 (*|

@@ -27,13 +27,13 @@ Open Scope ctree_scope.
  *)
 
 Unset Universe Checking.
-Theorem ssim_interp_h {E F1 F2 C D1 D2 X Y Z}
+Theorem ssim_interp_h {E F1 F2 C D1 D2 X Y}
   `{HasB0 : B0 -< D1} `{HasB1 : B1 -< D1} `{HasB0' : B0 -< D2} `{HasB1' : B1 -< D2}
   `{HC1 : C -< D1} `{HC2 : C -< D2}
   (Ldest : rel (@label F1) (@label F2)) :
   forall (h : E ~> ctree F1 D1) (h' : E ~> ctree F2 D2),
   (Ldest tau tau /\ forall (x : X), Ldest (val x) (val x)) ->
-  (forall (e : E Z), h _ e (≲update_val_rel Ldest (@eq Z)) h' _ e) ->
+  (forall {Z} (e : E Z), h _ e (≲update_val_rel Ldest (@eq Z)) h' _ e) ->
   forall (x : Y) (k : Y -> ctree E C X), interp h (k x) (≲Ldest) interp h' (k x).
 Proof.
   intros.
@@ -47,7 +47,8 @@ Proof.
     apply equ_vis_invT in H1 as ?. subst.
     eapply ssim_clo_bind with (R0 := eq).
     + red. reflexivity.
-    + admit.
+    + eapply weq_ssim. apply update_val_rel_update_val_rel.
+      apply equ_vis_invE in H1 as [<- ?]. apply H0.
     + intros. step. apply step_ss_ret. constructor.
       apply equ_vis_invE in H1 as [<- ?]. subst. apply H1.
   - unfold CTree.map. setoid_rewrite bind_branch.
@@ -56,7 +57,7 @@ Proof.
     destruct vis.
     + step. apply step_ss_brS. intros. exists x0. step. apply step_ss_ret. constructor. apply H1. right; auto. 3: apply H. all: intros H2; inversion H2.
     + step. apply step_ss_brD. intros. exists x0. apply step_ss_ret. constructor. apply H1.
-Admitted.
+Qed.
 Set Universe Checking.
 
 Section FoldCTree.

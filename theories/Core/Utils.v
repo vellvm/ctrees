@@ -26,6 +26,11 @@ Proof.
   reflexivity.
 Qed.
 
+#[global] Instance gfp_weq : forall {X} `{CompleteLattice X},
+  Proper (weq ==> weq) (@gfp X _).
+Proof.
+Admitted.
+
 Ltac invert :=
   match goal with
   | h : existT _ _ _ = existT _ _ _ |- _ => dependent induction h

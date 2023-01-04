@@ -92,10 +92,43 @@ In the heterogeneous case, the relation is not symmetric.
     split; intros; [edestruct H0 as (? & ? & ?) | edestruct H1 as (? & ? & ?)]; eauto; eexists; eexists; intuition; eauto.
   Qed.
 
+  #[global] Instance weq_sb : Proper (weq ==> weq) sb.
+  Proof.
+    unfold Proper, "==>". unfold sb, "==".
+    red. red. red. red. red. red. red. red. red. red. red. red.
+    intros. split.
+    - intro. unfold body. split.
+      + epose proof (weq_ss H). do 13 red in H1. setoid_rewrite <- H1. apply H0.
+      + cbn in H. assert (flip x == flip y).
+        { cbn. split; intro. apply H. apply H1. apply H. apply H1. }
+        epose proof (weq_ss H1).
+        do 13 red in H2. setoid_rewrite <- H2. apply H0.
+    - intro. unfold body. split.
+      + epose proof (weq_ss H). do 13 red in H1. setoid_rewrite H1. apply H0.
+      + cbn in H. assert (flip x == flip y).
+        { cbn. split; intro. apply H. apply H1. apply H. apply H1. }
+        epose proof (weq_ss H1).
+        do 13 red in H2. setoid_rewrite H2. apply H0.
+  Qed.
+
 End StrongBisim.
 
 Definition sbisim {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck': B0 -< D} L :=
   (gfp (@sb E F C D X Y _ _ L) : hrel _ _).
+
+#[global] Instance weq_sbisim : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
+  Proper (weq ==> weq) (@sbisim E F C D X Y _ _).
+Proof.
+  intros. split.
+  - intro. unfold sbisim.
+    epose proof (gfp_weq (sb x) (sb y)). lapply H3.
+    + intro. red in H4. cbn in H4. rewrite <- H4. unfold sbisim in H2. apply H2.
+    + now rewrite H1.
+  - intro. unfold sbisim.
+    epose proof (gfp_weq (sb x) (sb y)). lapply H3.
+    + intro. red in H4. cbn in H4. rewrite H4. unfold sbisim in H2. apply H2.
+    + now rewrite H1.
+Qed.
 
 (* This instance allows to use the symmetric tactic from coq-coinduction
    for homogeneous bisimulations *)
