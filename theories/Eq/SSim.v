@@ -497,6 +497,16 @@ Proof.
   - inv H1; reflexivity.
 Qed.
 
+Theorem update_val_rel_eq {E X} : forall l l', wf_val X l ->
+  @update_val_rel E E X X eq eq l l' <-> l = l'.
+Proof.
+  split; intro.
+  - destruct H0; now subst.
+  - subst. destruct l'.
+    3: { specialize (H X0 v eq_refl). subst. now left. }
+    all: constructor; auto; intro; inversion H0.
+Qed.
+
 Theorem update_val_rel_update_val_rel {E F X0 X1 Y0 Y1}
     (L : rel (@label E) (@label F)) (R0 : rel X0 Y0) (R1 : rel X1 Y1) :
   update_val_rel (update_val_rel L R0) R1 == update_val_rel L R1.
@@ -560,7 +570,7 @@ Proof.
   eapply sst_clo_bind; auto.
 Qed.*)
 
-Ltac __upto_bind_ssim R0 :=
+Tactic Notation "__upto_bind_ssim" uconstr(R0) :=
   match goal with
     |- @ssim ?E ?F ?C ?D ?X ?Y _ _ ?L (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
       apply (ssim_clo_bind R0 (update_val_rel L R0) (update_val_rel_correct L R0))
@@ -572,7 +582,7 @@ Ltac __upto_bind_ssim R0 :=
         (update_val_rel L R0) (update_val_rel_correct L R0))), in_bind_ctx
   end.
 
-Ltac __upto_bind_eq_ssim R0 :=
+Tactic Notation "__upto_bind_eq_ssim" uconstr(R0) :=
   match goal with
   | |- @ssim ?E ?F ?C ?D ?X ?Y _ _ ?L (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
       __upto_bind_ssim R0; [reflexivity | intros ?]
