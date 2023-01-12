@@ -1767,6 +1767,96 @@ Not fond of these two, need to give some thoughts about them
 
 End WithParams.
 
+Section StrongSimulations.
+
+  Context {E F C D: Type -> Type} {X Y: Type}
+          {L: rel (@label E) (@label F)}
+          {HasStuck1: B0 -< C} {HasStuck2: B0 -< D}.
+
+  Notation ss := (@ss E F C D X Y _ _).
+  Notation sst L := (coinduction.t (ss L)).
+  Notation ssim  := (@ssim E F C D X Y _ _).
+  Notation ssbt L := (coinduction.bt (ss L)).
+  Notation ssT L := (coinduction.T (ss L)).
+
+  Lemma sbisim_clos_ss : @sbisim_clos E F C D X Y _ _ eq eq <= (sst L).
+  Proof.
+    intro R1. apply Coinduction.
+    cbn; intros Rs x y [z x' y' z' SBzx' x'y' SBy'z'].
+    - intros l t zt.
+      step in SBzx'.
+      apply SBzx' in zt as (l' & t' & x't' & ? & ?); subst.
+      destruct (x'y' _ _ x't') as (l'' & t'' & y't'' & ? & ?).
+
+      step in SBy'z'.
+      apply SBy'z' in y't'' as (ll & tt & z'tt & ? & ?); subst.
+      exists ll, tt; split; trivial.
+      + split; trivial.
+        apply (f_Tf (ss L)).
+        econstructor; eauto.
+  Qed.
+
+(*|
+    Instances for rewriting [sbisim] under all [ss]-related contexts
+|*)
+  #[global] Instance sbisim_eq_clos_ssim_goal:
+    Proper (sbisim eq ==> sbisim eq ==> flip impl) (ssim L).
+  Proof.
+    cbn.
+    coinduction R CH. intros * EQ1 * EQ2 SIM.
+    do 2 red; cbn; intros * TR.
+    symmetry in EQ2.
+    step in EQ1; apply EQ1 in TR as (? & ? & ? & ? & ?).
+    step in SIM; apply SIM in H as (? & ? & ? & ? & ?).
+    step in EQ2; apply EQ2 in H as (? & ? & ? & ? & ?); subst.
+    do 2 eexists.
+    split; [eassumption |].
+    split; [| eassumption].
+    symmetry in H4. eapply CH; eassumption.
+  Qed.
+
+  #[global] Instance sbisim_eq_clos_ssim_ctx :
+    Proper (sbisim eq ==> sbisim eq ==> impl) (ssim L).
+  Proof.
+    repeat intro. symmetry in H, H0. eapply sbisim_eq_clos_ssim_goal; eauto.
+  Qed.
+
+  #[global] Instance sbisim_eq_clos_sst_goal RR :
+    Proper (sbisim eq ==> sbisim eq ==> flip impl) (sst L RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (ft_t sbisim_clos_ss). cbn.
+    econstructor; eauto.
+    now rewrite eq2.
+  Qed.
+
+  #[global] Instance sbisim_eq_clos_sst_ctx RR :
+    Proper (sbisim eq ==> sbisim eq ==> impl) (sst L RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
+    rewrite <- eq1, <- eq2.
+    auto.
+  Qed.
+
+  #[global] Instance sbisim_eq_clos_ssT_goal RR f :
+    Proper (sbisim eq ==> sbisim eq ==> flip impl) (ssT L f RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (fT_T sbisim_clos_ss). cbn.
+    econstructor; eauto.
+    now rewrite eq2.
+  Qed.
+
+  #[global] Instance sbisim_eq_clos_ssT_ctx RR f :
+    Proper (sbisim eq ==> sbisim eq ==> impl) (ssT L f RR).
+  Proof.
+    cbn; intros ? ? eq1 ? ? eq2 ?.
+    rewrite <- eq1, <- eq2.
+    auto.
+  Qed.
+
+End StrongSimulations.
+
 Section CompleteStrongSimulations.
 
   Context {E F C D: Type -> Type} {X Y: Type}

@@ -235,4 +235,48 @@ Helper inductive: [trans0 t t'] judges that [t'] is reachable from [t] by a path
       - rewrite <- H1 in EQ. step in EQ. inv EQ.
     Qed.
 
+    Lemma ss_trans0_l {E F C D X Y L R} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+        (t : ctree E C X) (u : ctree F D Y) :
+      (forall t0, trans0 t t0 -> productive t0 -> ss L R t0 u) ->
+      ss L R t u.
+    Proof.
+      intros. cbn. intros. apply trans_productive in H0 as (? & ? & ? & ?).
+      red in H0.
+      setoid_rewrite (ctree_eta t) in H. genobs t ot. clear t Heqot.
+      rewrite (ctree_eta x) in H1, H2. genobs x ox. clear x Heqox.
+      induction H0.
+      - apply H in H1 as ?. 2: { rewrite H0. now left. }
+        apply H3 in H2. apply H2.
+      - apply IHtrans0_; auto. intros. apply H; auto. eright. apply H3.
+    Qed.
+
+    Lemma ss_trans0_r {E F C D X Y L R} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+        (t : ctree E C X) (u u0 : ctree F D Y) :
+      trans0 u u0 ->
+      ss L R t u0 ->
+      ss L R t u.
+    Proof.
+      intros. cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?).
+      eapply trans0_trans in H1; eauto.
+    Qed.
+
+    Lemma ssim_trans0_l {E F C D X Y L} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+        (t : ctree E C X) (u : ctree F D Y) :
+      (forall t0, trans0 t t0 -> productive t0 -> ssim L t0 u) ->
+      ssim L t u.
+    Proof.
+      intros. step. apply ss_trans0_l.
+      intros. apply H in H1. now step in H1. assumption.
+    Qed.
+
+    Lemma ssim_trans0_r {E F C D X Y L} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+        (t : ctree E C X) (u u0 : ctree F D Y) :
+      trans0 u u0 ->
+      ssim L t u0 ->
+      ssim L t u.
+    Proof.
+      intros. cbn. intros.
+      step in H0. step. eapply ss_trans0_r in H0; eauto.
+    Qed.
+
   End trans0_theory.

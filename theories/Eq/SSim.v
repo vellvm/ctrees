@@ -656,14 +656,33 @@ Section Proof_Rules.
     - assumption.
   Qed.
 
-  (* TODO specialized version pointwise *)
-  Lemma step_ss_vis {Y Z F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R L : rel _ _) :
+  Lemma step_ss_vis {Y Z Z' F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z')
+        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R L : rel _ _) :
     (forall x, exists y, sst L R (k x) (k' y) /\ L (obs e x) (obs f y)) ->
     ssbt L R (Vis e k) (Vis f k').
   Proof.
     intros * EQ.
     apply step_ss_vis_gen; auto.
+    typeclasses eauto.
+  Qed.
+
+  Lemma step_ss_vis_id_gen {Y Z F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R L: rel _ _) :
+    (Proper (equ eq ==> equ eq ==> impl) R) ->
+    (forall x, R (k x) (k' x) /\ L (obs e x) (obs f x)) ->
+    ss L R (Vis e k) (Vis f k').
+  Proof.
+    intros. apply step_ss_vis_gen. { typeclasses eauto. }
+    eauto.
+  Qed.
+
+  Lemma step_ss_vis_id {Y Z F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R L : rel _ _) :
+    (forall x, sst L R (k x) (k' x) /\ L (obs e x) (obs f x)) ->
+    ssbt L R (Vis e k) (Vis f k').
+  Proof.
+    intros * EQ.
+    apply step_ss_vis_id_gen; auto.
     typeclasses eauto.
   Qed.
 
@@ -722,7 +741,7 @@ Section Proof_Rules.
   Qed.
 
   Lemma step_ss_brS_id_gen {Z Y D F} `{HasStuck': B0 -< D} (c : C Z) (d: D Z)
-        (k: Z -> ctree E C X) (k': Z -> ctree F D Y)(R L : rel _ _) :
+        (k: Z -> ctree E C X) (k': Z -> ctree F D Y) (R L : rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (forall x, exists y, R (k x) (k' y)) ->
     L tau tau ->
@@ -731,11 +750,11 @@ Section Proof_Rules.
     intros; apply step_ss_brS_gen; eauto.
   Qed.
 
-  Lemma step_ss_brS_id {Z Y F} (c : C Z)
-        (k: Z -> ctree E C X) (k': Z -> ctree F C Y)(R L : rel _ _) :
+  Lemma step_ss_brS_id {Z Y D F} `{HasStuck': B0 -< D} (c : C Z) (d : D Z)
+        (k: Z -> ctree E C X) (k': Z -> ctree F D Y) (R L : rel _ _) :
     (forall x, exists y, sst L R (k x) (k' y)) ->
     L tau tau ->
-    ssbt L R (BrS c k) (BrS c k').
+    ssbt L R (BrS c k) (BrS d k').
   Proof.
     intros.
     apply step_ss_brS_id_gen; eauto.
