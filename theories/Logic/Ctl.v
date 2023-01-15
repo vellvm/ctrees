@@ -119,6 +119,7 @@ Section Ctl.
 
 End Ctl.
 
+
 Module CtlNotations.
 
   Notation "t , l |= p" := (p t l) (at level 90, left associativity, only parsing).
@@ -150,8 +151,6 @@ Module CtlNotations.
   Notation "{{ 'EG' }} p" := ((bt eg_) _ p) (at level 40).
   
 End CtlNotations.
-
-
   
 Import CtlNotations.
 

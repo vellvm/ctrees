@@ -38,7 +38,8 @@ From Coinduction Require Import
      coinduction rel tactics.
 
 From ITree Require Import
-     Core.Subevent.
+     Core.Subevent
+     Indexed.Sum.
 
 From CTree Require Import
      CTree Eq.Shallow Eq.Equ.
@@ -1512,6 +1513,50 @@ Proof.
   red. intros. subst.
   now apply trans_val_invT in H0.
 Qed.
+
+(*| If the LTS has events of type [L +' R] then 
+  it is possible to step it as either an [L] LTS
+  or [R] LTS ignoring the other.
+ |*)
+Section Coproduct.
+  Arguments label: clear implicits.
+  Context {L R C: Type -> Type} {X: Type} {HasStuck: B0 -< C}.
+  Notation S := (ctree (L +' R) C X).
+  Notation S' := (ctree' (L +' R) C X).
+  Notation SP := (SS -> label (L +' R) -> Prop).
+    
+  (* Skip an [R] event *)
+  Inductive srtrans_: rel S' S' :=
+  | IgnoreR {X} (e : R X) k x t :
+    srtrans_ (observe (k x)) t ->
+    srtrans_ (VisF (inr1 e) k) t.
+
+  (* Skip an [L] event *)
+  Inductive sltrans_: rel S' S' :=
+  | IgnoreL {X} (e : L X) k x t :
+    sltrans_ (observe (k x)) t ->
+    sltrans_ (VisF (inl1 e) k) t.
+
+  Hint Constructors srtrans_ sltrans_: core.
+
+  (* Make those relations that respect equality [srel] *)
+  Program Definition srtrans : srel SS SS :=
+    {| hrel_of := (fun (u v: SS) => srtrans_ (observe u) (observe v)) |}.
+  Next Obligation. split; induction 1; auto. Defined.
+
+  Program Definition sltrans : srel SS SS :=
+    {| hrel_of := (fun (u v: SS) => sltrans_ (observe u) (observe v)) |}.
+  Next Obligation. split; induction 1; auto. Defined.
+
+  (*| Obs transition on the left, ignores right transitions and [tau] |*)
+  Definition ltrans {X}(l: L X)(x: X): srel SS SS := 
+    (trans tau ⊔ srtrans)^* ⋅ trans (obs (inl1 l) x) ⋅ (trans tau ⊔ srtrans)^*.
+
+  (*| Obs transition on the right, ignores left transitions and [tau] |*)
+  Definition rtrans {X}(r: R X)(x: X): srel SS SS := 
+    (trans tau ⊔ sltrans)^* ⋅ trans (obs (inr1 r) x) ⋅ (trans tau ⊔ sltrans)^*.
+  
+End Coproduct.
 
 (*|
 [inv_trans] is an helper tactic to automatically

@@ -35,10 +35,6 @@ Set Implicit Arguments.
 Set Maximal Implicit Insertion.
 Set Asymmetric Patterns.
 
-
-    
-
-   
 (** ================================================================================ *)
 (** This is the top-level denotation *)
 Program Definition run{n C S} `{B1 -< C} `{B2 -< C} `{Bn -< C}
@@ -131,19 +127,7 @@ Module Toy.
        eapply trans_brS; rewrite bind_ret_l
       | rewrite bind_ret_l; fold_subst].
 
- 
-    Lemma trans_bind_inv_void: forall (E B : Type -> Type) (X : Type)
-                                 (H : B0 -< B) (t : ctree E B X) (k : X -> ctree E B void) (u : ctree E B void) (l : label E),
-       trans l (x <- t;; k x) u ->
-       ~ is_val l /\ (exists t' : Trans.SS, trans l t t' /\ u ≅ x <- t';; k x).
-
-
-      forall {E B : Type -> Type} {H : B0 -< B}
-                                 (t : ctree E B void) (k : X -> ctree E B void) [u : ctree E B Y] [l : label E],
-  trans l (x <- t;; k x) u ->
-  ~ is_val l /\ (exists t' : Trans.SS, trans l t t' /\ u ≅ x <- t';; k x) \/ (exists x : X, trans (val x) t stuckD /\ trans l (k x) u)
-etrans_bind_inv:
-    (* Will count to [1] infinitely often *)
+     (* Will count to [1] infinitely often *)
     Lemma eventually_counts: forall l,
         let sys := run [echo b; inc]%vector 0 in
         sys, l |= AF (lift (is_eq 1)).
@@ -162,7 +146,7 @@ etrans_bind_inv:
          specifically for infinite programs we know it will 
          always be stepping. *)
       apply trans_bind_inv in H3.
-      destruct H3. as (l' & TR).
+      destruct H3 as [(Hv3 & t0 & TR & ?) | (Hv3 & t'0 & ?)]. 
       apply trans_brS_inv in TR.
       destruct TR as (i & t''eq & ltau).
       subst.

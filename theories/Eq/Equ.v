@@ -136,7 +136,8 @@ Ltac __step_in_equ H :=
 Module EquNotations.
 
   Infix "≅" := (equ eq) (at level 70).
-
+  Notation "t (≅ Q ) u" := (equ Q t u) (at level 79).
+  
 (*|
 The associated companions:
 |*)
@@ -508,7 +509,7 @@ Heterogeneous [pair], todo move to coinduction library
     Context {E F C D: Type -> Type} {X X' Y Y': Type}.
 
 (*|
-Most general contextualisation function associated to [bind].
+Most general contextualisation function associated to bind].
 Can be read more digestly as, where R is a relation on ctrees
 (the prefixes of the binds) and S on the continuations:
 bind_ctx R S = {(bind t k, bind t' k') | R t t' /\ S k k'}
@@ -996,14 +997,21 @@ Proof.
   constructor; intros abs; inv abs.
 Qed.
 
-Lemma br_equ: forall (E B: Type -> Type) R b Y (c : B Y) (k k': Y -> ctree E B R),
-    (forall t, k t ≅ k' t) ->
-    Br b c k ≅ Br b c k'.
+Lemma br_equ': forall (E B: Type -> Type) R b Y (c : B Y) (k k': Y -> ctree E B R) Q,
+    (forall t, k t (≅ Q) k' t) ->
+    Br b c k (≅ Q) Br b c k'.
 Proof.
   intros * EQ.
   step; econstructor; auto.
 Qed.
 
+Lemma br_equ: forall (E B: Type -> Type) R b Y (c : B Y) (k k': Y -> ctree E B R),
+    (forall t, k t ≅ k' t) ->
+    Br b c k ≅ Br b c k'.
+Proof.
+  intros E B R b Y c k k'. 
+  exact (br_equ' E B R b Y c k k' eq).
+Qed.
 (*|
 Very crude simulation of [subst] for [≅] equations
 |*)
