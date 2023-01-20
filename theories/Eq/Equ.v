@@ -284,6 +284,14 @@ Dependent inversion of [equ] and [equb] equations
 -------------------------------------------------
 We assume [JMeq_eq] to invert easily bisimilarity of dependently typed constructors
 |*)
+Lemma equ_ret_inv {E B X} (r1 r2 : X) :
+  Ret r1 ≅ (Ret r2 : ctree E B X) ->
+  r1 = r2.
+Proof.
+  intros EQ. step in EQ.
+  dependent induction EQ; auto.
+Qed.
+
 Lemma equ_vis_invT {E B X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E B S) k2 :
   Vis e1 k1 ≅ Vis e2 k2 ->
   X = Y.
@@ -1012,6 +1020,72 @@ Proof.
   intros E B R b Y c k k'. 
   exact (br_equ' E B R b Y c k k' eq).
 Qed.
+(*|
+Inversion of [≅] hypotheses
+|*)
+
+Ltac subst_hyp_in EQ h :=
+  match type of EQ with
+  | ?x = ?x => clear EQ
+  | ?x = ?y => subst x || subst y || rewrite EQ in h
+  end.
+
+Ltac ctree_head_in t h :=
+  match t with
+  | Guard ?t =>
+      change (Guard t) with (brD branch1 (fun _ => t)) in h
+  | Step ?t =>
+      change (Step t) with (brS branch1 (fun _ => t)) in h
+  | stuck ?vis =>
+      change (stuck vis) with (brS branch0 (fun x : void => match x with end)) in h
+  | CTree.trigger ?e =>
+      change (CTree.trigger e) with (Vis e (fun x => Ret x)) in h
+  | CTree.branch ?vis ?b =>
+      change (CTree.branch vis b) with (Br vis b (fun x => Ret x)) in h
+  | _ => idtac
+  end.
+
+Ltac inv_equ h :=
+  match type of h with
+  | ?t ≅ ?u => ctree_head_in t h; ctree_head_in u h;
+      try solve [ step in h; inv h; (idtac || invert) ]
+  end;
+  match type of h with
+  | Ret _ ≅ Ret _ =>
+      apply equ_ret_inv in h;
+      subst
+  | Vis _ _ ≅ Vis _ _ =>
+      let EQt := fresh "EQt" in
+      let EQe := fresh "EQe" in
+      let EQ := fresh "EQ" in
+      apply equ_vis_invT in h as EQt;
+      subst_hyp_in EQt h;
+      apply equ_vis_invE in h as [EQe EQ];
+      subst
+  | Br _ _ _ ≅ Br _ _ _ =>
+      let EQt := fresh "EQt" in
+      let EQb := fresh "EQb" in
+      let EQe := fresh "EQe" in
+      let EQ := fresh "EQ" in
+      apply equ_br_invT in h as EQt;
+      destruct EQt as [EQt EQb];
+      subst_hyp_in EQt h;
+      subst_hyp_in EQb h;
+      apply equ_br_invE in h as [EQe EQ];
+      subst
+  end.
+
+Ltac inv_equ_one :=
+  multimatch goal with
+  | [ h : _ ≅ _ |- _ ] =>
+      inv_equ h
+  end.
+
+Ltac inv_equ_all := repeat inv_equ_one.
+
+Tactic Notation "inv_equ" hyp(h) := inv_equ h.
+Tactic Notation "inv_equ" := inv_equ_all.
+
 (*|
 Very crude simulation of [subst] for [≅] equations
 |*)
