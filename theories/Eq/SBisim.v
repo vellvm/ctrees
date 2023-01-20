@@ -2025,9 +2025,9 @@ but we prove a counter-example for a ctree with a binary choice.
       rewrite <- ctree_eta.
       destruct c, b, x0, x; intuition.
     - rewrite <- ctree_eta. destruct c, b, x, x0.
-      now rewrite <- H, EQ.
-    - subst. rewrite <- ctree_eta. now rewrite <- H, EQ.
-    - rewrite EQ. apply br0_always_stuck.
+      now rewrite H.
+    - subst. rewrite <- ctree_eta. now rewrite H.
+    - apply br0_always_stuck.
   Qed.
 
   (* TODO Think a bit about these and reestablish them, they are a bit weird *)

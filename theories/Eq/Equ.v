@@ -1015,8 +1015,31 @@ Qed.
 (*|
 Very crude simulation of [subst] for [≅] equations
 |*)
-Ltac subs :=
+
+Ltac subs_aux x h :=
   match goal with
-    [ h : ?x ≅ _, h' : context[?x] |- _ ] =>
-      rewrite h in h'; clear h
+  | [ h' : context[x] |- _ ] =>
+      rewrite h in h'; subs_aux x h
+  | [ |- context[x] ] =>
+      rewrite h; subs_aux x h
+  | _ => clear x h
   end.
+
+Ltac subs x :=
+  match goal with
+  | [ h : x ≅ _ |- _ ] =>
+      subs_aux x h
+  | [ h : _ ≅ x |- _ ] =>
+      subs_aux x h
+  end.
+
+Ltac subs_one :=
+  multimatch goal with
+  | [ t : _ |- _ ] =>
+      subs t
+  end.
+
+Ltac subs_all := repeat subs_one.
+
+Tactic Notation "subs" hyp(h) := subs h.
+Tactic Notation "subs" := subs_all.
