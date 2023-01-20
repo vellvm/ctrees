@@ -216,9 +216,7 @@ Helper inductive: [trans0 t t'] judges that [t'] is reachable from [t] by a path
       intros. apply trans_productive in H as (? & ? & ? & ?).
       inv H0.
       - rewrite EQ in H1. inv_trans.
-      - rewrite EQ in H1. inv_trans.
-        apply obs_eq_invT in EQl as ?. subst.
-        apply obs_eq_inv in EQl as [<- <-]. etrans.
+      - rewrite EQ in H1. inv_trans. subst. etrans.
       - rewrite EQ in H1. inv_trans.
     Qed.
 

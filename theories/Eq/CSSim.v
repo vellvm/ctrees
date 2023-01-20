@@ -824,8 +824,7 @@ Inversion principles
     intros.
     eplay.
     subst.
-    inv_trans.
-    eapply obs_eq_invT; eauto.
+    inv_trans. reflexivity.
     Unshelve. auto.
   Qed.
 

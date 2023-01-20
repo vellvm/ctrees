@@ -1584,9 +1584,12 @@ Ltac inv_trans_one :=
       let EQl := fresh "EQl" in
       apply trans_vis_inv in h as (?x & ?EQ & EQl);
       match type of EQl with
-      | obs _ _ = obs _ _ =>
+      | @obs _ ?X _ _ = obs _ _ =>
+          let EQt := fresh "EQt" in
           let EQe := fresh "EQe" in
           let EQv := fresh "EQv" in
+          apply obs_eq_invT in EQl as EQt;
+          subst_hyp_in EQt h;
           apply obs_eq_inv in EQl as [EQe EQv];
           try (inversion EQv; inversion EQe; fail)
       | val _   = obs _ _ => now inv EQl
