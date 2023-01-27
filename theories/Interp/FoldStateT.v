@@ -594,44 +594,42 @@ Section transi_state.
         * rewrite interp_state_ret in H0. step in H0. inv H0.
         * rewrite interp_state_vis in H0. apply br_equ_bind in H0 as ?. destruct H1 as [[] | (? & ? & ?)].
           --setoid_rewrite H1 in H0. setoid_rewrite bind_ret_l in H0.
-            apply equ_br_invT in H0 as ?. destruct H2 as [? _]. subst.
-            apply equ_br_invE in H0 as [<- ?].
-            rewrite <- H0 in H.
+            inv_equ.
+            rewrite <- EQ in H.
             specialize (IHtrans_ _ (fst x1) (fun (_ : unit) => k1 (snd x1)) (Ret tt)).
             edestruct IHtrans_ as (? & ? & ?).
             { apply is_simple_ret. }
-            { rewrite <- ctree_eta. setoid_rewrite bind_ret_l. setoid_rewrite H0. reflexivity. }
-            destruct H2. exists x2, x3. split; auto. right. destruct H3.
-            { destruct H3 as (? & ? & ? & ? & ? & ?). inv_trans. subst.
-              inv H4. step in H3. inv H3. step in H6. inv H6.
+            { rewrite <- ctree_eta. setoid_rewrite bind_ret_l. setoid_rewrite EQ. reflexivity. }
+            destruct H0. exists x2, x3. split; auto. right. destruct H2.
+            { destruct H2 as (? & ? & ? & ? & ? & ?). inv_trans. subst.
+              inv H3. step in H2. inv H2. step in H5. inv H5.
               exfalso; now apply void_unit_elim.
             }
-            destruct H3 as (_ & _ & ? & ?). exists x0. split. etrans. split.
+            destruct H2 as (_ & _ & ? & ?). exists x0. split. etrans. split.
             ++setoid_rewrite (ctree_eta (k0 x0)). rewrite Heqc0.
-              setoid_rewrite interp_state_vis. setoid_rewrite H1. setoid_rewrite bind_ret_l. apply trans_guard. apply H3.
+              setoid_rewrite interp_state_vis. setoid_rewrite H1. setoid_rewrite bind_ret_l. apply trans_guard. apply H2.
             ++setoid_rewrite (ctree_eta (k0 x0)). rewrite Heqc0. destruct x1.
-              eapply transis_obs0. etrans. 2: { rewrite H1. etrans. } cbn in H4. cbn in *. etrans.
+              eapply transis_obs0. etrans. 2: { rewrite H1. etrans. } cbn in H3. cbn in *. etrans.
           -- destruct (Hh _ e s).
              destruct H3. rewrite H3 in H1. step in H1. inv H1.
              destruct H3. rewrite H3 in H1. step in H1. inv H1.
         * rewrite interp_state_br in H0.
           setoid_rewrite bind_branch in H0.
-          apply equ_br_invT in H0 as ?. destruct H1 as [-> ->].
-          apply equ_br_invE in H0 as [<- ?].
+          inv_equ.
           specialize (IHtrans_ _ s (fun _ : unit => k1 x) (Guard (Ret tt))).
           edestruct IHtrans_ as (? & ? & ? & ?).
           { apply is_simple_guard_ret. }
-          { rewrite <- ctree_eta. setoid_rewrite bind_br. setoid_rewrite bind_ret_l. now rewrite <- H0. }
-          destruct H2.
-          { destruct H2 as (? & ? & ? & ? & ? & ?). inv_trans. subst.
-            inv H3. step in H2. inv H2. step in H4. inv H4.
+          { rewrite <- ctree_eta. setoid_rewrite bind_br. setoid_rewrite bind_ret_l. now rewrite <- EQ. }
+          destruct H1.
+          { destruct H1 as (? & ? & ? & ? & ? & ?). inv_trans. subst.
+            inv H2. step in H1. inv H1. step in H3. inv H3.
             exfalso; now apply void_unit_elim.
           }
-          destruct H2 as (? & ? & ? & ?).
+          destruct H1 as (? & ? & ? & ?).
           exists x1, x2. split; auto. right. exists x0. split; etrans. split.
           rewrite (ctree_eta (k0 x0)), Heqc0, interp_state_br.
           eapply trans_branch.
-          2: reflexivity. apply trans_guard. apply H3.
+          2: reflexivity. apply trans_guard. apply H2.
           rewrite (ctree_eta (k0 x0)), Heqc0. eapply transis_brD; etrans.
       + specialize (IHtrans_ _ s k0 (x0 x)).
         edestruct IHtrans_ as (? & ? & ? & ?).
@@ -652,14 +650,13 @@ Section transi_state.
           destruct H5. rewrite H5 in H4. apply trans_vis_inv in H4 as (? & ? & ?). discriminate.
         * rewrite interp_state_br in H0.
           setoid_rewrite bind_branch in H0.
-          apply equ_br_invT in H0 as ?. destruct H2 as [-> ->].
-          simple eapply equ_br_invE in H0 as ?. destruct H2 as [<- ?].
-          specialize (H2 x). rewrite H in H2.
-          exists (k1 x), s. symmetry in H2. split.
-          { rewrite <- ctree_eta. rewrite H2. eapply t0_det_tau; auto. apply t0_det_id; auto. }
+          inv_equ.
+          specialize (EQ x). rewrite H in EQ.
+          exists (k1 x), s. symmetry in EQ. split.
+          { rewrite <- ctree_eta. rewrite EQ. eapply t0_det_tau; auto. apply t0_det_id; auto. }
           right. exists x0. rewrite H1. split; etrans.
           split; setoid_rewrite (ctree_eta (k0 x0)); setoid_rewrite Heqc0.
-          { setoid_rewrite interp_state_br. rewrite H2.
+          { setoid_rewrite interp_state_br. rewrite EQ.
             setoid_rewrite bind_branch.
             econstructor. now rewrite <- ctree_eta. }
           econstructor; etrans.
@@ -682,9 +679,8 @@ Section transi_state.
           edestruct Hh. { destruct H5. rewrite H5 in H4. inv H4. }
           destruct H5. rewrite H5 in H4.
           specialize (H3 x). rewrite H5 in H2.
-          apply equ_vis_invT in H2 as ?. subst.
-          apply equ_vis_invE in H2 as ?. destruct H6 as [-> ?].
-          rewrite <- H6 in *. rewrite bind_ret_l in H3.
+          inv_equ.
+          rewrite <- EQ in *. rewrite bind_ret_l in H3.
           exists (k1 (snd x)), (fst x).
           rewrite H in H3. split. { rewrite <- ctree_eta, H3. eright; eauto. eleft; auto. }
           right.

@@ -81,10 +81,8 @@ Proof.
     destruct r; step in H; inv H.
   - step in H. inv H.
   - rewrite bind_br in H.
-    apply equ_br_invT in H as ?. destruct H0 as [-> ->].
-    exists k. split. { apply equ_br_invE in H as [-> _]. reflexivity. }
-    intros.
-    apply equ_br_invE in H as [<- ?]. apply H.
+    inv_equ.
+    exists k. split; auto.
 Qed.
 
 Lemma iter_gen_vis {Y} : forall t (e : E Y) K,
@@ -99,10 +97,9 @@ Proof.
   - rewrite bind_ret_l in H.
     destruct r; step in H; inv H.
   - rewrite bind_vis in H.
-    apply equ_vis_invT in H as ?. subst.
-    apply equ_vis_invE in H as []. subst.
+    inv_equ.
     exists k. split. reflexivity. intros.
-    apply H0.
+    apply EQ.
   - step in H. inv H.
 Qed.
 
@@ -122,16 +119,13 @@ Proof.
         eapply it_next.
         --rewrite H1. etrans.
         --apply IHtrans_; auto.
-          apply equ_br_invT in H0 as ?.
-          destruct H2 as [? _]. subst.
-          apply equ_br_invE in H0 as []. subst.
-          left. rewrite <- H2, <- ctree_eta. apply iter_iter_gen.
+           inv_equ.
+          left. rewrite <- EQ, <- ctree_eta. apply iter_iter_gen.
       * destruct H1 as (? & ? & ?).
         eapply trans_it_brD. apply H1.
         apply IHtrans_. left. rewrite <- ctree_eta. apply H2. reflexivity.
-    + apply equ_br_invT in H0 as ?. destruct H1 as [-> _].
-      apply equ_br_invE in H0 as []. subst.
-      apply IHtrans_; auto. left. rewrite <- ctree_eta. apply H1.
+    + inv_equ.
+      apply IHtrans_; auto. left. rewrite <- ctree_eta. apply EQ.
   - destruct H0. 2: { step in H0. inv H0. }
     symmetry in H0. apply iter_gen_brS in H0 as (? & ? & ?).
     eapply it_ex. split. { rewrite H0. etrans. }

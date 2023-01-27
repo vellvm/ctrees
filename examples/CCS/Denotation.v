@@ -423,8 +423,7 @@ Proof.
         unfold Utils.mbr, MonadBr_ctree, branch in EQ1.
         cbn in * |-.
         rewrite unfold_bind in EQ1; cbn in EQ1.
-        epose proof equ_br_invT _ _ _ _ EQ1 as [<- _].
-        epose proof equ_br_invE _ _ _ _ EQ1 as (? & eqx).
+        inv_equ. rename EQ into eqx.
         specialize (eqx x).
         cbn in * |-; rewrite bind_ret_l in eqx.
         setoid_rewrite <- ctree_eta in IHtr.
@@ -435,10 +434,8 @@ Proof.
         eauto.
         reflexivity.
         rewrite <- EQ, EQ2; auto.
-    + epose proof equ_br_invT _ _ _ _ EQ1 as [? _]; subst.
-      epose proof equ_br_invE _ _ _ _ EQ1 as (? & eqx).
+    + inv_equ. rename EQ into eqx.
       specialize (eqx x).
-      clear EQ1.
       edestruct IHtr as (q' & comm & tr' & EQ); [| eassumption |].
       left. rewrite eqx, <- ctree_eta; reflexivity.
       exists q'; repeat split; auto.
@@ -452,8 +449,7 @@ Proof.
       unfold Utils.mbr, MonadBr_ctree, branch in EQ1.
       destruct vis; try now step in EQ1; inv EQ1.
       rewrite unfold_bind in EQ1; cbn in EQ1.
-      epose proof equ_br_invT _ _ _ _ EQ1 as [<- _].
-      epose proof equ_br_invE _ _ _ _ EQ1 as (? & eqx); clear EQ1.
+      inv_equ. rename EQ into eqx.
       specialize (eqx x).
       rewrite bind_ret_l in eqx.
       rewrite H in eqx.
@@ -470,8 +466,7 @@ Proof.
     cbn in *.
     destruct e0,a; cbn in *; destruct (c =? c0) eqn:EQ; try now step in EQ1; inv EQ1.
     all:unfold trigger in EQ1; rewrite unfold_bind in EQ1; cbn in EQ1; setoid_rewrite bind_ret_l in EQ1.
-    all:epose proof equ_vis_invT _ _ _ _ EQ1; subst.
-    all:epose proof equ_vis_invE _ _ _ _ EQ1 as [-> eqx]; clear EQ1.
+    all: inv_equ; rename EQ0 into eqx.
     all:rewrite EQ.
     all:specialize (eqx x).
     all:rewrite H in eqx; rewrite <- ctree_eta in EQ2; rewrite EQ2 in eqx.

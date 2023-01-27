@@ -70,14 +70,11 @@ Proof.
       setoid_rewrite (ctree_eta t).
       desobs t; try now step in EQ; inv EQ.
       destruct vis.
-      * pose proof equ_br_invT _ _ _ _ EQ as [<- _].
-        apply equ_br_invE with (x := x0) in EQ .
-        rewrite EQ in TR.
+      * inv_equ. rewrite EQ0 in TR.
         apply trans_step_inv in TR as [EQ' ->].
         eexists; split; eauto.
         etrans.
-      * pose proof equ_br_invT _ _ _ _ EQ as [<- _].
-        apply equ_br_invE with (x := x0) in EQ .
+      * inv_equ.
         specialize (IHTR _ _ eq_refl eq_refl).
         edestruct IHTR as (t' & ? & ?); eauto.
         exists t'.
@@ -86,8 +83,7 @@ Proof.
         eauto.
 
     + rewrite ctree_eta, <- x in EQ.
-      pose proof equ_br_invT _ _ _ _ EQ as [-> _].
-      apply equ_br_invE with (x := x0) in EQ .
+      inv_equ.
       specialize (IHTR _ _ eq_refl eq_refl).
       edestruct IHTR as (t' & ? & ?); eauto.
 
@@ -109,13 +105,12 @@ Proof.
       2:destruct vis; try now step in EQ; inv EQ.
       cbn in *.
       unfold mtrigger in EQ; rewrite bind_trigger in EQ.
-      pose proof equ_vis_invT _ _ _ _ EQ; subst.
-      pose proof equ_vis_invE _ _ _ _ EQ as [-> EQ'].
+      inv_equ.
       eexists; split.
       etrans.
       rewrite <- ctree_eta in H.
       rewrite <- H.
-      rewrite EQ'.
+      rewrite EQ0.
       auto.
     + rewrite ctree_eta, <- x1 in EQ.
       now step in EQ; inv EQ.
