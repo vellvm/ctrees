@@ -1037,11 +1037,11 @@ Ltac ctree_head_in t h :=
   | Step ?t =>
       change (Step t) with (brS branch1 (fun _ => t)) in h
   | stuck ?vis =>
-      change (stuck vis) with (brS branch0 (fun x : void => match x with end)) in h
-  | CTree.trigger ?e =>
-      change (CTree.trigger e) with (Vis e (fun x => Ret x)) in h
-  | CTree.branch ?vis ?b =>
-      change (CTree.branch vis b) with (Br vis b (fun x => Ret x)) in h
+      change t with (brS branch0 (fun x : void => match x with end)) in h
+  | @CTree.trigger ?E ?B ?R ?e =>
+      change t with (Vis e (fun x => Ret x) : ctree E B R) in h
+  | @CTree.branch ?E ?B ?vis ?X ?b =>
+      change t with (Br vis b (fun x => Ret x) : ctree E B X) in h
   | _ => idtac
   end.
 
