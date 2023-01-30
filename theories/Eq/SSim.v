@@ -637,6 +637,13 @@ Section Proof_Rules.
     - apply H.
   Qed.
 
+  Lemma ssim_ret {Y F D} `{HasStuck': B0 -< D} (x : X) (y : Y) (L : rel _ _) :
+    L (val x) (val y) ->
+    ssim L (Ret x : ctree E C X) (Ret y : ctree F D Y).
+  Proof.
+    intros. step. now apply step_ss_ret.
+  Qed.
+
 (*|
  The vis nodes are deterministic from the perspective of the labeled
  transition system, stepping is hence symmetric and we can just recover
@@ -666,6 +673,14 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
+  Lemma ssim_vis {Y Z Z' F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z')
+        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (L : rel _ _) :
+    (forall x, exists y, ssim L (k x) (k' y) /\ L (obs e x) (obs f y)) ->
+    ssim L (Vis e k) (Vis f k').
+  Proof.
+    intros. step. now apply step_ss_vis.
+  Qed.
+
   Lemma step_ss_vis_id_gen {Y Z F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z)
         (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R L: rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
@@ -684,6 +699,14 @@ Section Proof_Rules.
     intros * EQ.
     apply step_ss_vis_id_gen; auto.
     typeclasses eauto.
+  Qed.
+
+  Lemma ssim_vis_id {Y Z F D} `{HasStuck': B0 -< D} (e : E Z) (f: F Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (L : rel _ _) :
+    (forall x, ssim L (k x) (k' x) /\ L (obs e x) (obs f x)) ->
+    ssim L (Vis e k) (Vis f k').
+  Proof.
+    intros. step. now apply step_ss_vis_id.
   Qed.
 
   (*|
@@ -740,6 +763,15 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
+  Lemma ssim_brS {Z Z' Y F D} `{HasStuck' : B0 -< D} (c : C Z) (c' : D Z')
+        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (L: rel _ _) :
+    (forall x, exists y, ssim L (k x) (k' y)) ->
+    L tau tau ->
+    ssim L (BrS c k) (BrS c' k').
+  Proof.
+    intros. step. now apply step_ss_brS.
+  Qed.
+
   Lemma step_ss_brS_id_gen {Z Y D F} `{HasStuck': B0 -< D} (c : C Z) (d: D Z)
         (k: Z -> ctree E C X) (k': Z -> ctree F D Y) (R L : rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
@@ -759,6 +791,15 @@ Section Proof_Rules.
     intros.
     apply step_ss_brS_id_gen; eauto.
     typeclasses eauto.
+  Qed.
+
+  Lemma ssim_brS_id {Z Y D F} `{HasStuck': B0 -< D} (c : C Z) (d : D Z)
+        (k: Z -> ctree E C X) (k': Z -> ctree F D Y) (L : rel _ _) :
+    (forall x, exists y, ssim L (k x) (k' y)) ->
+    L tau tau ->
+    ssim L (BrS c k) (BrS d k').
+  Proof.
+    intros. step. now apply step_ss_brS_id.
   Qed.
 
   (*|
@@ -803,6 +844,15 @@ Section Proof_Rules.
     apply step_ss_brD_l_gen.
   Qed.
 
+  Lemma ssim_brD_l {Y F D Z} `{HasStuck': B0 -< D} (c : C Z)
+        (k : Z -> ctree E C X) (t: ctree F D Y) (L: rel _ _):
+    (forall x, ssim L (k x) t) ->
+    ssim L (BrD c k) t.
+  Proof.
+    intros. step. apply step_ss_brD_l. intros.
+    specialize (H x). step in H. apply H.
+  Qed.
+
   Lemma step_ss_brD_r_gen {Y F D Z} `{HasStuck': B0 -< D} (c : D Z) x
         (k : Z -> ctree F D Y) (t: ctree E C X) (R L: rel _ _):
     ss L R t (k x) ->
@@ -813,12 +863,20 @@ Section Proof_Rules.
     exists x0; etrans.
   Qed.
 
-  Lemma step_ss_brD_r{Y F D Z} `{HasStuck': B0 -< D} (c : D Z) x
+  Lemma step_ss_brD_r {Y F D Z} `{HasStuck': B0 -< D} (c : D Z) x
         (k : Z -> ctree F D Y) (t: ctree E C X) (R L: rel _ _):
     ssbt L R t (k x) ->
     ssbt L R t (BrD c k).
   Proof.
     intros. eapply step_ss_brD_r_gen. apply H.
+  Qed.
+
+  Lemma ssim_brD_r {Y F D Z} `{HasStuck': B0 -< D} (c : D Z) x
+        (k : Z -> ctree F D Y) (t: ctree E C X) (L: rel _ _):
+    ssim L t (k x) ->
+    ssim L t (BrD c k).
+  Proof.
+    intros. step. apply step_ss_brD_r with (x := x). now step in H.
   Qed.
 
   Lemma step_ss_brD_gen {Y F D n m} `{HasStuck': B0 -< D} (a: C n) (b: D m)
@@ -840,6 +898,15 @@ Section Proof_Rules.
     apply step_ss_brD_gen.
   Qed.
 
+  Lemma ssim_brD {Y F D n m} `{HasStuck': B0 -< D} (cn: C n) (cm: D m)
+    (k : n -> ctree E C X) (k' : m -> ctree F D Y) (L : rel _ _) :
+    (forall x, exists y, ssim L (k x) (k' y)) ->
+    ssim L (BrD cn k) (BrD cm k').
+  Proof.
+    intros. step. apply step_ss_brD.
+    intros. destruct (H x). step in H0. exists x0. apply H0.
+  Qed.
+
   Lemma step_ss_brD_id_gen {Y F D n m} `{HasStuck': B0 -< D} (c: C n) (d: D m)
         (k : n -> ctree E C X) (k' : m -> ctree F D Y)
         (R L : rel _ _) :
@@ -856,6 +923,15 @@ Section Proof_Rules.
     ssbt L R (BrD c k) (BrD d k').
   Proof.
     apply step_ss_brD_id_gen.
+  Qed.
+
+  Lemma ssim_brD_id {Y F D n m} `{HasStuck': B0 -< D} (c: C n) (d: D m)
+    (k : n -> ctree E C X) (k': m -> ctree F D Y) (L: rel _ _) :
+    (forall x, exists y, ssim L (k x) (k' y)) ->
+    ssim L (BrD c k) (BrD d k').
+  Proof.
+    intros. step. apply step_ss_brD_id.
+    intros. destruct (H x). step in H0. exists x0. assumption.
   Qed.
 
 (*|
