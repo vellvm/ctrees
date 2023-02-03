@@ -802,6 +802,15 @@ Section Proof_Rules.
     intros. step. now apply step_ss_brS_id.
   Qed.
 
+  Lemma ssim_step {Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C} `{HasTau': B1 -< D}
+        (t: ctree E C X) (t': ctree F D Y) (L : rel _ _) :
+    ssim L t t' ->
+    L tau tau ->
+    ssim L (Step t) (Step t').
+  Proof.
+    intros. apply ssim_brS_id; eauto.
+  Qed.
+
   (*|
     For invisible nodes, the situation is different: we may kill them, but that execution
     cannot act as going under the guard.
