@@ -65,7 +65,7 @@ Section parallel.
     : option (fin n) -> completed :=
     (* If no thread is focused, and there are none left in the pool, we are done *)
     schedule_match schedule 0 v None :=
-      Ret tt;
+      Ret ();
 
     (* If no thread is focused, but there are some left in the pool, we pick one *)
     schedule_match schedule (S n) v None :=
@@ -86,7 +86,7 @@ Section parallel.
 
         (* If it's a [Yield], we remove the focus *)
         schedule_match _ _ _ _ (VisF (inl1 Yield) k) :=
-        Guard (schedule (S n) (replace_vec v i (k tt)) None);
+        Guard (schedule (S n) (replace_vec v i (k ())) None);
 
         (* If it's a [Fork], we extend the pool *)
         schedule_match _ _ _ _ (VisF (inr1 (inl1 Fork)) k) :=
@@ -100,8 +100,8 @@ Section parallel.
                  (Some (FS i)));
 
         (* Other events are not touched in scheduling *)
-        schedule_match _ _ _ _ (VisF (inr1 (inr1 s)) k) :=
-        Vis (inr1 (inr1 s)) (fun x => (schedule (S n) (replace_vec v i (k x)) (Some i)));
+        schedule_match _ _ _ _ (VisF (inr1 (inr1 e)) k) :=
+        Vis (inr1 (inr1 e)) (fun x => (schedule (S n) (replace_vec v i (k x)) (Some i)));
 
       }.
   (* Transparent schedule_match. *)
@@ -150,7 +150,7 @@ Section parallel.
              forall i', k i' ≅ schedule n2 (replace_vec v i (k' i')) (Some i)) \/
       (exists k', v i ≅ Vis (inl1 Yield) k' /\
                n1 = 1%nat /\
-               forall i', k i' ≅ schedule n2 (replace_vec v i (k' tt)) None) \/
+               forall i', k i' ≅ schedule n2 (replace_vec v i (k' ())) None) \/
       (exists n2' H1, v i ≅ Ret () /\
                    n1 = 1%nat /\
                    forall i', k i' ≅ schedule n2' (remove_vec_helper n2 n2' v i H1) None).
@@ -242,7 +242,7 @@ Section parallel.
 
   (** [schedule] transitions with an [obs] of a [Yield] *)
   Lemma trans_schedule_obs_yield_None n v t (Hbound : forall i, brD_bound 1 (v i)) :
-    trans (obs (inl1 Yield) tt) (schedule n v None) t ->
+    trans (obs (inl1 Yield) ()) (schedule n v None) t ->
     exists n', n = S n' /\ t ≅ BrD n (fun i => schedule n v (Some i)).
   Proof.
     unfold trans. intros. cbn in H. red in H.
@@ -269,13 +269,13 @@ Section parallel.
   Qed.
 
   Lemma trans_schedule_obs_yield_Some n v i t (Hbound : forall i, brD_bound 1 (v i)) :
-    trans (obs (inl1 Yield) tt) (schedule n v (Some i)) t ->
+    trans (obs (inl1 Yield) ()) (schedule n v (Some i)) t ->
     (exists n',
         trans (val ()) (v i) CTree.stuckD /\
           {H: n = S (S n') &
                 t ≅ BrD (S n') (fun i' => schedule (S n') (remove_vec_helper n (S n') v i H) (Some i'))}) \/
       (exists k, visible (v i) (Vis (inl1 Yield) k) /\
-              t ≅ BrD n (fun i' => schedule n (replace_vec v i (k tt)) (Some i'))).
+              t ≅ BrD n (fun i' => schedule n (replace_vec v i (k ())) (Some i'))).
   Proof.
     unfold trans. intros. cbn in H. red in H.
     remember (observe (schedule n v (Some i))).
@@ -343,9 +343,129 @@ Section parallel.
     }
   Qed.
 
-  (** [schedule] transitions with an [obs] of a [Fork] *)
+  (** [schedule] transitions with an [obs] something that is not a [Yield]: impossible case *)
+  Lemma trans_schedule_obs_e_none X e (x : X) n v t (Hbound : forall i, brD_bound 1 (v i)) :
+    trans (obs (inr1 e) x) (schedule n v None) t ->
+    False.
+  Proof.
+    intros Ht.
+    unfold trans in Ht. cbn in Ht. red in Ht.
+    rewrite rewrite_schedule in *. destruct n; inv Ht. invert.
+    destruct (observe (schedule_match schedule (S n) v None)) eqn:?; invert.
+  Qed.
+
+  (** [schedule] transitions with an [obs] of a [Spawn] *)
+  Lemma trans_schedule_obs_spawn_some n v i t (Hbound : forall i, brD_bound 1 (v i)) :
+    trans (obs (inr1 (inl1 Spawn)) ()) (schedule n v (Some i)) t ->
+    (exists k, visible (v i) (Vis (inr1 (inl1 Fork)) k) /\
+            t ≅ schedule
+              (S n)
+              (cons_vec (k true) (replace_vec v i (k false)))
+              (Some (FS i))).
+  Proof.
+    unfold trans. intros. cbn in H. red in H.
+    remember (observe (schedule n v (Some i))).
+    pose proof (ctree_eta (go (observe (schedule n v (Some i))))).
+    rewrite <- Heqc in H0 at 1. cbn in H0. clear Heqc.
+    remember (observe t). remember (obs _ _).
+    revert t n v i Heqc0 Heql H0 Hbound.
+    induction H; intros t' n' v i Heq Heql Hequ Hbound; subst;
+      try inv Heql; rewrite <- ctree_eta in Hequ.
+    {
+      apply BrD_schedule_inv in Hequ. destruct Hequ as [? | [? | ?]].
+      - destruct H0 as (k' & Hvi & Hk).
+        edestruct IHtrans_ as (k'' & Hvis & Hequ); clear IHtrans_.
+        3: { rewrite Hk. reflexivity. } all: try reflexivity.
+        { apply replace_vec_brD_bound; auto. specialize (Hbound i).
+          rewrite Hvi in Hbound.
+          step in Hbound. inv Hbound. invert. apply H2.
+        }
+        rewrite replace_vec_eq in Hvis.
+        eexists. split.
+        + rewrite Hvi. econstructor. apply Hvis.
+        + rewrite replace_vec_twice in Hequ. apply Hequ.
+      - clear IHtrans_. destruct H0 as (k' & Hequ & ? & Hk). subst.
+        rewrite Hk in H. apply trans_schedule_obs_e_none in H. contradiction.
+        apply replace_vec_brD_bound; auto. specialize (Hbound i).
+        rewrite Hequ in Hbound. step in Hbound. inv Hbound. invert. apply H1.
+      - clear IHtrans_. destruct H0 as (n'' & ? & Hvi & ? & Hk). subst. cbn in *.
+        rewrite Hk in H. apply trans_schedule_obs_e_none in H. contradiction.
+        apply remove_vec_brD_bound; auto.
+    }
+    {
+      invert. destruct n'; try inv i.
+      rewrite rewrite_schedule in Hequ. simp schedule_match in Hequ.
+      destruct (observe (v i)) eqn:?; cbn in Hequ.
+      - step in Hequ. inv Hequ.
+      - destruct e; [destruct y | destruct s; [destruct f |]].
+        + step in Hequ; inv Hequ.
+        + step in Hequ.
+          pose proof (equb_vis_invE _ _ _ _ Hequ) as (_ & Hk).
+          eexists. split.
+          * cbn. red. rewrite Heqc. constructor. reflexivity.
+          * rewrite ctree_eta. rewrite <- Heq. rewrite <- H. rewrite Hk.
+            rewrite <- ctree_eta. reflexivity.
+        + step in Hequ. inv Hequ. invert.
+      - step in Hequ. inv Hequ.
+    }
+  Qed.
+
   (** [schedule] transitions with an [obs] of an event of type [E] *)
-  (*  TODO *)
+  Lemma trans_schedule_obs_e_some X e (x : X) n v i t (Hbound : forall i, brD_bound 1 (v i)) :
+    trans (obs (inr1 (inr1 e)) x) (schedule n v (Some i)) t ->
+    (exists k, visible (v i) (Vis (inr1 (inr1 e)) k) /\
+            t ≅ schedule
+              n
+              (replace_vec v i (k x))
+              (Some i)).
+  Proof.
+    unfold trans. intros. cbn in H. red in H.
+    remember (observe (schedule n v (Some i))).
+    pose proof (ctree_eta (go (observe (schedule n v (Some i))))).
+    rewrite <- Heqc in H0 at 1. cbn in H0. clear Heqc.
+    remember (observe t). remember (obs _ _).
+    revert t n v i Heqc0 Heql H0 Hbound.
+    induction H; intros t' n' v i Heq Heql Hequ Hbound; subst;
+      try inv Heql; rewrite <- ctree_eta in Hequ.
+    {
+      apply BrD_schedule_inv in Hequ. destruct Hequ as [? | [? | ?]].
+      - destruct H0 as (k' & Hvi & Hk).
+        edestruct IHtrans_ as (k'' & Hvis & Hequ); clear IHtrans_.
+        3: { rewrite Hk. reflexivity. } all: try reflexivity.
+        { apply replace_vec_brD_bound; auto. specialize (Hbound i).
+          rewrite Hvi in Hbound.
+          step in Hbound. inv Hbound. invert. apply H2.
+        }
+        rewrite replace_vec_eq in Hvis.
+        eexists. split.
+        + rewrite Hvi. econstructor. apply Hvis.
+        + rewrite replace_vec_twice in Hequ. apply Hequ.
+      - clear IHtrans_. destruct H0 as (k' & Hequ & ? & Hk). subst.
+        rewrite Hk in H. apply trans_schedule_obs_e_none in H. contradiction.
+        apply replace_vec_brD_bound; auto. specialize (Hbound i).
+        rewrite Hequ in Hbound. step in Hbound. inv Hbound. invert. apply H1.
+      - clear IHtrans_. destruct H0 as (n'' & ? & Hvi & ? & Hk). subst. cbn in *.
+        rewrite Hk in H. apply trans_schedule_obs_e_none in H. contradiction.
+        apply remove_vec_brD_bound; auto.
+    }
+    {
+      invert. destruct n'; try inv i.
+      rewrite rewrite_schedule in Hequ. simp schedule_match in Hequ.
+      destruct (observe (v i)) eqn:?; cbn in Hequ.
+      - step in Hequ. inv Hequ.
+      - destruct e0; [destruct y | destruct s; [destruct f |]].
+        + step in Hequ; inv Hequ.
+        + step in Hequ; inv Hequ. invert.
+        + step in Hequ.
+          pose proof (equb_vis_invT _ _ _ _ Hequ). subst.
+          pose proof (equb_vis_invE _ _ _ _ Hequ) as (? & Hk). inv H0.
+          eexists. split.
+          * cbn. red. rewrite Heqc. constructor. reflexivity.
+          * rewrite ctree_eta. rewrite <- Heq. rewrite <- H. rewrite Hk.
+            rewrite <- ctree_eta. reflexivity.
+      - step in Hequ. inv Hequ.
+    }
+  Qed.
 
   (** [schedule] transitions with a [tau]: impossible case *)
   Lemma trans_schedule_thread_tau_none n v t :
@@ -488,9 +608,9 @@ Section parallel.
   (** when the thread is a yield *)
   Lemma visible_yield_trans_schedule n v i k (Hbound : brD_bound 1 (v i)) :
     visible (v i) (Vis (inl1 Yield) k) ->
-    trans (obs (inl1 Yield) tt)
+    trans (obs (inl1 Yield) ())
           (schedule (S n) v (Some i))
-          (BrD (S n) (fun i' => (schedule (S n) (replace_vec v i (k tt)) (Some i')))).
+          (BrD (S n) (fun i' => (schedule (S n) (replace_vec v i (k ())) (Some i')))).
   Proof.
     intros. cbn in *. red in H |- *. red.
     remember (observe (v i)). remember (observe (Vis _ k)).
@@ -504,7 +624,7 @@ Section parallel.
       } subst.
       rewrite rewrite_schedule at 1. simp schedule_match.
       rewrite <- Heqc. constructor 1 with (x:=x).
-      rewrite <- (replace_vec_twice _ v i (k x) (k0 tt)).
+      rewrite <- (replace_vec_twice _ v i (k x) (k0 ())).
       eapply IHvisible_; auto; rewrite replace_vec_eq; eauto.
     - invert.
       rewrite rewrite_schedule at 1. simp schedule_match.
@@ -517,7 +637,7 @@ Section parallel.
   (** when the thread is a fork *)
   Lemma visible_fork_trans_schedule n v i k (Hbound : brD_bound 1 (v i)) :
     visible (v i) (Vis (inr1 (inl1 Fork)) k) ->
-    trans (obs (inr1 (inl1 Spawn)) tt)
+    trans (obs (inr1 (inl1 Spawn)) ())
           (schedule (S n) v (Some i))
           (schedule (S (S n))
                     (cons_vec (k true)
@@ -670,7 +790,7 @@ Section parallel.
           pose proof Hvis as Hvis'.
           eapply sbisim_visible in Hvis'. 5: apply Hsb1. all: auto.
           destruct Hvis' as (k' & Hvis' & Hk).
-          exists (BrD (S n) (fun i' => schedule (S n) (replace_vec v2 (p i) (k' tt)) (Some (p (q i'))))).
+          exists (BrD (S n) (fun i' => schedule (S n) (replace_vec v2 (p i) (k' ())) (Some (p (q i'))))).
           2: { rewrite Hequ.
                setoid_rewrite <- (bind_ret_l _ (fun x => schedule
                                                        (S n)
@@ -711,9 +831,75 @@ Section parallel.
           2: { apply functional_extensionality. intros. rewrite Hpq. reflexivity. }
           eapply visible_yield_trans_schedule; auto.
       + (* the thread forks a new thread *)
-        admit.
+        destruct n; try inv i.
+        apply trans_schedule_obs_spawn_some in Ht.
+        destruct Ht as (k & Hvis & Hequ).
+        pose proof Hvis as Hvis'.
+        eapply sbisim_visible in Hvis'. 5: apply Hsb1. all: auto. 2: constructor; apply true.
+        destruct Hvis' as (k' & Hvis' & Hk).
+        pose proof (cons_permutation_correct _ _ Hpq Hqp) as (Hpq' & Hqp').
+        destruct (cons_permutation p) as (p' & Hp1 & Hp2).
+        destruct (cons_permutation q) as (q' & Hq1 & Hq2). cbn in *.
+        exists (schedule
+             (S (S n))
+             (cons_vec (k' true) (replace_vec v2 (p i) (k' false)))
+             (Some (p' (FS i)))).
+        2: {
+          assert (Hbound: forall b, brD_bound 1 (k b)). {
+            intros. eapply visible_brD_bound in Hvis; eauto.
+            eapply trans_brD_bound; eauto. constructor. reflexivity.
+          }
+          assert (Hbound': forall b, brD_bound 1 (k' b)). {
+            intros. eapply visible_brD_bound in Hvis'; eauto.
+            eapply trans_brD_bound; eauto. constructor. reflexivity.
+          }
+          rewrite Hequ. eapply CIH; auto.
+          - apply cons_vec_brD_bound; auto; apply replace_vec_brD_bound; auto.
+          - apply cons_vec_brD_bound; auto; apply replace_vec_brD_bound; auto.
+          - intros. dependent destruction i0.
+            + rewrite Hp1. simp cons_vec.
+            + rewrite Hp2. simp cons_vec. destruct (Fin.eq_dec i i0); subst.
+              * do 2 (rewrite replace_vec_eq; auto).
+              * do 2 (rewrite replace_vec_neq; auto). intro.
+                apply (f_equal q) in H. do 2 rewrite Hqp in H. contradiction.
+          - intros. dependent destruction i0.
+            + rewrite Hq1. simp cons_vec. symmetry. auto.
+            + rewrite Hq2. simp cons_vec. destruct (Fin.eq_dec (p i) i0).
+              * subst. rewrite Hqp. do 2 (rewrite replace_vec_eq; auto). symmetry; auto.
+              * do 2 (rewrite replace_vec_neq; auto). intro.
+                apply (f_equal p) in H. rewrite Hpq in H. contradiction.
+        }
+        rewrite Hp2. apply visible_fork_trans_schedule; auto.
       + (* there is some other event *)
-        admit.
+        destruct n; [inv i |].
+        apply trans_schedule_obs_e_some in Ht; auto.
+        destruct Ht as (k & Hvis & Hequ).
+        pose proof Hvis as Hvis'.
+        eapply sbisim_visible in Hvis'. 5: apply Hsb1. all: eauto.
+        destruct Hvis' as (k' & Hvis' & ?).
+        exists (schedule (S n) (replace_vec v2 (p i) (k' v)) (Some (p i))).
+        2: {
+          assert (Hbound: forall x, brD_bound 1 (k x)). {
+            intros. eapply visible_brD_bound in Hvis; eauto.
+            eapply trans_brD_bound; eauto. constructor. reflexivity.
+          }
+          assert (Hbound': forall x, brD_bound 1 (k' x)). {
+            intros. eapply visible_brD_bound in Hvis'; eauto.
+            eapply trans_brD_bound; eauto. constructor. reflexivity.
+          }
+          rewrite Hequ. eapply CIH; clear CIH; eauto.
+          - apply replace_vec_brD_bound; auto.
+          - apply replace_vec_brD_bound; auto.
+          - intros. destruct (Fin.eq_dec i i0).
+            + subst. do 2 rewrite replace_vec_eq; auto.
+            + do 2 (rewrite replace_vec_neq; auto). intro.
+              apply (f_equal q) in H0. do 2 rewrite Hqp in H0. contradiction.
+          - intros. destruct (Fin.eq_dec (p i) i0).
+            + subst. rewrite Hqp. do 2 rewrite replace_vec_eq; auto. symmetry; auto.
+            + do 2 (rewrite replace_vec_neq; auto). intro.
+              apply (f_equal p) in H0. rewrite Hpq in H0. contradiction.
+        }
+        apply visible_E_trans_schedule; auto.
     - pose proof (trans_schedule_val_1 _ _ _ _ _ Ht). subst.
       pose proof (trans_val_inv Ht).
       pose proof (Hsb1 i). step in H0. destruct H0 as [Hf _].
