@@ -256,7 +256,7 @@ Section Denote1.
     apply schedule_order; try solve [apply denote_imp_bounded]; reflexivity.
   Qed.
 
-  Lemma yield_fork s :
+  Lemma yield_yield_fork s :
     interp_concurrency (Seq YieldS (Seq YieldS s)) ~
     interp_concurrency (Fork s Skip).
   Proof.
