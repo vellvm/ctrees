@@ -11,7 +11,7 @@ From CTree Require Import
      CTree
      Fold
      Eq
-     Eq.Trans0.
+     Eq.Epsilon.
 
 Import SBisimNotations.
 Import MonadNotation.
@@ -407,9 +407,9 @@ Section transi_state.
   Context {X : Type}.
   Variable (h : E ~> stateT S (ctree F D)).
 
-  Lemma trans0_interp_state : forall (t t' : ctree E C X) s,
-      trans0 t t' ->
-      trans0 (interp_state h t s) (interp_state h t' s).
+  Lemma epsilon_interp_state : forall (t t' : ctree E C X) s,
+      epsilon t t' ->
+      epsilon (interp_state h t s) (interp_state h t' s).
   Proof.
     intros; red in H.
     rewrite (ctree_eta t), (ctree_eta t').
@@ -420,11 +420,11 @@ Section transi_state.
       rewrite bind_bind.
       unfold mbr, MonadBr_ctree, CTree.branch.
       rewrite bind_br.
-      eapply T0Br with (x := x).
+      eapply EpsilonBr with (x := x).
       rewrite !bind_ret_l.
       cbn.
-      eapply T0Br with (x := tt).
-      apply IHtrans0_.
+      eapply EpsilonBr with (x := tt).
+      apply IHepsilon_.
   Qed.
 
   (* transi *)
@@ -442,7 +442,7 @@ Section transi_state.
       transi_state tau s s t t'
   | transis_obs : forall Y (e : E Y) x l t t' t'' s s',
       trans (obs e x) t t' ->
-      t0_det t'' (Ret (s', x)) ->
+      epsilon_det t'' (Ret (s', x)) ->
       trans l (h e s) t'' ->
       transi_state l s s' t t'
   | transis_obs0 : forall Y (e : E Y) l x t t' t'' s s' s'',
@@ -482,9 +482,9 @@ Section transi_state.
     - eapply transis_obs0; etrans.
   Qed.
 
-  Lemma trans0_transi :
+  Lemma epsilon_transi :
     forall l s s' (t t' t'' : ctree E C X),
-      trans0 t t' ->
+      epsilon t t' ->
       transi_state l s s' t' t'' ->
       transi_state l s s' t t''.
   Proof.
@@ -493,7 +493,7 @@ Section transi_state.
     genobs t ot. genobs t' ot'. clear t Heqot. clear t' Heqot'.
     revert l t'' H0. induction H; intros.
     - rewrite H. apply H0.
-    - eapply transis_brD. setoid_rewrite <- ctree_eta in IHtrans0_. apply IHtrans0_. apply H0.
+    - eapply transis_brD. setoid_rewrite <- ctree_eta in IHepsilon_. apply IHepsilon_. apply H0.
   Qed.
 
   Lemma transis_sbisim :
@@ -522,42 +522,42 @@ Section transi_state.
   Lemma transis_trans (Hh : forall X (e : _ X) s, vsimple (h e s)) :
     forall l s s' (t t' : ctree E C X),
       transi_state l s s' t t' ->
-      exists t0, trans l (interp_state h t s) t0 /\ t0_det t0 (interp_state h t' s').
+      exists t0, trans l (interp_state h t s) t0 /\ epsilon_det t0 (interp_state h t' s').
   Proof.
     intros. induction H.
     - exists stuckD. apply trans_val_inv in H as ?.
-      apply trans_val_trans0 in H as [].
-      eapply trans0_interp_state in H. rewrite interp_state_ret in H. setoid_rewrite H0.
+      apply trans_val_epsilon in H as [].
+      eapply epsilon_interp_state in H. rewrite interp_state_ret in H. setoid_rewrite H0.
       setoid_rewrite interp_state_br.
       split.
-      eapply trans0_trans in H; etrans.
+      eapply epsilon_trans in H; etrans.
       left.
       setoid_rewrite bind_branch.
       step.
       constructor; intros [].
 
     - exists (Guard (interp_state h t' s)). split; [| eright; eauto; now left ].
-      apply trans_tau_trans0 in H as (? & ? & ? & ? & ? & ?).
-      eapply trans0_interp_state in H. setoid_rewrite H0. eapply trans0_trans; etrans.
+      apply trans_tau_epsilon in H as (? & ? & ? & ? & ? & ?).
+      eapply epsilon_interp_state in H. setoid_rewrite H0. eapply epsilon_trans; etrans.
       rewrite interp_state_br. setoid_rewrite bind_branch.
       econstructor. reflexivity.
     - exists (x <- t'';; Guard (interp_state h t' s')).
       split.
-      2: { eapply t0_det_bind_ret_l; eauto. eright; eauto. now left. }
-      apply trans_obs_trans0 in H as (? & ? & ?).
-      eapply trans0_interp_state in H. setoid_rewrite H2. eapply trans0_trans; etrans.
+      2: { eapply epsilon_det_bind_ret_l; eauto. eright; eauto. }
+      apply trans_obs_epsilon in H as (? & ? & ?).
+      eapply epsilon_interp_state in H. setoid_rewrite H2. eapply epsilon_trans; etrans.
       setoid_rewrite interp_state_vis.
       eapply trans_bind_l with (k := fun sx => Guard (interp_state h (x0 (snd sx)) (fst sx))) in H1.
-      setoid_rewrite t0_det_bind_ret_l_equ in H1 at 2; eauto. cbn in *. eapply H1.
+      setoid_rewrite epsilon_det_bind_ret_l_equ in H1 at 2; eauto. cbn in *. eapply H1.
       { intro. inv H3. apply trans_val_inv in H1. rewrite H1 in H0. inv H0. step in H3. inv H3. step in H4. inv H4. auto using void_unit_elim. }
     - destruct IHtransi_state as (? & ? & ?).
       destruct (Hh Y e s).
       2: { destruct H4. rewrite H4 in H1. apply trans_vis_inv in H1 as (? & ? & ?). step in H1. inv H1. }
       destruct H4. rewrite H4 in H1. inv_trans. subst.
       exists x0. split. 2: auto.
-      apply trans_obs_trans0 in H as (? & ? & ?). eapply trans0_interp_state in H.
+      apply trans_obs_epsilon in H as (? & ? & ?). eapply epsilon_interp_state in H.
       setoid_rewrite interp_state_vis in H. setoid_rewrite H4 in H. setoid_rewrite bind_ret_l in H.
-      eapply trans0_trans; etrans. setoid_rewrite <- H1. etrans.
+      eapply epsilon_trans; etrans. setoid_rewrite <- H1. etrans.
   Qed.
 
   Lemma interp_state_ret_inv :
@@ -575,8 +575,8 @@ Section transi_state.
     forall Y l s (k : Y -> ctree E C X) t' (pre : ctree F D Y),
       is_simple pre ->
       trans l (x <- pre;; interp_state h (k x) s) t' ->
-      exists t0 s', t0_det t' (interp_state h t0 s') /\
-                 ((exists l t1 x, trans l pre t1 /\ t0_det t1 (Ret x : ctree F D Y) /\ t0 ≅ k x) \/
+      exists t0 s', epsilon_det t' (interp_state h t0 s') /\
+                 ((exists l t1 x, trans l pre t1 /\ epsilon_det t1 (Ret x : ctree F D Y) /\ t0 ≅ k x) \/
                     exists (x : Y), trans (val x) pre stuckD /\ trans l (interp_state h (k x) s) t' /\ transi_state l s s' (k x) t0).
   Proof.
     intros * Hpre H.
@@ -653,7 +653,7 @@ Section transi_state.
           inv_equ.
           specialize (EQ x). rewrite H in EQ.
           exists (k1 x), s. symmetry in EQ. split.
-          { rewrite <- ctree_eta. rewrite EQ. eapply t0_det_tau; auto. apply t0_det_id; auto. }
+          { rewrite <- ctree_eta. rewrite EQ. eapply epsilon_det_tau; auto. }
           right. exists x0. rewrite H1. split; etrans.
           split; setoid_rewrite (ctree_eta (k0 x0)); setoid_rewrite Heqc0.
           { setoid_rewrite interp_state_br. rewrite EQ.
@@ -666,7 +666,7 @@ Section transi_state.
         apply H4 in H3 as [].
         specialize (H2 x).
         exists (k0 x1), s. rewrite H in H2. split.
-        { rewrite <- ctree_eta, H2. eapply t0_det_bind_ret_l; eauto. now left. }
+        { rewrite <- ctree_eta, H2. eapply epsilon_det_bind_ret_l; eauto. }
         left. exists tau, (x0 x), x1. split; auto. rewrite H1. etrans.
     - symmetry in H0. apply vis_equ_bind in H0 as ?. destruct H1 as [[] | (? & ? & ?)].
       + rewrite H1 in H0. setoid_rewrite bind_ret_l in H0.
@@ -682,13 +682,13 @@ Section transi_state.
           inv_equ.
           rewrite <- EQ in *. rewrite bind_ret_l in H3.
           exists (k1 (snd x)), (fst x).
-          rewrite H in H3. split. { rewrite <- ctree_eta, H3. eright; eauto. eleft; auto. }
+          rewrite H in H3. split. { rewrite <- ctree_eta, H3. eright; eauto. }
           right.
           exists x0. rewrite H1. split; etrans.
           split; setoid_rewrite (ctree_eta (k0 x0)); setoid_rewrite Heqc.
           { setoid_rewrite interp_state_vis. rewrite H5. setoid_rewrite bind_vis.
             econstructor. rewrite bind_ret_l. rewrite <- H3, <- ctree_eta. reflexivity. }
-          eapply transis_obs; etrans. 2: { rewrite H5. etrans. } destruct x. now left.
+          eapply transis_obs; etrans. rewrite H5. destruct x. etrans.
         * rewrite interp_state_br in H0. step in H0. inv H0.
       + pose proof (trans_vis e x x0).
         rewrite <- H1 in H3. edestruct Hpre.
@@ -696,7 +696,7 @@ Section transi_state.
         apply H4 in H3 as [].
         specialize (H2 x).
         exists (k0 x1), s. rewrite H in H2. split.
-        { rewrite <- ctree_eta, H2. eapply t0_det_bind_ret_l; eauto. now left. }
+        { rewrite <- ctree_eta, H2. eapply epsilon_det_bind_ret_l; eauto. }
         left. exists (obs e x), (x0 x), x1. split; auto. rewrite H1. etrans.
     - exists stuckD, (fst r). split.
       + left. unfold stuck. rewrite interp_state_br.
@@ -713,7 +713,7 @@ Section transi_state.
   Lemma trans_interp_state_inv (Hh : forall X (e : _ X) s, vsimple (h e s)) :
     forall l (t : ctree E C X) t' s,
       trans l (interp_state h t s) t' ->
-      exists l t0 s', t0_det t' (interp_state h t0 s') /\ transi_state l s s' t t0.
+      exists l t0 s', epsilon_det t' (interp_state h t0 s') /\ transi_state l s s' t t0.
   Proof.
     intros.
     assert (trans l (Guard (Ret tt);; interp_state h t s) t').
@@ -786,8 +786,8 @@ Section transi_state.
       assert (st eq R (interp_state h x x0) (interp_state h x1 x0)).
       { apply CH'. apply H4. }
       split; auto.
-      rewrite sbisim_t0_det. 2: apply H0.
-      apply sbisim_t0_det in H5; rewrite H5.
+      rewrite sbisim_epsilon_det. 2: apply H0.
+      apply sbisim_epsilon_det in H5; rewrite H5.
       apply H6.
   Qed.
 

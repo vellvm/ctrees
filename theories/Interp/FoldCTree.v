@@ -11,7 +11,7 @@ From ITree Require Import
 From CTree Require Import
   CTree
   Eq
-  Eq.Trans0
+  Eq.Epsilon
   Eq.IterFacts
   Fold.
 
@@ -347,7 +347,7 @@ Spelled out: we absorb a sequence of transitions in [t] that will become invisib
       transi h tau t t'
   | transi_obs : forall Y (e : E Y) x l t t' t'',
       trans (obs e x) t t' ->
-      t0_det t'' (Ret x) ->
+      epsilon_det t'' (Ret x) ->
       trans l (h _ e) t'' ->
       transi h l t t'
   | transi_obs0 : forall Y (e : E Y) l x t t' t'',
@@ -363,7 +363,7 @@ A computation is [simple] all its transitions are either:
 |*)
   Definition is_simple {E C X} `{B0 -< C} `{B1 -< C} (t : ctree E C X) :=
     (forall l t', trans l t t' -> is_val l) \/
-    (forall l t', trans l t t' -> exists r, t0_det t' (Ret r)).
+    (forall l t', trans l t t' -> exists r, epsilon_det t' (Ret r)).
 
 (*|
 A computation is [vsimple] if it is syntactically:
@@ -409,7 +409,7 @@ A computation is [vsimple] if it is syntactically:
 
   End is_simple_theory.
 
-  Section trans0_interp_theory.
+  Section epsilon_interp_theory.
 
     Lemma interp_productive {E C F X}  `{Stuck: B0 -< C} `{Tau: B1 -< C} (h : E ~> ctree F C) : forall (t : ctree E C X),
         productive (interp h t) -> productive t.
@@ -424,20 +424,20 @@ A computation is [vsimple] if it is syntactically:
         try now econstructor.
     Qed.
 
-    Lemma trans0_interp : forall {E C F X} `{Tau: B1 -< C} `{Stuck: B0 -< C}
+    Lemma epsilon_interp : forall {E C F X} `{Tau: B1 -< C} `{Stuck: B0 -< C}
                             (h : E ~> ctree F C) (t t' : ctree E C X),
-        trans0 t t' -> trans0 (interp h t) (interp h t').
+        epsilon t t' -> epsilon (interp h t) (interp h t').
     Proof.
       intros. red in H. setoid_rewrite (ctree_eta t). setoid_rewrite (ctree_eta t').
       genobs t ot. genobs t' ot'. clear t Heqot t' Heqot'.
       induction H.
       - constructor. rewrite H. reflexivity.
       - rewrite unfold_interp. cbn. setoid_rewrite bind_br.
-        apply T0Br with (x := x). rewrite bind_ret_l.
-        simpl. eapply T0Br with (x:=tt). apply IHtrans0_.
+        apply EpsilonBr with (x := x). rewrite bind_ret_l.
+        simpl. eapply EpsilonBr with (x:=tt). apply IHepsilon_.
     Qed.
 
-  End trans0_interp_theory.
+  End epsilon_interp_theory.
 
   Section transi_theory.
 
@@ -471,8 +471,8 @@ A computation is [vsimple] if it is syntactically:
       cbn. intros. rewrite <- H, <- H0. apply H1.
     Qed.
 
-    Lemma trans0_transi {E C F X}  `{Stuck: B0 -< C} `{Tau: B1 -< C}  (h : E ~> ctree F C) :
-      forall l (t t' t'' : ctree E C X), trans0 t t' -> transi h l t' t'' -> transi h l t t''.
+    Lemma epsilon_transi {E C F X}  `{Stuck: B0 -< C} `{Tau: B1 -< C}  (h : E ~> ctree F C) :
+      forall l (t t' t'' : ctree E C X), epsilon t t' -> transi h l t' t'' -> transi h l t t''.
     Proof.
       intros.
       red in H. rewrite (ctree_eta t). rewrite (ctree_eta t') in H0.
@@ -480,8 +480,8 @@ A computation is [vsimple] if it is syntactically:
       revert l t'' H0. induction H; intros.
       - rewrite H. apply H0.
       - eapply transi_brD.
-        setoid_rewrite <- ctree_eta in IHtrans0_.
-        apply IHtrans0_; apply H0.
+        setoid_rewrite <- ctree_eta in IHepsilon_.
+        apply IHepsilon_; apply H0.
     Qed.
 
     Lemma transi_sbisim {E C F X}  `{Stuck: B0 -< C} `{Tau: B1 -< C} (h : E ~> ctree F C) :
@@ -505,28 +505,28 @@ A computation is [vsimple] if it is syntactically:
     Lemma transi_trans {E C F X} {Stuck: B0 -< C} {Tau: B1 -< C} (h : E ~> ctree F C)
       (Hh : forall X e, vsimple (h X e)) :
       forall l (t t' : ctree E C X),
-        transi h l t t' -> exists t0, trans l (interp h t) t0 /\ t0_det t0 (interp h t').
+        transi h l t t' -> exists t0, trans l (interp h t) t0 /\ epsilon_det t0 (interp h t').
     Proof.
       intros. induction H.
       - exists stuckD. apply trans_val_inv in H as ?.
-        apply trans_val_trans0 in H as [].
-        eapply trans0_interp in H. rewrite interp_ret in H. setoid_rewrite H0.
+        apply trans_val_epsilon in H as [].
+        eapply epsilon_interp in H. rewrite interp_ret in H. setoid_rewrite H0.
         setoid_rewrite interp_br. setoid_rewrite bind_br. setoid_rewrite br0_always_stuck.
-        eapply trans0_trans in H; etrans. split; etrans. now left.
+        eapply epsilon_trans in H; etrans.
       - exists (Guard (interp h t')). split; [| eright; eauto; now left ].
-        apply trans_tau_trans0 in H as (? & ? & ? & ? & ? & ?).
-        eapply trans0_interp in H.
+        apply trans_tau_epsilon in H as (? & ? & ? & ? & ? & ?).
+        eapply epsilon_interp in H.
         rewrite H0.
-        eapply trans0_trans; etrans.
+        eapply epsilon_trans; etrans.
         setoid_rewrite interp_br. setoid_rewrite bind_br. setoid_rewrite bind_ret_l.
         econstructor. reflexivity.
       - exists (x <- t'';; Guard (interp h t')).
-        split. 2: { eapply t0_det_bind_ret_l; eauto. eright; eauto. now left. }
-             apply trans_obs_trans0 in H as (? & ? & ?).
-        eapply trans0_interp in H. eapply trans0_trans; etrans.
+        split. 2: { eapply epsilon_det_bind_ret_l; eauto. eright; eauto. }
+             apply trans_obs_epsilon in H as (? & ? & ?).
+        eapply epsilon_interp in H. eapply epsilon_trans; etrans.
         setoid_rewrite interp_vis.
         eapply trans_bind_l with (k := fun x => Guard (interp h (x0 x))) in H1.
-        setoid_rewrite t0_det_bind_ret_l_equ in H1 at 2; eauto.
+        setoid_rewrite epsilon_det_bind_ret_l_equ in H1 at 2; eauto.
         now setoid_rewrite H2.
         { intro. inv H3. apply trans_val_inv in H1. rewrite H1 in H0. inv H0. step in H3. inv H3. step in H4.
           cbn in H4.
@@ -537,9 +537,9 @@ A computation is [vsimple] if it is syntactically:
         destruct (Hh Y e). 2: { destruct H4. rewrite H4 in H1. apply trans_vis_inv in H1 as (? & ? & ?). step in H1. inv H1. }
                          destruct H4. rewrite H4 in H1. inv_trans. subst.
         exists x0. split. 2: auto.
-        apply trans_obs_trans0 in H as (? & ? & ?). eapply trans0_interp in H.
+        apply trans_obs_epsilon in H as (? & ? & ?). eapply epsilon_interp in H.
         setoid_rewrite interp_vis in H. setoid_rewrite H4 in H. setoid_rewrite bind_ret_l in H.
-        eapply trans0_trans; etrans. setoid_rewrite <- H1. etrans.
+        eapply epsilon_trans; etrans. setoid_rewrite <- H1. etrans.
     Qed.
 
 
@@ -570,8 +570,8 @@ Lemma trans_interp_inv_gen {E F B X Y} {Stuck: B0 -< B} {Tau: B1 -< B}
   forall l (k : Y -> ctree E B X) t' (pre : ctree F B Y),
   is_simple pre ->
   trans l (x <- pre;; interp h (k x)) t' ->
-  exists t0, t0_det t' (interp h t0) /\
-    ((exists l t1 x, trans l pre t1 /\ t0_det t1 (Ret x) /\ t0 ≅ k x) \/
+  exists t0, epsilon_det t' (interp h t0) /\
+    ((exists l t1 x, trans l pre t1 /\ epsilon_det t1 (Ret x) /\ t0 ≅ k x) \/
     exists x, trans (val x) pre stuckD /\ trans l (interp h (k x)) t' /\ transi h l (k x) t0).
 Proof.
   intros * Hpre H.
@@ -648,7 +648,7 @@ Proof.
           (*rewrite H4 in H3. rewrite bind_ret_l in H3.*)
           exists (k1 x2).
           rewrite H in H3. split; auto. rewrite H3, <- ctree_eta.
-          eapply t0_det_bind_ret_l; eauto. eapply t0_det_tau; eauto. constructor; auto.
+          eapply epsilon_det_bind_ret_l; eauto. eapply epsilon_det_tau; eauto. constructor; auto.
           right. exists x0. rewrite H1. split; etrans.
           setoid_rewrite (ctree_eta (k0 x0)). setoid_rewrite Heqc. split.
           { setoid_rewrite interpE_vis. setoid_rewrite H2. setoid_rewrite bind_br.
@@ -659,7 +659,7 @@ Proof.
         specialize (EQ x).
         rewrite bind_ret_l, H in EQ.
         exists (k1 x). symmetry in EQ. split.
-        { rewrite <- ctree_eta. rewrite EQ. eapply t0_det_tau; auto. apply t0_det_id; auto. }
+        { rewrite <- ctree_eta. rewrite EQ. eapply epsilon_det_tau; auto. }
         right. exists x0. rewrite H1. split; etrans.
         setoid_rewrite (ctree_eta (k0 x0)). setoid_rewrite Heqc0. split.
         { setoid_rewrite interp_br. rewrite EQ. setoid_rewrite bind_br. setoid_rewrite bind_ret_l.
@@ -671,7 +671,7 @@ Proof.
       apply H4 in H3 as [].
       specialize (H2 x).
       (*rewrite H3, bind_ret_l in H2.*)
-      exists (k0 x1). rewrite H in H2. split. { rewrite <- ctree_eta, H2. eapply t0_det_bind_ret_l; eauto. now left. }
+      exists (k0 x1). rewrite H in H2. split. { rewrite <- ctree_eta, H2. eapply epsilon_det_bind_ret_l; eauto. }
       left. exists tau, (x0 x), x1. split; auto. rewrite H1. etrans.
   - symmetry in H0. apply vis_equ_bind in H0 as ?. destruct H1 as [[] | (? & ? & ?)].
     + rewrite H1 in H0. rewrite bind_ret_l in H0.
@@ -687,13 +687,13 @@ Proof.
         inv_equ.
         rewrite <- EQ in *. rewrite bind_ret_l in H3.
         exists (k1 x).
-        rewrite H in H3. split. { rewrite <- ctree_eta, H3. eright; eauto. eleft; auto. }
+        rewrite H in H3. split. { rewrite <- ctree_eta, H3. eright; eauto. }
         right.
         exists x0. rewrite H1. split; etrans.
         setoid_rewrite (ctree_eta (k0 x0)). setoid_rewrite Heqc. split.
         { setoid_rewrite interp_vis. rewrite H5. setoid_rewrite bind_vis.
           econstructor. rewrite bind_ret_l. rewrite <- H3, <- ctree_eta. reflexivity. }
-        eapply transi_obs; etrans. 2: { rewrite H5. etrans. } now left.
+        eapply transi_obs; etrans. rewrite H5. etrans.
       * rewrite interp_br in H0. setoid_rewrite bind_br in H0.
         step in H0. inv H0.
     + pose proof (trans_vis e x x0).
@@ -702,7 +702,7 @@ Proof.
       apply H4 in H3 as [].
       specialize (H2 x).
       exists (k0 x1). rewrite H in H2. split.
-      { rewrite <- ctree_eta, H2. eapply t0_det_bind_ret_l; eauto. now left. }
+      { rewrite <- ctree_eta, H2. eapply epsilon_det_bind_ret_l; eauto. }
       left. exists (obs e x), (x0 x), x1. split; auto. rewrite H1. etrans.
      - exists (stuckD). split.
        + left.
@@ -719,7 +719,7 @@ Lemma trans_interpE_inv {E F B X} {Stuck: B0 -< B} {Tau: B1 -< B}
   (h : E ~> ctree F B) (Hh : forall X e, vsimple (h X e)) :
   forall l (t : ctree E B X) t',
   trans l (interp h t) t' ->
-  exists l t0, t0_det t' (interp h t0) /\ transi h l t t0.
+  exists l t0, epsilon_det t' (interp h t0) /\ transi h l t t0.
 Proof.
   intros.
    assert (trans l (Guard (Ret tt);; interp h t) t').
@@ -791,8 +791,8 @@ Proof.
     split; auto.
     assert (st eq R (interp h x) (interp h x0)).
     { apply CH'. apply H4. }
-    rewrite sbisim_t0_det. 2: apply H0.
-    setoid_rewrite sbisim_t0_det at 3. 2: apply H5.
+    rewrite sbisim_epsilon_det. 2: apply H0.
+    setoid_rewrite sbisim_epsilon_det at 3. 2: apply H5.
     apply H6.
 Qed.
 
