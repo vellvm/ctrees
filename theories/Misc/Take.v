@@ -9,10 +9,8 @@ A generalization of [head]
 
 From ITree Require Import Core.Subevent.
 From CTree Require Import
-     CTree Eq.
-
-Import CTree CTreeNotations.
-Open Scope ctree_scope.
+     CTree
+     Eq.
 
 Set Implicit Arguments.
 Set Contextual Implicit.
@@ -44,43 +42,90 @@ Notation take_ n t :=
     end
   end.
 
+
+(*| Re-attach heads after [take] |*)
+(* Definition flatten {E C X} (u: ctree E C (ctree E C X)) :=
+  CTree.bind u (fun x => x).
+ *)
+Notation flatten u := (CTree.bind u (fun x => x)) (only parsing).
+
 Lemma unfold_take {E C X} : forall (n: nat) (t : ctree E C X),
     take n t ≅ take_ n t.
 Proof.
-  intro n; induction n; intros; now step.
+  intro n; induction n; intro; step; eauto.
 Qed.
 
 (*| Taking 0 visible steps returns the unchanged ctree |*)
-Lemma equ_take_0 {E C X} : forall (t u: ctree E C X),
-    (take 0 t) ≅ Ret t.
+Lemma take_0_ret {E C X} : forall (t: ctree E C X),
+    take 0 t ≅ Ret t.
 Proof.
   setoid_rewrite unfold_take; reflexivity.
-Qed.  
+Qed.
 
-(* LEF: This proof is educational -- even though
-   [take] in inductive on [n] the coinductive hypothesis
-   CIH is enough and we do not need to explicitly induct on [n].
-   We do need to generalize [n] prior to coinduction *)
-#[global] Instance equ_eq_take_proper {E C X} n:
+(* Nice educational proof *)
+#[global] Instance equ_eq_take_proper {E C X n}:
   Proper (equ eq ==> equ (equ eq)) (@take E C X n).
 Proof.
   unfold Proper, respectful.
   revert n.  
   coinduction ? ?.
   intro n; destruct n; intros.
-  - rewrite !equ_take_0; auto; now econstructor.
+  - rewrite !take_0_ret; auto; now econstructor.
   - rewrite !unfold_take; step in H0; inv H0.
     + now constructor.
     + constructor; intros; auto.
     + destruct b; econstructor; auto. 
 Qed.
-        
-Lemma trans_take_cong{E C X} `{B0 -< C}: forall n (t u: ctree E C X) l,
-    trans l t u -> 
-    trans l (take (S n) t) (take (S n) u).
+
+(* LEF: Must find a way to generalize [bind_equ_cong] to [equ (equ eq)] like here. *)
+#[global] Instance bind_equ_equ_cong :
+  forall (E B : Type -> Type) (X Y : Type) (R : rel Y Y) RR,
+    Proper (equ (equ (@eq X)) ==> pointwise_relation (ctree E B X) (et R RR) ==> et R RR) (@CTree.bind E B (ctree E B X) Y).
 Proof.
-  intros.
-  induction H0; eauto.
-  setoid_rewrite unfold_take.
-  
+  repeat red; cbn; intros.
+  eapply et_clo_bind; eauto.
 Admitted.
+
+Lemma take_flatten_id {E C X}: forall n (t: ctree E C X),
+    flatten (take n t) ≅ t.
+Proof.
+  Opaque take.
+  coinduction ? CIH; intros; destruct n.
+  - rewrite take_0_ret, bind_ret_l; auto.
+  - rewrite (ctree_eta t); rewrite unfold_take; desobs t; cbn.
+    + now rewrite bind_ret_l.
+    + rewrite bind_vis.
+      now econstructor.
+    + destruct vis; rewrite bind_br; econstructor; intros; eauto.
+Qed.
+
+(* This is the [Ret (Ret x)] on RHS *)
+Lemma trans_take_Sn_val_inv {E C X} `{B0 -< C}: forall (t: ctree E C X) (u: ctree E C (ctree E C X)) (v: ctree E C X) n,
+  trans (val v) (take (S n) t) u ->
+  exists x, v ≅ Ret x /\ trans (val x) t stuckD /\ u ≅ stuckD.
+Proof.
+  intros t u v n TR.
+  (* The TR induction magic trick *)
+  unfold trans, transR in TR;
+    cbn in TR.
+  match goal with
+  | [ H: trans_ _ ?a ?b |- _ ] =>
+      remember a as oa;
+      remember b as ob
+  end.
+  revert n u t Heqoa Heqob.
+  induction TR; intros; eauto; subst.
+  - subst; eapply IHTR with (n:=n); eauto; desobs t0; cbn in *; eauto. 
+Admitted.
+
+Lemma trans_take_Sn {E C X} `{B0 -< C}: forall
+    (t: ctree E C X) (u: ctree E C (ctree E C X)) l n,
+    trans l t (flatten u) ->
+    trans l (take (S n) t) u.
+Proof.
+  Opaque take.  
+  intros * TR.
+  induction TR; try now inv Heqob.
+  - eapply IHTR.
+Admitted.
+

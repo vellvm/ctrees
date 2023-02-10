@@ -13,65 +13,24 @@ From CTree Require Import
      Eq.Equ
      Eq.Trans
      Interp.Fold
-     Interp.FoldStateT
      Misc.Vectors
      Core.Utils.
-
-From ExtLib Require Import
-     Monad
-     Functor.
-
-From RelationAlgebra Require Import
-     monoid
-     kat
-     kat_tac
-     prop
-     rel
-     srel
-     comparisons
-     rewriting
-     normalisation.
 
 Local Open Scope fin_vector_scope.
   
 Set Implicit Arguments.
 
 (*| Unique thread identifiers |*)
-Notation uid := fin.
+Notation id n := (fin (S n)).
+
 (*| Thread IDs are a product of an effect [E] with a [uid] |*)
-Variant Uid (n: nat) (E: Type -> Type) : Type -> Type :=
-  | Frame {X} (e: E X) (i: uid n): Uid n E X.
+Variant switchE (n: nat): Type -> Type :=
+  | Process (i: id n): switchE n unit.
 
-Arguments Frame {n} {E} {X}.
+Arguments Process {n}.
 
-Definition single{E: Type -> Type}: E ~> Uid 1 E :=
-  fun R e => Frame e F1.
-
-Definition forget{n: nat}{E: Type -> Type}: Uid n E ~> E :=
-  fun R e => match e return (E _) with Frame e i => e end.
-
-(* Every ctree with no thread identifiers can be injected in the single-threaded ctree *)
-Definition inj_single {E C: Type -> Type}{X: Type}(t: ctree E C X): ctree (Uid 1 E) C X :=
-  translate single t.
-
-Section N.
-  Context {n: nat}.
-  (* Can forget thread identifiers in order to interpret trees *)
-  Definition inj_forget {E C: Type -> Type}{X: Type}(t: ctree (Uid n E) C X): ctree E C X :=
-    translate forget t.
-
-  Definition fold_n {E B M : Type -> Type}
-             {FM : Functor M} {MM : Monad M} {IM : MonadIter M}
-             (h : E ~> M) (g : bool -> B ~> M) :
-    ctree (Uid n E) B ~> M := fold (fun R e => @h R (forget e)) g.
-
-  Definition interp_n {E B M : Type -> Type}
-             {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {BM : MonadBr B M}
-             (h : E ~> M) := fold_n h (fun b _ c => mbr b c).
-
-End N.    
-
-Arguments fold_n {n E B M FM MM IM} h g [T].
-Arguments interp_n {n E B M FM MM IM BM} h [T].
+Definition switch {n E C} `{switchE n -< E} (i: id n): ctree E C unit :=
+  trigger (Process i).
 
 
+ 
