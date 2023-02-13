@@ -140,6 +140,18 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       intros ** ?. inversion H; inv_equ.
     Qed.
 
+    Lemma productive_bind : forall {E C X Y} t (k : Y -> ctree E C X), productive (t >>= k) -> productive t.
+    Proof.
+      intros. inversion H; inv_equ; subst.
+      - apply ret_equ_bind in EQ as (? & ? & ?). subs. now eapply prod_ret.
+      - apply vis_equ_bind in EQ as [(? & ?) | (? & ? & ?)]; subs.
+        + now eapply prod_ret.
+        + now eapply prod_vis.
+      - apply br_equ_bind in EQ as [(? & ?) | (? & ? & ?)]; subs.
+        + now eapply prod_ret.
+        + now eapply prod_tau.
+    Qed.
+
   End productive_theory.
 
   #[global] Hint Constructors productive : trans.
@@ -270,6 +282,42 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       - rewrite <- H1 in EQ. step in EQ. inv EQ.
       - now rewrite H3.
       - rewrite <- H1 in EQ. step in EQ. inv EQ.
+    Qed.
+
+    Lemma epsilon_transitive {E C X} : forall (t u v : ctree E C X),
+      epsilon t u -> epsilon u v -> epsilon t v.
+    Proof.
+      intros. red in H.
+      rewrite (ctree_eta t). rewrite (ctree_eta u) in H0.
+      genobs t ot. genobs u ou. clear t Heqot u Heqou.
+      revert v H0. induction H; intros.
+      - subs. apply H0.
+      - setoid_rewrite <- ctree_eta in IHepsilon_.
+        eright. now apply IHepsilon_.
+    Qed.
+
+    Lemma epsilon_bind_l {E C X Y} : forall t t' (k : Y -> ctree E C X),
+      epsilon t t' -> epsilon (t >>= k) (t' >>= k).
+    Proof.
+      intros. setoid_rewrite (ctree_eta t). setoid_rewrite (ctree_eta t').
+      red in H. genobs t ot. genobs t' ot'. clear t Heqot t' Heqot'.
+      induction H.
+      - subs. reflexivity.
+      - rewrite bind_br. eright. rewrite (ctree_eta (k0 x)). apply IHepsilon_.
+    Qed.
+
+    Lemma epsilon_bind_ret {E C X Y} : forall t (k : Y -> ctree E C X) v,
+      epsilon t (Ret v) -> epsilon (t >>= k) (k v).
+    Proof.
+      intros. rewrite <- (bind_ret_l v k).
+      now apply epsilon_bind_l.
+    Qed.
+
+    Lemma epsilon_bind {E C X Y} : forall t u (k : Y -> ctree E C X) v,
+      epsilon t (Ret v) -> epsilon (k v) u -> epsilon (t >>= k) u.
+    Proof.
+      intros. eapply epsilon_bind_ret in H.
+      eapply epsilon_transitive; eassumption.
     Qed.
 
     Lemma epsilon_det_epsilon {E C X} `{Stuck: B0 -< C} `{Tau: B1 -< C} : forall (t t' : ctree E C X),
