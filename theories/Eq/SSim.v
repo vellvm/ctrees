@@ -971,8 +971,8 @@ Section Proof_Rules.
 Inversion principles
 --------------------
 |*)
-  Lemma ssim_ret_inv {F D} {L: rel (label E) (label F)} `{HasStuck': B0 -< D} (r1 r2 : X) :
-    ssim L (Ret r1 : ctree E C X) (Ret r2 : ctree F D X) ->
+  Lemma ssim_ret_inv {F D Y} {L: rel (label E) (label F)} `{HasStuck': B0 -< D} (r1 : X) (r2 : Y) :
+    ssim L (Ret r1 : ctree E C X) (Ret r2 : ctree F D Y) ->
     L (val r1) (val r2).
   Proof.
     intro.

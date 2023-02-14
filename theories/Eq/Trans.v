@@ -96,6 +96,16 @@ least annoying solution.
   Variant is_val : label -> Prop :=
     | Is_val : forall X (x : X), is_val (val x).
 
+  Lemma is_val_tau : ~ is_val tau.
+  Proof.
+    intro H. inversion H.
+  Qed.
+
+  Lemma is_val_obs {X} (e : E X) x : ~ is_val (obs e x).
+  Proof.
+    intro H. inversion H.
+  Qed.
+
   (*|
 The transition relation over [ctree]s.
 It can either:
@@ -1703,5 +1713,10 @@ Create HintDb trans.
  trans_brS41 trans_brS42 trans_brS43 trans_brS44
  trans_trigger trans_bind_l trans_bind_r
   : trans.
+
+#[global] Hint Constructors is_val : trans.
+#[global] Hint Resolve
+  is_val_tau is_val_obs
+  wf_val_val wf_val_nonval wf_val_trans : trans.
 
 Ltac etrans := eauto with trans.

@@ -14,7 +14,7 @@ Open Scope monad_scope.
 
 Variant pureb {E C X} (rec : ctree E C X -> Prop) : ctree' E C X -> Prop :=
   | pure_ret   (v : X) : pureb rec (RetF v)
-  | pure_delay (c: C X) k (REC: forall v, rec (k v)) : pureb rec (BrDF c k).
+  | pure_delay {Y} (c: C Y) k (REC: forall v, rec (k v)) : pureb rec (BrDF c k).
 #[global] Hint Constructors equb: core.
 
 Definition pureb_ {E C X} rec (t : ctree E C X) := pureb rec (observe t).

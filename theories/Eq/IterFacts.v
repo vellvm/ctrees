@@ -166,8 +166,7 @@ Proof.
   apply trans_iter_gen in H1.
   revert t' H0. induction H1; intros.
   - step in H2. apply H2 in H0 as (? & ? & ? & ? & ?).
-    apply HL0 in H4.
-    2: apply wf_val_val. 2: now apply wf_val_trans in H0.
+    apply HL0 in H4; etrans.
     apply update_val_rel_val_l in H4 as (? & -> & ?).
     apply trans_val_inv in H0 as ?. rewrite H5 in H0. clear x0 H3 H5.
     destruct x1. 2: { destruct H4. } cbn in H4.
@@ -180,18 +179,14 @@ Proof.
   - destruct H0 as (? & ? & ?).
     step in H1. apply H1 in H0 as (? & ? & ? & ? & ?). subst.
     exists x, (iter_gen step' x0).
-    apply HL0 in H5.
-    2: { eapply wf_val_nonval in H3. apply H3. }
-    2: now apply wf_val_trans in H0.
+    apply HL0 in H5; etrans.
     apply update_val_rel_nonval_l in H5 as []; auto.
     split; [| split]; auto.
     + apply trans_bind_l; auto.
     + rewrite H2. apply CH; auto.
   - subst.
     step in H3. apply H3 in H0 as (? & ? & ? & ? & ?). subst.
-    apply HL0 in H4.
-    2: apply wf_val_val.
-    2: now apply wf_val_trans in H0.
+    apply HL0 in H4; etrans.
     apply update_val_rel_val_l in H4 as (? & -> & ?).
     apply trans_val_inv in H0 as ?. rewrite H5 in H0. clear x0 H1 H5.
     destruct x1. 1: { destruct H4. } cbn in H4.

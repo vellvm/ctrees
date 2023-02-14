@@ -132,16 +132,17 @@ Qed.
 
 (* This instance allows to use the symmetric tactic from coq-coinduction
    for homogeneous bisimulations *)
-#[global] Instance sbisim_eq_sym {E C X} `{HasStuck : B0 -< C} :
-  Sym_from converse (@sb E E C C X X _ _ eq) (@ss E E C C X X _ _ eq).
+#[global] Instance sbisim_eq_sym {E C X L} `{HasStuck : B0 -< C} :
+  Symmetric L ->
+  Sym_from converse (@sb E E C C X X _ _ L) (@ss E E C C X X _ _ L).
 Proof.
-  split; intro.
+  intros SYM. split; intro.
   - destruct H. split.
     + apply H.
-    + cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?). eauto.
+    + cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?). apply SYM in H3. eauto.
   - destruct H. split.
     + apply H.
-    + cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?). eauto.
+    + cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?). apply SYM in H3. eauto.
 Qed.
 
 Module SBisimNotations.

@@ -125,7 +125,7 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       cbn. intros. rewrite <- H in H0. apply H0.
     Qed.
 
-    Hint Constructors productive : trans.
+    #[local] Hint Constructors productive : trans.
 
     Lemma ctree_case_productive : forall {E C X} (t: ctree E C X),
       productive t \/ exists X (c : C X) k, t ≅ BrD c k.
@@ -373,3 +373,5 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
     Qed.
 
   End epsilon_theory.
+
+#[global] Hint Resolve epsilon_trans : trans.
