@@ -56,7 +56,7 @@ Proof.
 Qed.
 
 (*| Taking 0 visible steps returns the unchanged ctree |*)
-Lemma take_0_ret {E C X} : forall (t: ctree E C X),
+Lemma unfold_0_take {E C X} : forall (t: ctree E C X),
     take 0 t ≅ Ret t.
 Proof.
   setoid_rewrite unfold_take; reflexivity.
@@ -70,7 +70,7 @@ Proof.
   revert n.  
   coinduction ? ?.
   intro n; destruct n; intros.
-  - rewrite !take_0_ret; auto; now econstructor.
+  - rewrite !unfold_0_take; auto; now econstructor.
   - rewrite !unfold_take; step in H0; inv H0.
     + now constructor.
     + constructor; intros; auto.
@@ -91,7 +91,7 @@ Lemma take_flatten_id {E C X}: forall n (t: ctree E C X),
 Proof.
   Opaque take.
   coinduction ? CIH; intros; destruct n.
-  - rewrite take_0_ret, bind_ret_l; auto.
+  - rewrite unfold_0_take, bind_ret_l; auto.
   - rewrite (ctree_eta t); rewrite unfold_take; desobs t; cbn.
     + now rewrite bind_ret_l.
     + rewrite bind_vis.

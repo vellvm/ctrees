@@ -115,3 +115,41 @@ Proof.
     constructor. intros _.
     apply CH. apply REL.
 Qed.
+
+(** [translate] lemmas *)
+
+(** Unfolding of [translate]. *)
+Notation translate_ h t := (match observe t with
+                            | RetF x => Ret x
+                            | VisF e k => Vis (h _ e) (fun x => translate h (k x))
+                            | BrF b c k => Br b c (fun x => translate h (k x))
+                            end).
+(** Unfold lemma. *)
+Lemma unfold_translate {E F C X}(t: ctree E C X)(h: E ~> F):
+  translate h t ≅ translate_ h t.
+Proof.
+  intros; step; cbn; auto.
+Qed.
+
+Lemma translate_ret {E F C X}(x: X)(h: E ~> F):
+  @translate E F C h X (Ret x) ≅ Ret x.
+Proof. now rewrite unfold_translate. Qed.
+
+Lemma translate_vis {E F C X U} (e: E U)(k: U -> ctree E C X)(h: E ~> F):
+  @translate E F C h X (Vis e k) ≅ Vis (h _ e) (fun x => translate h (k x)).
+Proof. now rewrite unfold_translate. Qed.
+
+
+Lemma translate_br {E F C X U} b (c : C U) (k: _ -> ctree E C X)(h: E ~> F):
+  @translate E F C h X (Br b c k) ≅ Br b c (fun x => translate h (k x)).
+Proof. now rewrite unfold_translate. Qed.
+
+#[global] Instance translate_equ {E F C X} (h: E ~> F):
+  Proper (equ eq ==> equ eq) (@translate E F C h X).
+Proof.
+  cbn.
+  coinduction ? CIH.
+  intros * EQ; step in EQ.
+  rewrite 2 unfold_translate.
+  inv EQ; auto; constructor; intros; auto.
+Qed.

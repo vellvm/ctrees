@@ -163,10 +163,8 @@ Ltac fold_g :=
     | |- context[@eg_ ?E ?C ?X ?HS ?R ]      => fold (@eg E C X HS R)
     end.
 
-Ltac __coinduction_g R H :=
-  unfold ag, eg; apply_coinduction; fold_g; intros R H.
 
-Tactic Notation "__step_g" :=
+#[local] Tactic Notation "__step_g" :=
   match goal with
   | |- context[@ag ?E ?C ?X ?HasStuck ?p ?t ?q] =>
       unfold ag;
@@ -179,11 +177,7 @@ Tactic Notation "__step_g" :=
   | |- _ => step
   end.
 
-(* #[local] Tactic Notation "step" := __step_entails. *)
-#[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
-  __coinduction_g R H.
-
-Ltac __step_in_g H :=
+#[local] Ltac __step_in_g H :=
   match type of H with
   | context [@ag ?E ?C ?X ?HasStuck ] =>
       unfold ag in H;
@@ -195,7 +189,17 @@ Ltac __step_in_g H :=
       fold (@eg E C X HasStuck) in H
   end.
 
-#[local] Tactic Notation "step" "in" ident(H) := __step_in_g H.
+#[local] Ltac __coinduction_g R H :=
+  unfold ag, eg; coinduction R H; fold_g.
+
+(** Re-export [Eq.v] tactics *)
+#[global] Tactic Notation "step" :=
+  __step_g || step.
+#[global] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
+  __coinduction_g R H || coinduction R H.
+
+#[global] Tactic Notation "step" "in" ident(H) :=
+  __step_in_g H || step_in H.
 
 Section Lemmas.
   Arguments label: clear implicits.
@@ -209,7 +213,7 @@ Section Lemmas.
 
   (*| Bot is False |*)
   Lemma ctl_bot:
-    ~ (t, l |= Bot).
+    ~ (t , l |= Bot).
   Proof.
     intro CONTRA.
     apply CONTRA.    
@@ -233,7 +237,8 @@ Section Lemmas.
       E[φ U ψ] ≡ ψ ∨ (φ ∧ EX E[φ U ψ])
    *)
   Lemma ctl_af_ax: forall p,
-      t,l |= AF p <-> t,l |= p ||| AX (AF p).
+      t,l |= AF p <->
+        t,l |= p ||| AX (AF p).
   Proof.
     split; intros; inv H.
     - now left.
@@ -376,7 +381,20 @@ Section Congruences.
         exists l', t'; split; trivial.
         now rewrite EQ.
   Qed.
-  
+
+  (*| Up-to-ag enhancing function |*)
+  Variant ag_clos_body {SP} `{B0 -< C}(R : rel (ctree E C X) (label E)) :
+    rel (ctree E C X) (label E) :=
+    | Ag_clos : forall t t' l l'
+                  (Agt : (AG SP) t l)
+                  (HR : R t' l')
+                  (Agu : (AG SP) t' l'),
+        ag_clos_body R t' l'.
+
+  Program Definition ag_clos {SP} `{B0 -< C}: mon (rel (ctree E C X) (label E)) :=
+    {| body := @ag_clos_body SP _ |}.
+  Next Obligation. destruct H1; econstructor; eauto. Qed.
+
   #[global] Instance proper_ag_equ (P: SP) {HasStuck: B0 -< C}
    {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}:
     Proper (@equ E C X X eq ==> eq ==> iff) (AG P).
@@ -396,6 +414,16 @@ Section Congruences.
       now apply H0.
   Qed. 
 
+  #[global] Instance proper_t_ag_equ (P: SP) {HasStuck: B0 -< C}
+   {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}
+   {R: rel (ctree E C X) (label E) -> rel (ctree E C X) (label E)}:
+    Proper (@equ E C X X eq ==> eq ==> iff) ((t ag_) R P).
+  Proof.
+    (* LEF: Need up-to-ag to prove this? *)
+    unfold Proper, respectful, impl; cbn.
+    intros x y EQ ? l <-; split; intro G; step; econstructor.    
+  Admitted.
+  
   #[global] Instance proper_eg_equ (P: SP) {HasStuck: B0 -< C}
    {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}:
     Proper (@equ E C X X eq ==> eq ==> iff) (EG P).
@@ -456,3 +484,25 @@ Section Congruences.
   Qed.    
   
 End Congruences.
+ 
+Lemma ctl_af_guard{E C X}`{B0 -< C}`{B1 -< C}: forall (t: ctree E C X) (l: @label E) p,
+  t, l |= AF (lift p) <-> Guard t, l |= AF (lift p).
+Proof.
+  split; intros; inv H1; apply ctl_af_ax.
+  - left; now unfold lift in *.
+  - right; unfold ax; intros.
+    apply trans_guard_inv in H1.
+    apply H3 in H1.
+    eauto.
+  - left; now unfold lift in *.
+  - right; unfold ax; intros.
+    apply H3.
+    now apply trans_guard.
+Qed.
+
+Lemma ctl_t_ag_af_guard{E C X}`{B0 -< C}`{B1 -< C}
+      `{R: rel (ctree E C X) (@label E) -> rel (ctree E C X) (@label E)}
+  : forall (x: ctree E C X) (l: @label E) p,
+  x, l |= ((t ag_) R (AF (lift p))) <-> Guard x, l |= ((t ag_) R (AF (lift p))).
+Proof.
+Admitted.
