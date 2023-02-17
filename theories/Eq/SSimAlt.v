@@ -84,13 +84,13 @@ Section ssim'_theory.
       + eapply (f_Tf (ss' L)). econstructor. 2: apply H0. all: auto.
   Qed.
 
-  #[global] Instance ssim'_foo : Proper (equ eq ==> equ eq ==> flip impl) (@ssim' E F C D X Y _ _ L).
+  #[global] Instance equ_clos_ssim'_goal : Proper (equ eq ==> equ eq ==> flip impl) (@ssim' E F C D X Y _ _ L).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (ft_t equ_clos_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
-  #[global] Instance ssim'_foo' : Proper (equ eq ==> equ eq ==> impl) (@ssim' E F C D X Y _ _ L).
+  #[global] Instance equ_clos_ssim'_ctx : Proper (equ eq ==> equ eq ==> impl) (@ssim' E F C D X Y _ _ L).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     now rewrite <- eq1, <- eq2.
@@ -313,6 +313,22 @@ Section ssim'_heterogenous_theory.
   Notation ssbt' L := (coinduction.bt (ss' L)).
   Notation ssT' L := (coinduction.T (ss' L)).
 
+  #[global] Instance equ_ss'_goal {RR} :
+    Proper (equ eq ==> equ eq ==> flip impl) (ss' L RR).
+  Proof.
+    split; intros; subs.
+    - destruct H1 as [? _]. apply H in H3; auto.
+      destruct H3 as (? & ? & ? & ? & ? & ? & ?). eexists _, _, _. subs. etrans.
+    - destruct H1 as [_ ?]. symmetry in H. eapply H1 in H. destruct H as (? & ? & ?).
+      eexists. subs. etrans.
+  Qed.
+
+  #[global] Instance equ_ss'_ctx {RR} :
+    Proper (equ eq ==> equ eq ==> impl) (ss' L RR).
+  Proof.
+    do 4 red. intros. now rewrite <- H, <- H0.
+  Qed.
+
 (*|
    Strong simulation up-to [equ] is valid
    ----------------------------------------
@@ -379,20 +395,6 @@ Section ssim'_heterogenous_theory.
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
     apply (fT_T equ_clos_sst'); econstructor; [symmetry; eauto | | eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_clos_ssim'_goal :
-    Proper (equ eq ==> equ eq ==> flip impl) (ssim' L).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst'); econstructor; [eauto | | symmetry; eauto]; assumption.
-  Qed.
-
-  #[global] Instance equ_clos_ssim'_ctx :
-    Proper (equ eq ==> equ eq ==> impl) (ssim' L).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst'); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
 (*|
@@ -536,6 +538,16 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
+  Lemma step_ss'_vis_l {F D Y Z L R} `{HasB0 : B0 -< C} `{HasB0' : B0 -< D} :
+    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y),
+    (forall x, exists l' u', trans l' u u' /\ t (ss' L) R (k x) u' /\ L (obs e x) l') ->
+    ssbt' L R (Vis e k) u.
+  Proof.
+    intros. split; intros; [| inv_equ].
+    inv_trans. subst. destruct (H x) as (? & ? & ? & ? & ?).
+    eexists _, _, _. rewrite <- EQ in H2. etrans.
+  Qed.
+
   (*|
     Same goes for visible tau nodes.
     |*)
@@ -611,6 +623,16 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
+  Lemma step_ss'_brS_l {F D Y Z L R} `{HasB0 : B0 -< C} `{HasB0' : B0 -< D} :
+    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y),
+    (forall x, exists l' u', trans l' u u' /\ sst' L R (k x) u' /\ L tau l') ->
+         ssbt' L R (BrS c k) u.
+  Proof.
+    intros. split; intros; [| inv_equ].
+    inv_trans. subst. destruct (H x) as (? & ? & ? & ? & ?).
+    eexists _, _, _. rewrite <- EQ in H2. etrans.
+  Qed.
+
   (*|
     With this definition [ss'] of simulation, delayed nodes allow to perform a coinductive step.
     |*)
@@ -651,6 +673,25 @@ Section Proof_Rules.
     intros. eapply step_ss'_brD_r_gen. apply H.
   Qed.
 
+  Lemma step_ss'_epsilon_r_gen : forall {F D Y} `{HasB0': B0 -< D}
+    L (t : ctree E C X) (u u' : ctree F D Y) (R : rel _ _),
+    ss' L R t u' -> epsilon u u' -> ss' L R t u.
+  Proof.
+    intros. red in H0. rewrite (ctree_eta u). rewrite (ctree_eta u') in H.
+    genobs u ou. genobs u' ou'. clear u Heqou u' Heqou'.
+    revert t H. induction H0; intros.
+    - now subs.
+    - apply IHepsilon_ in H. rewrite <- ctree_eta in H.
+      eapply step_ss'_brD_r_gen. apply H.
+  Qed.
+
+  Lemma step_ss'_epsilon_r : forall {F D Y} `{HasB0': B0 -< D}
+    L (t : ctree E C X) (u u' : ctree F D Y) (R : rel _ _),
+    ssbt' L R t u' -> epsilon u u' -> ssbt' L R t u.
+  Proof.
+    intros. eapply step_ss'_epsilon_r_gen. apply H. apply H0.
+  Qed.
+
   Lemma step_ss'_brD_gen {Y F D n m} `{HasStuck': B0 -< D} (a: C n) (b: D m)
     (k : n -> ctree E C X) (k' : m -> ctree F D Y) (R L : rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
@@ -688,6 +729,23 @@ Section Proof_Rules.
     apply step_ss'_brD_id_gen. typeclasses eauto.
   Qed.
 
+  Lemma step_ss'_guard_l_gen {Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C} `{HasTau': B1 -< D}
+        (t: ctree E C X) (t': ctree F D Y) (R L: rel _ _):
+    (Proper (equ eq ==> equ eq ==> impl) R) ->
+    R t t' ->
+    ss' L R (Guard t) t'.
+  Proof.
+    intros. apply step_ss'_brD_l_gen; auto.
+  Qed.
+
+  Lemma step_ss'_guard_l {Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C} `{HasTau': B1 -< D}
+        (t: ctree E C X) (t': ctree F D Y) (R L: rel _ _):
+    sst' L R t t' ->
+    ssbt' L R (Guard t) t'.
+  Proof.
+    apply step_ss'_guard_l_gen. typeclasses eauto.
+  Qed.
+
   Lemma step_ss'_guard_gen {Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C} `{HasTau': B1 -< D}
         (t: ctree E C X) (t': ctree F D Y) (R L: rel _ _):
     (Proper (equ eq ==> equ eq ==> impl) R) ->
@@ -704,31 +762,6 @@ Section Proof_Rules.
   Proof.
     apply step_ss'_guard_gen. typeclasses eauto.
   Qed.
-
-
-  (*Lemma ssbt_vis_inv {F D Y X1 X2} {L: rel (label E) (label F)} `{HasStuck': B0 -< D}
-    (e1 : E X1) (e2 : F X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree F D Y) (x : X1) R:
-    ssbt L R (Vis e1 k1) (Vis e2 k2) ->
-    (exists y, L (obs e1 x) (obs e2 y))  /\ (forall x, exists y, sst L R (k1 x) (k2 y)).
-  Proof.
-    intros.
-    split; intros; edestruct H as (? & ? & ? & ? & ?);
-      etrans; subst;
-      inv_trans; subst; eexists; auto.
-    - now eapply H2.
-    - now apply H1.
-  Qed.
-
-  Lemma ss_brD_l_inv {F D Y} {L: rel (label E) (label F)} `{HasStuck': B0 -< D}
-        n (c: C n) (t : ctree F D Y) (k : n -> ctree E C X) R:
-    ss L R (BrD c k) t ->
-    forall x, ss L R (k x) t.
-  Proof.
-    cbn. intros.
-    eapply trans_brD in H0; [| reflexivity].
-    apply H in H0 as (? & ? & ? & ? & ?); subst.
-    eauto.
-     Qed.*)
 
 End Proof_Rules.
 

@@ -134,6 +134,12 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       destruct vis; etrans.
     Qed.
 
+    Lemma productive_br {E C X Y} : forall vis c (k : Y -> ctree E C X),
+      productive (Br vis c k) -> vis = true.
+    Proof.
+      intros. inv H; inv_equ. reflexivity.
+    Qed.
+
     Lemma productive_brD : forall {E C X Y} (c : C Y) (k : Y -> ctree E C X),
       ~ productive (BrD c k).
     Proof.
@@ -191,6 +197,22 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       Reflexive (@epsilon E C X).
     Proof.
       now left.
+    Qed.
+
+    Lemma epsilon_br {E C X Y} : forall (t' : ctree E C X) k (c : C Y) x,
+      epsilon (k x) t' -> epsilon (BrD c k) t'.
+    Proof.
+      intros. eright. apply H.
+    Qed.
+
+    Lemma epsilon_case {E C X} : forall (t t' : ctree E C X),
+      epsilon t t' ->
+      t ≅ t' \/ exists Y (c : C Y) k x, t ≅ BrD c k /\ epsilon (k x) t'.
+    Proof.
+      intros * EPS.
+      inversion EPS; [left | right].
+      - setoid_rewrite ctree_eta. now rewrite <- H, H1, H0.
+      - subst. exists X0, c, k, x. split; auto. now rewrite H, <- ctree_eta.
     Qed.
 
     Lemma epsilon_trans {E C X} `{Stuck: B0 -< C} : forall (t t' : ctree E C X),
@@ -370,6 +392,68 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
     Proof.
       intros. cbn. intros.
       step in H0. step. eapply ss_epsilon_r in H0; eauto.
+    Qed.
+
+    Lemma ssim_ret_epsilon {E F C D X Y L} `{HasB0: B0 -< C} `{HasB0': B0 -< D} :
+      forall r (u : ctree F D Y),
+      Respects_val L ->
+      (Ret r : ctree E C X) (≲L) u ->
+      exists r', epsilon u (Ret r') /\ L (val r) (val r').
+    Proof.
+      intros * RV SIM *.
+      step in SIM. specialize (SIM (val r) stuckD (trans_ret _)).
+      destruct SIM as (l' & u' & TR & _ & EQ).
+      apply RV in EQ as ?. destruct H as [? _]. specialize (H (Is_val _)). inv H.
+      apply trans_val_invT in TR as ?. subst.
+      apply trans_val_epsilon in TR as []. eauto.
+    Qed.
+
+    Lemma ssim_vis_epsilon {E F C D X Y Z L} `{HasB0: B0 -< C} `{HasB0': B0 -< D} :
+      forall e (k : Z -> ctree E C X) (u : ctree F D Y),
+      Respects_val L ->
+      Respects_tau L ->
+      Vis e k (≲L) u ->
+      forall x, exists Z' (e' : F Z') k' y, epsilon u (Vis e' k') /\ k x (≲L) k' y /\ L (obs e x) (obs e' y).
+    Proof.
+      intros * RV RT SIM *.
+      step in SIM. cbn in SIM. specialize (SIM (obs e x) (k x) (trans_vis _ _ _)).
+      destruct SIM as (l' & u'' & TR & SIM & EQ).
+      apply trans_epsilon in TR. destruct TR as (u' & EPS & PROD & TR).
+      destruct PROD.
+      1: {
+        subs. inv_trans. subst.
+        apply RV in EQ. destruct EQ as [_ ?]. specialize (H (Is_val _)). inv H.
+      }
+      2: {
+        subs. inv_trans. subst.
+        apply RT in EQ. destruct EQ as [_ ?]. specialize (H eq_refl). inv H.
+      }
+      subs. inv_trans. subst.
+      eexists _, _, _, _. etrans.
+    Qed.
+
+    Lemma ssim_brS_epsilon {E F C D X Y Z L} `{HasB0: B0 -< C} `{HasB0': B0 -< D} :
+      forall c (k : Z -> ctree E C X) (u : ctree F D Y),
+      Respects_tau L ->
+      L tau tau ->
+      BrS c k (≲L) u ->
+      forall x, exists Z' (c' : D Z') k' y, epsilon u (BrS c' k') /\ k x (≲L) k' y.
+    Proof.
+      intros * RT HL SIM *.
+      step in SIM. cbn in SIM. specialize (SIM tau (k x) (trans_brS _ _ _)).
+      destruct SIM as (l' & u'' & TR & SIM & EQ).
+      apply trans_epsilon in TR. destruct TR as (u' & EPS & PROD & TR).
+      destruct PROD.
+      1: {
+        subs. inv_trans. subst.
+        apply RT in EQ. destruct EQ as [? _]. specialize (H eq_refl). inv H.
+      }
+      1: {
+        subs. inv_trans. subst.
+        apply RT in EQ. destruct EQ as [? _]. specialize (H eq_refl). inv H.
+      }
+      subs. inv_trans. subst.
+      eexists _, _, _, _. etrans.
     Qed.
 
   End epsilon_theory.

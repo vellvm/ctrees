@@ -377,6 +377,16 @@ Section bind.
   | update_NonVal l1 l2 : ~is_val l1 -> ~is_val l2 -> L l1 l2 -> update_val_rel l1 l2
   .
 
+  Lemma update_val_rel_val : forall (v1 : X) (v2 : Y),
+    update_val_rel (val v1) (val v2) ->
+    R0 v1 v2.
+  Proof.
+    intros. remember (val v1) as l1. remember (val v2) as l2.
+    destruct H.
+    - apply val_eq_inv in Heql1, Heql2. now subst.
+    - subst. exfalso. now apply H.
+  Qed.
+
   Lemma update_val_rel_val_l : forall (v1 : X) l2,
     update_val_rel (val v1) l2 ->
     exists v2 : Y, l2 = val v2 /\ R0 v1 v2.
