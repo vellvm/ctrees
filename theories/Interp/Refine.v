@@ -47,11 +47,11 @@ Definition refine' {E C M : Type -> Type}
 #[global] Instance MonadBr_subevent_l : forall {E B B'}, MonadBr B (ctree E (B +' B')).
 Proof.
   red. intros. eapply MonadBr_ctree; eauto.
-  Unshelve. typeclasses eauto.
+  Unshelve. now left.
 Defined.
 #[global] Instance MonadBr_stateT_subevent_l : forall {E B B' St}, MonadBr B (stateT St (ctree E (B +' B'))).
 Proof.
-  info_eauto with typeclass_instances.
+  typeclasses eauto.
 Defined.
 
 Definition refine'_state {E C D St} (f : C ~> stateT St (ctree E (B01 +' D))) :
@@ -87,7 +87,7 @@ Proof.
     step. apply step_ss'_guard_l. apply CH.
   - unfold mbr, MonadBr_subevent_l, MonadBr_ctree. destruct c.
     + setoid_rewrite bind_branch. destruct vis.
-      * apply step_ss'_brS_id; auto. intros. exists x.
+      * apply step_ss'_brS_id; auto. intros.
         step. apply step_ss'_guard_l. apply CH.
       * apply step_ss'_brD_id. intros.
         step. apply step_ss'_guard_l. apply CH.
@@ -95,7 +95,7 @@ Proof.
       change (Br vis (inr1 b) k) with ((fun _ => Br vis (inr1 b) k) tt).
       setoid_rewrite <- bind_ret_l at 10.
       __upto_bind_ssim' (fun _ _ => True).
-      { rewrite <- ssim_ssim'. apply ssim_pure. apply H. intros. now constructor. }
+      { apply ssim_pure. apply H. intros. now constructor. }
       red. intros ? _ _. rewrite bind_bind, bind_branch.
       destruct vis.
       * apply step_ss'_brS; auto. intros _. exists x.
@@ -129,7 +129,7 @@ Proof.
     step. rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
   - unfold mbr, MonadBr_subevent_l, MonadBr_ctree. destruct c.
     + setoid_rewrite bind_branch. setoid_rewrite bind_br. destruct vis.
-      * apply step_ss'_brS_id; [| constructor]. intros. exists x.
+      * apply step_ss'_brS_id; [| constructor]. intros.
         step. setoid_rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
       * apply step_ss'_brD_id. intros.
         step. setoid_rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
@@ -137,7 +137,7 @@ Proof.
       change (Br vis (inr1 b) k) with ((fun _ => Br vis (inr1 b) k) tt).
       setoid_rewrite <- bind_ret_l at 12.
       __upto_bind_ssim' (fun _ _ => True).
-      { rewrite <- ssim_ssim'. apply ssim_pure. apply H. intros. now constructor. }
+      { apply ssim_pure. apply H. intros. now constructor. }
       red. intros ? _ _. rewrite bind_bind, bind_branch, bind_br.
       destruct vis.
       * apply step_ss'_brS; [| constructor]. intros ?. exists (snd x).
