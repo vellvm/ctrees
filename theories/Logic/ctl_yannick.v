@@ -224,6 +224,30 @@ Section From_CTree.
     : Kripke :=
     make_Kripke_of_LTS (LTS_of_ctree c) upd.
 
+  (* Recurrent case: τ transitions do not impact our observations *)
+  Variant lift
+    {O}
+    (upd_e : O -> {x : Type & E x & x} -> O -> Prop)
+    (upd_r : O -> {x : Type & x} -> O -> Prop) :
+    O -> @label E -> O -> Prop :=
+  | lupd_e {X} (e : E X) (x : X) o o' :
+    upd_e o (existT2 _ _ X e x) o' ->
+    lift upd_e upd_r o (obs e x) o'
+  | lupd_r {X} (x : X) o o' :
+    upd_r o (existT _ X x) o' ->
+    lift upd_e upd_r o (val x) o'
+  | lupd_τ o :
+    lift upd_e upd_r o tau o
+  .
+
+  Definition make_Kripke_of_ctree'
+    (c : computation)
+    (obs : Type)
+    (upd_e : obs -> {x : Type & E x & x} -> obs -> Prop)
+    (upd_r : obs -> {x : Type & x} -> obs -> Prop)
+    : Kripke :=
+    make_Kripke_of_ctree c (lift upd_e upd_r).
+
 End From_CTree.
 
 (** * Examples. *)
