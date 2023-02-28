@@ -724,7 +724,7 @@ Section Proof_Rules.
     apply step_ss'_brD_id_gen. typeclasses eauto.
   Qed.
 
-  Lemma step_ss'_guard_l_gen `{HasTau: B1 -< C} `{HasTau': B1 -< D}
+  Lemma step_ss'_guard_l_gen `{HasTau: B1 -< C}
         (t: ctree E C X) (t': ctree F D Y) (R Reps : rel _ _):
     (Proper (equ eq ==> equ eq ==> impl) Reps) ->
     Reps t t' ->
@@ -733,7 +733,7 @@ Section Proof_Rules.
     intros. apply step_ss'_brD_l_gen; auto.
   Qed.
 
-  Lemma step_ss'_guard_l `{HasTau: B1 -< C} `{HasTau': B1 -< D}
+  Lemma step_ss'_guard_l `{HasTau: B1 -< C}
         (t: ctree E C X) (t': ctree F D Y) (R : rel _ _):
     sst' L R t t' ->
     ssbt' L R (Guard t) t'.
