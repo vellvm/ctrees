@@ -11,7 +11,7 @@ From CTree Require Import
      CTree
      Utils
      Eq
-     (*Eq.Equg*).
+     Eq.SBisimAlt.
 
 Import CTree.
 Import CTreeNotations.
@@ -282,124 +282,132 @@ Proof.
   apply sbisim_iter_gen. apply H. apply H.
 Qed.
 
-(*Lemma iter_natural_ctree {E A B C} :
-  forall (f : A -> ctree E (A + B)) (g : B -> ctree E C) (a : A),
-  CTree.bind (CTree.iter f a) (fun y : B => g y)
+Lemma iter_natural_ctree {E C X Y Z} `{HasB1 : B1 -< C} :
+  forall (f : X -> ctree E C (X + Y)) (g : Y -> ctree E C Z) (a : X),
+  CTree.bind (CTree.iter f a) (fun y : Y => g y)
   ≅ CTree.iter
-    (fun x : A =>
+    (fun x : X =>
      CTree.bind (f x)
-       (fun ab : A + B =>
+       (fun ab : X + Y =>
         match ab with
-        | inl a => CTree.bind (Ret a) (fun a : A => Ret (inl a))
-        | inr b => CTree.bind (g b) (fun c : C => Ret (inr c))
+        | inl a => CTree.bind (Ret a) (fun x : X => Ret (inl x))
+        | inr b => CTree.bind (g b) (fun z : Z => Ret (inr z))
         end)) a.
 Proof.
   intros until g. unfold equ. coinduction R CH. intros.
   setoid_rewrite unfold_iter.
   rewrite !bind_bind. upto_bind_eq.
   destruct x.
-  - rewrite !bind_ret_l, bind_br. constructor. intros _.
+  - rewrite !bind_ret_l, bind_guard. constructor. intros _.
     apply CH.
   - rewrite bind_bind. setoid_rewrite bind_ret_l. rewrite bind_ret_r.
     reflexivity.
 Qed.
 
-Import EqugNotations.
-
-Lemma iter_dinatural_ctree_inner {E A B C} :
-  forall (f : A -> ctree E (B + C)) (g : B -> ctree E (A + C)) (a : A),
+Lemma iter_dinatural_ctree_inner {E C X Y Z} `{HasB0 : B0 -< C} `{HasB1 : B1 -< C} :
+  forall (f : X -> ctree E C (Y + Z)) (g : Y -> ctree E C (X + Z)) (x : X),
   iter
-    (fun x : A =>
+    (fun x : X =>
      CTree.bind (f x)
-       (fun bc : B + C =>
-        match bc with
-        | inl b => g b
-        | inr c => Ret (inr c)
-        end)) a
-  (G≅) CTree.bind (f a)
-      (fun bc : B + C =>
-       match bc with
-       | inl b =>
+       (fun yz : Y + Z =>
+        match yz with
+        | inl y => g y
+        | inr z => Ret (inr z)
+        end)) x
+  ~ CTree.bind (f x)
+      (fun yz : Y + Z =>
+       match yz with
+       | inl y =>
            Guard (iter
-             (fun b : B =>
-              CTree.bind (g b)
-                (fun ac : A + C =>
-                 match ac with
-                 | inl a => f a
-                 | inr c => Ret (inr c)
-                 end)) b)
-       | inr c => Ret c
+             (fun y : Y =>
+              CTree.bind (g y)
+                (fun xz : X + Z =>
+                 match xz with
+                 | inl x => f x
+                 | inr z => Ret (inr z)
+                 end)) y)
+       | inr z => Ret z
        end).
 Proof.
-  red. coinduction R CH. intros.
-  rewrite unfold_iter, bind_bind. __upto_bind_eq_equg.
-  destruct x.
-  2: { rewrite bind_ret_l. constructor. reflexivity. }
-  destruct (observe (g b)) eqn:?.
-  - setoid_rewrite (ctree_eta (g b)). rewrite Heqc.
+  intros. apply sbisim_sbisim'. red. revert x. coinduction R CH. intros.
+  rewrite unfold_iter, bind_bind.
+  apply sbt'_clo_bind with (R0 := eq) (L0 := eq).
+  { apply is_update_val_rel_eq. }
+  { reflexivity. }
+  intros. subst.
+  destruct y.
+  2: { rewrite bind_ret_l. reflexivity. }
+  destruct (observe (g y)) eqn:?.
+  - setoid_rewrite (ctree_eta (g y)). rewrite Heqc.
     rewrite bind_ret_l. destruct r.
-    + constructor. intros _.
+    + apply step_sb'_guard. intros.
       setoid_rewrite unfold_iter at 2.
-      rewrite (ctree_eta (g b)), Heqc, bind_ret_l.
+      rewrite (ctree_eta (g y)), Heqc, bind_ret_l.
       apply CH.
-    + eapply Eqg_GuardR. intros _. reflexivity.
-      rewrite equgb_fequg.
-      rewrite unfold_iter, bind_bind. assert (equ eq (g b) (Ret (inr c))). { rewrite ctree_eta, Heqc. reflexivity. } rewrite H, bind_ret_l, bind_ret_l. cbn. constructor. reflexivity.
-  - setoid_rewrite (ctree_eta (g b)). rewrite Heqc, bind_vis.
-    eapply Eqg_GuardR. intros _. reflexivity.
-    rewrite equgb_fequg.
-    rewrite unfold_iter, bind_bind, (ctree_eta (g b)), Heqc, bind_vis.
-    constructor. intros. __upto_bind_eq_equg. destruct x0.
-    + apply (ft_t utg_t). cbn. right.
-      apply CH.
-    + rewrite bind_ret_l. step. constructor. reflexivity.
-  - setoid_rewrite (ctree_eta (g b)). rewrite Heqc, bind_br.
-    eapply Eqg_GuardR. intros _. reflexivity.
-    rewrite equgb_fequg.
-    rewrite unfold_iter, bind_bind, (ctree_eta (g b)), Heqc, bind_br.
-    constructor. intros. __upto_bind_eq_equg. destruct x.
-    + apply (ft_t utg_t). right.
-      apply CH.
-    + rewrite bind_ret_l. step. constructor. reflexivity.
-Qed.
+    + apply step_sb'_guard_r. intros.
+      rewrite unfold_iter, bind_bind.
+      rewrite (ctree_eta (g y)), Heqc, !bind_ret_l. reflexivity.
+  - setoid_rewrite (ctree_eta (g y)). rewrite Heqc, bind_vis.
+    apply step_sb'_guard_r. intros.
+    rewrite unfold_iter, bind_bind, (ctree_eta (g y)), Heqc, bind_vis.
+    apply step_sb'_vis_id. intros.
+    split; auto. intros.
+    apply st'_clo_bind with (R0 := eq) (L0 := eq).
+    { apply is_update_val_rel_eq. }
+    { reflexivity. }
+    intros. subst. destruct y0.
+    + apply step_sb'_guard_l'. apply CH.
+    + rewrite bind_ret_l. reflexivity.
+  - setoid_rewrite (ctree_eta (g y)). rewrite Heqc, bind_br.
+    apply step_sb'_guard_r. intros.
+    rewrite unfold_iter, bind_bind, (ctree_eta (g y)), Heqc, bind_br.
+    destruct vis. (* TODO step_sb'_br_id *)
+    apply step_sb'_brS_id; auto. intros.
+    apply st'_clo_bind with (R0 := eq) (L0 := eq).
+    { apply is_update_val_rel_eq. }
+    { reflexivity. }
+    intros. subst. destruct y0.
+    + apply step_sb'_guard_l'. intros. apply CH.
+    + rewrite bind_ret_l. reflexivity.
+Admitted.
 
-Lemma iter_dinatural_ctree {E A B C} :
-  forall (f : A -> ctree E (B + C)) (g : B -> ctree E (A + C)) (a : A),
+Lemma iter_dinatural_ctree {E C X Y Z} `{HasB0 : B0 -< C} `{HasB1 : B1 -< C} :
+  forall (f : X -> ctree E C (Y + Z)) (g : Y -> ctree E C (X + Z)) (x : X),
   iter
-    (fun x : A =>
+    (fun x : X =>
      CTree.bind (f x)
-       (fun bc : B + C =>
-        match bc with
-        | inl b => g b
-        | inr c => Ret (inr c)
-        end)) a
-  ~ CTree.bind (f a)
-      (fun bc : B + C =>
-       match bc with
-       | inl b =>
+     (fun yz : Y + Z =>
+        match yz with
+        | inl y => g y
+        | inr z => Ret (inr z)
+        end)) x
+  ~ CTree.bind (f x)
+      (fun yz : Y + Z =>
+       match yz with
+       | inl y =>
            iter
-             (fun b : B =>
-              CTree.bind (g b)
-                (fun ac : A + C =>
-                 match ac with
-                 | inl a => f a
-                 | inr c => Ret (inr c)
-                 end)) b
-       | inr c => Ret c
+             (fun y : Y =>
+              CTree.bind (g y)
+                (fun xz : X + Z =>
+                 match xz with
+                 | inl x => f x
+                 | inr z => Ret (inr z)
+                 end)) y
+       | inr z => Ret z
        end).
 Proof.
   intros.
   rewrite unfold_iter, bind_bind. upto_bind_eq.
-  destruct x.
+  destruct x0.
   2: { rewrite bind_ret_l. reflexivity. }
   rewrite unfold_iter, bind_bind. upto_bind_eq.
-  destruct x.
+  destruct x0.
   2: { rewrite bind_ret_l. reflexivity. }
-  rewrite sb_guard. apply equg_sbisim. apply iter_dinatural_ctree_inner.
+  rewrite sb_guard. apply iter_dinatural_ctree_inner.
 Qed.
 
-Theorem iter_codiagonal_ctree {E A B} :
-  forall (f : A -> ctree E (A + (A + B))) (a : A),
+Theorem iter_codiagonal_ctree {E C A B} `{HasB1: B1 -< C} :
+  forall (f : A -> ctree E C (A + (A + B))) (a : A),
   iter (iter f) a
   ≅ iter
     (fun x : A =>
@@ -414,8 +422,8 @@ Proof.
   rewrite !unfold_iter.
   rewrite !bind_bind. upto_bind_eq.
   destruct x.
-  - rewrite bind_ret_l, bind_br. constructor. intros _.
+  - rewrite bind_ret_l, bind_guard. constructor. intros _.
     rewrite <- unfold_iter. apply CH.
   - rewrite !bind_ret_l. destruct s; [| reflexivity ].
     constructor. intros _. apply CH.
-Qed.*)
+Qed.
