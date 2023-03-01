@@ -71,17 +71,14 @@ Proof.
   - rewrite bind_trigger. apply step_ss_vis; auto. intros [].
     exists tt. split; auto.
     step. apply step_ss_brD_r with (x := true).
-    upto_bind_eq.
-    apply val_eq_inv in EQl; subst.
-    apply step_ss_vis.
-    intros []; exists tt; auto.
+    apply ssbt_clo_bind_eq. reflexivity. intros _.
+    apply step_ss_vis_id. auto.
   - rewrite bind_trigger.
     apply step_ss_vis; auto; intros []; exists tt; split; auto.
     step.
     apply step_ss_brD_r with (x := false).
-    upto_bind_eq.
-    apply step_ss_vis; intros []; exists tt.
-    auto.
+    apply ssbt_clo_bind_eq. reflexivity. intros _.
+    apply step_ss_vis_id. auto.
 Qed.
 
 Tactic Notation "play" "using" tactic(tac) :=
@@ -101,7 +98,7 @@ Proof.
     destruct s.
     2: play; now step.
     setoid_rewrite bind_ret_l in H.
-    play in H. destruct x2; inv_trans; subst.
+    play in H. destruct x1; inv_trans; subst.
     + play using (apply trans_brD21; etrans).
       step. play.
       step. destruct s; auto. play in H. play.

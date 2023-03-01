@@ -862,11 +862,11 @@ End bind.
 (*|
 Expliciting the reasoning rule provided by the up-to principles.
 |*)
-Lemma sst'_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
+Lemma sst'_clo_bind_gen {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
       `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
       (R0 : rel X Y) L0
-      (t1 : ctree E C X) (t2: ctree F D Y)
       (HL0 : is_update_val_rel L R0 L0)
+      (t1 : ctree E C X) (t2: ctree F D Y)
       (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') RR:
   ssim L0 t1 t2 ->
   (forall x y, R0 x y -> (sst' L RR) (k1 x) (k2 y)) ->
@@ -877,11 +877,39 @@ Proof.
   apply in_bind_ctx; eauto.
 Qed.
 
-Lemma ssbt'_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
+Lemma sst'_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (R0 : rel X Y)
+      (t1 : ctree E C X) (t2: ctree F D Y)
+      (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') RR:
+  t1 (≲update_val_rel L R0) t2 ->
+  (forall x y, R0 x y -> (sst' L RR) (k1 x) (k2 y)) ->
+  sst' L RR (t1 >>= k1) (t2 >>= k2).
+Proof.
+  intros ? ?.
+  eapply sst'_clo_bind_gen; eauto. apply update_val_rel_correct.
+Qed.
+
+Lemma sst'_clo_bind_eq {E C D: Type -> Type} {X X': Type}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (t1 : ctree E C X) (t2: ctree E D X)
+      (k1 : X -> ctree E C X') (k2 : X -> ctree E D X') RR:
+  t1 ≲ t2 ->
+  (forall x, sst' eq RR (k1 x) (k2 x)) ->
+  sst' eq RR (t1 >>= k1) (t2 >>= k2).
+Proof.
+  intros ? ?.
+  eapply sst'_clo_bind_gen.
+  - apply is_update_val_rel_eq.
+  - apply H.
+  - intros. now subst.
+Qed.
+
+Lemma ssbt'_clo_bind_gen {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
       `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
       (R0 : rel X Y) L0
-      (t1 : ctree E C X) (t2: ctree F D Y)
       (HL0 : is_update_val_rel L R0 L0)
+      (t1 : ctree E C X) (t2: ctree F D Y)
       (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') RR:
   ssim L0 t1 t2 ->
   (forall x y, R0 x y -> (ssbt' L RR) (k1 x) (k2 y)) ->
@@ -890,6 +918,34 @@ Proof.
   intros ? ?.
   apply (fbt_bt (@bind_ctx_ssim'_t E F C D X X' Y Y' _ _ L R0 L0 HL0)).
   apply in_bind_ctx; eauto.
+Qed.
+
+Lemma ssbt'_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (R0 : rel X Y)
+      (t1 : ctree E C X) (t2: ctree F D Y)
+      (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') RR:
+  t1 (≲update_val_rel L R0) t2 ->
+  (forall x y, R0 x y -> (ssbt' L RR) (k1 x) (k2 y)) ->
+  ssbt' L RR (t1 >>= k1) (t2 >>= k2).
+Proof.
+  intros ? ?.
+  eapply ssbt'_clo_bind_gen; eauto. apply update_val_rel_correct.
+Qed.
+
+Lemma ssbt'_clo_bind_eq {E C D: Type -> Type} {X X': Type}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (t1 : ctree E C X) (t2: ctree E D X)
+      (k1 : X -> ctree E C X') (k2 : X -> ctree E D X') RR:
+  t1 ≲ t2 ->
+  (forall x, ssbt' eq RR (k1 x) (k2 x)) ->
+  ssbt' eq RR (t1 >>= k1) (t2 >>= k2).
+Proof.
+  intros ? ?.
+  eapply ssbt'_clo_bind_gen.
+  - apply is_update_val_rel_eq.
+  - apply H.
+  - intros. now subst.
 Qed.
 
 (*|

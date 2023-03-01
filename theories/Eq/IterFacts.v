@@ -331,11 +331,8 @@ Lemma iter_dinatural_ctree_inner {E C X Y Z} `{HasB0 : B0 -< C} `{HasB1 : B1 -< 
 Proof.
   intros. apply sbisim_sbisim'. red. revert x. coinduction R CH. intros.
   rewrite unfold_iter, bind_bind.
-  apply sbt'_clo_bind with (R0 := eq) (L0 := eq).
-  { apply is_update_val_rel_eq. }
-  { reflexivity. }
-  intros. subst.
-  destruct y.
+  apply sbt'_clo_bind_eq. { reflexivity. }
+  intros. destruct x0.
   2: { rewrite bind_ret_l. reflexivity. }
   destruct (observe (g y)) eqn:?.
   - setoid_rewrite (ctree_eta (g y)). rewrite Heqc.
@@ -352,20 +349,16 @@ Proof.
     rewrite unfold_iter, bind_bind, (ctree_eta (g y)), Heqc, bind_vis.
     apply step_sb'_vis_id. intros.
     split; auto. intros.
-    apply st'_clo_bind with (R0 := eq) (L0 := eq).
-    { apply is_update_val_rel_eq. }
-    { reflexivity. }
-    intros. subst. destruct y0.
+    apply st'_clo_bind_eq. { reflexivity. }
+    intros. destruct x1.
     + apply step_sb'_guard_l'. apply CH.
     + rewrite bind_ret_l. reflexivity.
   - setoid_rewrite (ctree_eta (g y)). rewrite Heqc, bind_br.
     apply step_sb'_guard_r. intros.
     rewrite unfold_iter, bind_bind, (ctree_eta (g y)), Heqc, bind_br.
     apply step_sb'_br_id; auto. intros.
-    apply st'_clo_bind with (R0 := eq) (L0 := eq).
-    { apply is_update_val_rel_eq. }
-    { reflexivity. }
-    intros. subst. destruct y0.
+    apply st'_clo_bind_eq. { reflexivity. }
+    intros. destruct x1.
     + apply step_sb'_guard_l'. intros. apply CH.
     + rewrite bind_ret_l. reflexivity.
 Qed.

@@ -45,7 +45,7 @@ Proof.
   - step. apply step_ss_ret. constructor. cbn. step in H1. inv H1. apply H.
   - unfold CTree.map.
     apply equ_vis_invT in H1 as ?. subst.
-    eapply ssim_clo_bind with (R0 := eq).
+    eapply ssim_clo_bind_gen with (R0 := eq).
     + red. reflexivity.
     + admit. (* FIXME universe inconsistency *)
       (*eapply weq_ssim. apply update_val_rel_update_val_rel.
