@@ -81,25 +81,28 @@ Section ssim'_theory.
    Strong simulation up-to [equ] is valid
    ----------------------------------------
 |*)
+  #[global] Instance equ_ss'_gen_goal {R Reps} :
+    Proper (equ eq ==> equ eq ==> flip impl) (@ss'_gen E F C D X Y _ _ L R Reps).
+  Proof.
+    split; intros; subs.
+    - destruct H1 as [? _]. apply H in H3; auto.
+      destruct H3 as (? & ? & ? & ? & ?). eexists _, _. subs. etrans.
+    - destruct H1 as [_ ?]. symmetry in H. eapply H1 in H. destruct H as (? & ? & ?).
+      eexists. subs. etrans.
+  Qed.
+
+  #[global] Instance equ_ss'_gen_ctx {R Reps} :
+    Proper (equ eq ==> equ eq ==> impl) (@ss'_gen E F C D X Y _ _ L R Reps).
+  Proof.
+    do 4 red. intros. now rewrite <- H, <- H0.
+  Qed.
+
   Lemma equ_clos_sst' : equ_clos <= (t (@ss' E F C D X Y _ _ L)).
   Proof.
-    apply Coinduction; cbn.
-    intros R x y [x' y' x'' y'' EQ' EQ'']. split.
-    - intros prod l z x'z.
-      rewrite EQ' in x'z, prod.
-      destruct ((proj1 EQ'') prod _ _ x'z) as (l' & ? & ? & ? & ?).
-      exists l', x0.
-      split.
-      + rewrite <- Equu; auto.
-      + split; auto.
-        eapply (f_Tf (ss' L)).
-        econstructor; auto; auto.
-    - intros Z c k EQx' z.
-      rewrite EQ' in EQx'.
-      destruct (proj2 EQ'' _ _ _ EQx' z) as (? & ? & ?). exists x0.
-      split.
-      + now rewrite <- Equu.
-      + eapply (f_Tf (ss' L)). econstructor. 2: apply H0. all: auto.
+    apply leq_t; cbn.
+    intros R x y [x' y' x'' y'' EQ' EQ''].
+    subs. eapply ss'_gen_mon. 3: apply EQ''.
+    all: econstructor; eauto.
   Qed.
 
   #[global] Instance equ_clos_ssim'_goal : Proper (equ eq ==> equ eq ==> flip impl) (@ssim' E F C D X Y _ _ L).
@@ -114,65 +117,15 @@ Section ssim'_theory.
     now rewrite <- eq1, <- eq2.
   Qed.
 
-  End ssim'_theory.
+  Lemma ss'_gen_brD : forall {Z} (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y)
+    (R Reps : rel _ _),
+    ss'_gen L R Reps (BrD c k) u ->
+    forall x, exists u', epsilon u u' /\ Reps (k x) u'.
+  Proof.
+    intros. eapply H. reflexivity.
+  Qed.
 
-Notation go t := ({| _observe := t |}).
-
-Lemma ssim'_brD_r : forall {E F C D X Y Z} `{HasB0: B0 -< C} `{HasB0': B0 -< D}
-  L (t : ctree E C X) (c : D Z) x (k : Z -> ctree F D Y),
-  ssim' L t (k x) -> ssim' L t (BrD c k).
-Proof.
-  intros.
-  step in H. step. split; intros.
-    + apply H in H1; auto. destruct H1 as (? & ? & ? & ? & ?).
-      eauto 6 with trans.
-    + eapply H in H0. destruct H0 as (? & ? & ?).
-      eapply EpsilonBr in H0.
-      exists x1. split. 2: apply H1. apply H0.
-Qed.
-
-Lemma ssim'_epsilon_r : forall {E F C D X Y} `{HasB0: B0 -< C} `{HasB0': B0 -< D}
-  L (t : ctree E C X) (u u' : ctree F D Y),
-  ssim' L t u' -> epsilon u u' -> ssim' L t u.
-Proof.
-  intros. red in H0. rewrite (ctree_eta u') in H. rewrite (ctree_eta u).
-  genobs u ou. clear u Heqou. genobs u' ou'. clear u' Heqou'.
-  revert t H. induction H0; intros.
-  - now subs.
-  - apply IHepsilon_ in H. rewrite <- ctree_eta in H.
-    eapply ssim'_brD_r. apply H.
-Qed.
-
-Theorem ssim_ssim' {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} :
-  forall L (t : ctree E C X) (t' : ctree F D Y), ssim L t t' <-> ssim' L t t'.
-Proof.
-  split; intro.
-  - red. revert t t' H. coinduction R CH. intros.
-    do 3 red. cbn. split; intros.
-    + subst. subs.
-      step in H. apply H in H1. destruct H1 as (? & ? & ? & ? & ?).
-      eexists _, _. split; [apply H1 |]. split; [| apply H3].
-      now apply CH.
-    + subs. apply ssim_brD_l_inv with (x := x) in H. exists t'. split; [now left |]. now apply CH.
-  - revert t t' H. coinduction R CH. intros.
-    do 3 red. cbn. intros.
-    apply trans_epsilon in H0 as (? & ? & ? & ?).
-    red in H0. rewrite ctree_eta in H.
-    genobs t ot. clear t Heqot.
-    rewrite (ctree_eta x) in H1, H2. genobs x ox. clear x Heqox.
-    revert t' H. induction H0; intros.
-    + subs. rewrite <- ctree_eta in H1, H2, H0.
-      step in H0. apply (proj1 H0) in H2; auto.
-      destruct H2 as (? & ? & ? & ? & ?).
-      exists x, x0. split. auto. split; auto.
-    + step in H. destruct H as [_ ?].
-      edestruct H as (? & ? & ?); auto.
-      setoid_rewrite <- ctree_eta in IHepsilon_.
-      eapply IHepsilon_ in H4; auto.
-      destruct H4 as (? & ? & ? & ? & ?).
-      eauto 6 with trans.
-Qed.
-
+End ssim'_theory.
 
 Module SSim'Notations.
 
@@ -181,15 +134,6 @@ Module SSim'Notations.
   Notation ssbt' L := (bt (ss' L)).
   Notation ssT' L := (T (ss' L)).
   Notation ssbT' L := (bT (ss' L)).
-
-  (*Notation "t (≲ L ) u" := (ssim L t u) (at level 70).
-  Notation "t ≲ u" := (ssim eq t u) (at level 70).
-  Notation "t [≲ L ] u" := (ss L _ t u) (at level 79).
-  Notation "t [≲] u" := (ss eq _ t u) (at level 79).
-  Notation "t {≲ L } u" := (sst L _ t u) (at level 79).
-  Notation "t {≲} u" := (sst eq _ t u) (at level 79).
-  Notation "t {{≲ L }} u" := (ssbt L _ t u) (at level 79).
-     Notation "t {{≲}} u" := (ssbt eq _ t u) (at level 79).*)
 
 End SSim'Notations.
 
@@ -253,27 +197,6 @@ Section ssim'_homogenous_theory.
     - eexists. split; [| auto]. subs. eright. now left.
   Qed.
 
-  (*Lemma square_sst' `{Transitive _ L}: square <= (sst' L).
-  Proof.
-    apply Coinduction; cbn.
-    intros R x z [y [xy1 xy2] [yz1 yz2]]. split.
-    - intros prod l x' xx'.
-      destruct (xy1 prod _ _ xx') as (l' & y' & y'' & yy' & y'y'' & ? & ?).
-      destruct (ctree_case_productive y) as [prod' | ?].
-      + destruct (yz1 prod' _ _ yy') as (l'' & z' & z'' & zz' & z'z'' & ? & ?).
-        exists l'', z', z''.
-        split; [assumption |]. split; [assumption |].
-        split.
-        * apply (f_Tf (ss' L)). now exists y''.
-    exists l'', z'.
-    split.
-    assumption.
-    split.
-    apply (f_Tf (ss L)).
-    exists y'; eauto.
-    transitivity l'; auto.
-     Qed.*)
-
   (*| Reflexivity |*)
   #[global] Instance Reflexive_sst' R `{Reflexive _ L}: Reflexive (sst' L R).
   Proof. apply build_reflexive; apply ft_t; apply (refl_sst'). Qed.
@@ -286,32 +209,6 @@ Section ssim'_homogenous_theory.
 
   #[global] Instance Reflexive_ssT' f R `{Reflexive _ L}: Reflexive (ssT' L f R).
   Proof. apply build_reflexive; apply fT_T; apply refl_sst'. Qed.
-
-  (*| Transitivity |*)
-  (*#[global] Instance Transitive_sst R `{Transitive _ L}: Transitive (sst L R).
-  Proof. apply build_transitive; apply ft_t; apply (square_sst). Qed.
-
-  Corollary Transitive_ssim `{Transitive _ L}: Transitive (ssim L).
-  Proof. now apply Transitive_sst. Qed.
-
-  #[global] Instance Transitive_ssbt R `{Transitive _ L}: Transitive (ssbt L R).
-  Proof. apply build_transitive; apply fbt_bt; apply square_sst. Qed.
-
-  #[global] Instance Transitive_ssT f R `{Transitive _ L}: Transitive (ssT L f R).
-  Proof. apply build_transitive; apply fT_T; apply square_sst. Qed.
-
-  (*| PreOrder |*)
-  #[global] Instance PreOrder_sst R `{PreOrder _ L}: PreOrder (sst L R).
-  Proof. split; typeclasses eauto. Qed.
-
-  Corollary PreOrder_ssim `{PreOrder _ L}: PreOrder (ssim L).
-  Proof. split; typeclasses eauto. Qed.
-
-  #[global] Instance PreOrder_ssbt R `{PreOrder _ L}: PreOrder (ssbt L R).
-  Proof. split; typeclasses eauto. Qed.
-
-  #[global] Instance PreOrder_ssT f R `{PreOrder _ L}: PreOrder (ssT L f R).
-     Proof. split; typeclasses eauto. Qed.*)
 
 End ssim'_homogenous_theory.
 
@@ -329,22 +226,6 @@ Section ssim'_heterogenous_theory.
   Notation sst' L := (coinduction.t (ss' L)).
   Notation ssbt' L := (coinduction.bt (ss' L)).
   Notation ssT' L := (coinduction.T (ss' L)).
-
-  #[global] Instance equ_ss'_gen_goal {R Reps} :
-    Proper (equ eq ==> equ eq ==> flip impl) (@ss'_gen E F C D X Y _ _ L R Reps).
-  Proof.
-    split; intros; subs.
-    - destruct H1 as [? _]. apply H in H3; auto.
-      destruct H3 as (? & ? & ? & ? & ?). eexists _, _. subs. etrans.
-    - destruct H1 as [_ ?]. symmetry in H. eapply H1 in H. destruct H as (? & ? & ?).
-      eexists. subs. etrans.
-  Qed.
-
-  #[global] Instance equ_ss'_gen_ctx {R Reps} :
-    Proper (equ eq ==> equ eq ==> impl) (@ss'_gen E F C D X Y _ _ L R Reps).
-  Proof.
-    do 4 red. intros. now rewrite <- H, <- H0.
-  Qed.
 
   #[global] Instance equ_clos_sst'_goal {RR} :
     Proper (equ eq ==> equ eq ==> flip impl) (sst' L RR).
@@ -392,20 +273,6 @@ Section ssim'_heterogenous_theory.
 (*|
   stuck ctrees can be simulated by anything.
 |*)
-  (*Lemma is_stuck_ss (R : rel _ _) (t : ctree E C X) (t': ctree F D Y):
-    is_stuck t -> ss' L R t t'.
-  Proof.
-    repeat intro. split; intros.
-    - now apply H in H1.
-    - subs.
-  Qed.
-
-  Lemma is_stuck_ssim (t: ctree E C X) (t': ctree F D Y):
-    is_stuck t -> ssim L t t'.
-  Proof.
-    intros. step. now apply is_stuck_ss.
-     Qed.*)
-
   Lemma ss'_stuck R Reps :
     forall b (u : ctree F D Y), ss'_gen L R Reps (@stuck E C X _ b) u.
   Proof.
@@ -419,17 +286,6 @@ Section ssim'_heterogenous_theory.
   Proof.
     intros. step. apply ss'_stuck.
   Qed.
-
-  (*Lemma spinD_ss (R : rel _ _) (t : ctree F D Y) `{HasTau: B1 -< C}: ss L R spinD t.
-  Proof.
-    repeat intro. now apply spinD_is_stuck in H.
-  Qed.
-
-  Lemma spinD_ssim : forall (t' : ctree F D Y) `{HasTau: B1 -< C},
-      ssim L spinD t'.
-  Proof.
-    intros. step. apply spinD_ss.
-     Qed.*)
 
 End ssim'_heterogenous_theory.
 
@@ -778,6 +634,34 @@ Section Proof_Rules.
     intros. apply step_ss'_br; eauto.
   Qed.
 
+  Lemma ss'_gen_epsilon_l :
+    forall (t t' : ctree E C X) (u : ctree F D Y) (R Reps : rel _ _),
+    Reps <= ss'_gen L R Reps ->
+    ss'_gen L R Reps t u ->
+    epsilon t t' ->
+    ss'_gen L R Reps t' u.
+  Proof.
+    intros. red in H1. rewrite (ctree_eta t'). rewrite (ctree_eta t) in H0.
+    genobs t ot. genobs t' ot'. clear t Heqot t' Heqot'.
+    revert u H0. induction H1; intros.
+    - now subs.
+    - apply IHepsilon_. rewrite <- ctree_eta.
+      eapply ss'_gen_brD in H0 as (? & ? & ?).
+      apply H in H2. eapply step_ss'_epsilon_r_gen in H2; eauto.
+  Qed.
+
+  Lemma ssim'_epsilon_l :
+    forall (t t' : ctree E C X) (u : ctree F D Y),
+    ssim' L t u ->
+    epsilon t t' ->
+    ssim' L t' u.
+  Proof.
+    intros. step. eapply ss'_gen_epsilon_l.
+    - apply (gfp_pfp (ss' L)).
+    - step in H. apply H.
+    - apply H0.
+  Qed.
+
 End Proof_Rules.
 
 (*|
@@ -948,17 +832,6 @@ Proof.
   - intros. now subst.
 Qed.
 
-(*|
-And in particular, we can justify rewriting [≲] to the left of a [bind].
-|*)
-(*Lemma bind_ssim_cong_gen {E C X X'} RR {HasStuck: B0 -< C}
-      {L: relation (@label E)} (R0 : relation X):
-  Proper (ssim L ==> (fun f g => forall x y, sst L RR (f x) (g y)) ==> sst L RR) (@bind E C X X').
-Proof.
-  do 4 red; intros.
-  eapply sst_clo_bind; auto.
-Qed.*)
-
 Tactic Notation "__upto_bind_ssim'" uconstr(R0) :=
   match goal with
   | |- body (t (@ss' ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T') _ _) =>
@@ -973,3 +846,20 @@ Tactic Notation "__upto_bind_eq_ssim'" uconstr(R0) :=
   match goal with
   | _ => __upto_bind_ssim' R0; [reflexivity | intros ? ? ?EQl]
    end.
+
+(* This alternative notion of simulation is equivalent to [ssim] *)
+Theorem ssim_ssim' {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} :
+  forall L (t : ctree E C X) (t' : ctree F D Y), ssim L t t' <-> ssim' L t t'.
+Proof.
+  split; intro.
+  - red. revert t t' H. coinduction R CH. intros.
+    split; intros.
+    + step in H. apply H in H1 as (? & ? & ? & ? & ?). eauto 6.
+    + subs. apply ssim_brD_l_inv with (x := x) in H. eauto.
+  - revert t t' H. coinduction R CH.
+    do 3 red. cbn. intros.
+    apply trans_epsilon in H0 as (? & ? & ? & ?).
+    apply ssim'_epsilon_l with (t' := x) in H; auto.
+    step in H. apply (proj1 H) in H2 as (? & ? & ? & ? & ?); auto.
+    eauto 6.
+Qed.

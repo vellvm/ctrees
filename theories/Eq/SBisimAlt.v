@@ -90,38 +90,14 @@ Section sbisim'_theory.
 
   Lemma equ_clos_st' : lift_rel3 equ_clos <= (t (@sb' E F C D X Y _ _ L)).
   Proof.
-    apply Coinduction; cbn.
+    apply leq_t; cbn.
     intros R side x y [x' y' x'' y'' EQ' EQ''].
     split; [destruct EQ'' as [EQ'' _] | destruct EQ'' as [_ EQ'']];
-        intros; subst; specialize (EQ'' eq_refl); split.
-    - intros prod l z x'z.
-      rewrite EQ' in x'z, prod.
-      destruct ((proj1 EQ'') prod _ _ x'z) as (l' & ? & ? & ? & ?).
-      exists l', x0.
-      split.
-      + rewrite <- Equu; auto.
-      + split; auto.
-        intro. eapply (f_Tf (sb' L)); econstructor; auto; apply H0.
-    - intros Z c k EQx' z.
-      rewrite EQ' in EQx'.
-      destruct (proj2 EQ'' _ _ _ EQx' z) as (? & ? & ?). exists x0.
-      split.
-      + now rewrite <- Equu.
-      + eapply (f_Tf (sb' L)). econstructor. 2: apply H0. all: auto.
-    - intros prod l z x'z.
-      rewrite <- Equu in x'z, prod.
-      destruct ((proj1 EQ'') prod _ _ x'z) as (l' & ? & ? & ? & ?).
-      exists l', x0.
-      split.
-      + rewrite EQ'; auto.
-      + split; auto.
-        intro. eapply (f_Tf (sb' L)); econstructor; auto; apply H0.
-    - intros Z c k EQx' z.
-      rewrite <- Equu in EQx'.
-      destruct (proj2 EQ'' _ _ _ EQx' z) as (? & ? & ?). exists x0.
-      split.
-      + now rewrite EQ'.
-      + eapply (f_Tf (sb' L)). econstructor. 2: apply H0. all: auto.
+        intros; subst; specialize (EQ'' eq_refl); subs.
+    - eapply ss'_gen_mon. 3: apply EQ''.
+      all: econstructor; eauto.
+    - eapply ss'_gen_mon. 3: apply EQ''.
+      all: econstructor; eauto.
   Qed.
 
   #[global] Instance equ_clos_gfp_sb'_goal : forall side, Proper (equ eq ==> equ eq ==> flip impl) (gfp (@sb' E F C D X Y _ _ L) side).
@@ -147,96 +123,14 @@ Section sbisim'_theory.
     cbn; intros ? ? eq1 ? ? eq2 H. now subs.
   Qed.
 
-  End sbisim'_theory.
-
-Notation go t := ({| _observe := t |}).
-
-(*Lemma ssim'_brD_r : forall {E F C D X Y Z} `{HasB0: B0 -< C} `{HasB0': B0 -< D}
-  L (t : ctree E C X) (c : D Z) x (k : Z -> ctree F D Y),
-  ssim' L t (k x) -> ssim' L t (BrD c k).
-Proof.
-  intros.
-  step in H. step. split; intros.
-    + apply H in H1; auto. destruct H1 as (? & ? & ? & ? & ? & ? & ?).
-      eauto 8 with trans.
-    + eapply H in H0. destruct H0 as (? & ? & ?).
-      eapply EpsilonBr in H0.
-      exists x1. split. 2: apply H1. apply H0.
-Qed.
-
-Lemma ssim'_epsilon_r : forall {E F C D X Y} `{HasB0: B0 -< C} `{HasB0': B0 -< D}
-  L (t : ctree E C X) (u u' : ctree F D Y),
-  ssim' L t u' -> epsilon u u' -> ssim' L t u.
-Proof.
-  intros. red in H0. rewrite (ctree_eta u') in H. rewrite (ctree_eta u).
-  genobs u ou. clear u Heqou. genobs u' ou'. clear u' Heqou'.
-  revert t H. induction H0; intros.
-  - now subs.
-  - apply IHepsilon_ in H. rewrite <- ctree_eta in H.
-    eapply ssim'_brD_r. apply H.
-   Qed.*)
-
-(* TODO symmetry *)
-Theorem sbisim_sbisim' {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} :
-  forall L (t : ctree E C X) (t' : ctree F D Y), sbisim L t t' <-> sbisim' L t t'.
-Proof.
-  split; intro.
-  - revert t t' H.
-    assert (
-      forall (t : ctree E C X) (u : ctree F D Y),
-        (ss L (sbisim L) t u -> gfp (sb' L) true t u) /\
-        (ss (flip L) (flip (sbisim L)) u t -> gfp (sb' L) false t u)).
-    2: {
-      intros. step in H0. destruct H0.
-      apply H in H0, H1. intros []; auto.
-    }
-    coinduction R CH. intros. split; [| admit]. intro. split.
-    2: { intro. discriminate. }
-    intros _.
-    cbn. split; intros.
-    + subst. subs.
-      apply H in H1. destruct H1 as (? & ? & ? & ? & ?).
-      eexists _, _. split; [apply H1 |]. split; [| apply H3].
-      step in H2. destruct side; apply CH; apply H2.
-    + subs. apply ss_brD_l_inv with (x := x) in H. exists u. split; [now left |]. now apply CH.
-  - revert t t' H.
-    coinduction R CH. intros. split; intros. 2: admit.
-    cbn. intros. apply trans_epsilon in H0 as (? & ? & ? & ?).
-    red in H0. rewrite ctree_eta in H.
-    genobs t ot. clear t Heqot.
-    rewrite (ctree_eta x) in H1, H2. genobs x ox. clear x Heqox.
-    specialize (H true).
-    revert t' H. induction H0; intros.
-    + subs. rewrite <- ctree_eta in H1, H2, H0.
-      step in H0. apply (proj1 H0) in H2; auto.
-      destruct H2 as (? & ? & ? & ? & ?).
-      exists x, x0. auto.
-    + step in H.
-      destruct H as [H _]. specialize (H eq_refl).
-      destruct H as [_ H].
-      edestruct H as (? & ? & ?); auto.
-      setoid_rewrite <- ctree_eta in IHepsilon_.
-      eapply IHepsilon_ in H4 as ?; auto.
-      destruct H5 as (? & ? & ? & ? & ?). eexists _, _. etrans.
-Admitted.
-
+End sbisim'_theory.
 
 Module SBisim'Notations.
 
-  (*| ss (simulation) notation |*)
   Notation st' L := (t (sb' L)).
   Notation sbt' L := (bt (sb' L)).
   Notation sT' L := (T (sb' L)).
   Notation sbT' L := (bT (sb' L)).
-
-  (*Notation "t (≲ L ) u" := (ssim L t u) (at level 70).
-  Notation "t ≲ u" := (ssim eq t u) (at level 70).
-  Notation "t [≲ L ] u" := (ss L _ t u) (at level 79).
-  Notation "t [≲] u" := (ss eq _ t u) (at level 79).
-  Notation "t {≲ L } u" := (sst L _ t u) (at level 79).
-  Notation "t {≲} u" := (sst eq _ t u) (at level 79).
-  Notation "t {{≲ L }} u" := (ssbt L _ t u) (at level 79).
-     Notation "t {{≲}} u" := (ssbt eq _ t u) (at level 79).*)
 
 End SBisim'Notations.
 
@@ -306,27 +200,6 @@ Section sbisim'_homogenous_theory.
     - eexists _, _. cbn. eauto.
     - eexists. split; [| auto]. subs. eright. now left.
   Qed.
-
-  (*Lemma square_sst' `{Transitive _ L}: square <= (sst' L).
-  Proof.
-    apply Coinduction; cbn.
-    intros R x z [y [xy1 xy2] [yz1 yz2]]. split.
-    - intros prod l x' xx'.
-      destruct (xy1 prod _ _ xx') as (l' & y' & y'' & yy' & y'y'' & ? & ?).
-      destruct (ctree_case_productive y) as [prod' | ?].
-      + destruct (yz1 prod' _ _ yy') as (l'' & z' & z'' & zz' & z'z'' & ? & ?).
-        exists l'', z', z''.
-        split; [assumption |]. split; [assumption |].
-        split.
-        * apply (f_Tf (ss' L)). now exists y''.
-    exists l'', z'.
-    split.
-    assumption.
-    split.
-    apply (f_Tf (ss L)).
-    exists y'; eauto.
-    transitivity l'; auto.
-     Qed.*)
 
   (*| Reflexivity |*)
   #[global] Instance Reflexive_st' R `{Reflexive _ L}: forall b, Reflexive (st' L R b).
@@ -993,6 +866,67 @@ Proof.
     + intros. apply H.
   - rewrite bind_guard in H0.
     unfold Guard in H0. setoid_rewrite bind_ret_l in H0. apply H0.
+Qed.
+
+Lemma sbisim'_epsilon_l {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} L :
+  forall (t t' : ctree E C X) (u : ctree F D Y),
+  gfp (sb' L) true t u ->
+  epsilon t t' ->
+  gfp (sb' L) true t' u.
+Proof.
+  intros. step. split; intro; [| discriminate].
+  eapply ss'_gen_epsilon_l.
+  - cbn. intros. step in H2. now apply H2.
+  - step in H. now apply H.
+  - apply H0.
+Qed.
+
+Lemma sbisim'_epsilon_r {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} L :
+  forall (t : ctree E C X) (u u' : ctree F D Y),
+  gfp (sb' L) false t u ->
+  epsilon u u' ->
+  gfp (sb' L) false t u'.
+Proof.
+  intros. step. split; intro; [discriminate |].
+  eapply ss'_gen_epsilon_l.
+  - cbn. intros. step in H2. now apply H2.
+  - step in H. now apply H.
+  - apply H0.
+Qed.
+
+Theorem sbisim_sbisim' {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} :
+  forall L (t : ctree E C X) (t' : ctree F D Y), sbisim L t t' <-> sbisim' L t t'.
+Proof.
+  split; intro.
+  - revert t t' H.
+    assert (
+      forall (t : ctree E C X) (u : ctree F D Y),
+        (ss L (sbisim L) t u -> gfp (sb' L) true t u) /\
+        (ss (flip L) (flip (sbisim L)) u t -> gfp (sb' L) false t u)).
+    2: {
+      intros. step in H0. destruct H0.
+      apply H in H0, H1. intros []; auto.
+    }
+    coinduction R CH. intros. split; split.
+    2, 3: intro; discriminate. all: intros _; split; intros.
+    + apply H in H1. destruct H1 as (? & ? & ? & ? & ?).
+      eexists _, _. split; [apply H1 |]. split; [| apply H3].
+      step in H2. destruct side; apply CH; apply H2.
+    + subs. apply ss_brD_l_inv with (x := x) in H.
+      exists u. split; [now left |]. now apply CH.
+    + apply H in H1. destruct H1 as (? & ? & ? & ? & ?).
+      eexists _, _. split; [apply H1 |]. split; [| apply H3].
+      step in H2. destruct side; apply CH; apply H2.
+    + subs. apply ss_brD_l_inv with (x := x) in H.
+      exists t. split; [now left |]. now apply CH.
+  - revert t t' H.
+    coinduction R CH. intros. split; intros.
+    + cbn. intros. apply trans_epsilon in H0 as (? & ? & ? & ?).
+      apply sbisim'_epsilon_l with (t' := x) in H; auto.
+      step in H. apply (proj1 H) in H2 as (? & ? & ? & ? & ?); auto. eauto 6.
+    + cbn. intros. apply trans_epsilon in H0 as (? & ? & ? & ?).
+      apply sbisim'_epsilon_r with (u' := x) in H; auto.
+      step in H. apply (proj2 H) in H2 as (? & ? & ? & ? & ?); auto. eauto 6.
 Qed.
 
 (*
