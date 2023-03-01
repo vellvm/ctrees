@@ -661,6 +661,26 @@ Section Proof_Rules.
     - apply step_ss'_guard_l_gen. typeclasses eauto. step. apply H.
   Qed.
 
+  Lemma step_sb'_br {Z Z'} (vis: bool) (c: C Z) (d: D Z')
+    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) R :
+    (forall x, exists y, forall side, st' L R side (k x) (k' y)) ->
+    (forall y, exists x, forall side, st' L R side (k x) (k' y)) ->
+    L tau tau ->
+    forall side, sbt' L R side (Br vis c k) (Br vis d k').
+  Proof.
+    intros. destruct vis; [apply step_sb'_brS_gen | apply step_sb'_brD_gen];
+      eauto; typeclasses eauto.
+  Qed.
+
+  Lemma step_sb'_br_id {Z} (vis: bool) (c: C Z) (d: D Z)
+    (k : Z -> ctree E C X) (k': Z -> ctree F D Y) R :
+    (forall x side, st' L R side (k x) (k' x)) ->
+    L tau tau ->
+    forall side, sbt' L R side (Br vis c k) (Br vis d k').
+  Proof.
+    intros. apply step_sb'_br; eauto.
+  Qed.
+
 End Proof_Rules.
 
 

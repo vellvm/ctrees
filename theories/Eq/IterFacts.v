@@ -361,15 +361,14 @@ Proof.
   - setoid_rewrite (ctree_eta (g y)). rewrite Heqc, bind_br.
     apply step_sb'_guard_r. intros.
     rewrite unfold_iter, bind_bind, (ctree_eta (g y)), Heqc, bind_br.
-    destruct vis. (* TODO step_sb'_br_id *)
-    apply step_sb'_brS_id; auto. intros.
+    apply step_sb'_br_id; auto. intros.
     apply st'_clo_bind with (R0 := eq) (L0 := eq).
     { apply is_update_val_rel_eq. }
     { reflexivity. }
     intros. subst. destruct y0.
     + apply step_sb'_guard_l'. intros. apply CH.
     + rewrite bind_ret_l. reflexivity.
-Admitted.
+Qed.
 
 Lemma iter_dinatural_ctree {E C X Y Z} `{HasB0 : B0 -< C} `{HasB1 : B1 -< C} :
   forall (f : X -> ctree E C (Y + Z)) (g : Y -> ctree E C (X + Z)) (x : X),

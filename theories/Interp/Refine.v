@@ -86,22 +86,17 @@ Proof.
     apply step_ss'_vis_id. intros. split; [|auto].
     step. apply step_ss'_guard_l. apply CH.
   - unfold mbr, MonadBr_subevent_l, MonadBr_ctree. destruct c.
-    + setoid_rewrite bind_branch. destruct vis.
-      * apply step_ss'_brS_id; auto. intros.
-        step. apply step_ss'_guard_l. apply CH.
-      * apply step_ss'_brD_id. intros.
-        step. apply step_ss'_guard_l. apply CH.
+    + setoid_rewrite bind_branch.
+      apply step_ss'_br_id; auto. intros.
+      step. apply step_ss'_guard_l. apply CH.
     + rewrite bind_bind.
       change (Br vis (inr1 b) k) with ((fun _ => Br vis (inr1 b) k) tt).
       setoid_rewrite <- bind_ret_l at 10.
       __upto_bind_ssim' (fun _ _ => True).
       { apply ssim_pure. apply H. intros. now constructor. }
       red. intros ? _ _. rewrite bind_bind, bind_branch.
-      destruct vis.
-      * apply step_ss'_brS; auto. intros _. exists x.
-        rewrite bind_ret_l. step. apply step_ss'_guard_l. apply CH.
-      * apply step_ss'_brD. intros _. exists x.
-        rewrite bind_ret_l. step. apply step_ss'_guard_l. apply CH.
+      apply step_ss'_br; auto. intros _. exists x.
+      rewrite bind_ret_l. step. apply step_ss'_guard_l. apply CH.
 Qed.
 
 Variant lift_val_rel {E X Y} (R : rel X Y): @label E -> @label E -> Prop :=
@@ -128,20 +123,15 @@ Proof.
     rewrite bind_vis. apply step_ss'_vis_id. intros. split; [| constructor; auto].
     step. rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
   - unfold mbr, MonadBr_subevent_l, MonadBr_ctree. destruct c.
-    + setoid_rewrite bind_branch. setoid_rewrite bind_br. destruct vis.
-      * apply step_ss'_brS_id; [| constructor]. intros.
-        step. setoid_rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
-      * apply step_ss'_brD_id. intros.
-        step. setoid_rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
+    + setoid_rewrite bind_branch. setoid_rewrite bind_br.
+      apply step_ss'_br_id; [| constructor]. intros.
+      step. setoid_rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
     + rewrite bind_bind.
       change (Br vis (inr1 b) k) with ((fun _ => Br vis (inr1 b) k) tt).
       setoid_rewrite <- bind_ret_l at 12.
       __upto_bind_ssim' (fun _ _ => True).
       { apply ssim_pure. apply H. intros. now constructor. }
       red. intros ? _ _. rewrite bind_bind, bind_branch, bind_br.
-      destruct vis.
-      * apply step_ss'_brS; [| constructor]. intros ?. exists (snd x).
-        rewrite bind_ret_l. step. rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
-      * apply step_ss'_brD. intros ?. exists (snd x).
-        rewrite bind_ret_l. step. rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
+      apply step_ss'_br; [| constructor]. intros ?. exists (snd x).
+      rewrite bind_ret_l. step. rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
 Qed.
