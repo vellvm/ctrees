@@ -471,6 +471,12 @@ Proof.
 	_apply @gfp_bt; rewrite H1; reflexivity.
 Qed.
 
+Lemma observe_equ_eq: forall E C X (t u: ctree E C X),
+    observe t = observe u -> t ≅ u.
+Proof.
+  intros.
+  step. rewrite H. reflexivity.
+Qed.
 
 (*|
 Up-to bind principle

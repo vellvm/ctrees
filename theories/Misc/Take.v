@@ -62,6 +62,17 @@ Proof.
   setoid_rewrite unfold_take; reflexivity.
 Qed.
 
+Lemma unfold_Sn_take {E C X}: forall (t: ctree E C X) n,
+    take (S n) t ≅ match observe t with
+                   | RetF x => Ret (Ret x)
+                   | VisF e k => Vis e (fun i => take n (k i))
+                   | BrSF c k => Br true c (fun i => take n (k i))
+                   | BrDF c k => Br false c (fun i => take (S n) (k i))
+                   end.
+Proof.
+  setoid_rewrite unfold_take; reflexivity.
+Qed.  
+
 (* Nice educational proof *)
 #[global] Instance equ_eq_take_proper {E C X n}:
   Proper (equ eq ==> equ (equ eq)) (@take E C X n).
