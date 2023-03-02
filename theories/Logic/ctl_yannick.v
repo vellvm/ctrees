@@ -190,15 +190,15 @@ Section Kripke.
   Fixpoint satF (φ: Formula): stateK -> Prop :=
     match φ with
     | FNow p    => Now p
-    | FAnd φ ψ  => And (satF φ) (satF ψ)
-    | FOr φ ψ   => Or (satF φ) (satF ψ)
+    | FAnd  φ ψ => And (satF φ) (satF ψ)
+    | FOr   φ ψ => Or (satF φ) (satF ψ)
     | FImpl φ ψ => Impl (satF φ) (satF ψ)
-    | FAX φ     => AX (satF φ)
-    | FEX φ     => EX (satF φ)
-    | FAF φ     => AF (satF φ)
-    | FEF φ     => EF (satF φ)
-    | FAG φ     => AG (satF φ)
-    | FEG φ     => EG (satF φ)
+    | FAX   φ   => AX (satF φ)
+    | FEX   φ   => EX (satF φ)
+    | FAF   φ   => AF (satF φ)
+    | FEF   φ   => EF (satF φ)
+    | FAG   φ   => AG (satF φ)
+    | FEG   φ   => EG (satF φ)
     end.
 
   Notation good := (Proper (bisimK ==> iff)).
@@ -382,13 +382,27 @@ Section Kripke.
         now symmetry.
   Qed.
 
+  Lemma coind_AG (φ : formula) :
+    forall (R : stateK -> Prop),
+      (forall s, R s -> φ s) ->
+      (forall s s', R s -> transK s s' -> R s') ->
+      forall s, R s -> AG φ s.
+  Proof.
+    intros * Aφ stable.
+    unfold AG; coinduction r CIH.
+    intros * HR.
+    split; auto.
+    intros.
+    eapply CIH, stable; eauto.
+  Qed.
+
   Instance AG_bisim φ :
     good φ ->
     good (AG φ).
   Proof.
     intros HG s t EQ; split; intros HN.
     - revert s t EQ HN.
-      unfold AG; coinduction R CIH; intros;
+      unfold AG; coinduction R CIH. intros;
         step in HN; destruct HN as [Hφ HN].
       split.
       + eapply HG; [symmetry |]; eauto.
