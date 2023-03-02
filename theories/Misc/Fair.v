@@ -123,13 +123,27 @@ Lemma unfold_fair {E C X}`{B1 -< C}`{B2 -< C}`{BN -< C}:
     (fair a b) ≅ (fair_ a b).
 Proof. intros; step; cbn; auto. Qed.
 
+From CTree Require Import Logic.Ctl.
+Import CtlNotations.     
+Local Open Scope ctl_scope.
 
 Section FairFacts.
-  Context {E C: Type -> Type}{HasStuck: B0 -< C} {HasTau: B1 -< C}.
-
+  Context {E C: Type -> Type}{ST: Type}{HasStuck: B0 -< C} {HasTau: B1 -< C}
+          {he: Handler E ST}.
+  
+  #[local] Instance Handler_parplus{hp: Handler parE nat}:
+    Handler (E+'parE) (ST*nat) :=
+    {|
+      hfold _ ef x '(s,t) := 
+      match ef with
+      | inl1 e => (he.(hfold) e x s, t)
+      | inr1 f => (s, hp.(hfold) f x t)
+      end
+    |}.
+  
   Lemma rr_is_fair:
     forall (n: nat) (v: vec (S n) (ctree E C void)) l,
-      rr v, l |= AG (AF (obs_id n)).
+      <( rr v, l |= AG (AF (now (fun '(_, x) => n = x))) )>.
     Proof.
       Opaque Take.take.
       coinduction R CIH.

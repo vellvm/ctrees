@@ -38,6 +38,7 @@ Class Handler (E: Type -> Type) (S: Type) := {
 #[global] Instance Handler_par: Handler parE nat := 
   {| hfold _ e _ s := match e with Switch i => i end |}.
 
+(* WHY this loops during instance resolution
 #[global] Instance Handler_plus{E F: Type -> Type}{S T}
  (h: Handler E S) (g: Handler F T) : Handler (E+'F) (S*T) :=
   {|
@@ -47,6 +48,7 @@ Class Handler (E: Type -> Type) (S: Type) := {
     | inr1 f => (s, g.(hfold) f x t)
     end
   |}.
+ *)
 
 Section Kripke.
   Context {E C: Type -> Type} {X S: Type}
@@ -723,3 +725,59 @@ Section Congruences.
     Qed.
   End gProperSbisim.
 End Congruences.
+
+From CTree Require Import
+     FoldStateT.
+
+Module Experiments.
+
+  Import CTree CTreeNotations CtlNotations.
+  Local Open Scope ctl_scope.
+
+  (* Dummy program *)
+  Definition dummy_23 : ctree (stateE nat) B0 unit :=
+    put 2 ;;
+    put 3.
+
+  (* Why ctl_of_State did not register? *)
+  Print Coercions.
+  Section COERC.
+    Context {C: Type -> Type} {X: Type}.
+    Notation SP := (ctree (stateE nat) C X -> nat -> Prop).
+    Definition ctl_of_State (s: nat): SP := now (fun x => x = s).
+    Arguments ctl_of_State /.
+    Coercion ctl_of_State : nat >-> Funclass.
+  End COERC.
+
+  Lemma writes_23: forall s,
+    <( dummy_23, s |= (AX 2 /\ AX (AX 3)) )>.
+  Proof.
+    split;unfold dummy_23; unfold ax, ctl_of_State, now; intros; inv H.
+    - inv H1. 
+    - apply trans_trigger_inv in H1 as (? & ? & ?).
+      dependent destruction H0.
+      reflexivity.
+    - inv H2.
+    - apply trans_trigger_inv in H2 as ([] & ? & ?).
+      dependent destruction H1.
+      cbn in *.
+      rewrite H in H0.
+      inv H0.
+      + inv H2.
+      + apply trans_vis_inv in H2 as ([] & ? & ?).
+        dependent destruction H1.
+        cbn.
+        reflexivity.
+  Qed.
+
+  Context {E C: Type -> Type} {X S: Type} {HasStuck: B0 -< C} {h: Handler E S}.
+  Definition stuck: ctree E C X := stuckD. 
+  Lemma is_stuck_ex: forall (s: S),
+        <( stuck, s |= (AX False) )>.
+    Proof.
+      unfold cimpl, ax, entails. intros.
+      inv H; unfold trans, transR in H1; cbn in H1; dependent destruction H1;
+        contradiction.
+    Qed.
+End Experiments.
+   
