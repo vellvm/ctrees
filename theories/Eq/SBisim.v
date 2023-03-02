@@ -132,7 +132,7 @@ Qed.
 
 (* This instance allows to use the symmetric tactic from coq-coinduction
    for homogeneous bisimulations *)
-#[global] Instance sbisim_eq_sym {E C X L} `{HasStuck : B0 -< C} :
+#[global] Instance sbisim_sym {E C X L} `{HasStuck : B0 -< C} :
   Symmetric L ->
   Sym_from converse (@sb E E C C X X _ _ L) (@ss E E C C X X _ _ L).
 Proof.
@@ -583,52 +583,32 @@ We now prove the same result, but for strong and weak bisimulation.
 Section bind.
   Obligation Tactic := trivial.
   Arguments label: clear implicits.
-  Context {E C: Type -> Type} {X X' Y': Type}
-          `{HasStuck: B0 -< C}
-          {L: rel (label E) (label E)}.
-  (* Context {E F C D: Type -> Type} {X X' Y Y': Type} *)
-  (*         `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} *)
-  (*         {L: rel (label E) (label F)}. *)
+  Context {E F C D: Type -> Type} {X X' Y Y': Type}
+          `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+          {L: rel (label E) (label F)} (R0 : rel X Y).
 
-
-(*|
-Specialization of [bind_ctx] to a function acting with [hsisim] on the bound value,
-and with the argument (pointwise) on the continuation.
-|*)
-  (* TODO: this is buggy: it should be parameterized by a relation
-     [K] whose obs/tau component is identical to [L] but that differs on
-     value, and this K should be the one fed to [pointwise].
-     See https://github.com/vellvm/ctrees/issues/21
-   *)
-  (* Program Definition bind_ctx_sbisim : mon (rel (ctree E C X') (ctree F D Y')) := *)
-  (*   {|body := fun R => @bind_ctx E F C D X Y X' Y' (sbisim L) *)
-  (*                             (pointwise (fun x y => L (val x) (val y)) R) |}. *)
-  (* Next Obligation. *)
-  (*   intros ?? H. apply leq_bind_ctx. intros ?? H' ?? H''. *)
-  (*   apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS. *)
-  (* Qed. *)
-
-  Program Definition bind_ctx_sbisim : mon (rel (ctree E C X') (ctree E C Y')) :=
-    {|body := fun R => @bind_ctx E E C C X X X' Y' (sbisim eq)
-                              (pointwise (fun x y => x = y) R) |}.
+  Program Definition bind_ctx_sbisim L0 : mon (rel (ctree E C X') (ctree F D Y')) :=
+    {|body := fun R => @bind_ctx E F C D X Y X' Y' (sbisim L0)
+                              (pointwise R0 R) |}.
   Next Obligation.
-    intros ?? H. apply leq_bind_ctx. intros ?? H' ?? H''.
+    intros ??? H. apply leq_bind_ctx. intros ?? H' ?? H''.
     apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
   Qed.
 
 (*|
 The resulting enhancing function gives a valid up-to technique
 |*)
-  Lemma bind_ctx_sbisim_t {RL : Reflexive L} :
-    bind_ctx_sbisim <= (st L).
+  Lemma bind_ctx_sbisim_t L0 :
+    is_update_val_rel L R0 L0 -> bind_ctx_sbisim L0 <= st L.
   Proof.
-    apply Coinduction.
+    intros HL0. apply Coinduction.
     intros R. apply (leq_bind_ctx _).
     intros t1 t2 tt k1 k2 kk.
     step in tt; split; simpl;  intros l u STEP.
-    - apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
-      + apply tt in STEP as (u' & l' & STEP & EQ' & ?).
-        subst.
+    - apply trans_bind_inv in STEP as [(VAL & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
+      + apply tt in STEP as (l' & u' & STEP & SIM & LBL).
+        apply HL0 in LBL; etrans.
+        apply update_val_rel_nonval_l in LBL as [VAL' LBL]; auto.
         do 2 eexists. split.
         apply trans_bind_l; eauto.
         split; auto.
@@ -639,20 +619,22 @@ The resulting enhancing function gives a valid up-to technique
         intros ? ? ?.
         apply (b_T (sb L)).
         red in kk; now apply kk.
-      + apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
-        subst.
+      + apply tt in STEPres as (l' & u' & STEPres & SIM & LBL).
+        apply HL0 in LBL; etrans.
+        apply update_val_rel_val_l in LBL as (v' & -> & ?).
         pose proof (trans_val_inv STEPres) as EQ.
         rewrite EQ in STEPres.
-        specialize (kk v _ eq_refl).
-        apply kk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
+        specialize (kk v v' H).
+        apply kk in STEP as (l' & u'' & STEP & EQ'' & ?); cbn in *.
         do 2 eexists; split.
         eapply trans_bind_r; eauto.
         split; auto.
         eapply (id_T (sb L)); auto.
 
     - apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *.
-      + apply tt in STEP as (u' & l' & STEP & EQ' & ?).
-        subst.
+      + apply tt in STEP as (l' & u' & STEP & EQ' & LBL).
+        apply HL0 in LBL; etrans.
+        apply update_val_rel_nonval_r in LBL as [VAL' LBL]; auto.
         do 2 eexists; split.
         apply trans_bind_l; eauto.
         split; auto.
@@ -664,79 +646,18 @@ The resulting enhancing function gives a valid up-to technique
         intros ? ? ?.
         apply (b_T (sb L)).
         red in kk; now apply kk.
-      + apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
-        subst.
+      + apply tt in STEPres as (l' & u' & STEPres & EQ' & LBL).
+        apply HL0 in LBL; etrans.
+        apply update_val_rel_val_r in LBL as (v' & -> & ?).
         pose proof (trans_val_inv STEPres) as EQ.
         rewrite EQ in STEPres.
-        specialize (kk v _ eq_refl).
+        specialize (kk v' v H).
         apply kk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
         do 2 eexists; split.
         eapply trans_bind_r; eauto.
         split; auto.
         eapply (id_T (sb L)); auto.
   Qed.
-
-  (* Old proof in semi-generalized case *)
-  (* Lemma bind_ctx_sbisim_t {RV: Respects_val L}: *)
-  (*   bind_ctx_sbisim <= (st L). *)
-  (* Proof. *)
-  (*   apply Coinduction. *)
-  (*   intros R. apply (leq_bind_ctx _). *)
-  (*   intros t1 t2 tt k1 k2 kk. *)
-  (*   step in tt; split; simpl;  intros l u STEP. *)
-  (*   - apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *. *)
-  (*     + apply tt in STEP as (u' & l' & STEP & EQ' & ?). *)
-  (*       do 2 eexists. split. *)
-  (*       apply trans_bind_l; eauto. *)
-  (*       * intro Hl. destruct Hl. apply RV in H0 as [_ ?]. specialize (H0 (Is_val _)). auto. *)
-  (*       * split; auto. *)
-  (*         apply (fT_T equ_clos_st). *)
-  (*         econstructor; [exact EQ | | reflexivity]. *)
-  (*         apply (fTf_Tf (sb L)). *)
-  (*         apply in_bind_ctx; auto. *)
-  (*         intros ? ? ?. *)
-  (*         apply (b_T (sb L)). *)
-  (*         red in kk; now apply kk. *)
-  (*     + apply tt in STEPres as (u' & ? & STEPres & EQ' & ?). *)
-  (*       destruct RV as [RV]. *)
-  (*       specialize (RV _ _ H) as [? _]. specialize (H0 (Is_val _)). destruct H0. *)
-  (*       pose proof (trans_val_invT STEPres). subst. *)
-  (*       pose proof (trans_val_inv STEPres) as EQ. *)
-  (*       rewrite EQ in STEPres. *)
-  (*       specialize (kk _ _ H). *)
-  (*       apply kk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *. *)
-  (*       do 2 eexists; split. *)
-  (*       eapply trans_bind_r; eauto. *)
-  (*       split; auto. *)
-  (*       eapply (id_T (sb L)); auto. *)
-
-  (*   - apply trans_bind_inv in STEP as [(H & t' & STEP & EQ) | (v & STEPres & STEP)]; cbn in *. *)
-  (*     + apply tt in STEP as (u' & l' & STEP & EQ' & ?). *)
-  (*       do 2 eexists; split. *)
-  (*       apply trans_bind_l; eauto. *)
-  (*       * intro Hl. destruct Hl. apply RV in H0 as [? _]. specialize (H0 (Is_val _)). auto. *)
-  (*       * split; auto. *)
-  (*         apply (fT_T equ_clos_st). *)
-  (*         symmetry in EQ. *)
-  (*         econstructor; [reflexivity | | exact EQ]. *)
-  (*         apply (fTf_Tf (sb L)). *)
-  (*         apply in_bind_ctx; auto. *)
-  (*         intros ? ? ?. *)
-  (*         apply (b_T (sb L)). *)
-  (*         red in kk; now apply kk. *)
-  (*     + apply tt in STEPres as (u' & ? & STEPres & EQ' & ?). *)
-  (*       destruct RV as [RV]. *)
-  (*       specialize (RV _ _ H) as [_ ?]; specialize (H0 (Is_val _)); destruct H0. *)
-  (*       pose proof (trans_val_invT STEPres). subst. *)
-  (*       pose proof (trans_val_inv STEPres) as EQ. *)
-  (*       rewrite EQ in STEPres. *)
-  (*       specialize (kk _ _ H). *)
-  (*       apply kk in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *. *)
-  (*       do 2 eexists; split. *)
-  (*       eapply trans_bind_r; eauto. *)
-  (*       split; auto. *)
-  (*       eapply (id_T (sb L)); auto. *)
-  (* Qed. *)
 
 End bind.
 
@@ -748,98 +669,150 @@ Import EquNotations.
 Expliciting the reasoning rule provided by the up-to principles.
 This principle is unusable for most [L], see https://github.com/vellvm/ctrees/issues/21
 |*)
-(* Lemma st_clo_bind {E F C D: Type -> Type} {X Y X' Y'} `{HasStuck:B0 -< C} `{HasStuck':B0 -< D} *)
-(*       {L: rel (@label E) (@label F)} {RV: Respects_val L} *)
-(*       (t1 : ctree E C X) (t2: ctree F D Y) *)
-(*       (k1 : X -> ctree E C X') (k2: Y -> ctree F D Y') RR: *)
-(*   t1 (~ L) t2 -> *)
-(*   (forall x y, (st L RR) (k1 x) (k2 y)) -> *)
-(*   st L RR (t1 >>= k1) (t2 >>= k2). *)
-(* Proof. *)
-(*   intros ? ?. *)
-(*   apply (ft_t (@bind_ctx_sbisim_t E F C D X X' Y Y' _ _ L RV)). *)
-(*   apply in_bind_ctx; auto. *)
-(*   intros ? ? ?; auto. *)
-(* Qed. *)
-
-Lemma st_clo_bind {E C: Type -> Type} {X X' Y'} `{HasStuck:B0 -< C}
-      {L: rel (@label E) (@label E)} {RL: Reflexive L}
-      (t1 t2 : ctree E C X)
-      (k1 : X -> ctree E C X') (k2: X -> ctree E C Y') RR:
-  t1 ~ t2 ->
-  (forall x, (st L RR) (k1 x) (k2 x)) ->
+Lemma st_clo_bind_gen {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (R0 : rel X Y) L0
+      (t1 : ctree E C X) (t2: ctree F D Y)
+      (HL0 : is_update_val_rel L R0 L0)
+      (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') RR:
+  t1 (~L0) t2 ->
+  (forall x y, R0 x y -> (st L RR) (k1 x) (k2 y)) ->
   st L RR (t1 >>= k1) (t2 >>= k2).
 Proof.
   intros ? ?.
-  apply (ft_t (@bind_ctx_sbisim_t E C X X' Y' _ L RL)).
-  apply in_bind_ctx; auto.
-  intros ? ? ?; subst; auto.
+  apply (ft_t (@bind_ctx_sbisim_t E F C D X X' Y Y' _ _ L R0 L0 HL0)).
+  apply in_bind_ctx; eauto.
 Qed.
 
-(*|
-Specializing the congruence principle for [~].
-TODO: generic version
-|*)
-(* Lemma sbisim_clo_bind {E C D: Type -> Type} {X R1 R2} *)
-(*   `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} *)
-(*   {L: rel (@label E) (@label E)} {RVL: Respects_val L} *)
-(*   (t1 : ctree E C X) (t2: ctree E D X) *)
-(*   (k1 : X -> ctree E C R1) (k2: X -> ctree E D R2): *)
-(*   t1 ~ t2 -> *)
-(*   (forall x, k1 x (~ L) k2 x) -> *)
-(*   t1 >>= k1 (~ L) t2 >>= k2. *)
-(* Proof. *)
-(*   intros * EQ EQs. *)
-(*   apply (ft_t (@bind_ctx_sbisim_t E E C D X R1 X R2 _ _ _ _)). *)
-(*   apply in_bind_ctx; auto. *)
-(*   Unset Printing Notations. *)
-(*   intros ? ? ?; auto. *)
-(*   apply EQs. *)
-(* Qed. *)
-
-Lemma sbisim_clo_bind {E C: Type -> Type} {X R1 R2}
-  `{HasStuck: B0 -< C}
-  {L: rel (@label E) (@label E)} {RL: Reflexive L}
-  (t1 t2 : ctree E C X)
-  (k1 : X -> ctree E C R1) (k2: X -> ctree E C R2):
-  t1 ~ t2 ->
-  (forall x, k1 x (~ L) k2 x) ->
-  t1 >>= k1 (~ L) t2 >>= k2.
+Lemma st_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (R0 : rel X Y)
+      (t1 : ctree E C X) (t2: ctree F D Y)
+      (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') RR:
+  t1 (~update_val_rel L R0) t2 ->
+  (forall x y, R0 x y -> (st L RR) (k1 x) (k2 y)) ->
+  st L RR (t1 >>= k1) (t2 >>= k2).
 Proof.
-  intros * EQ EQs.
-  apply (ft_t (@bind_ctx_sbisim_t E C X R1 R2 _ _ _)).
-  apply in_bind_ctx; auto.
-  intros ? ? ?; auto.
-  subst; apply EQs.
+  intros ? ?.
+  eapply st_clo_bind_gen; eauto.
+  apply update_val_rel_correct.
+Qed.
+
+Lemma st_clo_bind_eq {E C D: Type -> Type} {X X': Type}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (t1 : ctree E C X) (t2: ctree E D X)
+      (k1 : X -> ctree E C X') (k2 : X -> ctree E D X') RR:
+  t1 ~ t2 ->
+  (forall x, st eq RR (k1 x) (k2 x)) ->
+  st eq RR (t1 >>= k1) (t2 >>= k2).
+Proof.
+  intros ? ?.
+  eapply st_clo_bind_gen.
+  - apply is_update_val_rel_eq.
+  - assumption.
+  - intros. now subst.
+Qed.
+
+Lemma sbt_clo_bind_gen {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (R0 : rel X Y) L0
+      (t1 : ctree E C X) (t2: ctree F D Y)
+      (HL0 : is_update_val_rel L R0 L0)
+      (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') RR:
+  t1 (~L0) t2 ->
+  (forall x y, R0 x y -> (sbt L RR) (k1 x) (k2 y)) ->
+  sbt L RR (t1 >>= k1) (t2 >>= k2).
+Proof.
+  intros ? ?.
+  apply (fbt_bt (@bind_ctx_sbisim_t E F C D X X' Y Y' _ _ L R0 L0 HL0)).
+  apply in_bind_ctx; eauto.
+Qed.
+
+Lemma sbt_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (R0 : rel X Y)
+      (t1 : ctree E C X) (t2: ctree F D Y)
+      (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') RR:
+  t1 (~update_val_rel L R0) t2 ->
+  (forall x y, R0 x y -> (sbt L RR) (k1 x) (k2 y)) ->
+  sbt L RR (t1 >>= k1) (t2 >>= k2).
+Proof.
+  intros ? ?.
+  eapply sbt_clo_bind_gen; eauto.
+  apply update_val_rel_correct.
+Qed.
+
+Lemma sbt_clo_bind_eq {E C D: Type -> Type} {X X': Type}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (t1 : ctree E C X) (t2: ctree E D X)
+      (k1 : X -> ctree E C X') (k2 : X -> ctree E D X') RR:
+  t1 ~ t2 ->
+  (forall x, sbt eq RR (k1 x) (k2 x)) ->
+  sbt eq RR (t1 >>= k1) (t2 >>= k2).
+Proof.
+  intros ? ?.
+  eapply sbt_clo_bind_gen.
+  - apply is_update_val_rel_eq.
+  - assumption.
+  - intros. now subst.
+Qed.
+
+Lemma sbisim_clo_bind_gen {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (R0 : rel X Y) L0
+      (t1 : ctree E C X) (t2: ctree F D Y)
+      (HL0 : is_update_val_rel L R0 L0)
+      (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') :
+  t1 (~L0) t2 ->
+  (forall x y, R0 x y -> k1 x (~L) k2 y) ->
+  t1 >>= k1 (~L) t2 >>= k2.
+Proof.
+  now apply st_clo_bind_gen.
+Qed.
+
+Lemma sbisim_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (R0 : rel X Y)
+      (t1 : ctree E C X) (t2: ctree F D Y)
+      (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') :
+  t1 (~update_val_rel L R0) t2 ->
+  (forall x y, R0 x y -> k1 x (~L) k2 y) ->
+  t1 >>= k1 (~L) t2 >>= k2.
+Proof.
+  now apply st_clo_bind.
+Qed.
+
+Lemma sbisim_clo_bind_eq {E C D: Type -> Type} {X X': Type}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (t1 : ctree E C X) (t2: ctree E D X)
+      (k1 : X -> ctree E C X') (k2 : X -> ctree E D X') :
+  t1 ~ t2 ->
+  (forall x, k1 x ~ k2 x) ->
+  t1 >>= k1 ~ t2 >>= k2.
+Proof.
+  now apply st_clo_bind_eq.
 Qed.
 
 (*|
 And in particular, we get the proper instance justifying rewriting [~ L] to the left of a [bind].
 |*)
-(* #[global] Instance bind_sbisim_cong_gen {E C X X'} (RR: relation (ctree E C X')) `{HasStuck: B0 -< C} *)
-(*       {L: relation (@label E)} {RV: Respects_val L}: *)
-(*   Proper (sbisim L ==> (fun f g => forall x y, st L RR (f x) (g y)) ==> st L RR) (@bind E C X X'). *)
-(* Proof. *)
-(*   repeat red; intros; eapply st_clo_bind; auto. *)
-(* Qed. *)
-
-#[global] Instance bind_sbisim_cong_gen {E C X X'} (RR: relation (ctree E C X')) `{HasStuck: B0 -< C}
+(*#[global] Instance bind_sbisim_cong_gen {E C X X'} (RR: relation (ctree E C X')) `{HasStuck: B0 -< C}
       {L: relation (@label E)} {RL: Reflexive L}:
   Proper (sbisim eq ==> (fun f g => forall x, st L RR (f x) (g x)) ==> st L RR) (@bind E C X X').
 Proof.
-  repeat red; intros; eapply st_clo_bind; auto.
-Qed.
+  repeat red; intros. eapply st_clo_bind_gen. 2: apply H.
+   Qed.*)
 
 Ltac __upto_bind_sbisim :=
   match goal with
     |- @sbisim ?E ?F ?C ?D ?X ?Y _ _ ?L
-              (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) => apply sbisim_clo_bind
+              (CTree.bind (T := ?T) _ _) (CTree.bind (T := ?T) _ _) => apply sbisim_clo_bind_eq
   | |- body (t (@sb ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R
            (CTree.bind (T := ?X') _ _) (CTree.bind (T := ?X') _ _) =>
-      apply (ft_t (@bind_ctx_sbisim_t E C X' X Y _ L _)), in_bind_ctx
+      apply st_clo_bind_eq
   | |- body (bt (@sb ?E ?F ?C ?D ?X ?Y _ _ ?L)) ?R
            (CTree.bind (T := ?X') _ _) (CTree.bind (T := ?X') _ _) =>
-      apply (fbt_bt (@bind_ctx_sbisim_t E C X' X Y _ L _)), in_bind_ctx
+      apply sbt_clo_bind_eq
   end.
 
 Ltac __upto_bind_eq_sbisim :=
@@ -1059,10 +1032,8 @@ Section Proof_Rules.
     sb L R (Ret x) (Ret y).
   Proof.
     intros Rstuck ValRefl PROP.
-    split; cbn; intros ? ? TR; inv_trans; subst;
-      cbn.
-    - exists (val y), stuckD; eexists; intuition; etrans; rewrite EQ; trivial.
-    - exists (val x), stuckD; eexists; intuition; etrans; rewrite EQ; trivial.
+    split; apply step_ss_ret_gen; eauto.
+    typeclasses eauto.
   Qed.
 
   Lemma step_sb_ret {Y F D} {L: rel (label E) (label F)} `{B0 -< D}
@@ -1089,13 +1060,8 @@ Section Proof_Rules.
     sb L R (Vis e k) (Vis f k').
   Proof.
     intros PR EQs EQs'.
-    split; intros ? ? TR; inv_trans; subst; cbn.
-    - destruct (EQs x) as (y & EQR & EQL).
-      do 2 eexists; intuition.
-      rewrite EQ. apply EQR. apply EQL.
-    - destruct (EQs' x) as (y & EQR & EQL).
-      do 2 eexists; intuition.
-      rewrite EQ. apply EQR. apply EQL.
+    split; apply step_ss_vis_gen; eauto.
+    typeclasses eauto.
   Qed.
 
   Lemma step_sb_vis {Y F D X' Y'} `{B0 -< D}
@@ -1116,8 +1082,8 @@ Section Proof_Rules.
     sb L R (Vis e k) (Vis f k').
   Proof.
     intros PR EQs.
-    split; intros ? ? TR; inv_trans; subst; cbn; do 2 eexists;
-      destruct (EQs x) as (EQR & EQL); intuition; try rewrite EQ; eauto.
+    split; apply step_ss_vis_id_gen; auto.
+    typeclasses eauto.
   Qed.
 
   Lemma step_sb_vis_id {F D X' Y'} `{B0 -< D}
@@ -1141,9 +1107,8 @@ Section Proof_Rules.
     (R t t') ->
     sb L R (Step t) (Step t').
   Proof.
-    intros.
-    split; intros ? ? TR; inv_trans; subst;
-      cbn; eexists; eexists; intuition; etrans; rewrite EQ; auto.
+    intros. split; apply step_ss_step_gen; auto.
+    typeclasses eauto.
   Qed.
 
   Lemma step_sb_step {Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C}
@@ -1225,9 +1190,7 @@ Section Proof_Rules.
     sb L R (Guard t) (Guard t').
   Proof.
     intros EQ.
-    split; intros ? ? TR; inv_trans; subst; trivial;
-      apply EQ in TR as (? & ? & ? & ? & ?); subst; do 2 eexists; intuition; eauto;
-      now apply trans_guard.
+    split; apply step_ss_guard_gen; apply EQ.
   Qed.
 
   Lemma step_sb_guard {Y F D} `{B0 -< D} `{B1 -< D} `{B1 -< C}
@@ -1245,17 +1208,9 @@ Section Proof_Rules.
     sb L R (BrD c k) (BrD d k').
   Proof.
     intros EQs1 EQs2.
-    split; intros ? ? TR; inv_trans; subst.
-    - destruct (EQs1 x) as [z [FW _]].
-      apply FW in TR; destruct TR as (u' & ? & TR' & EQ' & ?).
-      do 2 eexists. subst. intuition.
-      eapply trans_brD with (x := z); [|reflexivity].
-      all: eauto.
-    - destruct (EQs2 x) as [y [_ BA]].
-      apply BA in TR; destruct TR as (u' & ? & TR' & EQ' & ?).
-      do 2 eexists. subst. intuition.
-      eapply trans_brD with (x := y); [|reflexivity].
-      all: eauto.
+    split; apply step_ss_brD_gen; intros.
+    - destruct (EQs1 x) as [z [FW _]]. eauto.
+    - destruct (EQs2 x) as [z [_ BA]]. eauto.
   Qed.
 
   Lemma step_sb_brD {Y X' Y' F D} `{B0 -< D} (c : C X) (d: D Y)
@@ -2032,11 +1987,11 @@ but we prove a counter-example for a ctree with a binary choice.
   Qed.
 
   (* TODO Think a bit about these and reestablish them, they are a bit weird *)
-  (* Lemma cssim_sbisim_equiv_gen :
+  (* Lemma ssim_sbisim_equiv_gen :
     forall `{Injective (@label E) (@label F) L}
       `{Deterministic _ _ L}
       (t : ctree E C X) (t' : ctree F D Y),
-      cssim L t t' -> CSSim.cssim (flip L) t' t -> sbisim L t t'.
+      ssim L t t' -> ssim (flip L) t' t -> sbisim L t t'.
   Proof.
     intros until 2.
     coinduction R CH. red. red. cbn. split; intros.
@@ -2058,12 +2013,12 @@ but we prove a counter-example for a ctree with a binary choice.
   (*     + apply H5. *)
   (* Qed. *)
 
-  (* Import CSSimNotations. *)
-  (* Lemma cssim_sbisim_equiv_gen : *)
+  (* Import SSimNotations. *)
+  (* Lemma ssim_sbisim_equiv_gen : *)
   (*   forall `{Injective (@label E) (@label F) L} *)
   (*     `{Deterministic _ _ L} *)
   (*     (t : ctree E C X) (t' : ctree F D Y), *)
-  (*     cssim L t t' -> CSSim.cssim (flip L) t' t -> sbisim L t t'. *)
+  (*     ssim L t t' -> ssim (flip L) t' t -> sbisim L t t'. *)
   (* Proof. *)
   (*   intros until 2. *)
   (*   clear H H0. *)
@@ -2092,14 +2047,14 @@ but we prove a counter-example for a ctree with a binary choice.
   (*     + apply H5. *)
   (* Qed. *)
 
-  (* Lemma cssim_sbisim_equiv_eq : forall {E X} (t t' : ctree E B01 X), *)
-  (*     cssim eq t t' -> cssim eq t' t -> sbisim eq t t'. *)
+  (* Lemma ssim_sbisim_equiv_eq : forall {E X} (t t' : ctree E B01 X), *)
+  (*     ssim eq t t' -> ssim eq t' t -> sbisim eq t t'. *)
   (* Proof. *)
-  (*   intros. apply cssim_sbisim_equiv_gen; intros. *)
+  (*   intros. apply ssim_sbisim_equiv_gen; intros. *)
   (*   - typeclasses eauto. *)
   (*   - typeclasses eauto. *)
   (*   - apply H. *)
-  (*   - apply (@cssim_subrelation _ _ _ eq); auto. *)
+  (*   - apply (@ssim_subrelation _ _ _ eq); auto. *)
   (*     red. intros. subst. reflexivity. *)
   (* Qed. *)
 
@@ -2109,18 +2064,18 @@ but we prove a counter-example for a ctree with a binary choice.
   (* #[local] Definition t2 : ctree void1 (B01 +' B2) unit := *)
   (*   brS2 (Ret tt) (stuckD). *)
 
-  (* Lemma cssim_sbisim_nequiv : *)
-  (*   cssim eq t1 t2 /\ cssim (flip eq) t2 t1 /\ ~ sbisim eq t1 t2. *)
+  (* Lemma ssim_sbisim_nequiv : *)
+  (*   ssim eq t1 t2 /\ ssim (flip eq) t2 t1 /\ ~ sbisim eq t1 t2. *)
   (* Proof. *)
   (*   unfold t1, t2. intuition. *)
-  (*   - step. eapply step_css_brS; auto. *)
+  (*   - step. eapply step_ss_brS; auto. *)
   (*     exact  (exist _ tt I). *)
   (*     intros _. exists true. reflexivity. *)
-  (*   - step. eapply step_css_brS; auto. *)
+  (*   - step. eapply step_ss_brS; auto. *)
   (*     exact  (exist _ true I). *)
   (*     intro. exists tt. destruct x. *)
   (*     + reflexivity. *)
-  (*     + step. apply css_is_stuck. *)
+  (*     + step. apply ss_is_stuck. *)
   (*       * apply stuckD_is_stuck. *)
   (*       * admit. (* This looks wrong, Ret is not stuck *) *)
   (*   - step in H. cbn in H. destruct H as [_ ?]. *)
