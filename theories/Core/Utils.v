@@ -26,10 +26,27 @@ Proof.
   reflexivity.
 Qed.
 
-#[global] Instance gfp_weq : forall {X} `{CompleteLattice X},
-  Proper (weq ==> weq) (@gfp X _).
+#[global] Instance t_weq : forall {X Y},
+  Proper (weq ==> weq) (@t (rel X Y) _).
 Proof.
-Admitted.
+  split; repeat red; intros.
+  - destruct H0. exists x0; auto.
+    repeat red. intros.
+    apply H. apply H0.
+    eapply (Hbody x0). { cbn. red. intros. apply H. apply H3. }
+    apply H2.
+  - destruct H0. exists x0; auto.
+    repeat red. intros.
+    apply H. apply H0.
+    eapply (Hbody x0). { cbn. red. intros. apply H. apply H3. }
+    apply H2.
+Qed.
+
+#[global] Instance gfp_weq : forall {X Y},
+  Proper (weq ==> weq) (@gfp (rel X Y) _).
+Proof.
+  intros. intros ? ? ?. now apply t_weq.
+Qed.
 
 Ltac invert :=
   match goal with
