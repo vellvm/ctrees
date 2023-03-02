@@ -38,7 +38,6 @@ Class Handler (E: Type -> Type) (S: Type) := {
 #[global] Instance Handler_par: Handler parE nat := 
   {| hfold _ e _ s := match e with Switch i => i end |}.
 
-(* LEF: Why does this loop [cequiv]? *)
 #[global] Instance Handler_plus{E F: Type -> Type}{S T}
  (h: Handler E S) (g: Handler F T) : Handler (E+'F) (S*T) :=
   {|
@@ -49,9 +48,7 @@ Class Handler (E: Type -> Type) (S: Type) := {
     end
   |}.
 
-
-
-Section Ctl.
+Section Kripke.
   Context {E C: Type -> Type} {X S: Type}
           {h: Handler E S} {HasStuck: B0 -< C}.
 
@@ -67,8 +64,47 @@ Section Ctl.
     trans (obs e x) t u ->
     ktrans (t, s) (u, h.(hfold) e x s).
 
+  Hint Constructors ktrans: core.
+
+  #[global] Instance proper_ktrans_equ:
+    Proper (equ eq * eq ==> equ eq * eq ==> iff) ktrans.
+  Proof.
+    unfold Proper, respectful, impl; cbn.
+    intros [t s] [u x] [EQt ?] [t' s'] [u' x'] [EQt' H3]; simpl in *.
+    unfold RelCompFun in *; cbn in *; subst.    
+    split; intro H; inv H.
+    - rewrite EQt, EQt' in H1.
+      now apply kTau.
+    - rewrite EQt, EQt' in H1.
+      now apply kVis.
+    - rewrite <- EQt, <- EQt' in H1.
+      now apply kTau.
+    - rewrite <- EQt, <- EQt' in H1.
+      now apply kVis.
+  Qed.
+
+  Lemma ktrans_sbisim_l: forall (t1 t2 t1': ctree E C X) s s',
+      ktrans (t1,s) (t1',s') ->
+      t1 ~ t2 ->
+      exists t2', ktrans (t2,s) (t2',s') /\ t1' ~ t2'.
+  Proof.
+    intros * TR  Hsb.
+    inv TR; intros; step in Hsb; destruct Hsb as [Hsim _];
+      apply Hsim in H0 as (l2 & t2' & TR2 & ? & <-);
+      exists t2'; split; eauto.
+  Qed.
+
+End Kripke.
+
+(*| CTL logic based on kripke semantics of ctrees |*)
+Section Ctl.
+  
+  Context {E C: Type -> Type} {X S: Type}
+          {h: Handler E S} {HasStuck: B0 -< C}.
+  Notation SP := (ctree E C X -> S -> Prop).
+  
   (* Lift label predicates to SP *)
-  Definition lift(p: S -> Prop): SP :=
+  Definition now(p: S -> Prop): SP :=
     fun _ s => p s.
   
   (* Propositional *)
@@ -143,15 +179,21 @@ Module CtlNotations.
   Section SC.
     Context {E C: Type -> Type} {X S: Type}.
     Notation SP := (ctree E C X -> S -> Prop).
-    Definition ctl_of_Prop (P : Prop) : SP := lift (fun (_: S) => P).
-    Definition ctl_of_State (s: S): SP := lift (fun (x: S) => x = s).
+    Definition ctl_of_Prop (P : Prop) : SP := now (fun (_: S) => P).
+    Definition ctl_of_State (s: S): SP := now (fun (x: S) => x = s).
     Coercion ctl_of_Prop : Sortclass >-> Funclass. 
     Coercion ctl_of_State : S >-> Funclass.
   End SC.
   
-  Notation "<( e )>" := e (at level 0, e custom ctl at level 99) : ctl_scope.
-  Notation "( x )" := x (in custom ctl, x at level 99) : ctl_scope.
+  Notation "<( e )>" := e (at level 0, e custom ctl at level 95) : ctl_scope.
+  Notation "( x )" := x (in custom ctl, x at level 10) : ctl_scope.
   Notation "x" := x (in custom ctl at level 0, x constr at level 0) : ctl_scope.
+  
+  Notation "f x .. y" := (.. (f x) .. y)
+                           (in custom ctl at level 0, only parsing,
+                               f constr at level 0, x constr at level 9,
+                               y constr at level 9) : ctl_scope.
+  
   Notation "t , s |= p " := (entails p t s) (in custom ctl at level 99, p custom ctl,
                                                 right associativity): ctl_scope.
   (* Temporal *)
@@ -199,8 +241,11 @@ End CtlNotations.
 Import CtlNotations.
 
 #[global] Hint Constructors eu au: core.
-#[global] Hint Unfold ax ex lift: core.
-Arguments lift /.
+#[global] Hint Unfold cand cor cimpl ax ex now: core.
+Arguments entails /.
+Arguments cand /.
+Arguments cor /.
+Arguments cimpl /.
 Arguments ax /.
 Arguments ex /.
 Arguments agF /.
@@ -377,32 +422,14 @@ Section Congruences.
 
   Notation SP := (ctree E C X -> S -> Prop).
 
-  (*| [lift] ignores trees and only looks at labels |*)
-  #[global] Instance proper_lift_equ: forall (p: S -> Prop) R,
-      Proper (R ==> eq ==> iff) (@lift E C X S p).
+  (*| [now] ignores trees and only looks at labels |*)
+  #[global] Instance proper_now: forall (p: S -> Prop) R,
+      Proper (R ==> eq ==> iff) (@now E C X S p).
   Proof.
     unfold Proper, respectful, impl; cbn.      
-    intros p R x y EQ ? l <-; split; unfold lift; auto. 
+    intros p R x y EQ ? l <-; split; unfold now; auto. 
   Qed.
 
-  #[global] Instance proper_ktrans_equ:
-    Proper (equ eq * eq ==> equ eq * eq ==> iff) (@ktrans E C X S _ _).
-  Proof.
-    unfold Proper, respectful, impl; cbn.
-    intros [t s] [u x] [EQt ?] [t' s'] [u' x'] [EQt' H3]; simpl in *.
-    unfold RelCompFun in *; cbn in *; subst.    
-    split; intro H; inv H.
-    - rewrite EQt, EQt' in H1.
-      now apply kTau.
-    - rewrite EQt, EQt' in H1.
-      now apply kVis.
-    - rewrite <- EQt, <- EQt' in H1.
-      now apply kTau.
-    - rewrite <- EQt, <- EQt' in H1.
-      now apply kVis.
-  Qed.
-
-    
   #[global] Instance proper_cand_equ (P Q: SP)
    {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}
    {PrQ: Proper (@equ E C X X eq ==> eq ==> iff) Q}:
@@ -415,7 +442,6 @@ Section Congruences.
     - now rewrite EQ.
     - now rewrite EQ.
   Qed.    
-
     
   #[global] Instance proper_cor_equ (P Q: SP)
    {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}
@@ -511,7 +537,7 @@ Section Congruences.
         now rewrite EQ.
   Qed.
 
-  (*| Up-to-ag enhancing function |*)
+  (*| Up-to-eq enhancing function |*)
   Variant unary_equ_clos_body (R : SP) : SP :=
     | uEqu_clos : forall t t' s s'
                   (Agt : t ≅ t')
@@ -523,10 +549,11 @@ Section Congruences.
     {| body := unary_equ_clos_body |}.
   Next Obligation. destruct H0; econstructor; eauto. Qed.
 
-  Section gProper.
+  (*| Rewrite [t ≅ u] in a CTL context t,s |= p <-> u,s |= p] |*)
+  Section gProperEqu.
     Context {P: SP} {PrP: Proper (@equ E C X X eq ==> eq ==> iff) P}.    
     Lemma equ_clos_ag:
-          unary_equ_clos <= agt P.
+      unary_equ_clos <= agt P.
     Proof.    
       apply Coinduction; cbn.
       intros R t0 s0 [t1 t2 s1 s2 EQt [Fwd Back] <-]; split.
@@ -549,6 +576,30 @@ Section Congruences.
         + eapply (f_Tf (eg_ P)).
           econstructor; eauto. 
     Qed.
+
+    #[global] Instance proper_agt_equ RR:
+      Proper (@equ E C X X eq ==> eq ==> iff) (agt P RR).
+    Proof.
+      unfold Proper, respectful, impl; cbn.
+      intros x y EQ ? l <-; split; intro G; apply (ft_t equ_clos_ag); econstructor;
+        [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
+    Qed.
+
+    #[global] Instance proper_agT_equ RR f:
+      Proper (@equ E C X X eq ==> eq ==> iff) (agT P f RR).
+    Proof.
+      unfold Proper, respectful, impl; cbn.
+      intros x y EQ ? l <-; split; intro G; apply (fT_T equ_clos_ag); econstructor;
+        [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
+    Qed.
+
+    #[global] Instance proper_ag_equ:
+      Proper (@equ E C X X eq ==> eq ==> iff) <( AG P )>.
+    Proof.
+      unfold Proper, respectful, impl; cbn.
+      intros x y EQ ? l <-; split; intro G; apply (ft_t equ_clos_ag); econstructor;
+        [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
+    Qed.
     
     #[global] Instance proper_egt_equ RR:
       Proper (@equ E C X X eq ==> eq ==> iff) (egt P RR).
@@ -558,7 +609,7 @@ Section Congruences.
         [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
     Qed.
 
-    #[global] Instance proper_agT_equ RR f:
+    #[global] Instance proper_egT_equ RR f:
       Proper (@equ E C X X eq ==> eq ==> iff) (egT P f RR).
     Proof.
       unfold Proper, respectful, impl; cbn.
@@ -566,36 +617,109 @@ Section Congruences.
         [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
     Qed.
 
-    #[global] Instance proper_ag_equ:
+    #[global] Instance proper_eg_equ:
       Proper (@equ E C X X eq ==> eq ==> iff) <( EG P )>.
     Proof.
       unfold Proper, respectful, impl; cbn.
       intros x y EQ ? l <-; split; intro G; apply (ft_t equ_clos_eg); econstructor;
         [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
     Qed.
-  End gProper.
-  
+  End gProperEqu.
+
+  (*| Up-to-sbisim enhancing function |*)
+  Variant unary_sbisim_clos_body (R : SP) : SP :=
+    | uSbisim_clos : forall t t' s s'
+                  (Agt : t ~ t')
+                  (HR : R t' s')
+                  (Agu : s' = s),
+        unary_sbisim_clos_body R t s.
+
+  Program Definition unary_sbisim_clos: mon SP :=
+    {| body := unary_sbisim_clos_body |}.
+  Next Obligation. destruct H0; econstructor; eauto. Qed.
+
+  (*| Rewrite [t ~ u] in a CTL context t,s |= p <-> u,s |= p] |*)
+  Section gProperSbisim.
+    Context {P: SP} {PrP: Proper (@sbisim E E C C X X _ _ eq ==> eq ==> iff) P}.
+    
+    Lemma sbisim_clos_ag:
+      unary_sbisim_clos <= agt P.
+    Proof.    
+      apply Coinduction; cbn.
+      intros R t0 s0 [t1 t2 s1 s2 EQt [Fwd Back] <-]; split.
+      - rewrite EQt; apply Fwd.
+      - intros. 
+        eapply (f_Tf (ag_ P)).
+        rewrite <- EQt in Fwd.
+        destruct (ktrans_sbisim_l H EQt) as (? & ? & ?); eauto.
+        econstructor.
+        + apply H1.
+        + apply Back.
+          apply H0.
+        + reflexivity.
+    Qed.
+
+    Lemma sbisim_clos_eg:
+      unary_sbisim_clos <= egt P.
+    Proof.    
+      apply Coinduction; cbn.
+      intros R t0 s0 [t1 t2 s1 s2 EQt [Fwd Back] <-]; split.
+      - rewrite EQt; apply Fwd.
+      - destruct Back as (t2' & s2' & TR2 & ?).
+        symmetry in EQt.
+        destruct (ktrans_sbisim_l TR2 EQt) as (? & ? & ?); eauto.
+        exists x, s2'; intuition.
+        eapply (f_Tf (eg_ P)).
+        symmetry in H1.
+        econstructor; eauto.
+    Qed.
+    
+    #[global] Instance proper_egt_sbisim RR:
+      Proper (sbisim eq ==> eq ==> iff) (egt P RR).
+    Proof.
+      unfold Proper, respectful, impl; cbn.
+      intros x y EQ ? l <-; split; intro G; apply (ft_t sbisim_clos_eg); econstructor;
+        [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
+    Qed.
+
+    #[global] Instance proper_egT_sbisim RR f:
+      Proper (sbisim eq ==> eq ==> iff) (egT P f RR).
+    Proof.
+      unfold Proper, respectful, impl; cbn.
+      intros x y EQ ? l <-; split; intro G; apply (fT_T sbisim_clos_eg); econstructor;
+        [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
+    Qed.
+
+    #[global] Instance proper_eg_sbisim:
+      Proper (sbisim eq ==> eq ==> iff) <( EG P )>.
+    Proof.
+      unfold Proper, respectful, impl; cbn.
+      intros x y EQ ? l <-; split; intro G; apply (ft_t sbisim_clos_eg); econstructor;
+        [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
+    Qed.
+        
+    #[global] Instance proper_agt_sbisim RR:
+      Proper (sbisim eq ==> eq ==> iff) (agt P RR).
+    Proof.
+      unfold Proper, respectful, impl; cbn.
+      intros x y EQ ? l <-; split; intro G; apply (ft_t sbisim_clos_ag); econstructor;
+        [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
+    Qed.
+
+    #[global] Instance proper_agT_sbisim RR f:
+      Proper (sbisim eq ==> eq ==> iff) (agT P f RR).
+    Proof.
+      unfold Proper, respectful, impl; cbn.
+      intros x y EQ ? l <-; split; intro G; apply (fT_T sbisim_clos_ag); econstructor;
+        [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
+    Qed.
+
+    #[global] Instance proper_ag_sbisim:
+      Proper (sbisim eq ==> eq ==> iff) <( AG P )>.
+    Proof.
+      unfold Proper, respectful, impl; cbn.
+      intros x y EQ ? l <-; split; intro G; apply (ft_t sbisim_clos_ag); econstructor;
+        [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
+    Qed.
+  End gProperSbisim.
 End Congruences.
-
-(* TODO: Prove guard lemmas *)
-Lemma ctl_af_guard{E C X}`{B0 -< C}`{B1 -< C}: forall (t: ctree E C X) (l: @label E) p,
-    Guard t, l |= AF (lift p) <-> t, l |= AF (lift p).
-Proof.
-  split; intros; inv H1; apply ctl_af_ax.
-  - left; now unfold lift in *.
-  - right; unfold ax; intros.
-    apply H3.
-    now apply trans_guard.
-  - left; now unfold lift in *.
-  - right; unfold ax; intros.
-    apply trans_guard_inv in H1.
-    apply H3 in H1.
-    eauto.
-Qed.
-
-Lemma ctl_t_ag_af_guard{E C X}`{B0 -< C}`{B1 -< C}
-      `{R: rel (ctree E C X) (@label E) -> rel (ctree E C X) (@label E)}
-  : forall (x: ctree E C X) (l: @label E) p,
-  Guard x, l |= ((t ag_) R (AF (lift p))) <-> x, l |= ((t ag_) R (AF (lift p))).
-Proof.
-Admitted.
