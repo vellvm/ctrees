@@ -396,6 +396,19 @@ Section Kripke.
     eapply CIH, stable; eauto.
   Qed.
 
+  Lemma coind_EG (φ : formula) :
+    forall (R : stateK -> Prop),
+      (forall s, R s -> φ s) ->
+      (forall s, R s -> exists s', transK s s' /\ R s') ->
+      forall s, R s -> EG φ s.
+  Proof.
+    intros * Aφ stable.
+    unfold EG; coinduction r CIH.
+    intros * HR.
+    split; auto.
+    edestruct stable as (? & ? & ?); eauto.
+  Qed.
+
   Instance AG_bisim φ :
     good φ ->
     good (AG φ).
