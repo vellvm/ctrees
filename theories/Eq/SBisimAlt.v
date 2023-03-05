@@ -379,6 +379,27 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
+  Lemma step_sb'_vis_l_gen {Z} {R : bool -> rel _ _} :
+    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y),
+  (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
+    (forall x, exists l' u', trans l' u u' /\ (forall side, R side (k x) u') /\ L (obs e x) l') ->
+    sb' L R true (Vis e k) u.
+  Proof.
+    split; intros; subst; try discriminate.
+    apply step_ss'_vis_l_gen.
+    - cbn. intros. specialize (H4 side). now subs.
+    - apply H0.
+  Qed.
+
+  Lemma step_sb'_vis_l {Z} {R : bool -> rel _ _} :
+    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y),
+    (forall x, exists l' u', trans l' u u' /\ (forall side, st' L R side (k x) u') /\ L (obs e x) l') ->
+    sbt' L R true (Vis e k) u.
+  Proof.
+    intros. apply step_sb'_vis_l_gen; auto.
+    typeclasses eauto.
+  Qed.
+
   (*|
     When matching visible brs one against another, in general we need to explain how
     we map the branches from the left to the branches to the right.
@@ -556,37 +577,214 @@ Section Proof_Rules.
 
 End Proof_Rules.
 
+Section Inversion_Rules.
 
-Lemma sbisim'_brD_l_inv {E F C D X Y Z L} `{HasB0 : B0 -< C} `{HasB0' : B0 -< D} (c : C Z) x
-  (k : Z -> ctree E C X) (t' : ctree F D Y) :
-  gfp (sb' L) true (BrD c k) t' ->
-  gfp (sb' L) true (k x) t'.
-Proof.
-  intros. step. split; [| intros; discriminate].
-  intros _.
-  step in H. destruct H as [? _]. specialize (H eq_refl).
-  destruct H as [_ ?].
-  specialize (H Z c k). lapply H; auto. clear H. intro.
-  destruct (H x) as (? & ? & ?).
-  eapply step_ss'_epsilon_r_gen; [| apply H0].
-  step in H1. now apply H1.
-Qed.
+  Context {E F C D: Type -> Type}
+          {X Y: Type}
+          {HasStuck: B0 -< C}
+          {HasStuck': B0 -< D}.
+  Variable (L : rel (@label E) (@label F)).
 
-Lemma sbisim'_brD_r_inv {E F C D X Y Z L} `{HasB0 : B0 -< C} `{HasB0' : B0 -< D} (c : D Z) x
-  (k : Z -> ctree F D Y) (t : ctree E C X) :
-  gfp (sb' L) false t (BrD c k) ->
-  gfp (sb' L) false t (k x).
-Proof.
-  intros. step. split; [intros; discriminate |].
-  intros _.
-  step in H. destruct H as [_ ?]. specialize (H eq_refl).
-  destruct H as [_ ?].
-  specialize (H Z c k). lapply H; auto. clear H. intro.
-  destruct (H x) as (? & ? & ?).
-  eapply step_ss'_epsilon_r_gen; [| apply H0].
-  step in H1. now apply H1.
-Qed.
+  (* Lemmas to exploit sb' and sbisim' hypotheses *)
+  (* TODO incomplete *)
 
+  Lemma sb'_true_vis_inv {Z Z' R} `{HasB0: B0 -< C} `{HasB0': B0 -< D} :
+    forall (e : E Z) (f : F Z') (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y),
+    (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
+    sb' L R true (Vis e k) (Vis f k') ->
+    forall x, exists y, (forall side, R side (k x) (k' y)) /\ L (obs e x) (obs f y).
+  Proof.
+    intros.
+    pose proof (trans_vis e x k).
+    apply H0 in H1; etrans.
+    destruct H1 as (? & ? & ? & ? & ?). inv_trans. subst.
+    setoid_rewrite EQ in H2. etrans.
+  Qed.
+
+  Lemma sb'_eq_vis_invT {Z Z' R} :
+    forall side (e : E Z) (f : E Z') (k : Z -> ctree E C X) (k' : Z' -> ctree E D Y),
+    sb' eq R side (Vis e k) (Vis f k') ->
+    forall (x : Z) (x' : Z'), Z = Z'.
+  Proof.
+    intros. destruct side.
+    + pose proof (trans_vis e x k).
+      apply H in H0; etrans.
+      destruct H0 as (? & ? & ? & ? & ?). inv_trans. subst.
+      now apply obs_eq_invT in H2 as ?.
+    + pose proof (trans_vis f x' k').
+      apply H in H0; etrans.
+      destruct H0 as (? & ? & ? & ? & ?). inv_trans. subst.
+      now apply obs_eq_invT in H2 as ?.
+  Qed.
+
+  Lemma sb'_eq_vis_inv {Z R} :
+    forall side (e f : E Z) (k : Z -> ctree E C X) (k' : Z -> ctree E D Y),
+    (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
+    sb' eq R side (Vis e k) (Vis f k') ->
+    forall x, e = f /\ forall side, R side (k x) (k' x).
+  Proof.
+    intros. destruct side.
+    + pose proof (trans_vis e x k).
+      apply H0 in H1; etrans.
+      destruct H1 as (? & ? & ? & ? & ?). inv_trans. subst.
+      setoid_rewrite EQ in H2. apply obs_eq_inv in H3 as [<- <-]. auto.
+    + pose proof (trans_vis f x k').
+      apply H0 in H1; etrans.
+      destruct H1 as (? & ? & ? & ? & ?). inv_trans. subst.
+      setoid_rewrite EQ in H2. apply obs_eq_inv in H3 as [<- <-]. auto.
+  Qed.
+
+  Lemma sb'_true_vis_l_inv {Z R} :
+    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y),
+    Respects_val L ->
+    Respects_tau L ->
+    (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
+    sb' L R true (Vis e k) u ->
+    forall x, exists Z' (f : F Z') k' x',
+      Epsilon.epsilon u (Vis f k') /\
+      L (obs e x) (obs f x') /\
+      forall side, R side (k x) (k' x').
+  Proof.
+    intros * RV RT ? SIM x.
+    pose proof (TR := trans_vis e x k).
+    apply SIM in TR; etrans.
+    destruct TR as (l' & u' & TR & ? & ?).
+    destruct l'.
+    - apply RT in H1; intuition; discriminate.
+    - apply Epsilon.trans_obs_epsilon in TR as (k' & EPS & EQ).
+      setoid_rewrite EQ in H0.
+      eauto 7 with trans.
+    - apply RV in H1 as [_ ?].
+      pose proof (H1 (Is_val _)). inversion H2.
+  Qed.
+
+  Lemma sb'_true_brD_l_inv {Z R} :
+    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y),
+    (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
+    sb' L R true (BrD c k) u ->
+    forall x, exists u', Epsilon.epsilon u u' /\ R true (k x) u'.
+  Proof.
+    intros.
+    pose proof (proj1 H0 eq_refl).
+    destruct H1 as [_ ?]. etrans.
+  Qed.
+
+  Lemma sb'_false_brD_l_inv {Z R} :
+    forall (t : ctree E C X) (c : D Z) (k : Z -> ctree F D Y),
+    (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
+    sb' L R false t (BrD c k) ->
+    forall x, exists t', Epsilon.epsilon t t' /\ R false t' (k x).
+  Proof.
+    intros.
+    pose proof (proj2 H0 eq_refl).
+    destruct H1 as [_ ?]. etrans.
+  Qed.
+
+  Lemma sbisim'_brD_l_inv {Z} c x (k : Z -> ctree E C X) (t' : ctree F D Y) :
+    gfp (sb' L) true (BrD c k) t' ->
+    gfp (sb' L) true (k x) t'.
+  Proof.
+    intros. step in H.
+    eapply sb'_true_brD_l_inv with (x := x) in H as (? & ? & ?).
+    2: typeclasses eauto.
+    step. split; intros; try discriminate.
+    eapply step_ss'_epsilon_r_gen; [| apply H].
+    step in H0. now apply H0.
+  Qed.
+
+  Lemma sbisim'_brD_r_inv {Z} c x (k : Z -> ctree F D Y) (t : ctree E C X) :
+    gfp (sb' L) false t (BrD c k) ->
+    gfp (sb' L) false t (k x).
+  Proof.
+    intros. step in H.
+    eapply sb'_false_brD_l_inv with (x := x) in H as (? & ? & ?).
+    2: typeclasses eauto.
+    step. split; intros; try discriminate.
+    eapply step_ss'_epsilon_r_gen; [| apply H].
+    step in H0. now apply H0.
+  Qed.
+
+End Inversion_Rules.
+
+Definition guard_ctx {E C X} `{HasB1: B1 -< C} (R : ctree E C X -> Prop)
+  (t : ctree E C X) :=
+  exists t', t ≅ Guard t' /\ R t'.
+
+Definition epsilon_ctx {E C X} `{HasB1: B1 -< C} (R : ctree E C X -> Prop)
+  (t : ctree E C X) :=
+  exists t', epsilon t t' /\ R t'.
+
+Section upto.
+  Context {E F C D: Type -> Type} {X Y: Type}
+          `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}
+          `{HasB1 : B1 -< C} `{HasB1' : B1 -< D}
+          (L : hrel (@label E) (@label F)).
+
+  (* Up-to guard *)
+
+  Program Definition guard_ctx3_l : mon (bool -> rel (ctree E C X) (ctree F D Y))
+    := {| body R b t u := guard_ctx (fun t => R b t u) t |}.
+  Next Obligation.
+    destruct H0 as (? & ? & ?). red. eauto.
+  Qed.
+
+  Program Definition guard_ctx3_r : mon (bool -> rel (ctree E C X) (ctree F D Y))
+    := {| body R b t u := guard_ctx (fun u => R b t u) u |}.
+  Next Obligation.
+    destruct H0 as (? & ? & ?). red. eauto.
+  Qed.
+
+  Lemma guard_ctx3_l_sbisim' :
+    guard_ctx3_l <= t (@sb' E F C D X Y _ _ L).
+  Proof.
+    apply Coinduction. cbn -[sb']. intros.
+    destruct H as (? & ? & ?). subs.
+    split; intros; subst; subs.
+    - apply step_ss'_guard_l_gen. typeclasses eauto.
+      apply (b_T (sb' L)). apply H0.
+    - apply step_ss'_guard_r_gen.
+      eapply ss'_gen_mon. 3: apply H0; auto.
+      + intros ????. apply (id_T (sb' L)). apply H.
+      + intros ???. apply (id_T (sb' L)). apply H.
+  Qed.
+
+  Lemma guard_ctx3_r_sbisim' :
+    guard_ctx3_r <= t (@sb' E F C D X Y _ _ L).
+  Proof.
+    apply Coinduction. repeat red. intros.
+    destruct H as (? & ? & ?).
+    split; intros; subst; subs.
+    - apply step_ss'_guard_r_gen.
+      eapply ss'_gen_mon. 3: apply H0; auto.
+      + intros ????. apply (id_T (sb' L)). apply H.
+      + intros ???. apply (id_T (sb' L)). apply H.
+    - apply step_ss'_guard_l_gen. typeclasses eauto.
+      apply (b_T (sb' L)). apply H0.
+  Qed.
+
+  (* Up-to epsilon *)
+  (* TODO write the 4 variants *)
+
+  Program Definition epsilon_ctx3_r : mon (bool -> rel (ctree E C X) (ctree F D Y))
+    := {| body R b t u := b = true /\ epsilon_ctx (fun u => R b t u) u |}.
+  Next Obligation.
+    destruct H1 as (? & ? & ?). split; auto. red. eauto.
+  Qed.
+
+  Lemma epsilon_ctx3_r_sbisim' :
+    epsilon_ctx3_r <= t (@sb' E F C D X Y _ _ L).
+  Proof.
+    apply Coinduction. repeat red. intros.
+    destruct H as (? & ? & ? & ?). subst.
+    split; intros; try discriminate.
+    eapply step_ss'_epsilon_r_gen; [| eassumption].
+    destruct H1 as [? _]. specialize (H1 eq_refl).
+    eapply ss'_gen_mon. 3: apply H1; auto.
+    + intros ????. apply (id_T (sb' L)). apply H2.
+    + intros ???. apply (id_T (sb' L)). apply H2.
+  Qed.
+
+End upto.
 
 Section bind.
   Arguments label: clear implicits.
@@ -838,6 +1036,49 @@ Proof.
   - intros. now subst.
 Qed.
 
+Lemma sbT'_clo_bind_gen {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      R0 L0 b
+      (t1 : ctree E C X) (t2: ctree F D X')
+      (HL0 : is_update_val_rel L R0 L0)
+      (k1 : X -> ctree E C Y) (k2 : X' -> ctree F D Y') f RR:
+  gfp (sb' L0) b t1 t2 ->
+  (forall x y, R0 x y -> forall b, (sbT' L f RR) b (k1 x) (k2 y)) ->
+  sbT' L f RR b (t1 >>= k1) (t2 >>= k2).
+Proof.
+  intros ? ?.
+  apply (fbT_bT (@bind_ctx_sbisim'_t E F C D X X' Y Y' _ _ L R0 L0 HL0)).
+  apply in_bind_ctx; eauto.
+Qed.
+
+Lemma sbT'_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      (R0 : rel X Y) b
+      (t1 : ctree E C X) (t2: ctree F D Y)
+      (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y') f RR:
+  gfp (sb' (update_val_rel L R0)) b t1 t2 ->
+  (forall x y, R0 x y -> forall b, sbT' L f RR b (k1 x) (k2 y)) ->
+  sbT' L f RR b (t1 >>= k1) (t2 >>= k2).
+Proof.
+  intros ? ?.
+  eapply sbT'_clo_bind_gen; eauto. apply update_val_rel_correct.
+Qed.
+
+Lemma sbT'_clo_bind_eq {E C D: Type -> Type} {X X': Type}
+      `{HasStuck: B0 -< C} `{HasStuck': B0 -< D}
+      b (t1 : ctree E C X) (t2: ctree E D X)
+      (k1 : X -> ctree E C X') (k2 : X -> ctree E D X') f RR:
+  gfp (sb' eq) b t1 t2 ->
+  (forall x b, sbT' eq f RR b (k1 x) (k2 x)) ->
+  sbT' eq f RR b (t1 >>= k1) (t2 >>= k2).
+Proof.
+  intros ? ?.
+  eapply sbT'_clo_bind_gen.
+  - apply is_update_val_rel_eq.
+  - apply H.
+  - intros. now subst.
+Qed.
+
 Lemma step_sb'_guard_l' {E F C D X Y L}
   `{HasB0: B0 -< C} `{HasB0': B0 -< D} `{HasB1: B1 -< C}
   (t: ctree E C X) (t': ctree F D Y) R :
@@ -845,12 +1086,8 @@ Lemma step_sb'_guard_l' {E F C D X Y L}
   forall side, st' L R side (Guard t) t'.
 Proof.
   intros.
-  assert (st' L R side (Guard (Ret tt);; t) (Ret tt;; t')).
-  - eapply st'_clo_bind with (R0 := fun _ _ => True).
-    + step. apply step_sb'_guard_l. intro. apply step_sb'_ret. now constructor.
-    + intros. apply H.
-  - rewrite bind_guard in H0.
-    unfold Guard in H0. setoid_rewrite bind_ret_l in H0. apply H0.
+  apply (ft_t (guard_ctx3_l_sbisim' L)).
+  eexists; eauto.
 Qed.
 
 Lemma step_sb'_guard_r' {E F C D X Y L}
@@ -860,12 +1097,8 @@ Lemma step_sb'_guard_r' {E F C D X Y L}
   forall side, st' L R side t (Guard t').
 Proof.
   intros.
-  assert (st' L R side (Ret tt;; t) (Guard (Ret tt);; t')).
-  - eapply st'_clo_bind with (R0 := fun _ _ => True).
-    + step. apply step_sb'_guard_r. intro. apply step_sb'_ret. now constructor.
-    + intros. apply H.
-  - rewrite bind_guard in H0.
-    unfold Guard in H0. setoid_rewrite bind_ret_l in H0. apply H0.
+  apply (ft_t (guard_ctx3_r_sbisim' L)).
+  eexists; eauto.
 Qed.
 
 Lemma sbisim'_epsilon_l {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} L :

@@ -389,14 +389,24 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
-  Lemma step_ss'_vis_l {Z R} :
+  Lemma step_ss'_vis_l_gen {Z R Reps} :
     forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y),
-    (forall x, exists l' u', trans l' u u' /\ t (ss' L) R (k x) u' /\ L (obs e x) l') ->
-    ssbt' L R (Vis e k) u.
+    (Proper (equ eq ==> equ eq ==> impl) R) ->
+    (forall x, exists l' u', trans l' u u' /\ R (k x) u' /\ L (obs e x) l') ->
+    ss'_gen L R Reps (Vis e k) u.
   Proof.
     intros. split; intros; [| inv_equ].
-    inv_trans. subst. destruct (H x) as (? & ? & ? & ? & ?).
-    eexists _, _. rewrite <- EQ in H2. etrans.
+    inv_trans. subst. destruct (H0 x) as (? & ? & ? & ? & ?).
+    eexists _, _. rewrite <- EQ in H3. etrans.
+  Qed.
+
+  Lemma step_ss'_vis_l {Z R} :
+    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y),
+    (forall x, exists l' u', trans l' u u' /\ sst' L R (k x) u' /\ L (obs e x) l') ->
+    ssbt' L R (Vis e k) u.
+  Proof.
+    intros. apply step_ss'_vis_l_gen; auto.
+    typeclasses eauto.
   Qed.
 
   (*|
@@ -612,6 +622,24 @@ Section Proof_Rules.
     ssbt' L R (Guard t) (Guard t').
   Proof.
     apply step_ss'_guard_gen. typeclasses eauto.
+  Qed.
+
+  Lemma step_ss'_guard_r_gen `{HasB1: B1 -< D} :
+    forall t u (R : rel (ctree E C X) (ctree F D Y)) Reps,
+    ss'_gen L R Reps t u ->
+    ss'_gen L R Reps t (Guard u).
+  Proof.
+    intros. eapply step_ss'_epsilon_r_gen.
+    - apply H.
+    - apply epsilon_br; auto.
+  Qed.
+
+  Lemma step_ss'_guard_r `{HasB1: B1 -< D} :
+    forall t u (R : rel (ctree E C X) (ctree F D Y)),
+    ssbt' L R t u ->
+    ssbt' L R t (Guard u).
+  Proof.
+    intros. now apply step_ss'_guard_r_gen.
   Qed.
 
   Lemma step_ss'_br {Z Z'} (vis : bool) (c: C Z) (d: D Z')
