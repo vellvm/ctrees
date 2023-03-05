@@ -674,7 +674,7 @@ Module Termination.
        the meta-level stuck/live formulas.
    *)
   Variant status : Set := | Running | Done.
-
+  
   Variant upd_status : status -> @label E -> status -> Prop :=
     | upd_val {R} (r : R) s : upd_status s (val r) Done
     | upd_run l s : ~ is_val l -> upd_status s l s.
@@ -698,8 +698,43 @@ Module Termination.
   Definition no_crash : formula := Impl (dead false_fact) is_done.
   Definition may_crash : formula := EF (And (dead false_fact) (Not is_done)).
 
-End Termination.
+  (* LEF: This is not great. Specifically, we can produce [trans l (stuckD) u]
+     by taking the [right] path of AF or just having an [AX] -- same thing.
+     - We probably don't want this lemma to be true, the simplest form is
+     [stuck, s |= AX False].
+   *)
+  Variable (r: R).
+  From Coq Require Import Logic.Eqdep.
+  Lemma notgood' s0 : satF (FAF (FNow false_fact)) ((Ret r: ctree E B R), s0).
+  Proof.
+    red.
+    cbn.
+    unfold false_fact; cbn.
+    right.
+    intros.
+    simpl.
+    unfold transK.
+    destruct s'.
+    destruct H0 as (? & ? & ?).
+    inv H0; inv H1.
+    apply inj_pair2 in H4; subst.
+    red in s; cbn in s.
+    replace  (brDF branch0 k) with (observe (brD branch0 k)) in H5.
+    apply observe_equ_eq in H5.
+    right; intros.
+    destruct s'; unfold transK in H0; cbn in H0.
+    destruct H0 as (l & ? & ?).
+    rewrite <- H5 in H0.
+    unfold trans,transR in H0; cbn in H0; dependent destruction H0; contradiction.
+    cbn; reflexivity.
+    exfalso.
+    apply H0.
+    econstructor.
+Qed.
 
+End Termination
+ 
+                  
 Module Scheduling.
 
   Variable (B : Type -> Type) (R : Type).

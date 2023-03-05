@@ -1382,6 +1382,16 @@ Section Sb_Proof_System.
     exists F1; apply EQ.
   Qed.
 
+  Lemma unfold_forever{HasTau: B1 -< C}: forall (t: ctree E C X),
+      @forever C _ E X X t ~ t ;; @forever C _ E X X t.
+  Proof.
+    intro t.
+    rewrite (ctree_eta (forever t)).
+    rewrite unfold_forever_.
+    rewrite <- ctree_eta.
+    __upto_bind_eq_sbisim.
+    apply sb_guard.
+  Qed.
 End Sb_Proof_System.
 
 (* TODO: tactics!

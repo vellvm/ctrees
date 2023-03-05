@@ -188,32 +188,36 @@ Module CtlNotations.
   End SC.
   
   Notation "<( e )>" := e (at level 0, e custom ctl at level 95) : ctl_scope.
-  Notation "( x )" := x (in custom ctl, x at level 10) : ctl_scope.
+  Notation "( x )" := x (in custom ctl, x at level 99) : ctl_scope.
+  Notation "{ x }" := x (in custom ctl at level 0, x constr): ctl_scope.
   Notation "x" := x (in custom ctl at level 0, x constr at level 0) : ctl_scope.
+(*
+  
   
   Notation "f x .. y" := (.. (f x) .. y)
                            (in custom ctl at level 0, only parsing,
                                f constr at level 0, x constr at level 9,
                                y constr at level 9) : ctl_scope.
-  
-  Notation "t , s |= p " := (entails p t s) (in custom ctl at level 99, p custom ctl,
+  *)
+  Notation "t , s |= p " := (entails p t s) (in custom ctl at level 80,
+                                                p custom ctl,
                                                 right associativity): ctl_scope.
   (* Temporal *)
-  Notation "'EX' p" := (ex p) (in custom ctl at level 70): ctl_scope.
-  Notation "'AX' p" := (ax p) (in custom ctl at level 70): ctl_scope.
-  Notation "p 'EU' q" := (eu p q) (in custom ctl at level 70): ctl_scope.
-  Notation "p 'AU' q" := (au p q) (in custom ctl at level 70): ctl_scope.
-  Notation "'EF' p" := (eu True p) (in custom ctl at level 70): ctl_scope.
-  Notation "'AF' p" := (au True p) (in custom ctl at level 70): ctl_scope.
-  Notation "'EG' p" := (eg p) (in custom ctl at level 70): ctl_scope.
-  Notation "'AG' p" := (ag p) (in custom ctl at level 70): ctl_scope.
+  Notation "'EX' p" := (ex p) (in custom ctl at level 75): ctl_scope.
+  Notation "'AX' p" := (ax p) (in custom ctl at level 75): ctl_scope.
+  Notation "p 'EU' q" := (eu p q) (in custom ctl at level 75): ctl_scope.
+  Notation "p 'AU' q" := (au p q) (in custom ctl at level 75): ctl_scope.
+  Notation "'EF' p" := (eu True p) (in custom ctl at level 75): ctl_scope.
+  Notation "'AF' p" := (au True p) (in custom ctl at level 75): ctl_scope.
+  Notation "'EG' p" := (eg p) (in custom ctl at level 75): ctl_scope.
+  Notation "'AG' p" := (ag p) (in custom ctl at level 75): ctl_scope.
 
   (* Propositional *)
-  Notation "p '/\' q" := (cand p q) (in custom ctl at level 89, left associativity): ctl_scope.
-  Notation "p '\/' q" := (cor p q) (in custom ctl at level 89, left associativity): ctl_scope.
-  Notation "p '->' q" := (cimpl p q) (in custom ctl at level 99, right associativity): ctl_scope.
+  Notation "p '/\' q" := (cand p q) (in custom ctl at level 78, left associativity): ctl_scope.
+  Notation "p '\/' q" := (cor p q) (in custom ctl at level 78, left associativity): ctl_scope.
+  Notation "p '->' q" := (cimpl p q) (in custom ctl at level 79, right associativity): ctl_scope.
   Notation "p '<->' q" := (cand (cimpl p q) (cimpl q p))
-                            (in custom ctl at level 99, right associativity): ctl_scope.
+                            (in custom ctl at level 78): ctl_scope.
 
   (* Companion notations *)
   Notation agt p := (t (ag_ p)).
@@ -226,17 +230,17 @@ Module CtlNotations.
   Notation egbT p := (bT (eg_ p)).
 
   (* TODO: Think proof lemmas so these don't escape to the user? *)
-  Notation "[ 'AG' ] p" := (ag_ p _) (in custom ctl at level 70, p custom ctl): ctl_scope.
-  Notation "[ 'EG' ] p" := (eg_ p _) (in custom ctl at level 70, p custom ctl): ctl_scope.
+  Notation "[ 'AG' ] p" := (ag_ p _) (in custom ctl at level 75, p custom ctl): ctl_scope.
+  Notation "[ 'EG' ] p" := (eg_ p _) (in custom ctl at level 75, p custom ctl): ctl_scope.
   
-  Notation "[[ 'AG' ]] p" := (agF p _) (in custom ctl at level 70, p custom ctl): ctl_scope.
-  Notation "[[ 'EG' ]] p" := (egF p _) (in custom ctl at level 70, p custom ctl): ctl_scope.
+  Notation "[[ 'AG' ]] p" := (agF p _) (in custom ctl at level 75, p custom ctl): ctl_scope.
+  Notation "[[ 'EG' ]] p" := (egF p _) (in custom ctl at level 75, p custom ctl): ctl_scope.
   
-  Notation "{ 'AG' } p" := (agt p _) (in custom ctl at level 70, p custom ctl): ctl_scope.
-  Notation "{ 'EG' } p" := (egt p _) (in custom ctl at level 70, p custom ctl): ctl_scope.
+  Notation "{ 'AG' } p" := (agt p _) (in custom ctl at level 75, p custom ctl): ctl_scope.
+  Notation "{ 'EG' } p" := (egt p _) (in custom ctl at level 75, p custom ctl): ctl_scope.
   
-  Notation "{{ 'AG' }} p" := (agbt p _) (in custom ctl at level 70, p custom ctl): ctl_scope.
-  Notation "{{ 'EG' }} p" := (egbt p _) (in custom ctl at level 70, p custom ctl): ctl_scope.
+  Notation "{{ 'AG' }} p" := (agbt p _) (in custom ctl at level 75, p custom ctl): ctl_scope.
+  Notation "{{ 'EG' }} p" := (egbt p _) (in custom ctl at level 75, p custom ctl): ctl_scope.
   
 End CtlNotations.
   
@@ -409,14 +413,6 @@ Section Equivalences.
       + destruct H0; auto.
   Qed.
 End Equivalences.
-
-(*| Antitone functions are monotone in the dual lattice |*)
-Section anti.
- Context {X} {L: CompleteLattice X}.
-
- (** antitone endofunctions *)
- Record anti := { inner:> X -> X; Hinner: Proper (Dual.(leq) ==> Dual.(leq)) inner }.
-End anti.
 
 Section Congruences.
   Local Open Scope ctl_scope.
@@ -724,8 +720,34 @@ Section Congruences.
         [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
     Qed.
   End gProperSbisim.
+
+  (*| Up-to-bind ag |*)
+  Section gProperBind.
+    Context {Y: Type}.
+
+    (*| Up-to-bind enchancing function (unary context) |*)
+    Definition bind_clos
+               (R: rel (ctree E C X) S)
+               (Rk: (X -> ctree E C Y) -> Prop):
+      rel (ctree E C Y) S :=
+      sup_all (fun t => sup (R t)
+                         (fun s' => sup Rk
+                                     (fun k => pairH (CTree.bind t k) s'))).
+  
+    (*| Specialization of [bind_ctx] to a function acting with [equ] on the bound value,
+        and with the argument (pointwise) on the continuation. |*)
+    Program Definition bind_clos_ag p: mon (rel (ctree E C Y) S) :=
+      {| body := fun R => bind_clos (ag p) (fun k => forall x s, R (k x) s) |}.
+    Next Obligation.
+      (* TODO *)
+      (* unfold bind_clos.
+      apply leq_bind_ctx. intros ?? H' ?? H''.
+      apply in_bind_ctx. apply H'. intros t t' HS. apply H0, H'', HS. *)
+    Admitted.
+  End gProperBind.
 End Congruences.
 
+(* Examples *)
 From CTree Require Import
      FoldStateT.
 
@@ -750,7 +772,7 @@ Module Experiments.
   End COERC.
 
   Lemma writes_23: forall s,
-    <( dummy_23, s |= (AX 2 /\ AX (AX 3)) )>.
+      <( dummy_23, s |= AX 2 /\ (AX (AX 3)) )>.
   Proof.
     split;unfold dummy_23; unfold ax, ctl_of_State, now; intros; inv H.
     - inv H1. 
@@ -773,11 +795,95 @@ Module Experiments.
   Context {E C: Type -> Type} {X S: Type} {HasStuck: B0 -< C} {h: Handler E S}.
   Definition stuck: ctree E C X := stuckD. 
   Lemma is_stuck_ex: forall (s: S),
-        <( stuck, s |= (AX False) )>.
-    Proof.
-      unfold cimpl, ax, entails. intros.
-      inv H; unfold trans, transR in H1; cbn in H1; dependent destruction H1;
-        contradiction.
-    Qed.
-End Experiments.
+      <( stuck, s |= (AX False) )>.
+  Proof.
+    unfold cimpl, ax, entails. intros.
+    inv H; unfold trans, transR in H1; cbn in H1; dependent destruction H1;
+      contradiction.
+  Qed.
+  
+  Ltac inv_trans H1 := unfold trans,transR in H1; cbn in H1; dependent destruction H1.
+
+  (* Terminating programs *)
+  Definition put2: ctree (stateE nat) C unit := put 2.
+  
+  Lemma maybebad: forall n,
+      <( put2, n |= AF 3 )>.
+  Proof.
+    unfold entails.
+    right; eauto.
+    intros.
+    inv H.
+    - inv_trans H1.
+    - apply trans_vis_inv in H1 as ([] & ? & ?).
+      dependent destruction H0.
+      cbn.
+      rewrite H.
+      (* Ret tt *)
+      right; eauto.
+      intros.
+      repeat inv_trans H0.
+  Qed.
+
+   Lemma maybegood: 
+       <( put2, 2 |= AG 2 )>.
+   Proof.
+     unfold entails.
+     coinduction ? ?.
+     econstructor; eauto.
+     intros.
+     inv H0. 
+     - inv H2.
+     - apply trans_vis_inv in H2 as ([] & ? & ?).
+       dependent destruction H1.
+       cbn.
+       rewrite H0; clear H0.
+       step.
+       econstructor; eauto.
+       (* Ret tt *)
+       intros.
+       repeat inv_trans H0.
+   Qed.
+
+   Lemma maybegood': 
+       ~ <( put2, 2 |= AG 3 )>.
+   Proof.
+     unfold entails.
+     unfold not.
+     intro CONTRA.
+     step in CONTRA; inv CONTRA.
+     inv H.
+   Qed.
    
+   (* Useful equivalences *)
+
+   Lemma ag_bind: forall (t: ctree E C X) (s: S) (k: X -> ctree E C X) (x: X) p
+                    {HP: Proper (sbisim eq ==> eq ==> iff) p},
+       <( { x <- t ;; k x }, s |= AG p )> <-> <( t,s |= AG p )> /\ <( {k x}, s |= AG p )>.
+   Proof.
+     unfold entails; split; intros.
+     - split.
+       apply ctl_ag_ax in H as (Hnw & Hx).
+       unfold ax in Hx.
+       step; econstructor.
+       + admit.
+       + intros.
+   Admitted.
+
+   Lemma ag_forever: forall (t: ctree E C unit) (s: S) p {HasTau: B1 -< C}
+                       {HP: Proper (sbisim eq ==> eq ==> iff) p},
+       <( t, s |= AG p )> <-> <( {forever t},s |= AG p )>.
+   Proof.
+     unfold entails; split; intros. 
+     - apply ctl_ag_ax in H; destruct H.
+       rewrite unfold_forever.
+       apply ag_bind.
+       unfold ax in H0.
+       apply ctl_ag_ax; split.
+       rewrite <- unfold_forever.
+
+       (* Hm looks unlikely *)
+   Admitted.
+
+End Experiments.
+

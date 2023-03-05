@@ -342,8 +342,8 @@ Lemma equb_vis_invE {E B X S} (e1 e2 : E X) (k1 k2 : X -> ctree E B S) :
   e1 = e2 /\ forall x, equ eq (k1 x) (k2 x).
 Proof.
   intros EQ.
-	inv EQ.
-	dependent destruction H; dependent destruction H4; auto.
+  inv EQ.
+  dependent destruction H; dependent destruction H4; auto.
 Qed.
 
 Lemma equb_br_invT {E B X Y S b b'} (c1 : B X) (c2 : B Y) (k1 : _ -> ctree E B S) k2 :
@@ -359,8 +359,8 @@ Lemma equb_br_invE {E B X S b} (c1 c2 : B X) (k1 : _ -> ctree E B S) k2 :
   c1 = c2 /\ forall x, equ eq (k1 x) (k2 x).
 Proof.
   intros EQ.
-	inv EQ.
-	dependent destruction H. now dependent destruction H5.
+  inv EQ.
+  dependent destruction H. now dependent destruction H5.
 Qed.
 
 (*|
@@ -589,7 +589,7 @@ that it si below the companion.
 Specialization of [bind_ctx] to a function acting with [equ] on the bound value,
 and with the argument (pointwise) on the continuation.
 |*)
-    Program Definition bind_ctx_equ SS: mon (rel (ctree E C Y1) (ctree E C Y2)) :=
+    Program Definition bind_ctx_equ (SS: rel X1 X2): mon (rel (ctree E C Y1) (ctree E C Y2)) :=
       {|body := fun R => @bind_ctx E E C C X1 X2 Y1 Y2 (equ SS) (pointwise SS R) |}.
     Next Obligation.
       intros ??? H. apply leq_bind_ctx. intros ?? H' ?? H''.
@@ -1026,6 +1026,19 @@ Proof.
   intros E B R b Y c k k'. 
   exact (br_equ' E B R b Y c k k' eq).
 Qed.
+
+#[global] Instance proper_equ_forever{E C X}`{HasStuck:B1 -<C}: Proper (@equ E C X X eq ==> @equ E C X X eq) forever.
+Proof.
+  unfold Proper, respectful; intros.
+  coinduction R CIH.
+  rewrite (unfold_forever_ x), (unfold_forever_ y).
+  rewrite H.
+  __upto_bind_eq_equ.
+  econstructor; intros [].
+  apply CIH.
+Qed.
+
+
 (*|
 Inversion of [≅] hypotheses
 |*)
