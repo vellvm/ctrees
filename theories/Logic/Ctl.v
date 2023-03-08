@@ -38,7 +38,7 @@ Class Handler (E: Type -> Type) (S: Type) := {
 #[global] Instance Handler_par: Handler parE nat := 
   {| hfold _ e _ s := match e with Switch i => i end |}.
 
-(* WHY this loops during instance resolution
+(* WHY this loops during instance resolution *)
 #[global] Instance Handler_plus{E F: Type -> Type}{S T}
  (h: Handler E S) (g: Handler F T) : Handler (E+'F) (S*T) :=
   {|
@@ -48,7 +48,6 @@ Class Handler (E: Type -> Type) (S: Type) := {
     | inr1 f => (s, g.(hfold) f x t)
     end
   |}.
- *)
 
 Section Kripke.
   Context {E C: Type -> Type} {X S: Type}
@@ -64,7 +63,12 @@ Section Kripke.
     ktrans (t, s) (u, s)
   | kVis (t u: ctree E C X) {Y} (x: Y) (e: E Y) (s: S):
     trans (obs e x) t u ->
-    ktrans (t, s) (u, h.(hfold) e x s).
+    ktrans (t, s) (u, h.(hfold) e x s)
+  (* LEF: [t] could be any [brD ... (ret x)] chain *)
+  | kRet (t u: ctree E C X) (x: X) (s: S):
+    u ≅ t ->
+    trans (val x) t stuckD ->
+    ktrans (t, s) (u, s). 
 
   Hint Constructors ktrans: core.
 
@@ -79,11 +83,30 @@ Section Kripke.
       now apply kTau.
     - rewrite EQt, EQt' in H1.
       now apply kVis.
+    - rewrite <- H3 in H5. 
+      eapply kRet;
+        [now rewrite <- EQt, <- EQt' |
+          rewrite <- EQt, <- H3; eassumption].
     - rewrite <- EQt, <- EQt' in H1.
       now apply kTau.
     - rewrite <- EQt, <- EQt' in H1.
       now apply kVis.
+    - rewrite <- H3 in H5. 
+      eapply kRet;
+        [now rewrite EQt, EQt' |
+          rewrite EQt, <- H3; eassumption].
   Qed.
+
+  Lemma trans_val_sbisim: forall (t u: ctree E C X) (x: X),
+      trans (val x) t stuckD ->
+      t ~ u ->
+      trans (val x) u stuckD.
+  Proof.
+    intros.
+    remember (val x) as l.
+    induction H; intros; eauto; try solve [inv Heql].
+    (* Ah lost [observe t] *)
+  Admitted.
 
   Lemma ktrans_sbisim_l: forall (t1 t2 t1': ctree E C X) s s',
       ktrans (t1,s) (t1',s') ->
@@ -91,9 +114,11 @@ Section Kripke.
       exists t2', ktrans (t2,s) (t2',s') /\ t1' ~ t2'.
   Proof.
     intros * TR  Hsb.
-    inv TR; intros; step in Hsb; destruct Hsb as [Hsim _];
-      apply Hsim in H0 as (l2 & t2' & TR2 & ? & <-);
-      exists t2'; split; eauto.
+    inv TR; intros.
+    1,2: step in Hsb; apply Hsb in H0 as (l2 & t2' & TR2 & ? & <-); exists t2'; split; eauto.
+    exists t2; rewrite H2; split; eauto.
+    apply kRet with x; [reflexivity|].
+    now apply trans_val_sbisim with (u:=t2) in H4.
   Qed.
 
 End Kripke.
@@ -191,14 +216,6 @@ Module CtlNotations.
   Notation "( x )" := x (in custom ctl, x at level 99) : ctl_scope.
   Notation "{ x }" := x (in custom ctl at level 0, x constr): ctl_scope.
   Notation "x" := x (in custom ctl at level 0, x constr at level 0) : ctl_scope.
-(*
-  
-  
-  Notation "f x .. y" := (.. (f x) .. y)
-                           (in custom ctl at level 0, only parsing,
-                               f constr at level 0, x constr at level 9,
-                               y constr at level 9) : ctl_scope.
-  *)
   Notation "t , s |= p " := (entails p t s) (in custom ctl at level 80,
                                                 p custom ctl,
                                                 right associativity): ctl_scope.
@@ -725,6 +742,8 @@ Section Congruences.
   Section gProperBind.
     Context {Y: Type}.
 
+    Print SP.
+    Print ag.
     (*| Up-to-bind enchancing function (unary context) |*)
     Definition bind_clos
                (R: rel (ctree E C X) S)
@@ -779,32 +798,35 @@ Module Experiments.
     - apply trans_trigger_inv in H1 as (? & ? & ?).
       dependent destruction H0.
       reflexivity.
+    - inv H5.
     - inv H2.
     - apply trans_trigger_inv in H2 as ([] & ? & ?).
-      dependent destruction H1.
-      cbn in *.
+      dependent destruction H1; cbn in *.
       rewrite H in H0.
       inv H0.
       + inv H2.
       + apply trans_vis_inv in H2 as ([] & ? & ?).
         dependent destruction H1.
-        cbn.
         reflexivity.
+      + inv H6.
+    - inv H6.
   Qed.
 
   Context {E C: Type -> Type} {X S: Type} {HasStuck: B0 -< C} {h: Handler E S}.
-  Definition stuck: ctree E C X := stuckD. 
-  Lemma is_stuck_ex: forall (s: S),
+  Definition stuck: ctree E C X := stuckD.
+    
+  Ltac shallow_inv_trans H1 := unfold trans,transR in H1; cbn in H1; dependent destruction H1.
+  
+  Lemma is_stuck_ax: forall (s: S),
       <( stuck, s |= (AX False) )>.
   Proof.
     unfold cimpl, ax, entails. intros.
-    inv H; unfold trans, transR in H1; cbn in H1; dependent destruction H1;
-      contradiction.
+    inv H.
+    1,2: shallow_inv_trans H1; contradiction.
+    all: shallow_inv_trans H5; contradiction. 
   Qed.
-  
-  Ltac inv_trans H1 := unfold trans,transR in H1; cbn in H1; dependent destruction H1.
 
-  (* Terminating programs *)
+  (* Terminating [ret x] programs *)
   Definition put2: ctree (stateE nat) C unit := put 2.
   
   Lemma maybebad: forall n,
@@ -814,76 +836,100 @@ Module Experiments.
     right; eauto.
     intros.
     inv H.
-    - inv_trans H1.
+    - shallow_inv_trans H1.
     - apply trans_vis_inv in H1 as ([] & ? & ?).
       dependent destruction H0.
       cbn.
       rewrite H.
       (* Ret tt *)
       right; eauto.
-      intros.
-      repeat inv_trans H0.
+      intros; clear H t'.
+      inv H0; try solve [inv H1].
+      (* Same [Ret tt] as before, and it will keep being [Ret tt] *)
+      right; eauto; intros; rewrite H3 in *; destruct x; clear H3 t'0.
+      inv H; try solve [inv H0]; right; eauto; intros.
+   Abort.
+
+  Lemma maybegood: forall n,
+      <( put2, n |= AF 2 )>.
+  Proof.
+    unfold entails.
+    right; eauto.
+    intros.
+    inv H.
+    - shallow_inv_trans H1.
+    - apply trans_vis_inv in H1 as ([] & ? & ?).
+      dependent destruction H0.      
+      rewrite H.
+      left; cbn.
+      trivial.
+    - inv H5.
+  Qed.
+  
+  Lemma maybegood': 
+    <( put2, 2 |= AG 2 )>.
+  Proof.
+    unfold entails.
+    apply ctl_ag_ax; split.
+    - trivial.
+    - unfold ax; intros.
+      inv H; try solve [inv H1].
+      + shallow_inv_trans H1; cbn; apply observe_equ_eq in x; rewrite <- x, <- H; clear H x t'.
+        coinduction R CIH.
+        econstructor; trivial.
+        * intros.
+          inv H; repeat shallow_inv_trans H1.
+          rewrite H3.
+          apply CIH.
+      + inv H5.
   Qed.
 
-   Lemma maybegood: 
-       <( put2, 2 |= AG 2 )>.
-   Proof.
-     unfold entails.
-     coinduction ? ?.
-     econstructor; eauto.
-     intros.
-     inv H0. 
-     - inv H2.
-     - apply trans_vis_inv in H2 as ([] & ? & ?).
-       dependent destruction H1.
-       cbn.
-       rewrite H0; clear H0.
-       step.
-       econstructor; eauto.
-       (* Ret tt *)
-       intros.
-       repeat inv_trans H0.
-   Qed.
+  Lemma maybegood'': 
+    ~ <( put2, 2 |= AG 3 )>.
+  Proof.
+    unfold entails.
+    unfold not.
+    intro CONTRA.
+    step in CONTRA; inv CONTRA.
+    inv H.
+  Qed.
+  
+  (* Useful equivalences *)
 
-   Lemma maybegood': 
-       ~ <( put2, 2 |= AG 3 )>.
-   Proof.
-     unfold entails.
-     unfold not.
-     intro CONTRA.
-     step in CONTRA; inv CONTRA.
-     inv H.
-   Qed.
-   
-   (* Useful equivalences *)
+  Lemma ag_bind: forall (t: ctree E C X) (s: S) (k: X -> ctree E C X) (x: X) p,
+      <( t,s |= AG p )> /\ <( {k x}, s |= AG p )> ->
+      <( { x <- t ;; k x }, s |= AG p )>.
+  Proof.
+    unfold entails; intros * (? & ?).
+    coinduction R CIH.
+    split.
+    - unfold now; cbn.
 
-   Lemma ag_bind: forall (t: ctree E C X) (s: S) (k: X -> ctree E C X) (x: X) p
-                    {HP: Proper (sbisim eq ==> eq ==> iff) p},
-       <( { x <- t ;; k x }, s |= AG p )> <-> <( t,s |= AG p )> /\ <( {k x}, s |= AG p )>.
-   Proof.
-     unfold entails; split; intros.
-     - split.
-       apply ctl_ag_ax in H as (Hnw & Hx).
-       unfold ax in Hx.
-       step; econstructor.
-       + admit.
-       + intros.
-   Admitted.
+  Admitted.
+  
+  Lemma ag_forever: forall (t: ctree E C X) (s: S) p {HasTau: B1 -< C}
+                      {HP: Proper (sbisim eq ==> eq ==> iff) p},
+      <( t, s |= AG p )> <-> <( {forever t},s |= AG p )>.
+  Proof.
+    unfold entails; split; intros. 
+    - apply ctl_ag_ax in H; destruct H.
+      rewrite unfold_forever.
+      
+      unfold ax in H0.
+      apply ctl_ag_ax; split.
+      rewrite <- unfold_forever.
 
-   Lemma ag_forever: forall (t: ctree E C unit) (s: S) p {HasTau: B1 -< C}
-                       {HP: Proper (sbisim eq ==> eq ==> iff) p},
-       <( t, s |= AG p )> <-> <( {forever t},s |= AG p )>.
-   Proof.
-     unfold entails; split; intros. 
-     - apply ctl_ag_ax in H; destruct H.
-       rewrite unfold_forever.
-       apply ag_bind.
-       unfold ax in H0.
-       apply ctl_ag_ax; split.
-       rewrite <- unfold_forever.
+      (* Hm looks unlikely *)
+  Admitted.
 
-       (* Hm looks unlikely *)
-   Admitted.
+  Lemma ag_forever': forall (t: ctree E C X) (s: S) p {HasTau: B1 -< C},
+      <( t, s |= {now p} )> -> <( {forever t: ctree E C X},s |= AG {now p} )>.
+  Proof.
+    unfold entails; intros; coinduction R CIH.
+    - econstructor.
+      rewrite unfold_forever.
+
+  Admitted.
 
 End Experiments.
 
