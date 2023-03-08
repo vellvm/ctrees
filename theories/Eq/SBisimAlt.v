@@ -49,6 +49,57 @@ thus simplifying proofs.
 
 End StrongBisimAlt.
 
+Section Symmetry.
+
+  Program Definition sb'l {E F C D X Y} `{HasB0: B0 -< C} `{HasB0': B0 -< D} L :
+    mon (bool -> rel (ctree E C X) (ctree F D Y)) :=
+    {| body R side t u := side = true -> sb' L R side t u |}.
+  Next Obligation.
+      eapply (Hbody (sb' L)).
+      2: { specialize (H0 eq_refl). apply H0. }
+      cbn. apply H.
+  Qed.
+
+  Program Definition converse_neg {A : Type} : mon (bool -> relation A) :=
+  {| body := fun (R : bool -> rel A A) b (x y : A) => R (negb b) y x |}.
+
+  #[global] Instance converse_neg_invol {A} : Involution (@converse_neg A).
+  Proof.
+    cbn. intros.
+    now rewrite Bool.negb_involutive.
+  Qed.
+
+  #[global] Instance sbisim'_sym {E C X L} `{B0 -< C} :
+    `{Symmetric L} ->
+    Sym_from converse_neg (@sb' E E C C X X _ _ L) (sb'l L).
+  Proof.
+    intros SYM.
+    assert (HL: L == flip L). { cbn. intuition. }
+    eapply weq_ss'_gen in HL.
+    cbn -[sb']. split; intros.
+    - split; cbn -[sb']; intro.
+      + apply H0.
+      + intros. apply Bool.negb_true_iff in H1. subst.
+        destruct H0 as [_ ?].
+        specialize (H0 eq_refl).
+        apply HL in H0.
+        split; intros; subst; try discriminate.
+        eapply ss'_gen_mon. 3: now apply H0.
+        * cbn. intros. apply H2.
+        * cbn. intros. apply H2.
+    - split; intros; subst.
+      + now apply H0.
+      + intros.
+        apply HL.
+        eapply ss'_gen_mon. 3: now apply H0.
+        * cbn. intros.
+          specialize (H1 (negb side)).
+          rewrite Bool.negb_involutive in H1. apply H1.
+        * cbn. intros. apply H1.
+  Qed.
+
+End Symmetry.
+
 Lemma sb'_flip {E F C D X Y L} `{HasB0: B0 -< C} `{HasB0': B0 -< D}
     side (t: ctree E C X) (u: ctree F D Y) R :
   sb' (flip L) (fun b => flip (R (negb b))) (negb side) u t ->
@@ -72,6 +123,24 @@ Qed.
 Definition sbisim' {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D} L t u :=
   forall side, gfp (@sb' E F C D X Y _ _ L) side t u.
 
+Program Definition lift_rel3 {A B} : mon (rel A B) -> mon (bool -> rel A B) :=
+    fun f => {| body R side t u := f (R side) t u |}.
+Next Obligation.
+  destruct f. cbn. cbn in H0. eapply Hbody in H0. 2: { cbn. apply H. } apply H0.
+Qed.
+
+Lemma unary_sym3 {A} (f : A -> A) : compat converse_neg (lift_rel3 (unary_ctx f)).
+Proof.
+  intros R b. apply leq_unary_ctx.
+  intros. now apply in_unary_ctx.
+Qed.
+
+Lemma binary_sym3 {A} (f : A -> A -> A) : compat converse_neg (lift_rel3 (binary_ctx f)).
+Proof.
+  intros R b. apply leq_binary_ctx.
+  intros. now apply in_binary_ctx.
+Qed.
+
 Section sbisim'_theory.
   Arguments label: clear implicits.
   Context {E F C D: Type -> Type} {X Y: Type}
@@ -79,13 +148,20 @@ Section sbisim'_theory.
           {HasStuck1: B0 -< C} {HasStuck2: B0 -< D}.
 
 (*|
-   Strong simulation up-to [equ] is valid
+   Strong bisimulation up-to [equ] is valid
    ----------------------------------------
 |*)
-  Program Definition lift_rel3 : mon (rel (ctree E C X) (ctree F D Y)) -> mon (bool -> rel (ctree E C X) (ctree F D Y)) :=
-      fun f => {| body R side t u := f (R side) t u |}.
-  Next Obligation.
-    destruct f. cbn. cbn in H0. eapply Hbody in H0. 2: { cbn. apply H. } apply H0.
+  #[global] Instance equ_clos3_equ (R : bool -> rel (ctree E C X) (ctree F D Y)) :
+  Proper (eq ==> equ eq ==> equ eq ==> impl) (lift_rel3 equ_clos R).
+  Proof.
+    cbn. intros. destruct H2. econstructor; subs. 2: subst; eassumption.
+    now rewrite H0. assumption.
+  Qed.
+
+  Lemma equ_clos3_leq (R : bool -> rel (ctree E C X) (ctree F D Y)) :
+  R <= lift_rel3 equ_clos R.
+  Proof.
+    cbn. intros. econstructor. reflexivity. eassumption. reflexivity.
   Qed.
 
   Lemma equ_clos_st' : lift_rel3 equ_clos <= (t (@sb' E F C D X Y _ _ L)).
@@ -479,13 +555,13 @@ Section Proof_Rules.
     With this definition [sb'] of bisimulation, delayed nodes allow to perform a coinductive step.
     |*)
   Lemma step_sb'_brD_gen {Z Z'} (a: C Z) (b: D Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) R :
+    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) R side :
     (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
-    (forall x, exists y, forall side, R side (k x) (k' y)) ->
-    (forall y, exists x, forall side, R side (k x) (k' y)) ->
-    forall side, sb' L R side (BrD a k) (BrD b k').
+    (forall x, exists y, R side (k x) (k' y)) ->
+    (forall y, exists x, R side (k x) (k' y)) ->
+    sb' L R side (BrD a k) (BrD b k').
   Proof.
-    split; intros; apply step_ss'_brD_gen.
+    split; intros; subst; apply step_ss'_brD_gen.
     - typeclasses eauto.
     - intros. destruct (H0 x). eauto.
     - typeclasses eauto.
@@ -493,65 +569,65 @@ Section Proof_Rules.
   Qed.
 
   Lemma step_sb'_brD {Z Z'} (cn: C Z) (cm: D Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) R :
-    (forall x, exists y, forall side, st' L R side (k x) (k' y)) ->
-    (forall y, exists x, forall side, st' L R side (k x) (k' y)) ->
-    forall side, sbt' L R side (BrD cn k) (BrD cm k').
+    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) R side :
+    (forall x, exists y, st' L R side (k x) (k' y)) ->
+    (forall y, exists x, st' L R side (k x) (k' y)) ->
+    sbt' L R side (BrD cn k) (BrD cm k').
   Proof.
     apply step_sb'_brD_gen. typeclasses eauto.
   Qed.
 
   Lemma step_sb'_brD_id_gen {Z} (c: C Z) (d: D Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) R :
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) R side :
     (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
-    (forall x side, R side (k x) (k' x)) ->
-    forall side, sb' L R side (BrD c k) (BrD d k').
+    (forall x, R side (k x) (k' x)) ->
+    sb' L R side (BrD c k) (BrD d k').
   Proof.
    intros. apply step_sb'_brD_gen; eauto.
   Qed.
 
   Lemma step_sb'_brD_id {Z} (c: C Z) (d: D Z)
-    (k : Z -> ctree E C X) (k': Z -> ctree F D Y) R :
-    (forall x side, st' L R side (k x) (k' x)) ->
-    forall side, sbt' L R side (BrD c k) (BrD d k').
+    (k : Z -> ctree E C X) (k': Z -> ctree F D Y) R side :
+    (forall x, st' L R side (k x) (k' x)) ->
+    sbt' L R side (BrD c k) (BrD d k').
   Proof.
     apply step_sb'_brD_id_gen. typeclasses eauto.
   Qed.
 
   Lemma step_sb'_guard_gen `{HasTau: B1 -< C} `{HasTau': B1 -< D}
-        (t: ctree E C X) (t': ctree F D Y) R :
-    (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
-    (forall side, R side t t') ->
-    forall side, sb' L R side (Guard t) (Guard t').
+        (t: ctree E C X) (t': ctree F D Y) R side :
+    `(Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
+    R side t t' ->
+    sb' L R side (Guard t) (Guard t').
   Proof.
     intros. apply step_sb'_brD_id_gen; auto.
   Qed.
 
   Lemma step_sb'_guard `{HasTau: B1 -< C} `{HasTau': B1 -< D}
-        (t: ctree E C X) (t': ctree F D Y) R :
-    (forall side, st' L R side t t') ->
-    forall side, sbt' L R side (Guard t) (Guard t').
+        (t: ctree E C X) (t': ctree F D Y) R side :
+    st' L R side t t' ->
+    sbt' L R side (Guard t) (Guard t').
   Proof.
     apply step_sb'_guard_gen. typeclasses eauto.
   Qed.
 
   Lemma step_sb'_guard_l `{HasTau: B1 -< C}
-        (t: ctree E C X) (t': ctree F D Y) R :
-    (forall side, sbt' L R side t t') ->
-    forall side, sbt' L R side (Guard t) t'.
+        (t: ctree E C X) (t': ctree F D Y) R side :
+    sbt' L R side t t' ->
+    sbt' L R side (Guard t) t'.
   Proof.
     split; intros; subst.
     - apply step_ss'_guard_l_gen. typeclasses eauto. step. apply H.
-    - apply step_ss'_brD_r_gen; auto. now apply (H false).
+    - apply step_ss'_brD_r_gen; auto. now apply H.
   Qed.
 
   Lemma step_sb'_guard_r `{HasTau': B1 -< D}
-        (t: ctree E C X) (t': ctree F D Y) R :
-    (forall side, sbt' L R side t t') ->
-    forall side, sbt' L R side t (Guard t').
+        (t: ctree E C X) (t': ctree F D Y) R side :
+    sbt' L R side t t' ->
+    sbt' L R side t (Guard t').
   Proof.
     split; intros; subst.
-    - apply step_ss'_brD_r_gen; auto. now apply (H true).
+    - apply step_ss'_brD_r_gen; auto. now apply H.
     - apply step_ss'_guard_l_gen. typeclasses eauto. step. apply H.
   Qed.
 
@@ -563,7 +639,10 @@ Section Proof_Rules.
     forall side, sbt' L R side (Br vis c k) (Br vis d k').
   Proof.
     intros. destruct vis; [apply step_sb'_brS_gen | apply step_sb'_brD_gen];
-      eauto; typeclasses eauto.
+      eauto.
+    1, 2: typeclasses eauto.
+    intro x. destruct (H x). eauto.
+    intro x. destruct (H0 x). eauto.
   Qed.
 
   Lemma step_sb'_br_id {Z} (vis: bool) (c: C Z) (d: D Z)
@@ -588,7 +667,7 @@ Section Inversion_Rules.
   (* Lemmas to exploit sb' and sbisim' hypotheses *)
   (* TODO incomplete *)
 
-  Lemma sb'_true_vis_inv {Z Z' R} `{HasB0: B0 -< C} `{HasB0': B0 -< D} :
+  Lemma sb'_true_vis_inv {Z Z' R} :
     forall (e : E Z) (f : F Z') (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y),
     (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
     sb' L R true (Vis e k) (Vis f k') ->
@@ -596,6 +675,19 @@ Section Inversion_Rules.
   Proof.
     intros.
     pose proof (trans_vis e x k).
+    apply H0 in H1; etrans.
+    destruct H1 as (? & ? & ? & ? & ?). inv_trans. subst.
+    setoid_rewrite EQ in H2. etrans.
+  Qed.
+
+  Lemma sb'_true_brS_inv {Z Z' R} :
+    forall (c : C Z) (c' : D Z') (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y),
+    (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
+    sb' L R true (BrS c k) (BrS c' k') ->
+    forall x, exists y, forall side, R side (k x) (k' y).
+  Proof.
+    intros.
+    pose proof (trans_brS c k x).
     apply H0 in H1; etrans.
     destruct H1 as (? & ? & ? & ? & ?). inv_trans. subst.
     setoid_rewrite EQ in H2. etrans.
@@ -641,7 +733,7 @@ Section Inversion_Rules.
     (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
     sb' L R true (Vis e k) u ->
     forall x, exists Z' (f : F Z') k' x',
-      Epsilon.epsilon u (Vis f k') /\
+      epsilon u (Vis f k') /\
       L (obs e x) (obs f x') /\
       forall side, R side (k x) (k' x').
   Proof.
@@ -651,18 +743,39 @@ Section Inversion_Rules.
     destruct TR as (l' & u' & TR & ? & ?).
     destruct l'.
     - apply RT in H1; intuition; discriminate.
-    - apply Epsilon.trans_obs_epsilon in TR as (k' & EPS & EQ).
+    - apply trans_obs_epsilon in TR as (k' & EPS & EQ).
       setoid_rewrite EQ in H0.
       eauto 7 with trans.
     - apply RV in H1 as [_ ?].
       pose proof (H1 (Is_val _)). inversion H2.
   Qed.
 
+  Lemma sb'_true_brS_l_inv {Z R} :
+    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y),
+    Respects_tau L ->
+    (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
+    sb' L R true (BrS c k) u ->
+    forall x, exists Z' (c' : D Z') k' x',
+      epsilon u (BrS c' k') /\
+      forall side, R side (k x) (k' x').
+  Proof.
+    intros * RT ? SIM x.
+    pose proof (TR := trans_brS c k x).
+    apply SIM in TR; etrans.
+    destruct TR as (l' & u' & TR & ? & ?).
+    destruct l'.
+    - apply trans_tau_epsilon in TR as (Z' & c' & k' & x' & EPS & EQ).
+      setoid_rewrite EQ in H0.
+      eauto 6 with trans.
+    - apply RT in H1; intuition; discriminate.
+    - apply RT in H1; intuition; discriminate.
+  Qed.
+
   Lemma sb'_true_brD_l_inv {Z R} :
     forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y),
     (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
     sb' L R true (BrD c k) u ->
-    forall x, exists u', Epsilon.epsilon u u' /\ R true (k x) u'.
+    forall x, exists u', epsilon u u' /\ R true (k x) u'.
   Proof.
     intros.
     pose proof (proj1 H0 eq_refl).
@@ -673,7 +786,7 @@ Section Inversion_Rules.
     forall (t : ctree E C X) (c : D Z) (k : Z -> ctree F D Y),
     (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
     sb' L R false t (BrD c k) ->
-    forall x, exists t', Epsilon.epsilon t t' /\ R false t' (k x).
+    forall x, exists t', epsilon t t' /\ R false t' (k x).
   Proof.
     intros.
     pose proof (proj2 H0 eq_refl).

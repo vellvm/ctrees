@@ -35,7 +35,17 @@ Section StrongSimAlt.
     (productive t -> forall l t', trans l t t' -> exists l' u', trans l' u u' /\ R t' u' /\ L l l') /\
     (forall {Z} (c : C Z) k, t ≅ BrD c k -> forall x, exists u', epsilon u u' /\ Reps (k x) u').
 
-  Lemma ss'_gen_mon {E F C D : Type -> Type} {X Y : Type}
+  #[global] Instance weq_ss'_gen {E F C D X Y} `{HasB0: B0 -< C} `{HasB0': B0 -< D} :
+    Proper (weq ==> weq) (@ss'_gen E F C D X Y _ _).
+  Proof.
+    cbn. intros. split; split; intros.
+    - apply H0 in H2 as (? & ? & ? & ? & ?); auto. edestruct H. eauto 6 with trans.
+    - intros. eapply H0 in H1 as (? & ? & ?). etrans.
+    - apply H0 in H2 as (? & ? & ? & ? & ?); auto. edestruct H. eauto 6 with trans.
+    - intros. eapply H0 in H1 as (? & ? & ?). etrans.
+  Qed.
+
+  #[global] Instance ss'_gen_mon {E F C D : Type -> Type} {X Y : Type}
     `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}
     (L : rel (@label E) (@label F)) :
     Proper (leq ==> leq ==> leq) (@ss'_gen E F C D X Y _ _ L).
@@ -274,12 +284,12 @@ Section ssim'_heterogenous_theory.
   stuck ctrees can be simulated by anything.
 |*)
   Lemma ss'_stuck R Reps :
-    forall b (u : ctree F D Y), ss'_gen L R Reps (@stuck E C X _ b) u.
+    forall b (u : ctree F D Y) k,
+    ss'_gen L R Reps (go (@BrF E C X _ b void (subevent _ branch0) k)) u.
   Proof.
     split; intros.
-    - destruct b; inv_trans.
-    - destruct b; inv_equ.
-      step in H. inv H. invert. destruct x.
+    - destruct b; inv_trans; destruct x.
+    - destruct b; inv_equ. destruct x.
   Qed.
 
   Lemma ssim'_stuck (t : ctree F D Y) : ssim' L stuckD t.
@@ -484,14 +494,24 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
+  Lemma step_ss'_brS_l_gen {Z R Reps} :
+    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y),
+    (Proper (equ eq ==> equ eq ==> impl) R) ->
+    (forall x, exists l' u', trans l' u u' /\ R (k x) u' /\ L tau l') ->
+    ss'_gen L R Reps (BrS c k) u.
+  Proof.
+    intros. split; intros; [| inv_equ].
+    inv_trans. subst. destruct (H0 x) as (? & ? & ? & ? & ?).
+    eexists _, _. rewrite <- EQ in H3. etrans.
+  Qed.
+
   Lemma step_ss'_brS_l {Z R} :
     forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y),
     (forall x, exists l' u', trans l' u u' /\ sst' L R (k x) u' /\ L tau l') ->
          ssbt' L R (BrS c k) u.
   Proof.
-    intros. split; intros; [| inv_equ].
-    inv_trans. subst. destruct (H x) as (? & ? & ? & ? & ?).
-    eexists _, _. rewrite <- EQ in H2. etrans.
+    intros. apply step_ss'_brS_l_gen; auto.
+    typeclasses eauto.
   Qed.
 
   (*|
