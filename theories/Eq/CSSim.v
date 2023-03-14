@@ -843,15 +843,6 @@ Inversion principles
     Unshelve. auto.
   Qed.
 
-  (* What's this? TODO move *)
-  Lemma t_gfp_bt : forall {X} `{CompleteLattice X} (b : mon X),
-    weq (t b (gfp (bt b))) (gfp b).
-  Proof.
-    intros. cbn.
-    rewrite <- enhanced_gfp. rewrite t_gfp.
-    reflexivity.
-  Qed.
-
   Lemma cssim_eq_vis_inv {X Y} (e1 e2 : E Y) (k1 k2 : Y -> ctree E C X) (x : Y) :
     Vis e1 k1 ⪅ Vis e2 k2 ->
     e1 = e2 /\ forall x, k1 x ⪅ k2 x.

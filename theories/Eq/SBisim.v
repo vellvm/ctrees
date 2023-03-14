@@ -94,16 +94,14 @@ In the heterogeneous case, the relation is not symmetric.
 
   #[global] Instance weq_sb : Proper (weq ==> weq) sb.
   Proof.
-    unfold Proper, "==>". unfold sb, "==".
-    red. red. red. red. red. red. red. red. red. red. red. red.
-    intros. split.
-    - intro. unfold body. split.
+    split; intros.
+    - split.
       + epose proof (weq_ss H). do 13 red in H1. setoid_rewrite <- H1. apply H0.
       + cbn in H. assert (flip x == flip y).
         { cbn. split; intro. apply H. apply H1. apply H. apply H1. }
         epose proof (weq_ss H1).
         do 13 red in H2. setoid_rewrite <- H2. apply H0.
-    - intro. unfold body. split.
+    - split.
       + epose proof (weq_ss H). do 13 red in H1. setoid_rewrite H1. apply H0.
       + cbn in H. assert (flip x == flip y).
         { cbn. split; intro. apply H. apply H1. apply H. apply H1. }

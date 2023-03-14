@@ -19,7 +19,7 @@ Polymorphic Class MonadBr (B : Type -> Type) (M : Type -> Type) : Type :=
 Notation rel X Y := (X -> Y -> Prop).
 
 Lemma t_gfp_bt : forall {X} `{CompleteLattice X} (b : mon X),
-  weq (t b (gfp (bt b))) (gfp b).
+  t b (gfp (bt b)) == gfp b.
 Proof.
   intros. cbn.
   rewrite <- enhanced_gfp. rewrite t_gfp.
@@ -74,10 +74,13 @@ Ltac step_ :=
   match goal with
   | |- gfp ?b ?x ?y ?z => apply (proj2 (gfp_fp b x y z))
   | |- body (t ?b) ?R ?x ?y ?z => apply (bt_t b R x y z)
+  | |- body (body (T ?b) ?f) ?R ?x ?y ?z => apply (bT_T b f R x y z)
   | |- gfp ?b ?x ?y => apply (proj2 (gfp_fp b x y))
   | |- body (t ?b) ?R ?x ?y => apply (bt_t b R x y)
+  | |- body (body (T ?b) ?f) ?R ?x ?y => apply (bT_T b f R x y)
   | |- gfp ?b ?x => apply (proj2 (gfp_fp b x))
   | |- body (t ?b) ?R ?x => apply (bt_t b R x)
+  | |- body (body (T ?b) ?f) ?R ?x => apply (bT_T b f R x)
   end.
 
 Ltac step := first [step_ | red; step_].

@@ -461,9 +461,7 @@ and with the argument (pointwise) on the continuation.
     do 2 eexists. split.
     apply trans_bind_l; eauto.
     + intro Hl. destruct Hl.
-      apply HL0 in H0.
-      2: now apply wf_val_nonval.
-      2: now apply wf_val_trans in STEP.
+      apply HL0 in H0; etrans.
       inversion H0; subst. apply H. constructor. apply H2. constructor.
     + split.
       * apply (fT_T equ_clos_sst).
@@ -473,14 +471,10 @@ and with the argument (pointwise) on the continuation.
         intros ? ? ?.
         apply (b_T (ss L)).
         red in kk; cbn; now apply kk.
-      * apply HL0 in H0.
-        2: now apply wf_val_nonval.
-        2: now apply wf_val_trans in STEP.
+      * apply HL0 in H0; etrans.
         destruct H0. exfalso. apply H. constructor. apply H2.
     + apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
-      apply HL0 in H.
-      2: apply wf_val_val.
-      2: now apply wf_val_trans in STEPres.
+      apply HL0 in H; etrans.
       dependent destruction H. 2: { exfalso. apply H. constructor. }
       pose proof (trans_val_inv STEPres) as EQ.
       rewrite EQ in STEPres.
