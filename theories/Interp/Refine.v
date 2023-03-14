@@ -81,13 +81,13 @@ Proof.
   rewrite (ctree_eta t) at 2.
   setoid_rewrite unfold_refine. cbn.
   destruct (observe t) eqn:?.
-  - apply step_ss'_ret. reflexivity.
+  - apply step_ssbt'_ret. reflexivity.
   - setoid_rewrite bind_trigger.
     apply step_ss'_vis_id. intros. split; [|auto].
     step. apply step_ss'_guard_l. apply CH.
   - unfold mbr, MonadBr_subevent_l, MonadBr_ctree. destruct c.
     + setoid_rewrite bind_branch.
-      apply step_ss'_br_id; auto. intros.
+      apply step_ssbt'_br_id; auto. intros.
       step. apply step_ss'_guard_l. apply CH.
     + rewrite bind_bind.
       change (Br vis (inr1 b) k) with ((fun _ => Br vis (inr1 b) k) tt).
@@ -95,7 +95,7 @@ Proof.
       __upto_bind_ssim' (fun _ _ => True).
       { apply ssim_pure. apply H. intros. now constructor. }
       red. intros ? _ _. rewrite bind_bind, bind_branch.
-      apply step_ss'_br; auto. intros _. exists x.
+      apply step_ssbt'_br; auto. intros _. exists x.
       rewrite bind_ret_l. step. apply step_ss'_guard_l. apply CH.
 Qed.
 
@@ -118,13 +118,13 @@ Proof.
   rewrite (ctree_eta t) at 2.
   setoid_rewrite unfold_fold_state. cbn.
   destruct (observe t) eqn:?.
-  - apply step_ss'_ret. constructor. reflexivity.
+  - apply step_ssbt'_ret. constructor. reflexivity.
   - setoid_rewrite bind_trigger.
     rewrite bind_vis. apply step_ss'_vis_id. intros. split; [| constructor; auto].
     step. rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
   - unfold mbr, MonadBr_subevent_l, MonadBr_ctree. destruct c.
     + setoid_rewrite bind_branch. setoid_rewrite bind_br.
-      apply step_ss'_br_id; [| constructor]. intros.
+      apply step_ssbt'_br_id; [| constructor]. intros.
       step. setoid_rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
     + rewrite bind_bind.
       change (Br vis (inr1 b) k) with ((fun _ => Br vis (inr1 b) k) tt).
@@ -132,6 +132,6 @@ Proof.
       __upto_bind_ssim' (fun _ _ => True).
       { apply ssim_pure. apply H. intros. now constructor. }
       red. intros ? _ _. rewrite bind_bind, bind_branch, bind_br.
-      apply step_ss'_br; [| constructor]. intros ?. exists (snd x).
+      apply step_ssbt'_br; [| constructor]. intros ?. exists (snd x).
       rewrite bind_ret_l. step. rewrite bind_ret_l. apply step_ss'_guard_l. apply CH.
 Qed.

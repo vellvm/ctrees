@@ -324,30 +324,20 @@ Section Proof_Rules.
           {X Y : Type}
           {HasStuck: B0 -< C}
           {HasStuck': B0 -< D}
-          {L : rel (@label E) (@label F)}.
+          {L : rel (@label E) (@label F)}
+          {R Reps : rel (ctree E C X) (ctree F D Y)}
+          {HR : (Proper (equ eq ==> equ eq ==> impl) R)}
+          {HReps : (Proper (equ eq ==> equ eq ==> impl) Reps)}.
 
-  Lemma step_ss'_ret_gen (x : X) (y : Y) (R Reps : rel _ _) :
+  Lemma step_ss'_ret (x : X) (y : Y) :
     R stuckD stuckD ->
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
     L (val x) (val y) ->
     ss'_gen L R Reps (Ret x : ctree E C X) (Ret y : ctree F D Y).
   Proof.
-    intros Rstuck PROP Lval. split; intros.
+    intros Rstuck Lval. split; intros.
     2: inv_equ.
     inv_trans; subst.
     do 3 eexists; intuition; etrans. now subs.
-  Qed.
-
-  Lemma step_ss'_ret (x : X) (y : Y) (R : rel _ _) :
-    L (val x) (val y) ->
-    ssbt' L R (Ret x : ctree E C X) (Ret y : ctree F D Y).
-  Proof.
-    intros.
-    apply step_ss'_ret_gen.
-    - step. intros. red. red. cbn.
-      apply ss'_stuck.
-    - typeclasses eauto.
-    - apply H.
   Qed.
 
 (*|
@@ -355,93 +345,50 @@ Section Proof_Rules.
  transition system, stepping is hence symmetric and we can just recover
  the itree-style rule.
 |*)
-  Lemma step_ss'_vis_gen {Z Z'} (e : E Z) (f: F Z')
-        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R Reps : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
+  Lemma step_ss'_vis {Z Z'} (e : E Z) (f: F Z')
+        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) :
     (forall x, exists y, R (k x) (k' y) /\ L (obs e x) (obs f y)) ->
     ss'_gen L R Reps (Vis e k) (Vis f k').
   Proof.
     intros. split; intros; inv_equ.
     cbn; inv_trans; subst;
-      destruct (H0 x) as (x' & RR & LL);
+      destruct (H x) as (x' & RR & LL);
       cbn; do 3 eexists; intuition.
     - rewrite EQ; eauto.
     - assumption.
   Qed.
 
-  Lemma step_ss'_vis {Z Z'} (e : E Z) (f: F Z')
-        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R : rel _ _) :
-    (forall x, exists y, sst' L R (k x) (k' y) /\ L (obs e x) (obs f y)) ->
-    ssbt' L R (Vis e k) (Vis f k').
-  Proof.
-    intros * EQ.
-    apply step_ss'_vis_gen; auto.
-    typeclasses eauto.
-  Qed.
-
-  Lemma step_ss'_vis_id_gen {Z} (e : E Z) (f: F Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R Reps : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
+  Lemma step_ss'_vis_id {Z} (e : E Z) (f: F Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) :
     (forall x, R (k x) (k' x) /\ L (obs e x) (obs f x)) ->
     ss'_gen L R Reps (Vis e k) (Vis f k').
   Proof.
-    intros. apply step_ss'_vis_gen. { typeclasses eauto. }
+    intros. apply step_ss'_vis.
     eauto.
   Qed.
 
-  Lemma step_ss'_vis_id {Z} (e : E Z) (f: F Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R : rel _ _) :
-    (forall x, sst' L R (k x) (k' x) /\ L (obs e x) (obs f x)) ->
-    ssbt' L R (Vis e k) (Vis f k').
-  Proof.
-    intros * EQ.
-    apply step_ss'_vis_id_gen; auto.
-    typeclasses eauto.
-  Qed.
-
-  Lemma step_ss'_vis_l_gen {Z R Reps} :
+  Lemma step_ss'_vis_l {Z} :
     forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y),
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
     (forall x, exists l' u', trans l' u u' /\ R (k x) u' /\ L (obs e x) l') ->
     ss'_gen L R Reps (Vis e k) u.
   Proof.
     intros. split; intros; [| inv_equ].
-    inv_trans. subst. destruct (H0 x) as (? & ? & ? & ? & ?).
-    eexists _, _. rewrite <- EQ in H3. etrans.
-  Qed.
-
-  Lemma step_ss'_vis_l {Z R} :
-    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y),
-    (forall x, exists l' u', trans l' u u' /\ sst' L R (k x) u' /\ L (obs e x) l') ->
-    ssbt' L R (Vis e k) u.
-  Proof.
-    intros. apply step_ss'_vis_l_gen; auto.
-    typeclasses eauto.
+    inv_trans. subst. destruct (H x) as (? & ? & ? & ? & ?).
+    eexists _, _. rewrite <- EQ in H2. etrans.
   Qed.
 
   (*|
     Same goes for visible tau nodes.
     |*)
-  Lemma step_ss'_step_gen `{HasTau: B1 -< C} `{HasTau': B1 -< D}
-        (t : ctree E C X) (t': ctree F D Y) (R Reps : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
+  Lemma step_ss'_step `{HasTau: B1 -< C} `{HasTau': B1 -< D}
+        (t : ctree E C X) (t': ctree F D Y) :
     L tau tau ->
-    (R t t') ->
+    R t t' ->
     ss'_gen L R Reps (Step t) (Step t').
   Proof.
     split; intros; inv_equ.
     inv_trans; subst.
     cbn; do 3 eexists; intuition; subs; eauto.
-  Qed.
-
-  Lemma step_ss'_step `{HasTau: B1 -< C} `{HasTau': B1 -< D}
-        (t: ctree E C X) (t': ctree F D Y) (R : rel _ _) :
-    (sst' L R t t') ->
-    L tau tau ->
-    ssbt' L R (Step t) (Step t').
-  Proof.
-    intros. apply step_ss'_step_gen; auto.
-    typeclasses eauto.
   Qed.
 
   (*|
@@ -450,93 +397,50 @@ Section Proof_Rules.
     A useful special case is the one where the arity coincide and we simply use the identity
     in both directions. We can in this case have [n] rather than [2n] obligations.
     |*)
-  Lemma step_ss'_brS_gen {Z Z'} (c : C Z) (d : D Z')
-        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R Reps : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
+  Lemma step_ss'_brS {Z Z'} (c : C Z) (d : D Z')
+        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) :
     (forall x, exists y, R (k x) (k' y)) ->
     L tau tau ->
     ss'_gen L R Reps (BrS c k) (BrS d k').
   Proof.
     split; intros; inv_equ. inv_trans. subst.
-    destruct (H0 x) as [y HR].
+    destruct (H x).
     cbn; do 3 eexists; intuition; subs; eauto.
   Qed.
 
-  Lemma step_ss'_brS {Z Z'} (c : C Z) (c' : D Z')
-        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R : rel _ _) :
-    (forall x, exists y, sst' L R (k x) (k' y)) ->
-    L tau tau ->
-    ssbt' L R (BrS c k) (BrS c' k').
-  Proof.
-    intros.
-    apply step_ss'_brS_gen; auto.
-    typeclasses eauto.
-  Qed.
-
-  Lemma step_ss'_brS_id_gen {Z} (c : C Z) (d: D Z)
-        (k: Z -> ctree E C X) (k': Z -> ctree F D Y) (R Reps : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
+  Lemma step_ss'_brS_id {Z} (c : C Z) (d: D Z)
+        (k: Z -> ctree E C X) (k': Z -> ctree F D Y) :
     (forall x, R (k x) (k' x)) ->
     L tau tau ->
     ss'_gen L R Reps (BrS c k) (BrS d k').
   Proof.
-    intros; apply step_ss'_brS_gen; eauto.
+    intros; apply step_ss'_brS; eauto.
   Qed.
 
-  Lemma step_ss'_brS_id {Z} (c : C Z) (d : D Z)
-        (k: Z -> ctree E C X) (k': Z -> ctree F D Y) (R : rel _ _) :
-    (forall x, sst' L R (k x) (k' x)) ->
-    L tau tau ->
-    ssbt' L R (BrS c k) (BrS d k').
-  Proof.
-    intros.
-    apply step_ss'_brS_id_gen; eauto.
-    typeclasses eauto.
-  Qed.
-
-  Lemma step_ss'_brS_l_gen {Z R Reps} :
+  Lemma step_ss'_brS_l {Z} :
     forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y),
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
     (forall x, exists l' u', trans l' u u' /\ R (k x) u' /\ L tau l') ->
     ss'_gen L R Reps (BrS c k) u.
   Proof.
     intros. split; intros; [| inv_equ].
-    inv_trans. subst. destruct (H0 x) as (? & ? & ? & ? & ?).
-    eexists _, _. rewrite <- EQ in H3. etrans.
-  Qed.
-
-  Lemma step_ss'_brS_l {Z R} :
-    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y),
-    (forall x, exists l' u', trans l' u u' /\ sst' L R (k x) u' /\ L tau l') ->
-         ssbt' L R (BrS c k) u.
-  Proof.
-    intros. apply step_ss'_brS_l_gen; auto.
-    typeclasses eauto.
+    inv_trans. subst. destruct (H x) as (? & ? & ? & ? & ?).
+    eexists _, _. rewrite <- EQ in H2. etrans.
   Qed.
 
   (*|
     With this definition [ss'] of simulation, delayed nodes allow to perform a coinductive step.
     |*)
-  Lemma step_ss'_brD_l_gen {Z} (c : C Z)
-        (k : Z -> ctree E C X) (t': ctree F D Y) (R Reps : rel _ _):
-    (Proper (equ eq ==> equ eq ==> impl) Reps) ->
+  Lemma step_ss'_brD_l {Z} (c : C Z)
+        (k : Z -> ctree E C X) (t': ctree F D Y):
     (forall x, Reps (k x) t') ->
     ss'_gen L R Reps (BrD c k) t'.
   Proof.
-    split; intros. { now apply productive_brD in H1. }
-    inv_equ. setoid_rewrite EQ in H0. eauto.
+    split; intros. { now apply productive_brD in H0. }
+    inv_equ. setoid_rewrite EQ in H. eauto.
   Qed.
 
-  Lemma step_ss'_brD_l {Z} (c : C Z)
-        (k : Z -> ctree E C X) (t: ctree F D Y) (R : rel _ _):
-    (forall x, sst' L R (k x) t) ->
-    ssbt' L R (BrD c k) t.
-  Proof.
-    apply step_ss'_brD_l_gen. typeclasses eauto.
-  Qed.
-
-  Lemma step_ss'_brD_r_gen {Z} (c : D Z) x
-        (k : Z -> ctree F D Y) (t: ctree E C X) (R Reps : rel _ _):
+  Lemma step_ss'_brD_r {Z} (c : D Z) x
+        (k : Z -> ctree F D Y) (t: ctree E C X):
     ss'_gen L R Reps t (k x) ->
     ss'_gen L R Reps t (BrD c k).
   Proof.
@@ -546,16 +450,8 @@ Section Proof_Rules.
     eapply (proj2 H) in H0 as (? & ? & ?). eapply EpsilonBr in H0. etrans.
   Qed.
 
-  Lemma step_ss'_brD_r {Z} (c : D Z) x
-        (k : Z -> ctree F D Y) (t: ctree E C X) (R : rel _ _):
-    ssbt' L R t (k x) ->
-    ssbt' L R t (BrD c k).
-  Proof.
-    intros. eapply step_ss'_brD_r_gen. apply H.
-  Qed.
-
-  Lemma step_ss'_epsilon_r_gen :
-    forall (t : ctree E C X) (u u' : ctree F D Y) (R Reps : rel _ _),
+  Lemma step_ss'_epsilon_r :
+    forall (t : ctree E C X) (u u' : ctree F D Y),
     ss'_gen L R Reps t u' -> epsilon u u' -> ss'_gen L R Reps t u.
   Proof.
     intros. red in H0. rewrite (ctree_eta u). rewrite (ctree_eta u') in H.
@@ -563,127 +459,55 @@ Section Proof_Rules.
     revert t H. induction H0; intros.
     - now subs.
     - apply IHepsilon_ in H. rewrite <- ctree_eta in H.
-      eapply step_ss'_brD_r_gen. apply H.
+      eapply step_ss'_brD_r. apply H.
   Qed.
 
-  Lemma step_ss'_epsilon_r :
-    forall (t : ctree E C X) (u u' : ctree F D Y) (R : rel _ _),
-    ssbt' L R t u' -> epsilon u u' -> ssbt' L R t u.
-  Proof.
-    intros. eapply step_ss'_epsilon_r_gen. apply H. apply H0.
-  Qed.
-
-  Lemma step_ss'_brD_gen {Z Z'} (a: C Z) (b: D Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R Reps : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) Reps) ->
+  Lemma step_ss'_brD {Z Z'} (a: C Z) (b: D Z')
+    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) :
     (forall x, exists y, Reps (k x) (k' y)) ->
     ss'_gen L R Reps (BrD a k) (BrD b k').
   Proof.
-    split; intros. { now apply productive_brD in H1. }
-    inv_equ. setoid_rewrite EQ in H0. destruct (H0 x).
+    split; intros. { now apply productive_brD in H0. }
+    inv_equ. setoid_rewrite EQ in H. destruct (H x).
     eexists. split; [| eassumption]. eright. eleft. reflexivity.
   Qed.
 
-  Lemma step_ss'_brD {Z Z'} (cn: C Z) (cm: D Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R : rel _ _) :
-    (forall x, exists y, sst' L R (k x) (k' y)) ->
-    ssbt' L R (BrD cn k) (BrD cm k').
-  Proof.
-    apply step_ss'_brD_gen. typeclasses eauto.
-  Qed.
-
-  Lemma step_ss'_brD_id_gen {Z} (c: C Z) (d: D Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y)
-        (R Reps : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) Reps) ->
+  Lemma step_ss'_brD_id {Z} (c: C Z) (d: D Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) :
     (forall x, Reps (k x) (k' x)) ->
     ss'_gen L R Reps (BrD c k) (BrD d k').
   Proof.
-   intros. apply step_ss'_brD_gen; eauto.
-  Qed.
-
-  Lemma step_ss'_brD_id {Z} (c: C Z) (d: D Z)
-    (k : Z -> ctree E C X) (k': Z -> ctree F D Y) (R : rel _ _) :
-    (forall x, sst' L R (k x) (k' x)) ->
-    ssbt' L R (BrD c k) (BrD d k').
-  Proof.
-    apply step_ss'_brD_id_gen. typeclasses eauto.
-  Qed.
-
-  Lemma step_ss'_guard_l_gen `{HasTau: B1 -< C}
-        (t: ctree E C X) (t': ctree F D Y) (R Reps : rel _ _):
-    (Proper (equ eq ==> equ eq ==> impl) Reps) ->
-    Reps t t' ->
-    ss'_gen L R Reps (Guard t) t'.
-  Proof.
-    intros. apply step_ss'_brD_l_gen; auto.
+   intros. apply step_ss'_brD; eauto.
   Qed.
 
   Lemma step_ss'_guard_l `{HasTau: B1 -< C}
-        (t: ctree E C X) (t': ctree F D Y) (R : rel _ _):
-    sst' L R t t' ->
-    ssbt' L R (Guard t) t'.
-  Proof.
-    apply step_ss'_guard_l_gen. typeclasses eauto.
-  Qed.
-
-  Lemma step_ss'_guard_gen `{HasTau: B1 -< C} `{HasTau': B1 -< D}
-        (t: ctree E C X) (t': ctree F D Y) (R Reps : rel _ _):
-    (Proper (equ eq ==> equ eq ==> impl) Reps) ->
+        (t: ctree E C X) (t': ctree F D Y) :
     Reps t t' ->
-    ss'_gen L R Reps (Guard t) (Guard t').
+    ss'_gen L R Reps (Guard t) t'.
   Proof.
-    intros. apply step_ss'_brD_id_gen; auto.
+    intros. apply step_ss'_brD_l; auto.
   Qed.
 
   Lemma step_ss'_guard `{HasTau: B1 -< C} `{HasTau': B1 -< D}
-        (t: ctree E C X) (t': ctree F D Y) (R : rel _ _):
-    sst' L R t t' ->
-    ssbt' L R (Guard t) (Guard t').
+        (t: ctree E C X) (t': ctree F D Y) :
+    Reps t t' ->
+    ss'_gen L R Reps (Guard t) (Guard t').
   Proof.
-    apply step_ss'_guard_gen. typeclasses eauto.
+    intros. apply step_ss'_brD_id; auto.
   Qed.
 
-  Lemma step_ss'_guard_r_gen `{HasB1: B1 -< D} :
-    forall t u (R : rel (ctree E C X) (ctree F D Y)) Reps,
+  Lemma step_ss'_guard_r `{HasB1: B1 -< D} :
+    forall t u,
     ss'_gen L R Reps t u ->
     ss'_gen L R Reps t (Guard u).
   Proof.
-    intros. eapply step_ss'_epsilon_r_gen.
+    intros. eapply step_ss'_epsilon_r.
     - apply H.
     - apply epsilon_br; auto.
   Qed.
 
-  Lemma step_ss'_guard_r `{HasB1: B1 -< D} :
-    forall t u (R : rel (ctree E C X) (ctree F D Y)),
-    ssbt' L R t u ->
-    ssbt' L R t (Guard u).
-  Proof.
-    intros. now apply step_ss'_guard_r_gen.
-  Qed.
-
-  Lemma step_ss'_br {Z Z'} (vis : bool) (c: C Z) (d: D Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R : rel _ _) :
-    (forall x, exists y, sst' L R (k x) (k' y)) ->
-    L tau tau ->
-    ssbt' L R (Br vis c k) (Br vis d k').
-  Proof.
-    intros.
-    destruct vis; [apply step_ss'_brS_gen | apply step_ss'_brD_gen];
-      eauto; typeclasses eauto.
-  Qed.
-
-  Lemma step_ss'_br_id {Z} (vis : bool) (c: C Z) (d: D Z)
-    (k : Z -> ctree E C X) (k': Z -> ctree F D Y) (R : rel _ _) :
-    (forall x, sst' L R (k x) (k' x)) ->
-    L tau tau ->
-    ssbt' L R (Br vis c k) (Br vis d k').
-  Proof.
-    intros. apply step_ss'_br; eauto.
-  Qed.
-
   Lemma ss'_gen_epsilon_l :
-    forall (t t' : ctree E C X) (u : ctree F D Y) (R Reps : rel _ _),
+    forall (t t' : ctree E C X) (u : ctree F D Y),
     Reps <= ss'_gen L R Reps ->
     ss'_gen L R Reps t u ->
     epsilon t t' ->
@@ -695,22 +519,56 @@ Section Proof_Rules.
     - now subs.
     - apply IHepsilon_. rewrite <- ctree_eta.
       eapply ss'_gen_brD in H0 as (? & ? & ?).
-      apply H in H2. eapply step_ss'_epsilon_r_gen in H2; eauto.
-  Qed.
-
-  Lemma ssim'_epsilon_l :
-    forall (t t' : ctree E C X) (u : ctree F D Y),
-    ssim' L t u ->
-    epsilon t t' ->
-    ssim' L t' u.
-  Proof.
-    intros. step. eapply ss'_gen_epsilon_l.
-    - apply (gfp_pfp (ss' L)).
-    - step in H. apply H.
-    - apply H0.
+      apply H in H2. eapply step_ss'_epsilon_r in H2; eauto.
   Qed.
 
 End Proof_Rules.
+
+Lemma step_ssbt'_ret {E F C D X Y} `{HasB0: B0 -< C} `{HasB0': B0 -< D}
+  (x : X) (y : Y) (L R : rel _ _) :
+  L (val x) (val y) ->
+  ssbt' L R (Ret x : ctree E C X) (Ret y : ctree F D Y).
+Proof.
+  intros.
+  apply step_ss'_ret.
+  - step. intros. red. red. cbn.
+    apply ss'_stuck.
+  - apply H.
+Qed.
+
+Lemma step_ssbt'_br {E F C D X Y Z Z'} `{HasB0: B0 -< C} `{HasB0': B0 -< D} {L R}
+  (vis : bool) (c: C Z) (d: D Z')
+  (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) :
+  (forall x, exists y, sst' L R (k x) (k' y)) ->
+  L tau tau ->
+  ssbt' L R (Br vis c k) (Br vis d k').
+Proof.
+  intros.
+  destruct vis; [apply step_ss'_brS | apply step_ss'_brD];
+    eauto; typeclasses eauto.
+Qed.
+
+Lemma step_ssbt'_br_id {E F C D X Y Z} `{HasB0: B0 -< C} `{HasB0': B0 -< D} {L R}
+  (vis : bool) (c: C Z) (d: D Z)
+  (k : Z -> ctree E C X) (k': Z -> ctree F D Y) :
+  (forall x, sst' L R (k x) (k' x)) ->
+  L tau tau ->
+  ssbt' L R (Br vis c k) (Br vis d k').
+Proof.
+  intros. apply step_ssbt'_br; eauto.
+Qed.
+
+Lemma ssim'_epsilon_l {E F C D X Y} `{HasB0: B0 -< C} `{HasB0': B0 -< D} {L} :
+  forall (t t' : ctree E C X) (u : ctree F D Y),
+  ssim' L t u ->
+  epsilon t t' ->
+  ssim' L t' u.
+Proof.
+  intros. step. eapply ss'_gen_epsilon_l.
+  - apply (gfp_pfp (ss' L)).
+  - step in H. apply H.
+  - apply H0.
+Qed.
 
 (*|
 Up-to [bind] context simulations
