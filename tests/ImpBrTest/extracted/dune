@@ -26,13 +26,15 @@
     Extras
     ExtrOcamlIntConv
     Fin
+    Fold
+    FoldStateT
     FMapAList
     Function
     Functor
     Hexadecimal
     ImpBr
     ImpBrEx
-    Interp0
+    Index
     Interp
     ITreeDefinition
     List0
@@ -58,7 +60,6 @@
     Reducible
     RelDec
     Specif
-    State0
     State
     StateMonad
     String0

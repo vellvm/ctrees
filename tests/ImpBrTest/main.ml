@@ -1,18 +1,21 @@
 open CTreeDefinitions;;
 open ExtrOcamlIntConv;;
 open ImpBrEx;;
+open Datatypes;;
+
+let choose2 () =
+  if Random.int 2 = 1 then Coq_true else Coq_false;;
 
 let rec run t =
   match observe t with
   | RetF r -> print_int (int_of_nat r)
-  | VisF (e, k) -> failwith "Vis (unreachable)"
-  | BrF (b, n, k) ->
-    if int_of_nat n = 0 then failwith "Stuck" else
-    let choice = Random.int (int_of_nat n) in
-    match Fin.of_nat (nat_of_int (choice)) n with
-    | Coq_inleft x -> run (k x)
-    | Coq_inright -> failwith "unreachable";;
+  | VisF (_e, _k) -> failwith "Vis (unreachable)"
+  | BrF (_b, c, k) ->
+    match c with
+    | (* B0 *) Coq_inl _ -> failwith "Stuck"
+    | (* B1 *) Coq_inr (Coq_inl _) -> run (k (Obj.magic Coq_tt))
+    | (* B2 *) Coq_inr (Coq_inr _) -> run (k (Obj.magic choose2()));;
 
 Random.self_init ();;
-run ex_prog';;
+run (Obj.magic ex_prog');;
 print_newline ();;
