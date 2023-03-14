@@ -2,8 +2,8 @@
 (using coq 0.3)
 (name coq-ctree)
 
-(license "GPLv3")
-(authors "Paul He" "Ludovic Henrio" "Yannick Zakowski" "Steve Zdancewic")
+(license "MIT")
+(authors "Nicolas Chappe" "Paul He" "Ludovic Henrio" "Yannick Zakowski" "Steve Zdancewic")
 (maintainers "Yannick Zakowski")
 (source (github vellvm/ctrees))
 (bug_reports "https://github.com/vellvm/ctrees/issues")

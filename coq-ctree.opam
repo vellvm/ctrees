@@ -4,8 +4,14 @@ version: "0.1"
 synopsis:
   "Library for representing recursive, non-deterministic and impure programs with equational reasoning"
 maintainer: ["Yannick Zakowski"]
-authors: ["Paul He" "Ludovic Henrio" "Yannick Zakowski" "Steve Zdancewic"]
-license: "GPLv3"
+authors: [
+  "Nicolas Chappe"
+  "Paul He"
+  "Ludovic Henrio"
+  "Yannick Zakowski"
+  "Steve Zdancewic"
+]
+license: "MIT"
 homepage: "https://github.com/vellvm/ctrees"
 bug-reports: "https://github.com/vellvm/ctrees/issues"
 depends: [
