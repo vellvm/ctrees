@@ -12,6 +12,7 @@ From CTree Require Import
      Eq
      CTree
      Interp.Par
+     Logic.Kripke
      FoldStateT.
 
 From Coq Require Import
@@ -21,108 +22,6 @@ From Coq Require Import
 Set Implicit Arguments.
 Typeclasses eauto := 6.
 
-(* From ctree labels to kripke states *)
-Class Handler (E: Type -> Type) (S: Type) := {
-    hfold: forall X, E X -> X -> S -> S;
-  }.
-
-#[global] Instance Handler_state S: Handler (stateE S) S :=
-  {|
-    hfold _ e _ s :=
-    match e with
-    | Put s => s
-    | Get _ => s
-    end
-  |}.
-
-#[global] Instance Handler_par: Handler parE nat := 
-  {| hfold _ e _ s := match e with Switch i => i end |}.
-
-(* WHY this loops during instance resolution *)
-#[global] Instance Handler_plus{E F: Type -> Type}{S T}
- (h: Handler E S) (g: Handler F T) : Handler (E+'F) (S*T) :=
-  {|
-    hfold _ ef x '(s,t) := 
-    match ef with
-    | inl1 e => (h.(hfold) e x s, t)
-    | inr1 f => (s, g.(hfold) f x t)
-    end
-  |}.
-
-Section Kripke.
-  Context {E C: Type -> Type} {X S: Type}
-          {h: Handler E S} {HasStuck: B0 -< C}.
-
-  (* Kripke state predicates *)
-  Notation SP := (ctree E C X -> S -> Prop).
-    
-  (* Kripke transition given a handler *)
-  Inductive ktrans: (ctree E C X * S) -> (ctree E C X * S) -> Prop :=
-  | kTau (t u: ctree E C X) (s: S):
-    trans tau t u ->
-    ktrans (t, s) (u, s)
-  | kVis (t u: ctree E C X) {Y} (x: Y) (e: E Y) (s: S):
-    trans (obs e x) t u ->
-    ktrans (t, s) (u, h.(hfold) e x s)
-  (* LEF: [t] could be any [brD ... (ret x)] chain *)
-  | kRet (t u: ctree E C X) (x: X) (s: S):
-    u ≅ t ->
-    trans (val x) t stuckD ->
-    ktrans (t, s) (u, s). 
-
-  Hint Constructors ktrans: core.
-
-  #[global] Instance proper_ktrans_equ:
-    Proper (equ eq * eq ==> equ eq * eq ==> iff) ktrans.
-  Proof.
-    unfold Proper, respectful, impl; cbn.
-    intros [t s] [u x] [EQt ?] [t' s'] [u' x'] [EQt' H3]; simpl in *.
-    unfold RelCompFun in *; cbn in *; subst.    
-    split; intro H; inv H.
-    - rewrite EQt, EQt' in H1.
-      now apply kTau.
-    - rewrite EQt, EQt' in H1.
-      now apply kVis.
-    - rewrite <- H3 in H5. 
-      eapply kRet;
-        [now rewrite <- EQt, <- EQt' |
-          rewrite <- EQt, <- H3; eassumption].
-    - rewrite <- EQt, <- EQt' in H1.
-      now apply kTau.
-    - rewrite <- EQt, <- EQt' in H1.
-      now apply kVis.
-    - rewrite <- H3 in H5. 
-      eapply kRet;
-        [now rewrite EQt, EQt' |
-          rewrite EQt, <- H3; eassumption].
-  Qed.
-
-  Lemma trans_val_sbisim: forall (t u: ctree E C X) (x: X),
-      trans (val x) t stuckD ->
-      t ~ u ->
-      trans (val x) u stuckD.
-  Proof.
-    intros.
-    remember (val x) as l.
-    induction H; intros; eauto; try solve [inv Heql].
-    (* Ah lost [observe t] *)
-  Admitted.
-
-  Lemma ktrans_sbisim_l: forall (t1 t2 t1': ctree E C X) s s',
-      ktrans (t1,s) (t1',s') ->
-      t1 ~ t2 ->
-      exists t2', ktrans (t2,s) (t2',s') /\ t1' ~ t2'.
-  Proof.
-    intros * TR  Hsb.
-    inv TR; intros.
-    1,2: step in Hsb; apply Hsb in H0 as (l2 & t2' & TR2 & ? & <-); exists t2'; split; eauto.
-    exists t2; rewrite H2; split; eauto.
-    apply kRet with x; [reflexivity|].
-    now apply trans_val_sbisim with (u:=t2) in H4.
-  Qed.
-
-End Kripke.
-
 (*| CTL logic based on kripke semantics of ctrees |*)
 Section Ctl.
   
@@ -131,9 +30,13 @@ Section Ctl.
   Notation SP := (ctree E C X -> S -> Prop).
   
   (* Lift label predicates to SP *)
-  Definition now(p: S -> Prop): SP :=
+  Definition nowS(p: S -> Prop): SP :=
     fun _ s => p s.
-  
+
+  (* Predicate on return value *)
+  Definition nowR(p: X -> S -> Prop): SP :=
+    fun t s => exists x, t ≅ Ret x /\ p x s.
+
   (* Propositional *)
   Definition cimpl: SP -> SP -> SP :=
     fun a b t l => a t l -> b t l.
@@ -165,7 +68,7 @@ Section Ctl.
       p t s ->    (* Matches [p] now; steps to (t', s') *)
       (forall t' s', ktrans (t,s) (t',s') -> au p q t' s') ->
       au p q t s.
-
+      
   (* Exists strong until *)
   Inductive eu: SP -> SP -> SP :=
   | MatchE: forall t s (p q: SP),
@@ -206,8 +109,8 @@ Module CtlNotations.
   Section SC.
     Context {E C: Type -> Type} {X S: Type}.
     Notation SP := (ctree E C X -> S -> Prop).
-    Definition ctl_of_Prop (P : Prop) : SP := now (fun (_: S) => P).
-    Definition ctl_of_State (s: S): SP := now (fun (x: S) => x = s).
+    Definition ctl_of_Prop (P : Prop) : SP := nowS (fun (_: S) => P).
+    Definition ctl_of_State (s: S): SP := nowS (fun (x: S) => x = s).
     Coercion ctl_of_Prop : Sortclass >-> Funclass. 
     Coercion ctl_of_State : S >-> Funclass.
   End SC.
@@ -220,6 +123,8 @@ Module CtlNotations.
                                                 p custom ctl,
                                                 right associativity): ctl_scope.
   (* Temporal *)
+  Notation "'now' p" := (nowS p) (in custom ctl at level 79): ctl_scope.
+  Notation "'ret' p" := (nowR p) (in custom ctl at level 79): ctl_scope.
   Notation "'EX' p" := (ex p) (in custom ctl at level 75): ctl_scope.
   Notation "'AX' p" := (ax p) (in custom ctl at level 75): ctl_scope.
   Notation "p 'EU' q" := (eu p q) (in custom ctl at level 75): ctl_scope.
@@ -230,11 +135,11 @@ Module CtlNotations.
   Notation "'AG' p" := (ag p) (in custom ctl at level 75): ctl_scope.
 
   (* Propositional *)
-  Notation "p '/\' q" := (cand p q) (in custom ctl at level 78, left associativity): ctl_scope.
-  Notation "p '\/' q" := (cor p q) (in custom ctl at level 78, left associativity): ctl_scope.
-  Notation "p '->' q" := (cimpl p q) (in custom ctl at level 79, right associativity): ctl_scope.
+  Notation "p '/\' q" := (cand p q) (in custom ctl at level 77, left associativity): ctl_scope.
+  Notation "p '\/' q" := (cor p q) (in custom ctl at level 77, left associativity): ctl_scope.
+  Notation "p '->' q" := (cimpl p q) (in custom ctl at level 78, right associativity): ctl_scope.
   Notation "p '<->' q" := (cand (cimpl p q) (cimpl q p))
-                            (in custom ctl at level 78): ctl_scope.
+                            (in custom ctl at level 77): ctl_scope.
 
   (* Companion notations *)
   Notation agt p := (t (ag_ p)).
@@ -264,8 +169,7 @@ End CtlNotations.
 Import CtlNotations.
 
 #[global] Hint Constructors eu au: core.
-#[global] Hint Unfold cand cor cimpl ax ex now: core.
-Arguments entails /.
+#[global] Hint Unfold cand cor cimpl ax ex nowS nowR: core.
 Arguments cand /.
 Arguments cor /.
 Arguments cimpl /.
@@ -273,54 +177,9 @@ Arguments ax /.
 Arguments ex /.
 Arguments agF /.
 Arguments egF /.
-
-(*| Tactics |*)
-Ltac fold_g :=
-  repeat
-    match goal with
-    | h: context[@ag_ ?E ?C ?S ?X ?h ?HS ?R ] |- _ => fold (@ag E C S X h HS R) in h
-    | |- context[@ag_ ?E ?C ?S ?X ?h ?HS ?R ]      => fold (@ag E C S X h HS R)
-    | h: context[@eg_ ?E ?C ?S ?X ?h ?HS ?R ] |- _ => fold (@eg E C S X h HS R) in h
-    | |- context[@eg_ ?E ?C ?S ?X ?h ?HS ?R ]      => fold (@eg E C S X h HS R)
-    end.
-
-Check @ag.
-#[local] Tactic Notation "__step_g" :=
-  match goal with
-  | |- context[@ag ?E ?C ?S ?X ?h ?HasStuck ?p ?t ?q] =>
-      unfold ag;
-      step;
-      fold (@ag E C S X h HasStuck p t q)
-  | |- context[@eg ?E ?C ?S ?X ?h ?HasStuck ?p ?t ?q] =>
-      unfold eg;
-      step;
-      fold (@eg E C S X h HasStuck p t q)
-  | |- _ => step
-  end.
-
-#[local] Ltac __step_in_g H :=
-  match type of H with
-  | context [@ag ?E ?C ?S ?X ?h ?HasStuck ] =>
-      unfold ag in H;
-      step in H;
-      fold (@ag E C S X h HasStuck) in H
-  | context [@eg ?E ?C ?S ?X ?h ?HasStuck ] =>
-      unfold eg in H;
-      step in H;
-      fold (@eg E C S X h HasStuck) in H
-  end.
-
-#[local] Ltac __coinduction_g R H :=
-  unfold ag, eg; coinduction R H; fold_g.
-
-(** Re-export [Eq.v] tactics *)
-#[global] Tactic Notation "step" :=
-  __step_g || step.
-#[global] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
-  __coinduction_g R H || coinduction R H.
-
-#[global] Tactic Notation "step" "in" ident(H) :=
-  __step_in_g H || step_in H.
+Arguments nowS /.
+Arguments nowR /.
+Arguments entails: simpl never.
 
 (*| Equations of CTL |*)
 Section Equivalences.
@@ -429,20 +288,13 @@ Section Equivalences.
       + now apply MatchE.
       + destruct H0; auto.
   Qed.
-End Equivalences.
-
-Section Congruences.
-  Local Open Scope ctl_scope.
-  Context {E C: Type -> Type} {X S: Type} {HasStuck: B0 -< C} {h: Handler E S}.
-
-  Notation SP := (ctree E C X -> S -> Prop).
 
   (*| [now] ignores trees and only looks at labels |*)
-  #[global] Instance proper_now: forall (p: S -> Prop) R,
-      Proper (R ==> eq ==> iff) (@now E C X S p).
+  #[global] Instance proper_now: forall (p: S -> Prop) (R: relation (ctree E C X)),
+      Proper (R ==> eq ==> iff) <( now p )>.
   Proof.
     unfold Proper, respectful, impl; cbn.      
-    intros p R x y EQ ? l <-; split; unfold now; auto. 
+    intros p R x y EQ ? l <-; split; auto.
   Qed.
 
   #[global] Instance proper_cand_equ (P Q: SP)
@@ -639,8 +491,16 @@ Section Congruences.
       intros x y EQ ? l <-; split; intro G; apply (ft_t equ_clos_eg); econstructor;
         [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
     Qed.
-  End gProperEqu.
 
+    (* Allow rewriting under entailment *)
+    #[global] Instance proper_entails_equ:
+      Proper (@equ E C X X eq ==> @eq S ==> iff) (entails P). 
+    Proof.
+      unfold Proper, respectful, iff;
+        intros x y EQx a ? <-; split; intro G; unfold entails in *; [now rewrite <- EQx | now rewrite EQx].
+    Qed.
+  End gProperEqu.
+                
   (*| Up-to-sbisim enhancing function |*)
   Variant unary_sbisim_clos_body (R : SP) : SP :=
     | uSbisim_clos : forall t t' s s'
@@ -736,6 +596,14 @@ Section Congruences.
       intros x y EQ ? l <-; split; intro G; apply (ft_t sbisim_clos_ag); econstructor;
         [symmetry | apply G | reflexivity | | apply G | reflexivity]; assumption.
     Qed.
+
+    (* Allow rewriting under entailment *)
+    #[global] Instance proper_entails_sbisim:
+      Proper (sbisim eq ==> eq ==> iff) (entails P). 
+    Proof.
+      unfold Proper, respectful, iff;
+        intros x y EQx a ? <-; split; intro G; unfold entails in *; [now rewrite <- EQx | now rewrite EQx].
+    Qed.
   End gProperSbisim.
 
   (*| Up-to-bind ag |*)
@@ -764,7 +632,165 @@ Section Congruences.
       apply in_bind_ctx. apply H'. intros t t' HS. apply H0, H'', HS. *)
     Admitted.
   End gProperBind.
-End Congruences.
+End Equivalences.
+
+(*| Ltac Tactics |*)
+#[local] Ltac __fold_g :=
+  repeat
+    match goal with
+    | h: context[@ag_ ?E ?C ?S ?X ?h ?HS ?R ] |- _ => fold (@ag E C S X h HS R) in h
+    | |- context[@ag_ ?E ?C ?S ?X ?h ?HS ?R ]      => fold (@ag E C S X h HS R)
+    | h: context[@eg_ ?E ?C ?S ?X ?h ?HS ?R ] |- _ => fold (@eg E C S X h HS R) in h
+    | |- context[@eg_ ?E ?C ?S ?X ?h ?HS ?R ]      => fold (@eg E C S X h HS R)
+    end.
+
+#[local] Ltac __fold_entails :=  
+  lazymatch goal with
+  | |- context[entails ?ϕ ?t ?s] => fail "Already in [t, s |= p] form"
+  | |- context[?ϕ ?t ?s] =>
+      match type of ϕ with
+      |_ -> _ -> Prop =>
+         match type of t with
+         | ctree ?E ?C ?X =>
+             replace (ϕ t s) with (entails ϕ t s) by reflexivity
+         end
+      end                
+  end.
+
+#[local] Ltac __fold_entails_in H :=
+  lazymatch type of H with
+  | context[entails ?ϕ ?t ?s] => fail "Already in [t, s |= p] form"
+  | context[?ϕ ?t ?s] =>
+       match type of ϕ with
+       |ctree ?E ?C ?X -> ?S -> Prop =>
+         match type of t with
+         | ctree ?E ?C ?X =>
+             match type of s with
+             | ?S => replace (ϕ t s) with (entails ϕ t s) in H by reflexivity
+             end
+         end
+      end                
+  end.
+
+#[local] Tactic Notation "__step_x" :=
+  lazymatch goal with
+  | |- entails (@ax ?E ?C ?X ?S ?h ?HasStuck ?p) ?t ?s =>
+      unfold entails, ax;
+      repeat (
+          let t_ := fresh "t" in
+          let s_ := fresh "s" in
+          let TR_ := fresh "TR" in
+          intros t_ s_ TR_)
+  | |- entails (@ex ?E ?C ?X ?S ?h ?HasStuck ?p) ?t ?s =>
+      unfold entails, ex; do 2 eexists
+  end; __fold_entails.
+
+#[local] Ltac __step_in_x H :=
+  lazymatch type of H with
+  | entails (@ax ?E ?C ?X ?S ?h ?HasStuck ?p) ?t ?s =>
+      unfold entails, ax in H;
+      lazymatch goal with
+      | H: forall t' : ctree ?E ?C ?X, forall s': ?S, ktrans ?L (t', s') -> ?ϕ t' s' |- _ => 
+          lazymatch type of ϕ with
+          |_ -> _ -> Prop =>
+             replace (forall (t' : ctree E C X) (s': S) , ktrans L (t', s') -> ϕ t' s') with
+             (forall (t' : ctree E C X) (s': S) , ktrans L (t', s') -> entails ϕ t' s') in H by reflexivity
+          end
+      end
+  | entails (@ex ?E ?C ?X ?S ?h ?HasStuck ?p) ?t ?s =>
+      let t_ := fresh "t" in
+      let s_ := fresh "s" in
+      let TR_ := fresh "TR" in
+      let NOW_ := fresh "Hnow" in
+      unfold entails, ex in H; destruct H as (t_ & s_ & TR_ & NOW_);
+      replace (p t_ s_) with (entails p t_ s_) in NOW_ by reflexivity
+  end.
+
+#[local] Tactic Notation "__step_u" :=
+  lazymatch goal with
+  | |- entails (@au ?E ?C ?X ?S ?h ?HasStuck ?p ?q) ?t ?s =>
+      unfold entails; apply ctl_au_ax
+  | |- entails (@eu ?E ?C ?X ?S ?h ?HasStuck ?p ?q) ?t ?s =>
+      unfold entails; apply ctl_eu_ex
+  end; __fold_entails.
+
+#[local] Ltac __step_in_u H :=
+  lazymatch type of H with
+  | entails (@au ?E ?C ?X ?S ?h ?HasStuck ?p ?q) ?t ?s =>
+      let NOW_ := fresh "Hnow" in
+      unfold entails; apply ctl_au_ax in H; destruct H;
+      [|destruct H as (NOW_ & ?); __fold_entails_in NOW_]
+  | entails (@eu ?E ?C ?X ?S ?h ?HasStuck ?p ?q) ?t ?s =>
+      unfold entails, ex; apply ctl_eu_ex in H
+  end; __fold_entails_in H.
+
+#[local] Tactic Notation "__step_g" :=
+  lazymatch goal with
+  | |- entails (@ag ?E ?C ?S ?X ?h ?HasStuck ?p) ?t ?q =>
+      unfold entails, ag;
+      step;
+      fold (@ag E C S X h HasStuck p t q)
+  | |- entails (@eg ?E ?C ?S ?X ?h ?HasStuck ?p) ?t ?q =>
+      unfold entails,eg;
+      step;
+      fold (@eg E C S X h HasStuck p t q)
+  end;  __fold_entails.
+
+#[local] Ltac __step_in_g H :=
+  lazymatch type of H with
+  | entails (@ag ?E ?C ?S ?X ?h ?HasStuck ?p) ?t ?s =>
+      unfold entails, ag in H;
+      step in H;
+      fold (@ag E C S X h HasStuck) in H
+  | entails (@eg ?E ?C ?S ?X ?h ?HasStuck ?p) ?t ?s =>
+      unfold entails, eg in H;
+      step in H;
+      fold (@eg E C S X h HasStuck) in H
+  end; __fold_entails_in H.
+
+#[local] Ltac __coinduction_g R H :=
+  unfold entails, ag, eg; coinduction R H; __fold_g; __fold_entails.
+
+(** Re-export [Eq.v] tactics *)
+#[global] Tactic Notation "step" :=
+  __step_x || __step_u || __step_g || step.
+
+#[global] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
+  __coinduction_g R H || coinduction R H.
+
+#[global] Tactic Notation "step" "in" ident(H) :=
+  __step_in_x H || __step_in_u H || __step_in_g H || step_in H.
+
+Tactic Notation "right" := right; try progress __fold_entails.
+Tactic Notation "left" := left; try progress __fold_entails.
+Tactic Notation "split" := split; try progress __fold_entails.
+
+Section UsefulLemmas.
+  Import CtlNotations CTreeNotations.
+  Local Open Scope ctl_scope.
+
+  Context {E C: Type -> Type} {X S: Type} {HasStuck: B0 -< C} {h: Handler E S}.
+  Notation SP := (ctree E C X -> S -> Prop).
+  
+  Lemma ctl_ret_au_inv: forall x s (p q: S -> Prop),
+      <( {Ret x: ctree E C X}, s |= (now p) AU (now q) )> -> p s \/ q s.
+  Proof.
+    intros.
+    step in H; [now right | now left].
+  Qed.
+
+  Lemma ctl_bind_au_inv: forall p q (t: ctree E C X) (s: S) (k: X -> ctree E C X),
+      <( {x <- t ;; k x}, s |= (now p) AU (now q) )> ->
+      <( t,s |= (now p) AU (ret {fun x s => <( {k x}, s |= (now p) AU (now q) )>}) )> \/
+        <( t,s |= (now p) AU (now q) )>.
+  Proof.
+    intros.
+    unfold entails in H.
+    inv H.
+    - admit.
+    - admit.
+  Admitted.
+End UsefulLemmas.
 
 (* Examples *)
 From CTree Require Import
@@ -780,12 +806,12 @@ Module Experiments.
     put 2 ;;
     put 3.
 
-  (* Why ctl_of_State did not register? *)
+  (* Why ctl_of_State did not register? Nvm, it's too general... *)
   Print Coercions.
   Section COERC.
     Context {C: Type -> Type} {X: Type}.
     Notation SP := (ctree (stateE nat) C X -> nat -> Prop).
-    Definition ctl_of_State (s: nat): SP := now (fun x => x = s).
+    Definition ctl_of_State (s: nat): SP := nowS (fun x => x = s).
     Arguments ctl_of_State /.
     Coercion ctl_of_State : nat >-> Funclass.
   End COERC.
@@ -793,24 +819,17 @@ Module Experiments.
   Lemma writes_23: forall s,
       <( dummy_23, s |= AX 2 /\ (AX (AX 3)) )>.
   Proof.
-    split;unfold dummy_23; unfold ax, ctl_of_State, now; intros; inv H.
-    - inv H1. 
-    - apply trans_trigger_inv in H1 as (? & ? & ?).
-      dependent destruction H0.
-      reflexivity.
-    - inv H5.
-    - inv H2.
-    - apply trans_trigger_inv in H2 as ([] & ? & ?).
-      dependent destruction H1; cbn in *.
-      rewrite H in H0.
-      inv H0.
-      + inv H2.
-      + apply trans_vis_inv in H2 as ([] & ? & ?).
-        dependent destruction H1.
-        reflexivity.
-      + inv H6.
-    - inv H6.
-  Qed.
+    unfold dummy_23.
+    split.
+    - step.
+      apply ktrans_trigger_inv in TR as ([] & ? & ->).
+      cbn; auto.
+    - step.  
+      apply ktrans_trigger_inv in TR as ([] & ? & ->).
+      rewrite H in *; clear H.
+      apply ktrans_vis_inv in TR0 as ([] & -> & ->).
+      cbn; auto.
+  Qed.      
 
   Context {E C: Type -> Type} {X S: Type} {HasStuck: B0 -< C} {h: Handler E S}.
   Definition stuck: ctree E C X := stuckD.
@@ -823,7 +842,7 @@ Module Experiments.
     unfold cimpl, ax, entails. intros.
     inv H.
     1,2: shallow_inv_trans H1; contradiction.
-    all: shallow_inv_trans H5; contradiction. 
+    all: shallow_inv_trans H3; contradiction. 
   Qed.
 
   (* Terminating [ret x] programs *)
@@ -844,10 +863,10 @@ Module Experiments.
       (* Ret tt *)
       right; eauto.
       intros; clear H t'.
-      inv H0; try solve [inv H1].
+      apply ktrans_ret in H0 as (-> & <-).
+      apply StepA; auto.
+      intros.
       (* Same [Ret tt] as before, and it will keep being [Ret tt] *)
-      right; eauto; intros; rewrite H3 in *; destruct x; clear H3 t'0.
-      inv H; try solve [inv H0]; right; eauto; intros.
    Abort.
 
   Lemma maybegood: forall n,
@@ -863,7 +882,7 @@ Module Experiments.
       rewrite H.
       left; cbn.
       trivial.
-    - inv H5.
+    - inv H3.
   Qed.
   
   Lemma maybegood': 
@@ -872,16 +891,15 @@ Module Experiments.
     unfold entails.
     apply ctl_ag_ax; split.
     - trivial.
-    - unfold ax; intros.
-      inv H; try solve [inv H1].
-      + shallow_inv_trans H1; cbn; apply observe_equ_eq in x; rewrite <- x, <- H; clear H x t'.
-        coinduction R CIH.
-        econstructor; trivial.
-        * intros.
-          inv H; repeat shallow_inv_trans H1.
-          rewrite H3.
-          apply CIH.
-      + inv H5.
+    - unfold put2; step.
+      apply ktrans_vis_inv in TR as ([] & -> & ->).
+      cbn.
+      coinduction R CIH.
+      econstructor; trivial.
+      intros.
+      apply ktrans_ret in H as (-> & <-).
+      apply CIH.
+      auto.
   Qed.
 
   Lemma maybegood'': 
@@ -893,37 +911,9 @@ Module Experiments.
     step in CONTRA; inv CONTRA.
     inv H.
   Qed.
-  
-  (* Useful equivalences *)
-
-  Lemma ag_bind: forall (t: ctree E C X) (s: S) (k: X -> ctree E C X) (x: X) p,
-      <( t,s |= AG p )> /\ <( {k x}, s |= AG p )> ->
-      <( { x <- t ;; k x }, s |= AG p )>.
-  Proof.
-    unfold entails; intros * (? & ?).
-    coinduction R CIH.
-    split.
-    - unfold now; cbn.
-
-  Admitted.
-  
-  Lemma ag_forever: forall (t: ctree E C X) (s: S) p {HasTau: B1 -< C}
-                      {HP: Proper (sbisim eq ==> eq ==> iff) p},
-      <( t, s |= AG p )> <-> <( {forever t},s |= AG p )>.
-  Proof.
-    unfold entails; split; intros. 
-    - apply ctl_ag_ax in H; destruct H.
-      rewrite unfold_forever.
-      
-      unfold ax in H0.
-      apply ctl_ag_ax; split.
-      rewrite <- unfold_forever.
-
-      (* Hm looks unlikely *)
-  Admitted.
 
   Lemma ag_forever': forall (t: ctree E C X) (s: S) p {HasTau: B1 -< C},
-      <( t, s |= {now p} )> -> <( {forever t: ctree E C X},s |= AG {now p} )>.
+      <( t, s |= now p )> -> <( {forever t: ctree E C X},s |= AG now p )>.
   Proof.
     unfold entails; intros; coinduction R CIH.
     - econstructor.
