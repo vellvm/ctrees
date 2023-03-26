@@ -50,6 +50,16 @@ Class Handler (E: Type -> Type) (S: Type) := {
     end
   |}.
 
+(*| Invert [ktrans] |*)
+Ltac shallow_inv_ktrans H := dependent destruction H; try solve [inv H];
+                             intuition; unfold trans,transR in H; cbn in H;
+                             dependent destruction H;
+                             repeat change (CTree.subst ?k ?t) with (CTree.bind t k) in H;
+                             repeat lazymatch goal with
+                                    | H: ?t |- ?t => exact H
+                                    | H: observe ?t = observe ?u |- _ => apply observe_equ_eq in H
+                                    end.
+
 Section Kripke.
   Context {E C: Type -> Type} {X S: Type}
           {h: Handler E S} {HasStuck: B0 -< C}.
@@ -65,7 +75,6 @@ Section Kripke.
     | kVis (t u: ctree E C X) {Y} (x: Y) (e: E Y) (s: S):
       trans (obs e x) t u ->
       ktrans (t, s) (u, h.(hfold) e x s)
-             
     | kRet (t u: ctree E C X) (x: X) (s: S):
       trans (val x) t stuckD ->
       u ≅ Ret x ->
@@ -92,17 +101,26 @@ Section Kripke.
     - apply kRet with x0; [now rewrite EQt | now rewrite EQt'].
   Qed.
 
-  Lemma trans_val_sbisim: forall (t u: ctree E C X) (x: X),
-      trans (val x) t stuckD ->
+  Lemma trans_val_sbisim : forall (t t' u: ctree E C X) (x: X),
+      trans (val x) t t' ->
       t ~ u ->
-      trans (val x) u stuckD.
+      exists s, s ≅ stuckD /\ trans (val x) u s.
   Proof.
-    intros.    
-    unfold trans, transR in H; cbn in H.
-    remember (val x).
-    induction H; intros; eauto; try solve [inv Heql].
-    (* Ah lost [observe t] *)
-  Admitted.
+    intros * TR EQ.
+    step in EQ.
+    destruct EQ as [F _].
+    apply F in TR as (? & s & ? & ? & <-).
+    exists s; split; auto.
+    exact (trans_val_inv H).
+  Qed.
+
+  (* LEF: Is this true?
+  Lemma trans_obs_sbisim {Y}: forall (t t' u: ctree E C X) (e: E Y) (x: Y) (k: Y -> ctree E C X),
+      trans (obs e x) t (k x) ->
+      t ~ u ->
+      exists s, s ~ k x /\ trans (obs e x) u s.
+  Proof. Qed.    
+   *)
 
   Lemma ktrans_sbisim_l: forall (t1 t2 t1': ctree E C X) s s',
       ktrans (t1,s) (t1',s') ->
@@ -114,18 +132,9 @@ Section Kripke.
     1,2: step in Hsb; apply Hsb in H0 as (l2 & t2' & TR2 & ? & <-); exists t2'; split; eauto.
     exists (Ret x); rewrite H4; split; eauto.
     apply kRet with x; [| reflexivity]. 
-    now apply trans_val_sbisim with (u:=t2) in H2.
+    apply trans_val_sbisim with (u:=t2) in H2 as (? & ? & ?); eauto.
+    now rewrite H in H0.
   Qed.
-
-  (*| Invert [ktrans] |*)
-  Ltac shallow_inv_ktrans H := dependent destruction H; try solve [inv H];
-                               intuition; unfold trans,transR in H; cbn in H;
-                               dependent destruction H;
-                               repeat change (CTree.subst ?k ?t) with (CTree.bind t k) in H;
-                               repeat lazymatch goal with
-                                      | H: ?t |- ?t => exact H
-                                      | H: observe ?t = observe ?u |- _ => apply observe_equ_eq in H
-                                      end.
 
   Lemma ktrans_ret: forall x (t t': ctree E C X) s s',
       ktrans (Ret x, s) (t', s') <->
@@ -184,16 +193,21 @@ Section Kripke.
     intuition.
   Qed.
 
-
+  Lemma ktrans_stuck_inv: forall (t: ctree E C X) s s',
+      ktrans (stuckD, s) (t, s') -> False.
+  Proof.
+    intros * CONTRA.
+    inv CONTRA.
+    - unfold trans,transR in H0; cbn in H0; dependent destruction H0; contradiction.
+    - unfold trans,transR in H0; cbn in H0; dependent destruction H0; contradiction.
+    - unfold trans,transR in H2; cbn in H2; dependent destruction H2; contradiction.
+  Qed.
 End Kripke.
 
-Definition is_ret{E C X}(t: ctree E C X): Prop :=
-  exists x, t ≅ Ret x.
-  
 Lemma ktrans_bind_inv: forall {E C X Y S} `{Handler E S} `{B0 -< C} (s s': S)
                          (t: ctree E C Y) (u: ctree E C X) (k: Y -> ctree E C X),
     ktrans (x <- t ;; k x, s) (u, s') ->
-    ~ is_ret t /\ (exists t', ktrans (t, s) (t', s') /\ u ≅ x <- t' ;; k x) \/
+    ~ (exists x, t ≅ Ret x) /\ (exists t', ktrans (t, s) (t', s') /\ u ≅ x <- t' ;; k x) \/
       (exists x, ktrans (t, s) (Ret x, s) /\ ktrans (k x, s) (u, s')).
 Proof.
   intros.
@@ -223,6 +237,3 @@ Proof.
       * rewrite H7.
         now apply kRet with x.
 Qed.
-
-
-
