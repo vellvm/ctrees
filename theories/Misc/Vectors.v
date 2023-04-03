@@ -1,4 +1,4 @@
-From Coq Require Export
+From Coq Require Import
      Vector Fin.
 From Coq Require Import
      Program.Equality.
@@ -21,7 +21,6 @@ Equations vector_remove{A n}(v: vec (S n) A)(i: fin (S n)) : vec n A by wf n lt 
   vector_remove (h :: h' :: ts) (FS F1) := h :: ts;
   vector_remove (h :: h' :: ts) F1 := h' :: ts;
   vector_remove (h::nil) F1 := @nil A.
-Transparent vector_remove.
 
 Equations vector_replace{A n}(v: vec n A)(i: fin n)(a: A): vec n A by wf n lt :=
   vector_replace [] _ _ := [];
@@ -29,11 +28,23 @@ Equations vector_replace{A n}(v: vec n A)(i: fin n)(a: A): vec n A by wf n lt :=
   vector_replace (h :: h' :: ts) (FS F1) a := h :: a :: ts;
   vector_replace (h :: h' :: ts) F1 a := a :: h' :: ts;
   vector_replace [h] F1 a := [a].
-Transparent vector_replace.
+
+Equations vector_nth_apply{A n}(v: vec n A)(i: fin n)(f: A -> A): vec n A by wf n lt :=
+  vector_nth_apply [] _ _ := [];
+  vector_nth_apply (h :: h' :: ts) (FS (FS j)) _ := h :: (vector_nth_apply (h' :: ts) (FS j) f);
+  vector_nth_apply (h :: h' :: ts) (FS F1) _ := h :: f h' :: ts;
+  vector_nth_apply (h :: h' :: ts) F1 _ := f h :: h' :: ts;
+  vector_nth_apply [h] F1 _ := [f h].
+
+(*Equations vector_mapi_{A B n}(v: vec n A)(f: fin n -> A -> B)(i: fin n): vec n B by wf n lt :=
+  vector_mapi_ [] _ F1 := [];
+  vector_mapi_ (h::ts) f (FS i) := f i h :: vector_mapi_ ts f i.
+ *)
 
 Notation "v '@' i ':=' a" := (vector_replace v i a) (at level 80): fin_vector_scope.
 Notation "v '$' i" := (nth v i) (at level 80): fin_vector_scope.
 Notation "v '--' i" := (vector_remove v i) (at level 80): fin_vector_scope.
+Notation "v '@' i 'do' f" := (vector_nth_apply v i f) (at level 80): fin_vector_scope.
 
 (** Vector utils *)
 Equations forallb {A}{m: nat}(f: A -> bool)(a: vec m A): bool :=

@@ -11,7 +11,6 @@ From ITree Require Import
 From CTree Require Import
      Eq
      CTree
-     Interp.Par
      Logic.Kripke
      FoldStateT.
 
@@ -19,17 +18,17 @@ From Coq Require Import
      Classes.SetoidClass
      Classes.RelationPairs.
 
+From ExtLib Require Import
+     Data.Monads.StateMonad.
+
 Set Implicit Arguments.
-Typeclasses eauto := 6.
 
 (*| CTL logic based on kripke semantics of ctrees |*)
 Section Ctl.
-  
-  Context {E C: Type -> Type} {X S: Type}
-          {h: Handler E S} {HasStuck: B0 -< C}.
-  Notation SP := (ctree E C X -> S -> Prop).
 
-  Variant CtlQuantifier: Set := Ex | Fa.
+  Context {E C: Type -> Type} {X S: Type}
+          `{h: E ~~> state S} `{HasStuck: B0 -< C}.
+  Notation SP := (ctree E C X -> S -> Prop).
 
   (* Forall strong until *)
   Inductive cau: SP -> SP -> SP :=
@@ -40,7 +39,7 @@ Section Ctl.
       p t s ->    (* Matches [p] now; steps to (t', s') *)
       (forall t' s', ktrans (t,s) (t',s') -> cau p q t' s') ->
       cau p q t s.
-                          
+
   (* Exists strong until *)
   Inductive ceu: SP -> SP -> SP :=
   | MatchE: forall t s (p q: SP),
@@ -194,8 +193,6 @@ Module CtlNotations.
   Arguments entailsF: simpl never.
 End CtlNotations.
 
-
-
 (* Properness lemmas/ Up-to proofs *)
 Tactic Notation "step_entails" :=
   match goal with
@@ -231,7 +228,7 @@ Tactic Notation "fold_entails" "in" ident(H) :=
 Section Equivalences.
   Import CtlNotations.
   Local Open Scope ctl_scope.
-  Context {E C: Type -> Type} {X Σ: Type} {HasStuck: B0 -< C} {h: Handler E Σ}.
+  Context {E C: Type -> Type} {X Σ: Type} `{h: E ~~> state Σ} `{HasStuck: B0 -< C}.
 
   (* SP is proper setoid *)
   Program Instance SpSetoid: Setoid CtlFormula :=
@@ -241,7 +238,7 @@ Section Equivalences.
     split.
     - intros P x; reflexivity.
     - intros P Q H' x s; symmetry; auto.
-    - intros P Q R H0' H1' x s; transitivity <(x, s |= Q)>%ctl; auto.
+    - intros P Q R H0' H1' x s; etransitivity; auto.
   Qed.
 
   #[global] Instance proper_equiv_equiv:
@@ -720,6 +717,11 @@ Section Equivalences.
       now rewrite EQt.
   Qed.
 
+  (* TODO: This one needs some effort to prove *)
+  #[global] Instance proper_equiv_sbisim:
+    Proper (equiv ==> sbisim eq ==> eq ==> iff) (@entailsF E C X Σ h HasStuck).
+  Admitted.
+   
   (*| Up-to-bind ag |*)
   Definition bind_clos {Y}
              (R: rel (ctree E C X) Σ)
@@ -745,20 +747,20 @@ End Equivalences.
 #[local] Ltac __step_formula E C X S h HasStuck φ :=
   lazymatch φ with
   | context[CAU ?p ?q] => lazymatch eval cbv in p with
-                         | CNowS (fun _ => True) => rewrite (@ctl_af_ax E C X S HasStuck h)
-                         | _ => rewrite (@ctl_au_ax E C X S HasStuck h)
+                         | CNowS (fun _ => True) => rewrite (@ctl_af_ax E C X S h HasStuck)
+                         | _ => rewrite (@ctl_au_ax E C X S h HasStuck)
                          end
   | context[CEU ?p ?q] => lazymatch eval cbv in p with
-                         | CNowS (fun _ => True) => rewrite (@ctl_ef_ex E C X S HasStuck h)
-                         | _ => rewrite (@ctl_eu_ex E C X S HasStuck h)
+                         | CNowS (fun _ => True) => rewrite (@ctl_ef_ex E C X S h HasStuck)
+                         | _ => rewrite (@ctl_eu_ex E C X S h HasStuck)
                          end
   | context[CAR ?p ?q] => lazymatch eval cbv in p with
-                         | CNowS (fun _ => False) => rewrite (@ctl_ag_ax E C X S HasStuck h)
-                         | _ => rewrite (@ctl_ar_ax E C X S HasStuck h)
+                         | CNowS (fun _ => False) => rewrite (@ctl_ag_ax E C X S h HasStuck)
+                         | _ => rewrite (@ctl_ar_ax E C X S h HasStuck)
                          end
   | context[CER ?p ?q] => lazymatch eval cbv in p with
-                         | CNowS (fun _ => False) => rewrite (@ctl_eg_ex E C X S HasStuck h)
-                         | _ => rewrite (@ctl_er_ex E C X S HasStuck h)
+                         | CNowS (fun _ => False) => rewrite (@ctl_eg_ex E C X S h HasStuck)
+                         | _ => rewrite (@ctl_er_ex E C X S h HasStuck)
                          end
   | CAX ?p => step_entails;
              let t_ := fresh "t" in
@@ -775,20 +777,20 @@ End Equivalences.
 #[local] Ltac __step_formula_in H E C X S h HasStuck φ :=
   lazymatch φ with
   | context[CAU ?p ?q] => lazymatch eval cbv in p with
-                         | CNowS (fun _ => True) => rewrite (@ctl_af_ax E C X S HasStuck h) in H
-                         | _ => rewrite (@ctl_au_ax E C X S HasStuck h) in H
+                         | CNowS (fun _ => True) => rewrite (@ctl_af_ax E C X S h HasStuck) in H
+                         | _ => rewrite (@ctl_au_ax E C X S h HasStuck) in H
                          end
   | context[CEU ?p ?q] => lazymatch eval cbv in p with
-                         | CNowS (fun _ => True) => rewrite (@ctl_ef_ex E C X S HasStuck h) in H
-                         | _ => rewrite (@ctl_eu_ex E C X S HasStuck h) in H
+                         | CNowS (fun _ => True) => rewrite (@ctl_ef_ex E C X S h HasStuck) in H
+                         | _ => rewrite (@ctl_eu_ex E C X S h HasStuck) in H
                          end
   | context[CAR ?p ?q] => lazymatch eval cbv in p with
-                         | CNowS (fun _ => False) => rewrite (@ctl_ag_ax E C X S HasStuck h) in H
-                         | _ => rewrite (@ctl_ar_ax E C X S HasStuck h) in H
+                         | CNowS (fun _ => False) => rewrite (@ctl_ag_ax E C X S h HasStuck) in H
+                         | _ => rewrite (@ctl_ar_ax E C X S h HasStuck) in H
                          end
   | context[CER ?p ?q] => lazymatch eval cbv in p with
-                         | CNowS (fun _ => False) => rewrite (@ctl_eg_ex E C X S HasStuck h) in H
-                         | _ => rewrite (@ctl_er_ex E C X S HasStuck h) in H
+                         | CNowS (fun _ => False) => rewrite (@ctl_eg_ex E C X S h HasStuck) in H
+                         | _ => rewrite (@ctl_er_ex E C X S h HasStuck) in H
                          end
   | CAX ?p => step_entails in H
   | CEX ?p =>
@@ -827,13 +829,14 @@ Section UsefulLemmas.
   Import CtlNotations CTreeNotations.
   Local Open Scope ctl_scope.
   
-  Lemma ctl_ret_au_inv {E C X Σ} {HasStuck: B0 -< C} {h: Handler E Σ}: forall x s (p q: Σ -> Prop),
+  Lemma ctl_ret_au_inv {E C X Σ} `{h: E ~~> state Σ}
+        `{HasStuck: B0 -< C} : forall x s (p q: Σ -> Prop),
       <( {Ret x: ctree E C X}, s |= (now p) AU (now q)  )> -> p s \/ q s.
   Proof.
     intros; inv H; [now right | now left].
   Qed.
 
-  Lemma ctl_bind_au_inv{E C X Σ Y} {HasStuck: B0 -< C} {h: Handler E Σ}: forall (φ ψ: Σ -> Prop) (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
+  Lemma ctl_bind_au_inv{E C X Σ Y} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} : forall (φ ψ: Σ -> Prop) (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
       <( {x <- t ;; k x}, s |= (now φ) AU (now ψ) )> <->
       <( t,s |= (now φ) AU (ret {fun x s => <( {k x}, s |= (now φ) AU (now ψ) )>}) )> \/ 
         <( t,s |= (now φ) AU (now ψ) )>.
@@ -843,7 +846,7 @@ Section UsefulLemmas.
     remember (CNowS ψ).
   Admitted.
 
-  Lemma ctl_bind_ag_goal{E C X Σ Y} {HasStuck: B0 -< C} {h: Handler E Σ}: forall φ (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
+  Lemma ctl_bind_ag_goal{E C X Σ Y} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} : forall φ (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
       <( {x <- t ;; k x}, s |= AG (now φ) )> <->
       <( t,s |= (ret {fun x s => <( {k x}, s |= AG (now φ) )>}) AR (now φ) )>.
   Proof.
@@ -851,11 +854,18 @@ Section UsefulLemmas.
     remember (CNowS φ).
   Admitted.
 
-End UsefulLemmas.
+  Lemma ctl_forever_ag{E C X Σ} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} `{HasTau: B1 -< C}: forall φ (t: ctree E C X) (s: Σ),
+      <( {CTree.forever t: ctree E C void}, s |= AG (now φ) )> <->
+      <( t,s |= (ret {fun _ s => φ s}) AR (now φ) )>. (* [t] can return -- as long as ϕ is satisfied *)
+  Proof.
+    intros.
+    remember (CNowS φ).
+    split.
+    - intro H.
+      rewrite unfold_forever in H.
+  Admitted.
 
-(* Examples *)
-From CTree Require Import
-     FoldStateT.
+End UsefulLemmas.
 
 
 Module Experiments.
@@ -883,7 +893,7 @@ Module Experiments.
       cbn; auto.
   Qed.      
 
-  Lemma is_stuck_ax: forall (s: S) {h: Handler E S},
+  Lemma is_stuck_ax: forall (s: S) `{h: E ~~> state S},
       <( stuck, s |= (AX False) )>.
   Proof.
     intros.
@@ -913,7 +923,6 @@ Module Experiments.
     reflexivity.
   Qed.
 
-  
   Lemma maybegood': 
     <( {put 2: ctree (stateE nat) C unit}, 2 |= AG 2 )>.
   Proof.

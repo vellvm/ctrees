@@ -5,50 +5,48 @@ Modal logics over ctrees
 |*)
 
 From ITree Require Import
-     Events.State
-     CategoryOps.
+     Basics
+     Indexed.Sum
+     Indexed.Function.
+
+From ExtLib Require Import
+     Structures.Monads
+     Structures.MonadState
+     Data.Monads.StateMonad.
 
 From CTree Require Import
-     Eq
      CTree
-     Interp.Par
-     FoldStateT.
+     Eq.
 
 From Coq Require Import
      Classes.SetoidClass
      Classes.RelationPairs.
 
-Import CTreeNotations.
-
 Set Implicit Arguments.
 
-(* From ctree labels to kripke states *)
-Class Handler (E: Type -> Type) (S: Type) := {
-    hfold: forall X, E X -> X -> S -> S;
-  }.
+Import MonadNotation.
+Local Open Scope monad_scope.
 
-#[global] Instance Handler_state S: Handler (stateE S) S :=
-  {|
-    hfold _ e _ s :=
+(** A typeclass definition of a handler, used purely to make inference easy *)
+Class Handler(E: Type -> Type) (S: Type -> Type): Type :=
+  handler: E ~> S.
+
+Notation "E ~~> S" := (Handler E S) (at level 99, right associativity) : type_scope.
+
+#[global] Instance handler_plus{A B X Y} `{HA: A ~~> state X} `{HB: B ~~> state Y}:
+  A +' B ~~> state (X * Y) :=
+  fun _ e =>
+    '(x,y) <- get ;;
     match e with
-    | Put s => s
-    | Get _ => s
-    end
-  |}.
-
-#[global] Instance Handler_par: Handler parE nat := 
-  {| hfold _ e _ s := match e with Switch i => i end |}.
-
-(* WHY this loops during instance resolution *)
-#[global] Instance Handler_plus{E F: Type -> Type}{S T}
- (h: Handler E S) (g: Handler F T) : Handler (E+'F) (S*T) :=
-  {|
-    hfold _ ef x '(s,t) := 
-    match ef with
-    | inl1 e => (h.(hfold) e x s, t)
-    | inr1 f => (s, g.(hfold) f x t)
-    end
-  |}.
+    | inl1 e =>
+        let (r, x') := runState (handler _ e) x in
+        put (x', y) ;;
+        ret r
+    | inr1 e =>
+        let (r, y') := runState (handler _ e) y in
+        put (x, y') ;;
+        ret r
+    end.
 
 (*| Invert [ktrans] |*)
 Ltac shallow_inv_ktrans H := dependent destruction H; try solve [inv H];
@@ -62,7 +60,7 @@ Ltac shallow_inv_ktrans H := dependent destruction H; try solve [inv H];
 
 Section Kripke.
   Context {E C: Type -> Type} {X S: Type}
-          {h: Handler E S} {HasStuck: B0 -< C}.
+          `{h: E ~~> state S} `{HasStuck: B0 -< C}.
 
   (* Kripke state predicates *)
   Notation SP := (ctree E C X -> S -> Prop).
@@ -74,7 +72,7 @@ Section Kripke.
       ktrans (t, s) (u, s)
     | kVis (t u: ctree E C X) {Y} (x: Y) (e: E Y) (s: S):
       trans (obs e x) t u ->
-      ktrans (t, s) (u, h.(hfold) e x s)
+      ktrans (t, s) (u, execState (h e) s)
     | kRet (t u: ctree E C X) (x: X) (s: S):
       trans (val x) t stuckD ->
       u ≅ Ret x ->
@@ -92,26 +90,13 @@ Section Kripke.
     - rewrite EQt, EQt' in H1.
       now apply kTau.
     - rewrite EQt, EQt' in H1.
-      now apply kVis.
+      eapply kVis; eauto.
     - apply kRet with x0; [now rewrite <- EQt | now rewrite <- EQt'].
     - rewrite <- EQt, <- EQt' in H1.
       now apply kTau.
     - rewrite <- EQt, <- EQt' in H1.
-      now apply kVis.
+      eapply kVis; eauto.
     - apply kRet with x0; [now rewrite EQt | now rewrite EQt'].
-  Qed.
-
-  Lemma trans_val_sbisim : forall (t t' u: ctree E C X) (x: X),
-      trans (val x) t t' ->
-      t ~ u ->
-      exists s, s ≅ stuckD /\ trans (val x) u s.
-  Proof.
-    intros * TR EQ.
-    step in EQ.
-    destruct EQ as [F _].
-    apply F in TR as (? & s & ? & ? & <-).
-    exists s; split; auto.
-    exact (trans_val_inv H).
   Qed.
 
   (* LEF: Is this true?
@@ -165,7 +150,7 @@ Section Kripke.
 
   Lemma ktrans_vis_inv: forall e (t': ctree E C X) (k: X -> ctree E C X) s s',
       ktrans (Vis e k, s) (t', s') ->
-      exists x, t' ≅ k x /\ s' = h.(hfold) e x s.
+      exists x, t' ≅ k x /\ s' = execState (h e) s.
   Proof.
     intros.
     shallow_inv_ktrans H.
@@ -173,17 +158,17 @@ Section Kripke.
   Qed.
   
   Lemma ktrans_vis_goal: forall e x (t': ctree E C X) (k: X -> ctree E C X) s s',
-      t' ≅ k x /\ s' = h.(hfold) e x s ->
+      t' ≅ k x /\ s' = execState (h e) s ->
       ktrans (Vis e k, s) (t', s').
   Proof.
     intros.
     destruct H as (-> & ->).
-    apply kVis; econstructor; eauto.
+    eapply kVis; econstructor; eauto.
   Qed.
 
   Lemma ktrans_trigger_inv: forall {Y: Type} (e: E Y) u (k: Y -> ctree E C X) s s',
       ktrans (trigger e >>= k, s) (u, s') ->
-      exists x, u ≅ k x /\ s' = h.(hfold) e x s.
+      exists x, u ≅ k x /\ s' = execState (h e) s.
   Proof.
     intros.
     shallow_inv_ktrans H.
@@ -204,36 +189,36 @@ Section Kripke.
   Qed.
 End Kripke.
 
-Lemma ktrans_bind_inv: forall {E C X Y S} `{Handler E S} `{B0 -< C} (s s': S)
+Lemma ktrans_bind_inv: forall {E C X Y S} `{h: E ~~> state S} `{B0 -< C} (s s': S)
                          (t: ctree E C Y) (u: ctree E C X) (k: Y -> ctree E C X),
-    ktrans (x <- t ;; k x, s) (u, s') ->
-    ~ (exists x, t ≅ Ret x) /\ (exists t', ktrans (t, s) (t', s') /\ u ≅ x <- t' ;; k x) \/
-      (exists x, ktrans (t, s) (Ret x, s) /\ ktrans (k x, s) (u, s')).
-Proof.
+    ktrans (h:=h) (x <- t ;; k x, s) (u, s') ->
+    ~ (exists x, t ≅ Ret x) /\ (exists t', ktrans (h:=h) (t, s) (t', s') /\ u ≅ x <- t' ;; k x) \/
+      (exists x, ktrans (h:=h) (t, s) (Ret x, s) /\ ktrans (h:=h) (k x, s) (u, s')).
+Proof with eauto.
   intros.
-  inv H1.
-  - apply trans_bind_inv in H3 as [(HV & t' & TR & EQu) | (x & TRv & TRu)].
+  inv H0.
+  - apply trans_bind_inv in H2 as [(HV & t' & TR & EQu) | (x & TRv & TRu)].
     + left; split.
       * intro CONTRA; destruct CONTRA as (tc & ?);
-          rewrite H1 in TR; inversion TR.
-      * exists t'; split; auto.
+          rewrite H0 in TR; inversion TR.
+      * exists t'; split...
         now apply kTau.
     + right; exists x; split.
       * now apply kRet with x.
       * now apply kTau.
-  - apply trans_bind_inv in H3 as [(HV & t' & TR & EQu) | (x' & TRv & TRu)].
+  - apply trans_bind_inv in H2 as [(HV & t' & TR & EQu) | (x' & TRv & TRu)].
     + left; split.
       * intro CONTRA; destruct CONTRA as (tc & ?);
-          rewrite H1 in TR; inversion TR.
-      * exists t'; split; auto.
-        now apply kVis.
+          rewrite H0 in TR; inversion TR.
+      * exists t'; split...
+        eapply kVis...
     + right; exists x'; split.
       * now apply kRet with x'.
-      * now apply kVis.
-  - apply trans_bind_inv in H5 as [(HV & t' & TR & EQu) | (x' & TRv & TRu)].
+      * eapply kVis...
+  - apply trans_bind_inv in H4 as [(HV & t' & TR & EQu) | (x' & TRv & TRu)].
     + now contradiction HV.
     + right; exists x'; split.
       * now apply kRet with x'.
-      * rewrite H7.
+      * rewrite H6.
         now apply kRet with x.
 Qed.

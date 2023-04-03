@@ -9,10 +9,13 @@ Methods and lemmas for splitting ctrees
 From ITree Require Import Core.Subevent.
 From CTree Require Import
      CTree
+     Interp.Fold
      Eq.
 
+Import CTreeNotations.
+Local Open Scope ctree_scope.
+
 Set Implicit Arguments.
-Set Contextual Implicit.
 
 Section Take.
   Context {E C: Type -> Type} {X: Type}.
@@ -82,6 +85,41 @@ Section Take.
   Qed.
 
 End Take.
+
+(*| Emit an event when a thread gets scheduled |*)
+Variant parE: Type -> Type :=
+  | Switch (i: nat): parE unit.
+
+(*| Run a single [trans] step of tree [a] as processes [i] |*)
+Definition preempt{E C X}`{B1 -< C}
+           (cycles: nat)
+           (a: ctree E C X)(uid: nat): ctree (E +' parE) C (ctree E C X) :=
+  trigger (inr1 (Switch uid)) ;; translate inl1 (take cycles a).
+
+Lemma unfold_0_preempt{E C X}`{B1 -< C}(i: nat) (t: ctree E C X):
+  preempt 0 t i ≅ CTree.bind (trigger (inr1 (Switch i))) (fun _ => Ret t).
+Proof.
+  intros; unfold preempt.
+  upto_bind_eq.
+  rewrite unfold_0_take, translate_ret.
+  reflexivity.
+Qed.
+
+Lemma unfold_Sn_preempt{E C X}`{B1 -< C}: forall (i: nat) (n: nat) (t: ctree E C X),
+    preempt (S n) t i ≅ CTree.bind (trigger (inr1 (Switch i))) (fun _ =>
+    match observe t with
+    | RetF x => Ret (Ret x)
+    | VisF e k => Vis (inl1 e) (fun i => translate inl1 (take n (k i))) 
+    | BrSF c k => Br true c (fun i => translate inl1 (take n (k i))) 
+    | BrDF c k => Br false c (fun i => translate inl1 (take (S n) (k i)))
+    end).
+Proof.
+  intros; unfold preempt.
+  upto_bind_eq.
+  rewrite unfold_take, unfold_translate.
+  desobs t; auto; destruct vis; reflexivity.
+Qed.
+
 
 (*| Traverse the ctree until you encounted a blocking Vis node, then split right before it. |*)
 Section ToBlocked.

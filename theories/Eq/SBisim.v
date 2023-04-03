@@ -1380,8 +1380,8 @@ Section Sb_Proof_System.
     exists F1; apply EQ.
   Qed.
 
-  Lemma unfold_forever{HasTau: B1 -< C}: forall (t: ctree E C X),
-      @forever C _ E X X t ~ t ;; @forever C _ E X X t.
+  Lemma unfold_forever Y {HasTau: B1 -< C}: forall (t: ctree E C Y),
+      @forever C _ E Y X t ~ t ;; @forever C _ E Y X t.
   Proof.
     intro t.
     rewrite (ctree_eta (forever t)).
@@ -1993,7 +1993,20 @@ but we prove a counter-example for a ctree with a binary choice.
     - subst. rewrite <- ctree_eta. now rewrite H.
     - apply br0_always_stuck.
   Qed.
-
+  
+  Lemma trans_val_sbisim : forall (t t' u: ctree E C X) (x: X),
+      trans (val x) t t' ->
+      t ~ u ->
+      exists s, s ≅ stuckD /\ trans (val x) u s.
+  Proof.
+    intros * TR EQ.
+    step in EQ.
+    destruct EQ as [Fwd _].
+    apply Fwd in TR as (? & s & ? & ? & <-).
+    exists s; split; auto.
+    exact (trans_val_inv H).
+  Qed.
+  
   (* TODO Think a bit about these and reestablish them, they are a bit weird *)
   (* Lemma ssim_sbisim_equiv_gen :
     forall `{Injective (@label E) (@label F) L}

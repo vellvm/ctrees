@@ -1,209 +1,99 @@
-From Coq Require Import
-     Fin
-     Nat
-     List
-     Relations.
-
-From Equations Require Import Equations.
-
+From Coq Require Import List.
 From ITree Require Import
-     Indexed.Sum
-     Subevent
-     CategoryOps.
+     Core.Subevent
+     Indexed.Sum.
 
 From CTree Require Import
      CTree
-     Equ
-     SBisim
-     Misc.Vectors
-     Core.Utils.
+     Logic.Kripke
+     Interp.Preempt.
 
 From ExtLib Require Import
-     Monad.
+     Structures.Monads
+     Structures.MonadState
+     Data.Monads.StateMonad.
 
-From Coinduction Require Import
-     coinduction rel tactics.
-
-Import MonadNotation.
-Import ListNotations.
-Import EquNotations.
+Import ListNotations MonadNotation.
+Local Open Scope list_scope.
 Local Open Scope monad_scope.
-Local Open Scope fin_vector_scope.
 
 Set Implicit Arguments.
 
-Module Network.
+(*| Unique thread identifiers |*)
+Notation uid := nat.
 
-  (*| IP addresses |*)
-  Notation uid := fin.
+(*| Modify the nth element of a list if it exists |*)
+Fixpoint nth_map{A}(f: A -> A)(l: list A)(i: nat) : list A :=
+  match l, i with
+  | h::ts, 0 => f h :: ts
+  | _::ts, S n => nth_map f ts n
+  | [], _ => []
+  end.
+
+(*| Message passing |*)
+Section Messaging.
+
+  Context (T: Type).
+
+  (*| Network effects |*)
+  Inductive netE: Type -> Type :=
+  | Recv: netE (option T)
+  | Send : uid -> T -> netE unit.
+
+  Notation Qs := (list (list T))  (only parsing).
+
+  (*| This determines how we observe parallel message passing processes in our Logic |*)
+  #[global] Instance handler_network_par: (netE +' parE) ~~> state (Qs * uid) :=
+    fun X e =>
+      '(qs, i) <- get;;
+      match e with
+      |inl1 s => 
+         match s in netE Y return X = Y -> state (Qs * uid) Y with
+         | Recv => fun _: X = option T =>                          
+                    match nth_error qs i with
+                    | None | Some [] => ret None
+                    | Some (msg :: ts) =>
+                        put (nth_map (fun _ => ts) qs i, i);;
+                        ret (Some msg)
+                    end
+         | Send to msg => fun _ => put (nth_map (fun q => q ++ [msg]) qs to, i)
+         end eq_refl
+      | inr1 s =>
+          match s in parE Y return X = Y -> state (Qs * uid) Y with
+          | Switch i' => fun _ => put (qs, i')
+          end eq_refl
+      end.
   
-  Section Messaging.
-    (*| [n] number of processes
-        [msg] type of messages |*)
-    Context (n: nat) (msg: Set) {E C: Type -> Type} {HasStuck: B0 -< C}.
-    
-    (*| Messages exchagend |*)
-    Record req := {
-        principal: uid n;
-        payload: msg;
-      }.
+End Messaging.
 
-    (*| A queue of messages |*)
-    Definition queue := list req.
+Arguments Recv {T}.
+Arguments Send {T}.
 
-    (*| Network effects |*)
-    Inductive Net: Type -> Type :=
-    | Recv: Net (option req)
-    | Send : req -> Net unit
-    | Broadcast: msg -> Net unit.
-    
-    (*| A task is either running or returned |*)
-    Inductive Task :=
-    | Running (c: ctree E C void)(q: queue)
-    (** this is "soft" blocked -- the scheduler can pass it "None"
-        which corresponds to a timeout, and it will unblock *)
-    | Blocked (k: option req -> ctree E C void).
-    
-  End Messaging.
+Definition recv {T E C} `{netE T -< E}: ctree E C (option T) :=
+  trigger Recv.
+Definition send {T E C} `{netE T -< E}: uid -> T -> ctree E C unit :=
+  fun u p => trigger (Send u p). 
 
-  (*| API for messaging processes |*)
-  Arguments Running {n} {msg} {E C}.
-  Arguments Blocked {n} {msg} {E C}.
-  Arguments Send {n} {msg}.
-  Arguments Recv {n} {msg}.
-  Arguments Broadcast {n} {msg}.
+Section Scheduler.
+  Context {E C: Type -> Type} {X T: Type} {HasTau: B1 -< C}.
+
+  Definition flat_mapi{E C X A} (f: A -> nat -> ctree E C X)(v: list A):
+    ctree E C (list X) :=
+    (fix F l i :=
+      match l with
+      | h:: ts =>
+          x <- f h i ;;
+          xs <- F ts (S i) ;;
+          Ret (x :: xs)
+      | [] => Ret []
+      end) v 0.
+
+  (*| round robbin scheduler |*)
+  Definition rr (processes: list (ctree E C X)): ctree (E +' parE) C void :=
+    CTree.forever (flat_mapi (preempt 1) processes).
   
-  Definition recv {n msg E C} `{Net n msg -< E}: ctree E C (option (req n msg)) := trigger Recv.
-  Definition send {n msg E C} `{Net n msg -< E}: uid n -> msg -> ctree E C unit :=
-    fun u p => trigger (Send {| principal := u; payload := p |}).
-  Definition broadcast {n msg E C} `{Net n msg -< E}: msg -> ctree E C unit :=
-    fun bs => trigger (Broadcast bs).
+End Scheduler.
 
-  (*| A process running forever |*)
-  Notation daemon t := (@CTree.forever _ _ _ _ void t).
 
-  (*| Contexts -- when a process enters and exits thelet's see how far we go before universe inconsistency |*)
-  Inductive frameE(n: nat): Type -> Type :=
-  | Enter: uid n -> frameE n unit.
-
-  Arguments Enter {n}.
-
-  Definition enter {n E C} `{frameE n -< E} : uid n -> ctree E C unit :=
-    fun u => trigger (Enter u).
-
-  Section Scheduler.
-    Context (n: nat) (msg: Set) {E C: Type -> Type} `{B1 -< C} `{B2 -< C} `{Bn -< C}.
-    Notation Sys := (vec n (@Task n msg (Net n msg +' E) C)) (only parsing).
-
-    (*| General coinductive scheduler |*)
-    Equations schedule_one
-              (schedule: Sys -> ctree (frameE n +' E) C void)
-              (sys: Sys) (r: uid n): ctree (frameE n +' E) C void :=
-      schedule_one schedule sys r with sys $ r => {
-          schedule_one _ _ _ (Running a q) with observe a => {
-            (** A previous choice, traverse it *)
-            schedule_one _ _ _ _ (BrF b c k) :=
-            Br b c (fun i' => schedule (sys @ r := Running (k i') q));
-            
-            (** A network `send` effect, interpet it! *)
-            schedule_one _ _ _ _ (VisF (inl1 (Send m)) k) :=
-            let msg' := {| principal := r; payload := payload m |} in
-            let sys' := sys @ r := Running (k tt) q in
-            match sys $ principal m with
-            | Running a' q' =>  
-                (** Deliver to running *)
-                Guard (schedule (sys' @ (principal m) := Running a' (List.cons msg' q')))
-            | Blocked kk => 
-                (** Deliver to blocked processes and unblock them *)
-                Guard (schedule (sys' @ (principal m) := Running (kk (Some msg')) List.nil))
-            end;
-
-            (** Receive a message *)
-            schedule_one _ _ _ _ (VisF (inl1 Recv) k) :=
-            (** Check my inbox q *)
-            match last q with
-            | Some msg =>
-                (** Pop the msg from the end *)
-                Guard (schedule (sys @ r := Running (k (Some msg)) (init q)))
-            | None =>
-                (** Becomes blocked if no messages in q *)
-                Guard (schedule (sys @ r := Blocked k))
-            end;
-
-            (** Broadcast a message to everyone *)
-            schedule_one _ _ _ _ (VisF (inl1 (Broadcast b)) k) :=
-            let msg := {| principal := r; payload := b |} in
-            let sys' := Vector.map (fun a => match a with
-                                          | Running a q => Running a (List.cons msg q)
-                                          | Blocked kk => Running (kk (Some msg)) List.nil
-                                          end) sys in 
-            Guard (schedule (sys' @ r := Running (k tt) q));
-            
-            (** Some other downstream effect, trigger *)
-            schedule_one _ _ _ _ (VisF (inr1 e) k) :=
-            Guard (schedule (sys @ r := Running (trigger e >>= k) q))
-          };
-          (** If the agent is blocked, it could timeout or stay blocked *)
-          schedule_one _ _ _ (Blocked k) :=
-            brD2
-              (schedule (sys @ r := Running (k None) List.nil))  (** Timeout *)
-              (schedule (sys @ r := Blocked k));                 (** Keep blocking *)
-        }.
-
-    CoFixpoint schedule(sys: Sys): ctree (frameE n +' E) C void :=
-      (* Nondterministic pick of a client to run *)
-      r <- branch true (branchn n) ;;
-      (* Mark context switch *)
-      enter r;;
-      (* Schedule it *)
-      schedule_one schedule sys r.
-
-    (*| Fair scheduler, uses a list of scheduled processes to avoid
-      infinitely rescheduling the same process. |*)
-    CoFixpoint schedule_fair'(picked: list (fin n))(sys: Sys):
-      ctree (frameE n +' E) C void :=
-      if (length picked =? n) then
-        r <- branch true (branchn n);;
-        enter r;;
-        schedule_one (schedule_fair' [r]%list) sys r
-      else
-        r <- CTree.iter (fun _: unit =>                  
-                          r <- branch true (branchn n) ;;
-                          if (in_dec Fin.eq_dec r picked) then  
-                            ret (inl tt)
-                          else
-                            ret (inr r)) tt;;
-        enter r;;
-        schedule_one (schedule_fair' (r :: picked)) sys r.
-
-    Notation schedule_fair := (schedule_fair' []%list) (only parsing).
+        
     
-    Transparent schedule.
-    Transparent schedule_fair'.
-    Transparent schedule_one.
-    Transparent vector_replace.
-
-    Lemma unfold_schedule(sys: Sys) :
-      schedule sys ≅ (r <- branch true (branchn n) ;; enter r;; schedule_one schedule sys r).
-    Proof.
-      __step_equ; cbn; econstructor; reflexivity.
-    Qed.    
-
-    (** Evaluates Net *)
-    Program Definition run_network(s: vec n (ctree (Net n msg +' E) C void)):
-      ctree (frameE n +' E) C void :=
-      schedule (Vector.map (fun it => Running it List.nil) s).
-    
-    #[global] Instance sbisim_network_goal `{B0 -< C}:
-      Proper (pairwise (sbisim eq) ==> sbisim eq) run_network.
-    Proof.
-      unfold Proper, pairwise, respectful.
-      unfold sbisim.
-      coinduction ? CIH.
-      intros x y FORALL.
-      unfold run_network.
-      (* TODO: complete *)
-    Admitted.
-
-  End Scheduler.
-End Network.

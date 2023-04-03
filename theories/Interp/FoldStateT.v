@@ -69,6 +69,7 @@ Section State.
     : ctree (stateE +' E) C ~> stateT S (ctree E C) :=
     fold_state (case_ h_state pure_state) pure_state_choice.
 
+
 End State.
 
 Ltac break :=
@@ -810,3 +811,17 @@ Arguments run_state {S E C} [_] _ _.
 Arguments fold_state {E C M S FM MM IM} h g [T].
 Arguments interp_state {E C M S FM MM IM BM} h [T].
 Arguments refine_state {E C M S FM MM IM TM} g [T].
+
+From ExtLib Require Import
+     Structures.Monad
+     Structures.MonadState
+     Data.Monads.StateMonad.
+
+From CTree Require Import Logic.Kripke.
+
+#[global] Instance stateE_state{S}: stateE S ~~> state S :=
+  fun _ e =>
+    match e with
+    | Get _ => get
+    | Put s' => put s'
+    end.
