@@ -7,12 +7,22 @@ Methods and lemmas for splitting ctrees
 |*)
 
 From ITree Require Import Core.Subevent.
+From Coq Require Import List.
 From CTree Require Import
      CTree
+     Logic.Kripke
      Interp.Fold
      Eq.
 
-Import CTreeNotations.
+From ExtLib Require Import
+     Data.Monads.StateMonad
+     Structures.Monad
+     Structures.MonadState.
+
+From Equations Require Import Equations.
+
+Import ListNotations CTreeNotations.
+Local Open Scope list_scope.
 Local Open Scope ctree_scope.
 
 Set Implicit Arguments.
@@ -90,6 +100,9 @@ End Take.
 Variant parE: Type -> Type :=
   | Switch (i: nat): parE unit.
 
+#[global] Instance handler_parE: parE ~~> state nat :=
+  fun _ e => match e with Switch i => put i end.
+
 (*| Run a single [trans] step of tree [a] as processes [i] |*)
 Definition preempt{E C X}`{B1 -< C}
            (cycles: nat)
@@ -120,49 +133,8 @@ Proof.
   desobs t; auto; destruct vis; reflexivity.
 Qed.
 
-
-(*| Traverse the ctree until you encounted a blocking Vis node, then split right before it. |*)
-Section ToBlocked.
-  Context {E C: Type -> Type} {X: Type}.
-  Context (is_blocking: forall T, E T -> bool).
-  
-  Definition to_blocked: ctree E C X -> ctree E C (ctree E C X) :=
-    cofix F (t: ctree E C X): ctree E C (ctree E C X) :=
-      match observe t with
-      | RetF x => Ret (Ret x)
-      | VisF e k =>
-          if is_blocking e then (Ret (Vis e k))
-          else (Vis e (fun i => F (k i)))
-      | BrSF c k => BrS c (fun i => F (k i))
-      | BrDF c k => BrD c (fun i => F (k i))
-      end.
-
-  Notation to_blocked_ t := 
-    match observe t with
-    | RetF x => Ret (Ret x)
-    | VisF e k =>
-        if is_blocking e then (Ret (Vis e k))
-        else (Vis e (fun i => to_blocked (k i)))
-    | BrSF c k => BrS c (fun i => to_blocked (k i))
-    | BrDF c k => BrD c (fun i => to_blocked (k i))
-    end.
-
-  Lemma unfold_to_blocked : forall (t : ctree E C X),
-      to_blocked t ≅ to_blocked_ t.
-  Proof. intro; step; eauto. Qed.
-End ToBlocked.
-
 (*| Re-attach split ctrees |*)
 Notation flatten u := (CTree.bind u (fun x => x)) (only parsing).
-
-#[global] Instance bind_equ_equ_cong :
-  forall (E B : Type -> Type) (X Y : Type) (R : rel Y Y) RR,
-    Proper (equ (equ (@eq X)) ==> pointwise (equ eq) (et R RR) ==> et R RR)
-           (@CTree.bind E B (ctree E B X) Y).
-Proof.
-  repeat red; intros.
-  eapply et_clo_bind; eauto.
-Qed. 
 
 Lemma take_flatten_id {E C X}: forall n (t: ctree E C X),
     flatten (take n t) ≅ t.
@@ -179,33 +151,72 @@ Proof.
     + destruct vis; rewrite bind_br; rewrite Ht; econstructor; intros; eauto.
 Qed.
 
-(* This is the [Ret (Ret x)] on RHS *)
-Lemma trans_take_Sn_val_inv {E C X} `{B0 -< C}: forall (t: ctree E C X) (u: ctree E C (ctree E C X)) (v: ctree E C X) n,
-  trans (val v) (take (S n) t) u ->
-  exists x, v ≅ Ret x /\ trans (val x) t stuckD /\ u ≅ stuckD.
-Proof.
-  intros t u v n TR.
-  (* The TR induction magic trick *)
-  unfold trans, transR in TR;
-    cbn in TR.
-  match goal with
-  | [ H: trans_ _ ?a ?b |- _ ] =>
-      remember a as oa;
-      remember b as ob
-  end.
-  revert n u t Heqoa Heqob.
-  induction TR; intros; eauto; subst.
-  - subst; eapply IHTR with (n:=n); eauto; desobs t0; cbn in *; eauto. 
-Admitted.
+(*| A round robbin scheduler |*)
+Section Scheduler.
+  Context {E C: Type -> Type} {X T: Type} {HasTau: B1 -< C}.
 
-Lemma trans_take_Sn {E C X} `{B0 -< C}: forall
-    (t: ctree E C X) (u: ctree E C (ctree E C X)) l n,
-    trans l t (flatten u) ->
-    trans l (take (S n) t) u.
-Proof.
-  Opaque take.  
-  intros * TR.
-  induction TR; try now inv Heqob.
-  - eapply IHTR.
-Admitted.
+  Definition flat_mapi{E C X A} (f: A -> nat -> ctree E C X):
+    list A -> ctree E C (list X) :=
+    (fix F i l :=
+      match l with
+      | h:: ts =>
+          x <- f h i ;;
+          xs <- F (S i) ts ;;
+          Ret (x :: xs)
+      | [] => Ret []
+      end) 0.
+
+  (*| round robbin scheduler |*)
+  Definition rr {T} (prs: list (ctree E C X)): ctree (E +' parE) C T :=
+    CTree.forever (flat_mapi (preempt 1) prs).
+
+End Scheduler.
+
+From CTree Require Import Misc.Vectors.
+From Coq Require Import Vector Fin.
+Section RRR.
+  Local Open Scope fin_vector_scope.
+  Import VectorNotations.
+  Local Open Scope vector_scope.
+  Context {E C: Type -> Type} {X: Type} {HasTau: B1 -< C}
+          {Hasn: Bn -< C}.
+    
+  (* Randomly pick the next process to schedule, with no replacement *)
+  Equations rrr' {n} (v: vec n (ctree E C X)) :
+    ctree (E +' parE) C (vec n (ctree E C X)) :=
+    rrr' (n:=0) []%vector := Ret [];
+    rrr' (n:=S n') (h :: ts) := let v := h :: ts in
+        i <- branch false (branchn (S n')) ;;        
+        x <- preempt 1 (v $ i) (proj1_sig (to_nat i))  ;;
+        xs <- rrr' (v -- i) ;;
+        Ret (x :: xs).
+
+  (*| Guarded coinduction of [rrr'] |*)
+  Definition rrr {n} : vec n (ctree E C X) -> ctree (E +' parE) C X :=
+    cofix F v :=
+      v' <- rrr' v ;; Guard (F v').
+
+  Lemma unfold_rrr {n}: forall (v: vec n (ctree E C X)),
+      rrr v  ≅  v' <- rrr' v ;; Guard (rrr v'). 
+  Proof. intros; step; cbn; auto. Qed.
+
+  Lemma unfold_1_rrr: forall (h: ctree E C X),
+      rrr [h] ≅ brD (branchn 1) (fun _ => x <- preempt 1 h 0;; Guard (rrr [x])).
+  Proof.
+    intros.
+    rewrite unfold_rrr.
+    simp rrr'; cbn.
+    rewrite !bind_bind, bind_branch.
+    apply br_equ.
+    intros i.
+    repeat dependent destruction i.
+    rewrite !bind_bind.
+    cbn.
+    upto_bind_eq.
+    rewrite !bind_bind.
+    simp vector_remove rrr'.
+    now rewrite !bind_ret_l.
+  Qed.
+
+End RRR.
 

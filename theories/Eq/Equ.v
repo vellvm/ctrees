@@ -698,6 +698,15 @@ Proof.
   apply EQ.
 Qed.
 
+#[global] Instance bind_equ_equ_cong :
+  forall (E B : Type -> Type) (X Y : Type) (R : rel Y Y) RR,
+    Proper (equ (equ (@eq X)) ==> pointwise (equ eq) (et R RR) ==> et R RR)
+           (@CTree.bind E B (ctree E B X) Y).
+Proof.
+  repeat red; intros.
+  eapply et_clo_bind; eauto.
+Qed. 
+
 Ltac __upto_bind_equ' SS :=
   match goal with
     (* Out of a coinductive proof --- terminology abuse, this is simply using the congruence of the relation, not a upto *)

@@ -74,26 +74,20 @@ Definition recv {T E C} `{netE T -< E}: ctree E C (option T) :=
 Definition send {T E C} `{netE T -< E}: uid -> T -> ctree E C unit :=
   fun u p => trigger (Send u p). 
 
-Section Scheduler.
-  Context {E C: Type -> Type} {X T: Type} {HasTau: B1 -< C}.
+(* Fairness proof for [rr] *)
+From CTree Require Import Ctl.
+Import CtlNotations.
+Local Open Scope ctl_scope.
 
-  Definition flat_mapi{E C X A} (f: A -> nat -> ctree E C X)(v: list A):
-    ctree E C (list X) :=
-    (fix F l i :=
-      match l with
-      | h:: ts =>
-          x <- f h i ;;
-          xs <- F ts (S i) ;;
-          Ret (x :: xs)
-      | [] => Ret []
-      end) v 0.
+Lemma fair_rr{E C X S} {s: S} `{HasStuck: B0 -< C} `{HasTau: B1 -< C}
+      `{h: E ~~> state S}: forall (l: list (ctree E C X)),
+  <( {rr l: ctree _ C (list (ctree E C X))}, {(s, 0)} |= AG (AF (now {fun '(_,i) => i = length l})) )>. 
+Proof.
+  intro sys; unfold rr; cbn.
+  rewrite ctl_forever_ag.
+  induction sys; cbn.
+  - coinduction R CIH.
+    apply RStepA.
+    apply MatchA; auto.
 
-  (*| round robbin scheduler |*)
-  Definition rr (processes: list (ctree E C X)): ctree (E +' parE) C void :=
-    CTree.forever (flat_mapi (preempt 1) processes).
-  
-End Scheduler.
-
-
-        
-    
+Admitted.

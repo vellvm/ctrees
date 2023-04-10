@@ -94,3 +94,4 @@ Definition baker(bkid: uid): ctree (netE uid +' stateE (nat * baker_map)) B1 voi
                     | None =>
                         Ret (inl tt)
                     end) tt).
+

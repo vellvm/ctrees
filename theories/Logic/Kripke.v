@@ -28,7 +28,7 @@ Import MonadNotation.
 Local Open Scope monad_scope.
 
 (** A typeclass definition of a handler, used purely to make inference easy *)
-Class Handler(E: Type -> Type) (S: Type -> Type): Type :=
+Class Handler(E S: Type -> Type): Type :=
   handler: E ~> S.
 
 Notation "E ~~> S" := (Handler E S) (at level 99, right associativity) : type_scope.
@@ -66,7 +66,7 @@ Section Kripke.
   Notation SP := (ctree E C X -> S -> Prop).
     
   (* Kripke transition given a handler *)
-  Variant ktrans: (ctree E C X * S) -> (ctree E C X * S) -> Prop :=
+   Variant ktrans: (ctree E C X * S) -> (ctree E C X * S) -> Prop :=
     | kTau (t u: ctree E C X) (s: S):
       trans tau t u ->
       ktrans (t, s) (u, s)
@@ -222,3 +222,17 @@ Proof with eauto.
       * rewrite H6.
         now apply kRet with x.
 Qed.
+
+Lemma ktrans_forever_goal: forall {E C X Y S} `{h: E ~~> state S} `{B1 -< C} `{B0 -< C}
+                             (s s': S) (t t': ctree E C X),
+    ktrans (t, s) (t', s') ->
+    ktrans (CTree.forever t: ctree E C Y, s) (CTree.forever t', s').
+Proof.
+Admitted.
+
+Lemma ktrans_forever_inv: forall {E C X Y S} `{h: E ~~> state S} `{B1 -< C} `{B0 -< C}
+                            (s s': S) (t: ctree E C X) (t': ctree E C Y),
+    ktrans (CTree.forever t: ctree E C Y, s) (t', s') ->
+    exists u, ktrans (t, s) (u, s') /\ t' ≅ CTree.forever u.
+Proof.
+Admitted.
