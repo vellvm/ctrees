@@ -36,7 +36,8 @@ From CTree Require Import
      Interp.State.
 
 From CTreeYield Require Import
-     Par.
+     Par
+     Utils.
 
 From Equations Require Import Equations.
 
@@ -76,10 +77,12 @@ Variant MemE : Type -> Type :=
 Section Denote1.
   Definition is_true (v : value) : bool := if (v =? 0)%nat then false else true.
 
-  Definition while (step : ctree (@parE MemE) (unit + unit)) : ctree (@parE MemE) unit :=
+  Context (E := yieldE +' forkE +' MemE).
+
+  Definition while (step : ctree E (unit + unit)) : ctree E unit :=
     CTree.iter (fun _ => step) tt.
 
-  Fixpoint denote_expr (e : expr) : ctree (@parE MemE) value :=
+  Fixpoint denote_expr (e : expr) : ctree E value :=
     match e with
     | Var v     => x <- trigger (rd v) ;; trigger Yield;; ret x
     | Lit n     => ret n
@@ -88,7 +91,7 @@ Section Denote1.
     | Mult a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l * r)
     end.
 
-  Fixpoint denote_imp (s : stmt) : ctree parE unit :=
+  Fixpoint denote_imp (s : stmt) : thread :=
     match s with
     | Assign x e =>  v <- denote_expr e ;; u <- trigger (wr x v) ;; ret u
     | Seq a b    =>  denote_imp a ;; denote_imp b
@@ -103,7 +106,7 @@ Section Denote1.
                else ret (inr tt))
 
     | Fork t1 t2 =>
-        b <- trigger Spawn;;
+        b <- trigger Par.Fork;;
         match b with
         | true => denote_imp t1
         | false => denote_imp t2
@@ -112,7 +115,7 @@ Section Denote1.
     | YieldS => trigger Yield
     end.
 
-  Definition interp_concurrency (t : stmt) : @completed MemE :=
+  Definition interp_concurrency (t : stmt) : completed :=
     schedule 1 (fun _ => denote_imp t) (Some Fin.F1).
 
   (* specific case for ctree rather than generic monad M *)
@@ -121,10 +124,31 @@ Section Denote1.
       f <- mbr b n;;
       ret (s, f).
 
+  Definition handle_spawn : (yieldE +' spawnE +' MemE) ~> ctree (yieldE +' MemE) :=
+    fun _ e =>
+      match e with
+      | inl1 y => trigger y
+      | inr1 (inl1 s) => match s with Spawn => ret tt end (* erase spawn events *)
+      | inr1 (inr1 m) => trigger m
+      end.
+
+  Definition interp_spawn : completed -> ctree (yieldE +' MemE) unit :=
+    interp handle_spawn (T:=unit).
+
+  Definition handle_yield : (yieldE +' MemE) ~> ctree MemE :=
+    fun _ e =>
+      match e with
+      | inl1 s => match s with Yield => ret tt end (* erase yield events *)
+      | inr1 m => trigger m
+      end.
+
+  Definition interp_yield : ctree (yieldE +' MemE) unit -> ctree MemE unit :=
+    interp handle_yield (T:=unit).
+
   (* list of key value pairs *)
   Definition env := alist var value.
 
-  Definition handle_imp : MemE ~> Monads.stateT env (ctree void1) :=
+  Definition handle_state : MemE ~> Monads.stateT env (ctree void1) :=
     fun _ e s =>
       match e with
       | rd x => Ret (s, lookup_default x 0%nat s)
@@ -132,7 +156,7 @@ Section Denote1.
       end.
 
   Definition interp_imp (t : stmt) : Monads.stateT env (ctree void1) unit :=
-    interp_state handle_imp (interp_concurrency t).
+    interp_state handle_state (interp_yield (interp_spawn (interp_concurrency t))).
 
   Lemma denote_expr_bounded e :
     brD_bound 1 (denote_expr e).
@@ -179,23 +203,25 @@ Section Denote1.
   Lemma schedule_forks_equ t1 t2 :
     (schedule 1 (fun _ : fin 1 => denote_imp (Fork t1 (Fork t2 Skip))) (Some Fin.F1))
       ≅
-     Step (Step (Guard
-     (schedule 2
-               (cons_vec
-                  (denote_imp t2)
-                  (fun _ => denote_imp t1))
-               None))).
+    trigger Spawn;;
+    trigger Spawn;;
+    (Guard (schedule 2
+                     (cons_vec
+                        (denote_imp t2)
+                        (fun _ => denote_imp t1))
+                     None)).
   Proof.
     rewrite rewrite_schedule. simp schedule_match.
     cbn. CTree.fold_subst.
-    step. constructor. intros _.
+    unfold trigger.
+    step. cbn. constructor. intros [].
 
     rewrite rewrite_schedule. simp schedule_match. simp cons_vec.
     unfold replace_vec. cbn.
-    step. constructor. intros _.
+    step. cbn. constructor. intros [].
 
     rewrite rewrite_schedule. simp schedule_match. simp cons_vec. cbn.
-    step. constructor. intros _.
+    step. cbn. constructor. intros _.
 
     apply equ_schedule. intro i.
     dependent destruction i.
@@ -218,7 +244,7 @@ Section Denote1.
     - dependent destruction i. simp p; auto. inv i.
   Qed.
 
-  Lemma schedule_order (t1 t1' t2 t2' : ctree (@parE MemE) unit)
+  Lemma schedule_order (t1 t1' t2 t2' : ctree E unit)
     (Hbound1 : brD_bound 1 t1)
     (Hbound2 : brD_bound 1 t2)
     (Hbound1' : brD_bound 1 t1')
@@ -244,107 +270,223 @@ Section Denote1.
                   [| dependent destruction i0; [| inv i0]]; simp p; simp cons_vec; symmetry; auto].
   Qed.
 
+  Lemma schedule_order' (t1 t1' t2 t2' : ctree E unit)
+    (Hbound1 : brD_bound 1 t1)
+    (Hbound2 : brD_bound 1 t2)
+    (Hbound1' : brD_bound 1 t1')
+    (Hbound2' : brD_bound 1 t2')
+    (Ht1 : t1 ~ t1')
+    (Ht2 : t2 ~ t2') :
+    BrD 2 (fun i' : fin 2 =>
+                 schedule 2
+                          (cons_vec t1 (fun _ => t2))
+                          (Some i')) ~
+    BrD 2 (fun i' : fin 2 =>
+                 schedule 2
+                          (cons_vec t2' (fun _ => t1'))
+                          (Some i')).
+  Proof.
+    apply sb_brD; intros i; exists (p i); [| symmetry];
+      apply schedule_permutation with (q:=p);
+      try solve [intros i0; dependent destruction i0; simp cons_vec];
+      try solve [apply p_inverse];
+      try solve [ intros i0; dependent destruction i0;
+                  [| dependent destruction i0; [| inv i0]]; simp p; simp cons_vec; auto];
+      try solve [ intros i0; dependent destruction i0;
+                  [| dependent destruction i0; [| inv i0]]; simp p; simp cons_vec; symmetry; auto].
+  Qed.
+
+  Lemma schedule_order'' (t1 t1' t2 t2' : ctree E unit)
+        (Hbound1 : brD_bound 1 t1)
+        (Hbound2 : brD_bound 1 t2)
+        (Hbound1' : brD_bound 1 t1')
+        (Hbound2' : brD_bound 1 t2')
+        (Ht1 : t1 ~ t1')
+        (Ht2 : t2 ~ t2') :
+    schedule 2 (cons_vec t1 (fun _ => t2)) None ~
+    schedule 2 (cons_vec t2' (fun _ => t1')) None.
+  Proof.
+    do 2 rewrite rewrite_schedule. simp schedule_match.
+    apply sb_vis. intros. apply schedule_order'; auto.
+  Qed.
+
   Lemma commut_forks s1 s2 :
     interp_concurrency (Fork s1 (Fork s2 Skip)) ~
     interp_concurrency (Fork s2 (Fork s1 Skip)).
   Proof.
     unfold interp_concurrency.
     do 2 rewrite schedule_forks_equ.
-    apply sb_step. apply sb_step. apply sb_guard_lr.
+    unfold trigger.
+    (* not sure why we can't just rewrite twice, but we can below *)
+    rewrite bind_vis. symmetry. rewrite bind_vis.
+    apply sb_vis. intros []. do 2 rewrite bind_ret_l.
+    do 2 rewrite bind_vis.
+    apply sb_vis. intros []. do 2 rewrite bind_ret_l.
+    apply sb_guard_lr.
 
     do 2 rewrite rewrite_schedule. simp schedule_match.
-    apply schedule_order; try solve [apply denote_imp_bounded]; reflexivity.
-  Qed.
-
-  Lemma yield_yield_fork s :
-    interp_concurrency (Seq YieldS (Seq YieldS s)) ~
-    interp_concurrency (Fork s Skip).
-  Proof.
-    unfold interp_concurrency.
-
-    cbn.
-    do 2 rewrite rewrite_schedule. simp schedule_match.
-    cbn. CTree.fold_subst. do 2 rewrite replace_vec_unary.
-
-    symmetry. apply sb_guard_r. symmetry.
-
-    rewrite rewrite_schedule. simp schedule_match.
-    apply sb_brS_id. intros. dependent destruction x. 2: inv x.
-
-    symmetry.
-    rewrite rewrite_schedule. simp schedule_match.
-    simp cons_vec. cbn.
-    symmetry. apply sb_guard_r. symmetry.
-    rewrite remove_vec_cons_2.
-
-    do 2 rewrite rewrite_schedule. simp schedule_match.
-    cbn. CTree.fold_subst. apply sb_guard_r.
-
-    rewrite rewrite_schedule. simp schedule_match.
-    apply sb_brS_id. intros. dependent destruction x. 2: inv x.
-    rewrite replace_vec_unary.
-
-    eapply sbisim_schedule.
-    - intro. rewrite bind_ret_l. apply denote_imp_bounded.
-    - intro. rewrite bind_ret_l. apply denote_imp_bounded.
-    - intros. do 2 rewrite bind_ret_l. reflexivity.
+    apply sb_vis. intros [].
+    apply schedule_order'; try solve [apply denote_imp_bounded]; reflexivity.
   Qed.
 
   Lemma fork_skip_equ s :
-    interp_concurrency (Fork s Skip) ≅ Step (Guard (Step (interp_concurrency s))).
+    interp_concurrency (Fork s Skip)
+                       ≅
+    trigger Spawn;;
+    Guard (Ret tt);;
+    trigger Yield;;
+    Guard (interp_concurrency s).
   Proof.
     unfold interp_concurrency. cbn.
 
     rewrite rewrite_schedule. simp schedule_match.
-    cbn. CTree.fold_subst.
+    cbn. unfold trigger.
     rewrite replace_vec_unary.
-    step. constructor. intros _.
+    step. cbn. constructor. intros [].
 
     rewrite rewrite_schedule. simp schedule_match.
+    CTree.fold_subst. rewrite (bind_ret_l tt).
     simp cons_vec. cbn. rewrite remove_vec_cons_2.
-    step. constructor. intros _.
+    step. cbn. constructor. intros _.
 
     rewrite rewrite_schedule. simp schedule_match.
-    step. constructor. intros.
+    CTree.fold_subst. rewrite (bind_ret_l tt).
+    step. cbn. constructor. intros [].
 
+    CTree.fold_subst. rewrite (bind_ret_l tt).
+    step. constructor.
     dependent destruction i. 2: inv i.
     apply equ_schedule. repeat intro. rewrite bind_ret_l. reflexivity.
   Qed.
 
   Lemma yield_equ s :
-    interp_concurrency (Seq YieldS s) ≅ Guard (Step (interp_concurrency s)).
+    interp_concurrency (Seq YieldS s) ≅
+                       Guard (Ret tt);;
+    trigger Yield;;
+    Guard (interp_concurrency s).
   Proof.
     unfold interp_concurrency. cbn.
 
     rewrite rewrite_schedule. simp schedule_match.
     cbn. CTree.fold_subst.
     rewrite replace_vec_unary.
-    step. constructor. intros _.
+    step. cbn. constructor. intros _.
+    CTree.fold_subst.
 
     rewrite rewrite_schedule. simp schedule_match.
-    step. constructor. intros.
+    step. cbn. constructor.
+    intros [].
 
+    CTree.fold_subst.
+    step. cbn. constructor.
     dependent destruction i. 2: inv i.
     apply equ_schedule. repeat intro. rewrite bind_ret_l. reflexivity.
   Qed.
 
-  Lemma fork_skip_yield s :
-    interp_concurrency (Fork s Skip) ≈
-    interp_concurrency (Seq YieldS s).
+  (* first one has one more yield *)
+  Lemma yield_yield_fork s :
+    interp_yield (interp_spawn (interp_concurrency (Seq YieldS (Seq YieldS s)))) ~
+    interp_yield (interp_spawn (interp_concurrency (Fork s Skip))).
   Proof.
-    rewrite fork_skip_equ, yield_equ.
-    rewrite guard_wb. rewrite step_wb.
-    rewrite guard_wb. rewrite step_wb.
+    rewrite yield_equ, fork_skip_equ.
+    unfold interp_yield, interp_spawn.
+
+    unfold trigger.
+    do 2 rewrite interp_bind. do 2 rewrite interp_tau. setoid_rewrite interp_tau.
+    symmetry. do 2 rewrite interp_bind. rewrite interp_vis.
+    cbn. rewrite bind_ret_l. rewrite interp_tau.
+    apply sbisim_clo_bind. { do 2 apply sb_guard_r. do 2 apply sb_guard_lr. reflexivity. }
+    intros [].
+
+    do 2 rewrite interp_bind. do 2 rewrite interp_tau. setoid_rewrite interp_tau.
+    symmetry. do 2 (rewrite bind_Guard; apply sb_guard_r). do 2 setoid_rewrite interp_ret.
+    do 2 rewrite interp_bind. rewrite interp_vis. cbn.
+    rewrite interp_bind. unfold trigger. rewrite interp_vis. cbn. rewrite bind_ret_l.
+    rewrite bind_Guard.
+    apply sbisim_clo_bind.
+    {
+      apply sb_guard_lr. rewrite interp_ret. rewrite bind_ret_l.
+      rewrite interp_tau. apply sb_guard_lr, sb_guard_l.
+      do 2 rewrite interp_ret. reflexivity.
+    }
+    intros [].
+
+    do 2 rewrite interp_tau. symmetry.
+    do 2 rewrite interp_bind. rewrite interp_vis. cbn. unfold trigger.
+    rewrite interp_bind. rewrite interp_vis. cbn.
+    rewrite bind_ret_l. rewrite bind_Guard.
+    setoid_rewrite interp_ret. setoid_rewrite bind_ret_l.
+    setoid_rewrite interp_tau.
+    setoid_rewrite interp_ret.
+    do 3 (rewrite bind_Guard; apply sb_guard_lr). rewrite bind_ret_l.
+    rewrite interp_tau.
+    apply sb_guard_lr. apply sb_guard_l.
+    rewrite interp_tau.
+    do 2 apply sb_guard_l.
+    rewrite yield_equ.
+
+    symmetry. do 2 rewrite interp_bind. do 2 rewrite interp_tau. setoid_rewrite interp_tau.
+    do 2 setoid_rewrite interp_ret.
+    do 4 (rewrite bind_Guard; apply sb_guard_l). rewrite bind_ret_l.
+
+    do 2 rewrite interp_bind. unfold trigger.
+    rewrite interp_vis. cbn. unfold trigger. rewrite interp_bind.
+    rewrite interp_vis. cbn. rewrite bind_ret_l. setoid_rewrite interp_ret.
+    do 2 rewrite bind_Guard. apply sb_guard_l. rewrite bind_ret_l.
+    rewrite interp_tau.
+    do 2 (rewrite bind_Guard; apply sb_guard_l).
+    rewrite interp_ret. rewrite bind_ret_l.
+
+    do 2 rewrite interp_tau. setoid_rewrite interp_tau. do 4 apply sb_guard_l. reflexivity.
+  Qed.
+
+  Lemma fork_skip_yield s :
+    interp_spawn (interp_concurrency (Seq YieldS s)) ~
+    interp_spawn (interp_concurrency (Fork s Skip)).
+  Proof.
+    rewrite yield_equ, fork_skip_equ.
+    unfold interp_spawn.
+
+    rewrite interp_bind. rewrite interp_tau.
+    unfold trigger.
+    symmetry. rewrite interp_bind. rewrite interp_vis.
+    cbn. rewrite bind_ret_l.
+    apply sbisim_clo_bind. { apply sb_guard_r. reflexivity. }
+    intros [].
+
+    rewrite interp_bind. rewrite interp_tau.
+    symmetry. do 2 (rewrite bind_Guard; apply sb_guard_r).
+    symmetry. rewrite interp_ret. rewrite bind_ret_l.
     reflexivity.
   Qed.
 
   Lemma spawn_skip s :
-    interp_concurrency (Fork s Skip) ≈ interp_concurrency s.
+    interp_yield (interp_spawn (interp_concurrency (Fork s Skip))) ~
+    interp_yield (interp_spawn (interp_concurrency s)).
   Proof.
     rewrite fork_skip_equ.
-    rewrite step_wb.
-    rewrite guard_wb.
-    rewrite step_wb.
+    unfold interp_yield, interp_spawn.
+
+    unfold trigger. do 2 rewrite interp_bind. rewrite interp_vis. cbn.
+    rewrite bind_ret_l. rewrite interp_tau.
+    do 2 (rewrite bind_Guard; apply sb_guard_l).
+    do 2 rewrite interp_ret. rewrite bind_ret_l.
+
+    do 2 rewrite interp_bind. do 2 rewrite interp_tau. setoid_rewrite interp_tau.
+    do 4 (rewrite bind_Guard; apply sb_guard_l).
+    do 2 rewrite interp_ret. rewrite bind_ret_l.
+
+    do 2 rewrite interp_bind. rewrite interp_vis. cbn.
+    unfold trigger. rewrite interp_bind. rewrite interp_vis.
+    cbn. rewrite bind_ret_l. cbn.
+    do 2 rewrite bind_Guard. apply sb_guard_l.
+    rewrite interp_ret. rewrite bind_ret_l.
+    rewrite interp_tau.
+    do 2 (rewrite bind_Guard; apply sb_guard_l).
+    do 2 rewrite interp_ret. rewrite bind_ret_l.
+
+    do 2 rewrite interp_tau. setoid_rewrite interp_tau.
+    do 4 apply sb_guard_l.
     reflexivity.
   Qed.
 
@@ -354,11 +496,10 @@ Section Denote1.
     cbn. unfold while. rewrite unfold_iter at 1.
     rewrite bind_ret_l. unfold is_true.
     assert ((1 =? 0)%nat = false) by reflexivity.
-    rewrite H. rewrite bind_bind.
+    rewrite H. unfold E. rewrite bind_bind.
     apply sbisim_clo_bind. reflexivity.
     intros _. rewrite bind_ret_l. apply sb_guard.
   Qed.
-
 
   Lemma commut_forks_unfold s :
     interp_concurrency (Fork (While (Lit 1%nat) YieldS) (Fork s Skip)) ~
@@ -366,11 +507,11 @@ Section Denote1.
   Proof.
     unfold interp_concurrency.
     do 2 rewrite schedule_forks_equ.
-    apply sb_step. apply sb_step. apply sb_guard_lr.
+    apply sbisim_clo_bind. reflexivity. intros _.
+    apply sbisim_clo_bind. reflexivity. intros _.
+    apply sb_guard_lr.
 
-    do 2 rewrite rewrite_schedule. simp schedule_match.
-
-    apply schedule_order; try solve [apply denote_imp_bounded]; try reflexivity.
+    apply schedule_order''; try solve [apply denote_imp_bounded]; try reflexivity.
     apply while_true_unfold_sbisim.
   Qed.
 
@@ -393,25 +534,28 @@ Section Denote1.
   Lemma fork_assign_assign_equ :
     interp_concurrency (Fork (Assign "x" (Lit 2))
                              (Assign "x" (Lit 1%nat))) ≅
-    Step (vis (wr "x" 1%nat) (fun _ => (Guard (Step (vis (wr "x" 2) (fun _ => Guard (ret tt))))))).
+                       trigger Spawn;; (vis (wr "x" 1%nat) (fun _ => (Guard (trigger Yield;; Guard ((vis (wr "x" 2) (fun _ => Guard (ret tt)))))))).
   Proof.
     unfold interp_concurrency. cbn.
 
     rewrite rewrite_schedule. simp schedule_match.
     cbn. CTree.fold_subst.
     rewrite replace_vec_unary.
-    step. constructor. intros _.
+    step. cbn. constructor. intros [].
 
     rewrite rewrite_schedule. simp schedule_match.
+    CTree.fold_subst.
     simp cons_vec. cbn.
-    step. constructor. intros [].
+    step. cbn. constructor. intros [].
 
     rewrite rewrite_schedule. simp schedule_match.
     rewrite replace_vec_cons_2.
     step. constructor. intros _.
 
     rewrite rewrite_schedule. simp schedule_match.
-    step. constructor. intros i.
+    step. cbn. constructor. CTree.fold_subst. intros [].
+
+    step. cbn. constructor. intros i.
 
     dependent destruction i. 2: inv i.
     rewrite remove_vec_cons_2.
@@ -442,26 +586,79 @@ Section Denote1.
 
   Lemma interp_fork_assign_assign s :
     interp_imp (Fork (Assign "x" (Lit 2))
-                             (Assign "x" (Lit 1%nat))) s ≈
+                             (Assign "x" (Lit 1%nat))) s ~
     interp_imp (Assign "x" (Lit 2)) s.
   Proof.
     unfold interp_imp.
-    rewrite fork_assign_assign_equ. rewrite assign_equ.
-    do 2 rewrite unfold_interp_state. cbn.
-    rewrite step_wb. rewrite bind_ret_l.
-    rewrite guard_wb. symmetry. rewrite guard_wb. symmetry.
+    rewrite fork_assign_assign_equ, assign_equ.
+    unfold interp_yield, interp_spawn.
+
+    rewrite interp_bind. unfold trigger. rewrite interp_vis.
+    cbn. rewrite bind_ret_l. setoid_rewrite interp_ret.
+    rewrite interp_bind.
+    cbn. rewrite interp_tau. setoid_rewrite interp_ret.
 
     do 2 rewrite unfold_interp_state. cbn.
     rewrite bind_ret_l.
-    rewrite guard_wb. rewrite unfold_interp_state. cbn.
-    do 2 rewrite guard_wb. symmetry. do 2 rewrite guard_wb. symmetry.
+    apply sb_guard_lr. apply sb_guard_l.
 
     do 2 rewrite unfold_interp_state. cbn.
-    rewrite step_wb. rewrite guard_wb.
+    do 2 apply sb_guard_lr. rewrite unfold_interp_state. cbn.
+    rewrite bind_ret_l. apply sb_guard_l.
 
-    rewrite unfold_interp_state. cbn. rewrite bind_ret_l.
-    rewrite guard_wb. rewrite unfold_interp_state. cbn.
-    do 2 rewrite guard_wb. rewrite unfold_interp_state. cbn.
+    (* push the yield and spawn interps all the way down *)
+    CTree.fold_subst. repeat rewrite bind_ret_l.
+    setoid_rewrite interp_bind. cbn. setoid_rewrite bind_ret_l.
+    setoid_rewrite interp_ret.
+    setoid_rewrite bind_ret_l.
+    repeat setoid_rewrite interp_tau.
+    setoid_rewrite interp_bind.
+    setoid_rewrite interp_vis.
+    do 2 setoid_rewrite interp_bind.
+    setoid_rewrite interp_vis. cbn.
+    setoid_rewrite bind_ret_l.
+    setoid_rewrite interp_ret.
+    setoid_rewrite interp_tau.
+    setoid_rewrite interp_ret.
+    repeat setoid_rewrite interp_tau.
+    setoid_rewrite bind_Guard.
+    setoid_rewrite bind_ret_l.
+    repeat setoid_rewrite bind_Guard.
+    setoid_rewrite bind_ret_l.
+
+    do 6 (do 2 rewrite unfold_interp_state; cbn; do 2 apply sb_guard_lr).
+    do 8 (rewrite unfold_interp_state; cbn; do 2 apply sb_guard_l).
+
+    do 2 rewrite unfold_interp_state. cbn.
+    rewrite bind_ret_l.
+    apply sb_guard_l.
+    CTree.fold_subst. cbn. repeat rewrite bind_ret_l.
+
+    rewrite unfold_interp_state. cbn.
+    do 2 apply sb_guard_l.
+
+    rewrite unfold_interp_state. cbn.
+    CTree.fold_subst. setoid_rewrite bind_bind. do 2 setoid_rewrite bind_ret_l.
+    do 2 apply sb_guard_l.
+
+    rewrite unfold_interp_state. cbn.
+    do 2 apply sb_guard_l.
+
+    rewrite unfold_interp_state. cbn.
+    CTree.fold_subst. repeat setoid_rewrite bind_ret_l.
+    do 2 apply sb_guard_l.
+
+    rewrite unfold_interp_state. cbn.
+    do 2 apply sb_guard_l.
+
+    rewrite unfold_interp_state. cbn.
+    CTree.fold_subst. setoid_rewrite bind_bind. do 2 setoid_rewrite bind_ret_l.
+    do 2 apply sb_guard_l.
+
+    rewrite unfold_interp_state. cbn.
+    do 2 apply sb_guard_l.
+
+    rewrite unfold_interp_state. cbn.
 
     rewrite alist_add_alist_add. 2: apply RelDec_Correct_string. reflexivity.
   Qed.
