@@ -451,24 +451,24 @@ Ltac _apply f :=
 (* Tactic Notation "Lapply'" uconstr(f) := _apply @f. *)
 
 #[global] Instance gfp_bt_equ {E B R r} :
-	 Proper (gfp (@fequ E B R R eq) ==> equ eq ==> flip impl)
-	  (ebt eq r).
+  Proper (gfp (@fequ E B R R eq) ==> equ eq ==> flip impl)
+	 (ebt eq r).
 Proof.
-	unfold Proper, respectful, flip, impl.
-	intros.
-	etransitivity; [|etransitivity]; [|apply H1 |].
+  unfold Proper, respectful, flip, impl.
+  intros.
+  etransitivity; [|etransitivity]; [|apply H1 |].
   _apply @gfp_bt; assumption.
-	_apply @gfp_bt; symmetry; assumption.
+  _apply @gfp_bt; symmetry; assumption.
 Qed.
 
 #[global] Instance Equivalence_bt_equb_gen {E B X R S} `{Equivalence _ R}:
   Proper ((gfp (@fequ E B X _ eq)) ==> (gfp (@fequ E B X _ eq)) ==> flip impl) (ebt R S).
 Proof.
-	unfold Proper, respectful, flip, impl.
-	intros.
-	etransitivity; [|etransitivity]; [| eassumption |].
-	_apply @gfp_bt; rewrite H0; reflexivity.
-	_apply @gfp_bt; rewrite H1; reflexivity.
+  unfold Proper, respectful, flip, impl.
+  intros.
+  etransitivity; [|etransitivity]; [| eassumption |].
+  _apply @gfp_bt; rewrite H0; reflexivity.
+  _apply @gfp_bt; rewrite H1; reflexivity.
 Qed.
 
 Lemma observe_equ_eq: forall E C X (t u: ctree E C X),
@@ -1036,17 +1036,17 @@ Proof.
   exact (br_equ' E B R b Y c k k' eq).
 Qed.
 
-#[global] Instance proper_equ_forever{E C X}`{HasStuck:B1 -<C}: Proper (@equ E C X X eq ==> @equ E C X X eq) forever.
+#[global] Instance proper_equ_forever{E C X}`{HasStuck:B1 -<C}:
+  Proper (pointwise_relation X (@equ E C X X eq) ==> eq ==> @equ E C X X eq) forever.
 Proof.
-  unfold Proper, respectful; intros.
-  coinduction R CIH.
+  unfold Proper, respectful; intros; subst.
+  revert y0; coinduction R CIH; intros.
   rewrite (unfold_forever_ x), (unfold_forever_ y).
   rewrite H.
   __upto_bind_eq_equ.
   econstructor; intros [].
   apply CIH.
 Qed.
-
 
 (*|
 Inversion of [≅] hypotheses

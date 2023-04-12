@@ -339,8 +339,8 @@ unary choices are available.
 Repeat a computation infinitely.
 |*)
 
-    Definition forever {E R S} (t : ctree E B R) : ctree E B S :=
-      cofix forever_t := bind t (fun _ => Guard (forever_t)).
+    Definition forever {E R} (k: R -> ctree E B R): R -> ctree E B R :=
+      cofix F i := bind (k i) (fun i => Guard (F i)).
 
 (*|
 [iter]: See [Basics.Basics.MonadIter].

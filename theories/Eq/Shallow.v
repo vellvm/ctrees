@@ -112,8 +112,8 @@ Lemma unfold_aloop_ {E B X Y} `{B1 -< B} (f : X -> ctree E B (X + Y)) (x : X) :
 Proof. constructor; reflexivity. Qed.
 
 (** Unfolding lemma for [forever]. *)
-Lemma unfold_forever_ {E B R S} `{B1 -< B} (t: ctree E B R):
-  observing eq (@CTree.forever B _ _ R S t) (CTree.bind t (fun _ => Guard (CTree.forever t))).
+Lemma unfold_forever_ {E B R} `{B1 -< B} (k: R -> ctree E B R) (i: R):
+  observing eq (@CTree.forever B _ _ R k i) (CTree.bind (k i) (fun i => Guard (CTree.forever k i))).
 Proof. constructor; reflexivity. Qed.
 
 (** ** [going]: Lift relations through [go]. *)

@@ -85,7 +85,6 @@ Section Ctl.
   
   Inductive CtlFormula: Type :=
   | CNowS (p : S -> Prop): CtlFormula
-  | CNowR (p : X -> S -> Prop): CtlFormula
   | CAnd    : CtlFormula -> CtlFormula -> CtlFormula
   | COr     : CtlFormula -> CtlFormula -> CtlFormula
   | CImpl   : CtlFormula -> CtlFormula -> CtlFormula
@@ -100,7 +99,6 @@ Section Ctl.
   Fixpoint entailsF (φ: CtlFormula): ctree E C X -> S -> Prop :=
     match φ with
     | CNowS p   => fun _ s => p s
-    | CNowR q   => fun t s => exists (x: X), t ≅ Ret x /\ q x s
     | CAnd  φ ψ => fun t s => (entailsF φ t s) /\ (entailsF ψ t s)
     | COr   φ ψ => fun t s => (entailsF φ t s) \/ (entailsF ψ t s)
     | CImpl φ ψ => fun t s => (entailsF φ t s) -> (entailsF ψ t s)
@@ -123,7 +121,7 @@ Module CtlNotations.
   Section SC.
     Context {E C: Type -> Type} {X S: Type}.
     Notation SP := (ctree E C X -> S -> Prop).
-    Definition ctl_of_Prop (P : Prop) : @CtlFormula X S := CNowS (fun (_: S) => P).
+    Definition ctl_of_Prop (P : Prop) : @CtlFormula S := CNowS (fun (_: S) => P).
     Coercion ctl_of_Prop : Sortclass >-> CtlFormula.
   End SC.
   
@@ -140,7 +138,6 @@ Module CtlNotations.
 
   (* Temporal *)
   Notation "'now' p" := (CNowS p) (in custom ctl at level 79): ctl_scope.
-  Notation "'ret' p" := (CNowR p) (in custom ctl at level 79): ctl_scope.
   Notation "'EX' p" := (CEX p) (in custom ctl at level 75): ctl_scope.
   Notation "'AX' p" := (CAX p) (in custom ctl at level 75): ctl_scope.
 
@@ -240,7 +237,7 @@ Tactic Notation "fold_entails" :=
   match goal with
   | |- context[?F ?φ ?t ?s] => 
       match type of F with
-      | (@CtlFormula ?X ?Σ) -> (ctree ?E ?C ?X) -> ?Σ -> Prop =>
+      | (@CtlFormula ?Σ) -> (ctree ?E ?C ?X) -> ?Σ -> Prop =>
           is_fix F; progress fold (@entailsF E C X Σ _ _ φ t s)
       end
   end.
@@ -249,7 +246,7 @@ Tactic Notation "fold_entails" "in" ident(H) :=
   match type of H with
   | context[?F ?φ ?t ?s] => 
       match type of F with
-      | (@CtlFormula ?X ?Σ) -> (ctree ?E ?C ?X) -> ?Σ -> Prop =>
+      | (@CtlFormula ?Σ) -> (ctree ?E ?C ?X) -> ?Σ -> Prop =>
           is_fix F; progress fold (@entailsF E C X Σ _ _ φ t s) in H
       end
   end.
@@ -258,11 +255,10 @@ Tactic Notation "fold_entails" "in" ident(H) :=
 Section Congruences.
   Import CtlNotations.
   Local Open Scope ctl_scope.
-  Context {X Σ : Type}.
-  Definition sem_equiv: rel (@CtlFormula X Σ) (@CtlFormula X Σ) :=
-    fun p q => forall (E C: Type -> Type)
-              (HasStuck: B0 -< C) (h: E ~~> state Σ)
-              (t: ctree E C X) (s:Σ),
+  Context {Σ : Type}.
+  Definition sem_equiv: rel (@CtlFormula Σ) (@CtlFormula Σ) :=
+    fun p q =>
+      forall (E C: Type -> Type) (X: Type) (HasStuck: B0 -< C) (h: E ~~> state Σ) (t: ctree E C X) (s:Σ),
         <( t, s |= p )> <-> <( t, s |= q )>.
 
   Infix "≡" := (sem_equiv) (at level 40, left associativity).
@@ -290,14 +286,14 @@ Section Congruences.
     - now rewrite EQpq, EQpp', <- EQpq'.
   Qed.
 
-  Global Add Parametric Morphism {E C} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} {φ: Σ -> Prop}:
+  Global Add Parametric Morphism {E C X} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} {φ: Σ -> Prop}:
     (fun (_: ctree E C X) s => φ s)
       with signature (@equ E C X X eq) ==> eq ==> iff as fun_proper_equ.
   Proof.
     intros; split; subst; intro; unfold entailsF in *; auto.
   Qed.
 
-  Global Add Parametric Morphism {E C} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} {φ: X -> Σ -> Prop}:
+  Global Add Parametric Morphism {E C X} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} {φ: X -> Σ -> Prop}:
     (fun (t: ctree E C X) s => exists x, t ≅ Ret x /\ φ x s)
       with signature (@equ E C X X eq) ==> eq ==> iff as fun_ret_proper_equ.
   Proof.
@@ -305,33 +301,25 @@ Section Congruences.
       destruct H0 as (v & ? & ?); exists v; split; auto; now rewrite <- H0.
   Qed.
 
-  Global Add Parametric Morphism {E C} `{h: E ~~> state Σ} `{HasStuck: B0 -< C}(p: Σ -> Prop): <( |- now p )>                                        
+  Global Add Parametric Morphism {E C X} `{h: E ~~> state Σ} `{HasStuck: B0 -< C}(p: Σ -> Prop): <( |- now p )>                                        
       with signature (@equ E C X X eq) ==> eq ==> iff as now_proper_equ.
   Proof.
     unfold_entails; intros; eapply fun_proper_equ; eauto.
   Qed.
-  
-  Global Add Parametric Morphism {E C} `{h: E ~~> state Σ} `{HasStuck: B0 -< C}(p: X -> Σ -> Prop): <( |- ret p )>                                        
-      with signature (@equ E C X X eq) ==> eq ==> iff as ret_proper_equ.
-  Proof.
-    unfold_entails; intros; apply fun_ret_proper_equ; eauto.
-  Qed.
 
   (** Rewrite [t ~ u] in a CTL context t,s |= p <-> u,s |= p] *)
   Section gProperSbisim.
-    Context {E C: Type -> Type}
+    Context {E C: Type -> Type} {X:Type}
             {h: E ~~> state Σ} {HasStuck: B0 -< C}.
     (*| Up-to-sbisim enhancing function |*)
-    Variant unary_sbisim_clos_body {E C} `{h: E ~~> state Σ} `{HasStuck: B0 -< C}
-            (R: rel (ctree E C X) Σ) : rel (ctree E C X) Σ :=
+    Variant unary_sbisim_clos_body (R: rel (ctree E C X) Σ) : rel (ctree E C X) Σ :=
       | uSbisim_clos : forall t t' s s'
                          (Agt : t ~ t')
                          (HR : R t' s')
                          (Agu : s' = s),
           unary_sbisim_clos_body R t s.
 
-    Program Definition unary_sbisim_clos{E C} `{h: E ~~> state Σ} `{HasStuck: B0 -< C}:
-      mon (rel (ctree E C X) Σ) :=
+    Program Definition unary_sbisim_clos: mon (rel (ctree E C X) Σ) :=
       {| body := unary_sbisim_clos_body |}.
     Next Obligation. destruct H0; econstructor; eauto. Qed.
 
@@ -417,7 +405,7 @@ Section Congruences.
 
   (** Rewrite [t ≅ u] in a CTL context t,s |= p <-> u,s |= p] *)
   Section gProperEqu.
-    Context {E C: Type -> Type}
+    Context {E C: Type -> Type} {X: Type}
             {h: E ~~> state Σ} {HasStuck: B0 -< C}.
     
     (*| Up-to-eq enhancing function |*)
@@ -550,7 +538,7 @@ Section Congruences.
   End gProperEqu.
 
   (*| Combined Properness lemma without the properness requirements, by induction on formulas |*)
-  Global Add Parametric Morphism {E C} {h: E ~~> state Σ} {HasStuck: B0 -< C}: (@entailsF E C X Σ h HasStuck)
+  Global Add Parametric Morphism {E C X} {h: E ~~> state Σ} {HasStuck: B0 -< C}: (@entailsF E C X Σ h HasStuck)
         with signature (sem_equiv ==> equ eq ==> eq ==> iff) as proper_equiv_equ.
   Proof with eauto.
     intro x; induction x; intros y Hy t u EQt s; unfold sem_equiv in *; rewrite <- Hy; clear Hy; unfold_entails; auto;
@@ -560,10 +548,6 @@ Section Congruences.
       try ( specialize (IHx2 x2 (sem_equiv_refl x2));        
             assert (HP': Proper (@equ E C X X eq ==> eq ==> iff) (entailsF x2)) by
               (do 3 red; intros; subst; apply IHx2; eauto)).          
-    - (* ret *)
-      split; intros (? & ? & ?); eauto. 
-      + exists x; rewrite EQt in H; intuition.
-      + exists x; rewrite EQt; intuition.
     - (* /\ *)
       split; intros (? & ?); split.
       + rewrite IHx1; symmetry in EQt...
@@ -599,12 +583,12 @@ Section Congruences.
   Qed.
 
   (* TODO: This one needs some effort to prove 
-  Global Add Parametric Morphism {E C} {h: E ~~> state Σ} {HasStuck: B0 -< C}: (@entailsF E C X Σ h HasStuck)
+  Global Add Parametric Morphism {E C X} {h: E ~~> state Σ} {HasStuck: B0 -< C}: (@entailsF E C X Σ h HasStuck)
         with signature (sem_equiv ==> sbisim eq ==> eq ==> iff) as proper_equiv_sbisim.
   Proof.
   *)
   Section gProperBind.
-    Context {E C: Type -> Type} {Y: Type} {h: E ~~> state Σ} {HasStuck: B0 -< C}.
+    Context {E C: Type -> Type} {X Y: Type} {h: E ~~> state Σ} {HasStuck: B0 -< C}.
     (*| Up-to-bind ag |*)
     Definition bind_clos (R: rel (ctree E C X) Σ)
              (Rk: (X -> ctree E C Y) -> Prop):
@@ -625,6 +609,27 @@ Section Congruences.
   End gProperBind.
 End Congruences.
 
+Section transitive_closure_of_ktrans.
+  Import CtlNotations.
+  Local Open Scope ctl_scope.
+  Context {E C: Type -> Type} {X Σ: Type} {HasStuck: B0 -< C} {h: E ~~> state Σ}
+          (φ: @CtlFormula Σ).
+  
+  Inductive ktrans_transclos_with_invariant: ctree E C X * Σ -> X * Σ -> Prop :=
+  | kTransBase: forall (t t': ctree E C X) s x,
+      <( t, s |= φ )> ->
+      trans (val x) t stuckD ->
+      ktrans_transclos_with_invariant (t, s) (x, s)
+  | kTransStep: forall t t' s s' x s'',      
+      <( t', s' |= φ )> ->
+      ktrans (t, s) (t', s') ->
+      ktrans_transclos_with_invariant (t', s') (x, s'') ->
+      ktrans_transclos_with_invariant (t, s) (x, s'').
+      
+End transitive_closure_of_ktrans.
+
+Notation "w '⇓{' φ '}' x" := (ktrans_transclos_with_invariant φ w x) (at level 50, φ custom ctl, left associativity).
+            
 Infix "≡" := (sem_equiv) (at level 40, left associativity).
 
 (*| Laws of CTL |*)
@@ -634,7 +639,7 @@ Section Equalities.
   
   Context {E C: Type -> Type} {X Σ: Type}
           `{h: E ~~> state Σ} `{HasStuck: B0 -< C}.
-  Notation CtlFormula := (@CtlFormula X Σ).
+  Notation CtlFormula := (@CtlFormula Σ).
   
   (*| Top is True |*)
   Lemma ctl_top: forall (t: ctree E C X) (s: Σ),
@@ -735,7 +740,7 @@ Section Equalities.
       intros.
       apply CIH.
       rewrite ctl_ag_ax in H.
-      destruct H; fold_entails in H.
+      destruct H. fold_entails in H.
       specialize (H1 _ _ H0).
       now unfold_entails.
     - apply RStepA.
@@ -841,20 +846,20 @@ End Equalities.
   | |- context[@entailsF ?E ?C ?X ?S ?h ?HasStuck ?φ ?t ?s] =>
       lazymatch φ with
       | CAU ?p ?q => lazymatch eval cbv in p with
-                    | CNowS (fun _ => True) => rewrite (@ctl_af_ax X S q)
-                    | _ => rewrite (@ctl_au_ax X S p q)
+                    | CNowS (fun _ => True) => rewrite (@ctl_af_ax S q)
+                    | _ => rewrite (@ctl_au_ax S p q)
                     end
       | CEU ?p ?q => lazymatch eval cbv in p with
-                    | CNowS (fun _ => True) => rewrite (@ctl_ef_ex X S q)
-                    | _ => rewrite (@ctl_eu_ex X S p q)
+                    | CNowS (fun _ => True) => rewrite (@ctl_ef_ex S q)
+                    | _ => rewrite (@ctl_eu_ex S p q)
                     end
       | CAR ?p ?q => lazymatch eval cbv in q with
-                             | CNowS (fun _ => False) => rewrite (@ctl_ag_ax X S p)
-                             | _ => rewrite (@ctl_ar_ax X S p q)
+                             | CNowS (fun _ => False) => rewrite (@ctl_ag_ax S p)
+                             | _ => rewrite (@ctl_ar_ax S p q)
                              end
       | CER ?p ?q => lazymatch eval cbv in q with
-                             | CNowS (fun _ => False) => rewrite (@ctl_eg_ex X S p)
-                             | _ => rewrite (@ctl_er_ex X S p q)
+                             | CNowS (fun _ => False) => rewrite (@ctl_eg_ex S p)
+                             | _ => rewrite (@ctl_er_ex S p q)
                              end
       | CAX ?p => unfold_entails;
                  let t_ := fresh "t" in
@@ -874,20 +879,20 @@ End Equalities.
   | context[@entailsF ?E ?C ?X ?S ?h ?HasStuck ?φ ?s ?t] =>
       lazymatch φ with
       | context[CAU ?p ?q] => lazymatch eval cbv in p with
-                             | CNowS (fun _ => True) => rewrite (@ctl_af_ax X S q) in H
-                             | _ => rewrite (@ctl_au_ax X S p q) in H
+                             | CNowS (fun _ => True) => rewrite (@ctl_af_ax S q) in H
+                             | _ => rewrite (@ctl_au_ax S p q) in H
                              end
       | context[CEU ?p ?q] => lazymatch eval cbv in p with
-                             | CNowS (fun _ => True) => rewrite (@ctl_ef_ex X S q) in H
-                             | _ => rewrite (@ctl_eu_ex X S p q) in H
+                             | CNowS (fun _ => True) => rewrite (@ctl_ef_ex S q) in H
+                             | _ => rewrite (@ctl_eu_ex S p q) in H
                              end
       | context[CAR ?p ?q] => lazymatch eval cbv in q with
-                             | CNowS (fun _ => False) => rewrite (@ctl_ag_ax X S p) in H
-                             | _ => rewrite (@ctl_ar_ax X S p q) in H
+                             | CNowS (fun _ => False) => rewrite (@ctl_ag_ax S p) in H
+                             | _ => rewrite (@ctl_ar_ax S p q) in H
                              end
       | context[CER ?p ?q] => lazymatch eval cbv in q with
-                             | CNowS (fun _ => False) => rewrite (@ctl_eg_ex X S p) in H
-                             | _ => rewrite (@ctl_er_ex X S p q) in H
+                             | CNowS (fun _ => False) => rewrite (@ctl_eg_ex S p) in H
+                             | _ => rewrite (@ctl_er_ex S p q) in H
                              end
       | CAX ?p => unfold_entails in H
       | CEX ?p =>
@@ -913,52 +918,56 @@ End Equalities.
 Section UsefulLemmas.
   Import CtlNotations CTreeNotations.
   Local Open Scope ctl_scope.
+  Context {E C: Type -> Type} {X Σ: Type} {h: E ~~> state Σ} {HasStuck: B0 -< C} {s: Σ}.
   
-  Lemma ctl_ret_au_inv {E C X Σ} `{h: E ~~> state Σ}
-        `{HasStuck: B0 -< C} : forall x s (p q: Σ -> Prop),
+  Lemma ctl_ret_au_inv : forall x (p q: Σ -> Prop),
       <( {Ret x: ctree E C X}, s |= (now p) AU (now q)  )> -> p s \/ q s.
   Proof.
     intros; inv H; [now right | now left].
   Qed.
-
-  Lemma ctl_bind_au_inv{E C X Σ Y} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} : forall (φ ψ: Σ -> Prop) (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
-      <( {x <- t ;; k x}, s |= (now φ) AU (now ψ) )> <->
-      <( t,s |= (now φ) AU (ret {fun x s => <( {k x}, s |= (now φ) AU (now ψ) )>}) )> \/ 
-        <( t,s |= (now φ) AU (now ψ) )>.
+  
+  Lemma ctl_bind_au{Y}: forall (φ ψ: CtlFormula) (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
+      <( {x <- t ;; k x}, s |= φ AU ψ )> <->
+        (<( t, s |= φ AU ψ )> \/                                          (* either [t] satisfies [φ AU ψ] (finite) *)
+           (forall x s', (t,s) ⇓{ φ } (x, s') -> <( {k x}, s' |= φ AU ψ )>)).  (* or it big-steps to a value [x: X] and state [s'], while maitaining [φ] *)
   Proof.
     intros.
-    remember (CNowS φ).
-    remember (CNowS ψ).
   Admitted.
 
-  Lemma ctl_bind_ag_goal{E C X Σ Y} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} : forall φ (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
-      <( {x <- t ;; k x}, s |= AG (now φ) )> <->
-      <( t,s |= (now φ) AR (ret {fun x s => <( {k x}, s |= AG (now φ) )>}) )>.
+  Lemma ctl_bind_eu{Y}: forall (φ ψ: CtlFormula) (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
+      <( {x <- t ;; k x}, s |= φ EU ψ )> <->
+        <( t, s |= φ EU ψ )> \/                                          (* either [t] satisfies [φ AU ψ] (finite) *)
+           (exists x s', (t,s) ⇓{ φ } (x, s') -> <( {k x}, s' |= φ EU ψ )>).  (* or it big-steps to a value [x: X] and state [s'], while maitaining [φ] *)                          
   Proof.
     intros.
-    remember (CNowS φ).
-  Admitted.
-
-  Lemma ctl_bind_ar_inv{E C X Σ Y} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} :
-    forall (φ: Σ -> Prop) ψ (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
-      <( {x <- t ;; k x}, s |= (now φ) AR ψ )> <->
-      <( t,s |= (now φ) AR (ret {fun x s => <( {k x}, s |= (now φ) AR ψ )>}) )>.
-  Proof.
-    intros.
-    remember (CNowS φ).
+    split; intros.
   Admitted.
   
-  Lemma ctl_weaken_ar_R{E C X Σ} `{h: E ~~> state Σ} `{HasStuck: B0 -< C}:
-    forall φ (ψ ψ': X -> Σ -> Prop) (t: ctree E C X) (s: Σ),
-      (forall x s, ψ x s -> ψ' x s) ->
-      <( t, s |= φ AR (ret ψ))> -> <(t, s |= φ AR (ret ψ') )>.
+  Lemma ctl_bind_ar{Y}: forall (φ ψ: CtlFormula) (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
+      <( {x <- t ;; k x}, s |= φ AR ψ )> <->
+        <( t,s |= φ AR ψ )> \/                                           (* either [t] satisfies [φ AR ψ] (maybe infinite) *)
+          (forall x s', (t,s) ⇓{ φ } (x, s') -> <( {k x}, s' |= φ AR ψ )>).   (* or it big-steps to a value [x: X] and state [s'], while maitaining [φ] *)
   Proof.
-    intros φ ψ ψ'. 
-    coinduction R CIH; intros.
+    intros.
+  Admitted.
+
+  Lemma ctl_bind_er{Y}: forall (φ ψ: CtlFormula) (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
+      <( {x <- t ;; k x}, s |= φ ER ψ )> <->
+        <( t,s |= φ ER ψ )> \/                                           (* either [t] satisfies [φ AR ψ] (maybe infinite) *)
+          (exists x s', (t,s) ⇓{ φ } (x, s') -> <( {k x}, s' |= φ ER ψ )>).   (* or it big-steps to a value [x: X] and state [s'], while maitaining [φ] *)
+  Proof.
+    intros.
+  Admitted.
+
+  Lemma ctl_forever_ar `{HasTau: B1 -< C}:
+    forall (φ ψ: CtlFormula) (k: X -> ctree E C X) (s: Σ) (i: X),
+      <( {CTree.forever k i}, s |= φ AR ψ )> <->
+        <( {k i}, s |= φ AR ψ )> \/
+          (forall x s', (k i, s) ⇓{ φ } (x, s') -> <( {k x}, s' |= φ AR ψ )>).
   Admitted.
 
   (** [Ret x, s] does not change s, so everything that is true for [s] remains true forever *)
-  Lemma ctl_ar_ret{E C X Σ} `{h: E ~~> state Σ} `{HasStuck: B0 -< C}: forall (x:X) (s: Σ) q (φ: Σ -> Prop),
+  Lemma ctl_ar_ret: forall (x:X) q (φ: Σ -> Prop),
       <( {Ret x: ctree E C X}, s |=  (now φ) AR q )> <-> φ s.
   Proof.
     split; intros.
@@ -973,7 +982,7 @@ Section UsefulLemmas.
   Qed.
   
   (** [Ret x, s] does not change s, so everything that is true for [s] remains true forever *)
-  Lemma ctl_au_ret{E C X Σ} `{h: E ~~> state Σ} `{HasStuck: B0 -< C}: forall (x:X) (s: Σ) q (φ: Σ -> Prop),
+  Lemma ctl_au_ret: forall (x:X) q (φ: Σ -> Prop),
       <( {Ret x: ctree E C X}, s |=  q AU now φ )> <-> φ s.
   Proof.
     split; intros.
@@ -988,41 +997,6 @@ Section UsefulLemmas.
   Admitted.
 
   (** [forever t, s |= AG φ] iff [φ] is true for the duration of [t] as well *)
-  Lemma ctl_forever_ag_now{E C X Σ} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} `{HasTau: B1 -< C}: forall φ (t: ctree E C X) (s: Σ),
-      <( {CTree.forever t: ctree E C X}, s |= AG now φ )> <->
-        <( t,s |= AG now φ )>.
-  Proof.
-    intros; split; revert t s; coinduction R CIH; intros.
-    - apply RStepA; step in H; inv H; try contradiction.
-      + assumption.
-      + intros t' s' TR.
-        apply CIH.
-        apply H1.
-        now apply ktrans_forever_goal.
-    - apply RStepA; step in H; inv H; try contradiction.
-      + assumption.
-      + intros t' s' TR.
-        apply ktrans_forever_inv in TR as (u & TRu & EQu).
-        rewrite EQu.
-        apply CIH.
-        now apply H1.
-  Qed.
-
-  Lemma ctl_involutive_ag{E C X Σ} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} `{HasTau: B1 -< C}: forall φ (t: ctree E C X) (s: Σ),
-      <( t, s |= AG (AG φ) )> <-> <( t,s |= AG φ )>.
-  Proof.
-    split; revert t s; coinduction R CIH; intros t s H.
-  Admitted.
-      
-    
-  Lemma ctl_forever_ag{E C X Σ} `{h: E ~~> state Σ} `{HasStuck: B0 -< C} `{HasTau: B1 -< C}: forall (φ: CtlFormula) (t: ctree E C X) (s: Σ),
-      <( {CTree.forever t: ctree E C X}, s |= AG φ )> <->
-        <( t,s |= AG φ )> /\ ~ (exists x, φ ≡ <( ret x )>).
-  Proof.
-    (*[φ] must not observe termination [φ ≢ ret p]
-          otherwise the [<-] direction cannot hold. *)
-    (* TODO: Is there other [φ] that the [<-] does not hold? *)
-  Admitted.
 
 End UsefulLemmas.
 
@@ -1034,7 +1008,7 @@ Module Experiments.
   Context {E C: Type -> Type} {S: Type} {HasStuck: B0 -< C}.
   Definition stuck: ctree E C unit := stuckD.
     
-  Definition ctl_of_State {X}(s: nat): @CtlFormula X nat := CNowS (fun x => x = s).
+  Definition ctl_of_State (s: nat): @CtlFormula nat := CNowS (fun x => x = s).
   Arguments ctl_of_State /.
   Coercion ctl_of_State : nat >-> CtlFormula.
 

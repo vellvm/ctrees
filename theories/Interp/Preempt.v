@@ -153,7 +153,8 @@ Qed.
 
 (*| A round robbin scheduler |*)
 Section Scheduler.
-  Context {E C: Type -> Type} {X T: Type} {HasTau: B1 -< C}.
+
+  Context {E C: Type -> Type} {HasTau: B1 -< C}.
 
   Definition flat_mapi{E C X A} (f: A -> nat -> ctree E C X):
     list A -> ctree E C (list X) :=
@@ -165,10 +166,11 @@ Section Scheduler.
           Ret (x :: xs)
       | [] => Ret []
       end) 0.
-
+   
   (*| round robbin scheduler |*)
-  Definition rr {T} (prs: list (ctree E C X)): ctree (E +' parE) C T :=
-    CTree.forever (flat_mapi (preempt 1) prs).
+  Definition rr{X}: list (ctree E C X) ->
+                    ctree (E +' parE) C (list (ctree E C X)) :=   
+    CTree.forever (flat_mapi (preempt 1)).
 
 End Scheduler.
 

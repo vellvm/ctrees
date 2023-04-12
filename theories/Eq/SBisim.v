@@ -1380,11 +1380,11 @@ Section Sb_Proof_System.
     exists F1; apply EQ.
   Qed.
 
-  Lemma unfold_forever Y {HasTau: B1 -< C}: forall (t: ctree E C Y),
-      @forever C _ E Y X t ~ t ;; @forever C _ E Y X t.
+  Lemma unfold_forever {HasTau: B1 -< C}: forall (k: X -> ctree E C X)(i: X),
+      forever k i ~ r <- k i ;; forever k r.
   Proof.
-    intro t.
-    rewrite (ctree_eta (forever t)).
+    intros k i.
+    rewrite (ctree_eta (forever k i)).
     rewrite unfold_forever_.
     rewrite <- ctree_eta.
     __upto_bind_eq_sbisim.

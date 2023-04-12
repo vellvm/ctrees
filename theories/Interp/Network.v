@@ -79,12 +79,15 @@ From CTree Require Import Ctl.
 Import CtlNotations.
 Local Open Scope ctl_scope.
 
+Unset Universe Checking.
 Lemma fair_rr{E C X S} {s: S} `{HasStuck: B0 -< C} `{HasTau: B1 -< C}
       `{h: E ~~> state S}: forall (l: list (ctree E C X)),
-  <( {rr l: ctree _ C (list (ctree E C X))}, {(s, 0)} |= AG (AF (now {fun '(_,i) => i = length l})) )>. 
-Proof.
+    @entailsF (E +' parE) C (list (ctree E C X)) (S * nat) _ _
+              <(AG (AF (now {fun '(_,i) => i = length l})))>
+              (rr l: ctree (E +' parE) C (list (ctree E C X)))              
+              (s, 0).
+  Proof.
   intro sys; unfold rr; cbn.
-  rewrite ctl_forever_ag.
   induction sys; cbn.
   - coinduction R CIH.
     apply RStepA.

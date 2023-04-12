@@ -66,7 +66,7 @@ Section Kripke.
   Notation SP := (ctree E C X -> S -> Prop).
     
   (* Kripke transition given a handler *)
-   Variant ktrans: (ctree E C X * S) -> (ctree E C X * S) -> Prop :=
+  Variant ktrans: (ctree E C X * S) -> (ctree E C X * S) -> Prop :=
     | kTau (t u: ctree E C X) (s: S):
       trans tau t u ->
       ktrans (t, s) (u, s)
@@ -223,6 +223,7 @@ Proof with eauto.
         now apply kRet with x.
 Qed.
 
+(*
 Lemma ktrans_forever_goal: forall {E C X Y S} `{h: E ~~> state S} `{B1 -< C} `{B0 -< C}
                              (s s': S) (t t': ctree E C X),
     ktrans (t, s) (t', s') ->
@@ -236,3 +237,4 @@ Lemma ktrans_forever_inv: forall {E C X Y S} `{h: E ~~> state S} `{B1 -< C} `{B0
     exists u, ktrans (t, s) (u, s') /\ t' ≅ CTree.forever u.
 Proof.
 Admitted.
+*)
