@@ -458,39 +458,6 @@ Proof.
       rewrite tau_eutt in EUTT; auto.
 Qed.
 
-(* Other things to consider if time permitted:
-   - partial inverse
-   - embedded itrees are internally deterministic
- *)
-
-(* Maybe simpler to just write a coinductive relation *)
-(*Definition partial_inject {E X} : ctree E X -> itree E (option X) :=
-	cofix _inject t :=
-	 match CTreeDefinitions.observe t with
-	| CTreeDefinitions.RetF x => Ret (Some x)
-	| @BrF _ _ _ _ n t =>
-		(match n as x return n = x -> itree E (option X) with
-					 | O => fun _ => Ret None
-					 | 1 => fun pf => eq_rect_r
-	 													(fun n1 : nat => (Fin.t n1 -> ctree E X) -> itree E (option X))
-	 													(fun t2 : Fin.t 1 -> ctree E X => Tau (_inject (t2 Fin.F1)))
-	 													pf t
-					 | _ => fun _ => Ret None
-		 end eq_refl)
-	| CTreeDefinitions.VisF e k => Vis e (fun x => _inject (k x))
-	 end.
-
-Definition option_rel {A B : Type} (R : A -> B -> Prop) : option A -> option B -> Prop :=
-	fun x y => match x, y with
-	|	Some x, Some y => R x y
-	| _, _ => False
-	end.
-
-(* This is probably false: no reason for the embedding to succeed. *)
-Lemma partial_inject_eq {E X} :
-	Proper (equ eq ==> eq_itree (option_rel eq)) (@partial_inject E X).
-Admitted.*)
-
 Variant is_detF {E C X} `{B1 -< C} (is_det : ctree E C X -> Prop) : ctree E C X -> Prop :=
 | Ret_det : forall x, is_detF is_det (CTreeDefinitions.Ret x)
 | Vis_det : forall {Y} (e : E Y) k,

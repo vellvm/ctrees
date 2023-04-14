@@ -8,8 +8,8 @@
   (extracted_modules
     Applicative
     Ascii
-    Basics0
     Basics
+    Basics0
     BinNat
     BinNums
     BinPosDef
