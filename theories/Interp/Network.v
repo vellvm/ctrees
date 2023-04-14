@@ -1,4 +1,7 @@
-From Coq Require Import List.
+From Coq Require Import
+     List
+     Vector.
+
 From ITree Require Import
      Core.Subevent
      Indexed.Sum.
@@ -6,6 +9,7 @@ From ITree Require Import
 From CTree Require Import
      CTree
      Logic.Kripke
+     Logic.Ctl
      Interp.Preempt.
 
 From ExtLib Require Import
@@ -13,9 +17,10 @@ From ExtLib Require Import
      Structures.MonadState
      Data.Monads.StateMonad.
 
-Import ListNotations MonadNotation.
+Import CtlNotations ListNotations MonadNotation.
 Local Open Scope list_scope.
 Local Open Scope monad_scope.
+Local Open Scope ctl_scope.
 
 Set Implicit Arguments.
 
@@ -74,21 +79,16 @@ Definition recv {T E C} `{netE T -< E}: ctree E C (option T) :=
 Definition send {T E C} `{netE T -< E}: uid -> T -> ctree E C unit :=
   fun u p => trigger (Send u p). 
 
-(* Fairness proof for [rr] *)
-From CTree Require Import
-     Misc.Vectors
-     Logic.Ctl.
+Import VectorNotations.
+Local Open Scope vector_scope.
 
-Import CtlNotations.
-Local Open Scope fin_vector_scope.
-Local Open Scope ctl_scope.
+Notation vec n A := (Vector.t A n).
 
 Unset Universe Checking.
-
+(* Fairness proof for [rr] *)
 Lemma fair_rr{E C : Type -> Type} {X S: Type} {n: nat} {s: S} `{HasStuck: B0 -< C} `{HasTau: B1 -< C}
       `{h: E ~~> state S}: forall (l: vec n (ctree E C X)),              
     <( {rr l: ctree (E +' parE) C (vec n (ctree E C X))}, {(s,0)} |= AG (AF (now {fun '(_,i) => i = n})))>.
-
   Proof.
   intro sys; unfold rr; cbn.
   induction sys; cbn.

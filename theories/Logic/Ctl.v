@@ -96,7 +96,7 @@ Section Ctl.
   | CER     : CtlFormula -> CtlFormula -> CtlFormula.
 
   (* Entailment inductively on formulas *)
-  Polymorphic Fixpoint entailsF (φ: CtlFormula): ctree E C X -> S -> Prop :=
+  Fixpoint entailsF (φ: CtlFormula): ctree E C X -> S -> Prop :=
     match φ with
     | CNowS p   => fun _ s => p s
     | CAnd  φ ψ => fun t s => (entailsF φ t s) /\ (entailsF ψ t s)
