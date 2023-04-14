@@ -96,7 +96,7 @@ Section Ctl.
   | CER     : CtlFormula -> CtlFormula -> CtlFormula.
 
   (* Entailment inductively on formulas *)
-  Fixpoint entailsF (φ: CtlFormula): ctree E C X -> S -> Prop :=
+  Polymorphic Fixpoint entailsF (φ: CtlFormula): ctree E C X -> S -> Prop :=
     match φ with
     | CNowS p   => fun _ s => p s
     | CAnd  φ ψ => fun t s => (entailsF φ t s) /\ (entailsF ψ t s)
@@ -602,6 +602,9 @@ Section Congruences.
     Program Definition bind_clos_ag p q : mon (rel (ctree E C Y) Σ) :=
       {| body := fun R => bind_clos (car p q) (fun k => forall x s, R (k x) s) |}.
     Next Obligation.
+      unfold bind_clos, sup_all, sup; cbn.
+      eexists; auto.
+      eexists.
       (* unfold bind_clos.
       apply leq_bind_ctx. intros ?? H' ?? H''.
       apply in_bind_ctx. apply H'. intros t t' HS. apply H0, H'', HS. *)
@@ -612,19 +615,18 @@ End Congruences.
 Section transitive_closure_of_ktrans.
   Import CtlNotations.
   Local Open Scope ctl_scope.
-  Context {E C: Type -> Type} {X Σ: Type} {HasStuck: B0 -< C} {h: E ~~> state Σ}
-          (φ: @CtlFormula Σ).
+  Context {E C: Type -> Type} {X Σ: Type} {HasStuck: B0 -< C} {h: E ~~> state Σ}.
   
-  Inductive ktrans_transclos_with_invariant: ctree E C X * Σ -> X * Σ -> Prop :=
+  Inductive ktrans_transclos_with_invariant(φ: @CtlFormula Σ): ctree E C X * Σ -> X * Σ -> Prop :=
   | kTransBase: forall (t t': ctree E C X) s x,
       <( t, s |= φ )> ->
       trans (val x) t stuckD ->
-      ktrans_transclos_with_invariant (t, s) (x, s)
+      ktrans_transclos_with_invariant φ (t, s) (x, s)
   | kTransStep: forall t t' s s' x s'',      
       <( t', s' |= φ )> ->
       ktrans (t, s) (t', s') ->
-      ktrans_transclos_with_invariant (t', s') (x, s'') ->
-      ktrans_transclos_with_invariant (t, s) (x, s'').
+      ktrans_transclos_with_invariant φ (t', s') (x, s'') ->
+      ktrans_transclos_with_invariant φ (t, s) (x, s'').
       
 End transitive_closure_of_ktrans.
 

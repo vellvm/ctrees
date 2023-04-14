@@ -7,10 +7,12 @@ Methods and lemmas for splitting ctrees
 |*)
 
 From ITree Require Import Core.Subevent.
-From Coq Require Import List.
+From Coq Require Import Vector Fin.
+
 From CTree Require Import
      CTree
      Logic.Kripke
+     Misc.Vectors
      Interp.Fold
      Eq.
 
@@ -21,8 +23,10 @@ From ExtLib Require Import
 
 From Equations Require Import Equations.
 
-Import ListNotations CTreeNotations.
-Local Open Scope list_scope.
+Import CTreeNotations VectorNotations.
+
+Local Open Scope fin_vector_scope.
+Local Open Scope vector_scope.
 Local Open Scope ctree_scope.
 
 Set Implicit Arguments.
@@ -46,7 +50,7 @@ Section Take.
       end.
 
   Notation take_ n t :=
-    match n with
+    (match n with
     | 0 => Ret t
     | S m => 
         match observe t with
@@ -55,7 +59,7 @@ Section Take.
         | BrSF c k => Br true c (fun i => take m (k i))
         | BrDF c k => Br false c (fun i => take n (k i))
         end
-    end.
+    end)%function.
   
   Lemma unfold_take : forall (n: nat) (t : ctree E C X),
       take n t ≅ take_ n t.
@@ -105,12 +109,11 @@ Variant parE: Type -> Type :=
 
 (*| Run a single [trans] step of tree [a] as processes [i] |*)
 Definition preempt{E C X}`{B1 -< C}
-           (cycles: nat)
-           (a: ctree E C X)(uid: nat): ctree (E +' parE) C (ctree E C X) :=
-  trigger (inr1 (Switch uid)) ;; translate inl1 (take cycles a).
+           (a: ctree E C X)(uid: nat): ctree (E +' parE) C X :=
+  trigger (inr1 (Switch uid)) ;; translate inl1 a. 
 
 Lemma unfold_0_preempt{E C X}`{B1 -< C}(i: nat) (t: ctree E C X):
-  preempt 0 t i ≅ CTree.bind (trigger (inr1 (Switch i))) (fun _ => Ret t).
+  preempt (take 0 t) i ≅ trigger (inr1 (Switch i)) ;; Ret t.
 Proof.
   intros; unfold preempt.
   upto_bind_eq.
@@ -119,13 +122,13 @@ Proof.
 Qed.
 
 Lemma unfold_Sn_preempt{E C X}`{B1 -< C}: forall (i: nat) (n: nat) (t: ctree E C X),
-    preempt (S n) t i ≅ CTree.bind (trigger (inr1 (Switch i))) (fun _ =>
+    preempt (take (S n) t) i ≅ trigger (inr1 (Switch i)) ;;
     match observe t with
     | RetF x => Ret (Ret x)
     | VisF e k => Vis (inl1 e) (fun i => translate inl1 (take n (k i))) 
     | BrSF c k => Br true c (fun i => translate inl1 (take n (k i))) 
     | BrDF c k => Br false c (fun i => translate inl1 (take (S n) (k i)))
-    end).
+    end.
 Proof.
   intros; unfold preempt.
   upto_bind_eq.
@@ -134,7 +137,7 @@ Proof.
 Qed.
 
 (*| Re-attach split ctrees |*)
-Notation flatten u := (CTree.bind u (fun x => x)) (only parsing).
+Notation flatten u := (u >>= (fun x => x)) (only parsing).
 
 Lemma take_flatten_id {E C X}: forall n (t: ctree E C X),
     flatten (take n t) ≅ t.
@@ -152,58 +155,52 @@ Proof.
 Qed.
 
 (*| A round robbin scheduler |*)
-Section Scheduler.
+Section RR.
 
-  Context {E C: Type -> Type} {HasTau: B1 -< C}.
-
-  Definition flat_mapi{E C X A} (f: A -> nat -> ctree E C X):
-    list A -> ctree E C (list X) :=
-    (fix F i l :=
-      match l with
-      | h:: ts =>
-          x <- f h i ;;
-          xs <- F (S i) ts ;;
-          Ret (x :: xs)
-      | [] => Ret []
-      end) 0.
+  Context {E C: Type -> Type} {X: Type} {HasTau: B1 -< C}.
+  
+  Equations rr'{n} (v: vec n (ctree E C X)) :ctree (E +' parE) C (vec n (ctree E C X)) :=
+    rr' (n:=0) [] := Ret [];
+    rr' (n:=S n') (h :: ts) := 
+        x <- preempt (take 1 h) n' ;;
+        xs <- rr' ts ;;
+        Ret (x :: xs).
    
-  (*| round robbin scheduler |*)
-  Definition rr{X}: list (ctree E C X) ->
-                    ctree (E +' parE) C (list (ctree E C X)) :=   
-    CTree.forever (flat_mapi (preempt 1)).
+  (*| Round robbin scheduler |*)
+  Definition rr{n}: vec n (ctree E C X) ->
+                    ctree (E +' parE) C (vec n (ctree E C X)) :=   
+    CTree.forever rr'.
 
-End Scheduler.
+  Lemma unfold_rr {n}: forall (v: vec n (ctree E C X)),
+      rr v ≅ r <- rr' v;; Guard (rr r).
+  Proof. intros; step; cbn; auto. Qed.
+  
+End RR.
 
-From CTree Require Import Misc.Vectors.
-From Coq Require Import Vector Fin.
 Section RRR.
-  Local Open Scope fin_vector_scope.
-  Import VectorNotations.
-  Local Open Scope vector_scope.
-  Context {E C: Type -> Type} {X: Type} {HasTau: B1 -< C}
-          {Hasn: Bn -< C}.
-    
+
+  Context {E C: Type -> Type} {X: Type} {HasTau: B1 -< C} {Hasn: Bn -< C}.
+
   (* Randomly pick the next process to schedule, with no replacement *)
   Equations rrr' {n} (v: vec n (ctree E C X)) :
     ctree (E +' parE) C (vec n (ctree E C X)) :=
     rrr' (n:=0) []%vector := Ret [];
     rrr' (n:=S n') (h :: ts) := let v := h :: ts in
         i <- branch false (branchn (S n')) ;;        
-        x <- preempt 1 (v $ i) (proj1_sig (to_nat i))  ;;
+        x <- preempt (take 1 (v $ i)) (proj1_sig (to_nat i))  ;;
         xs <- rrr' (v -- i) ;;
         Ret (x :: xs).
 
   (*| Guarded coinduction of [rrr'] |*)
-  Definition rrr {n} : vec n (ctree E C X) -> ctree (E +' parE) C X :=
-    cofix F v :=
-      v' <- rrr' v ;; Guard (F v').
+  Definition rrr {n} : vec n (ctree E C X) -> ctree (E +' parE) C (vec n (ctree E C X)) :=
+    CTree.forever rrr'.
 
   Lemma unfold_rrr {n}: forall (v: vec n (ctree E C X)),
       rrr v  ≅  v' <- rrr' v ;; Guard (rrr v'). 
   Proof. intros; step; cbn; auto. Qed.
 
   Lemma unfold_1_rrr: forall (h: ctree E C X),
-      rrr [h] ≅ brD (branchn 1) (fun _ => x <- preempt 1 h 0;; Guard (rrr [x])).
+      rrr [h] ≅ brD (branchn 1) (fun _ => x <- preempt (take 1 h) 0;; Guard (rrr [x])).
   Proof.
     intros.
     rewrite unfold_rrr.

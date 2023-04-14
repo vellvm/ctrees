@@ -75,22 +75,26 @@ Definition send {T E C} `{netE T -< E}: uid -> T -> ctree E C unit :=
   fun u p => trigger (Send u p). 
 
 (* Fairness proof for [rr] *)
-From CTree Require Import Ctl.
+From CTree Require Import
+     Misc.Vectors
+     Logic.Ctl.
+
 Import CtlNotations.
+Local Open Scope fin_vector_scope.
 Local Open Scope ctl_scope.
 
 Unset Universe Checking.
-Lemma fair_rr{E C X S} {s: S} `{HasStuck: B0 -< C} `{HasTau: B1 -< C}
-      `{h: E ~~> state S}: forall (l: list (ctree E C X)),
-    @entailsF (E +' parE) C (list (ctree E C X)) (S * nat) _ _
-              <(AG (AF (now {fun '(_,i) => i = length l})))>
-              (rr l: ctree (E +' parE) C (list (ctree E C X)))              
-              (s, 0).
+
+Lemma fair_rr{E C : Type -> Type} {X S: Type} {n: nat} {s: S} `{HasStuck: B0 -< C} `{HasTau: B1 -< C}
+      `{h: E ~~> state S}: forall (l: vec n (ctree E C X)),              
+    <( {rr l: ctree (E +' parE) C (vec n (ctree E C X))}, {(s,0)} |= AG (AF (now {fun '(_,i) => i = n})))>.
+
   Proof.
   intro sys; unfold rr; cbn.
   induction sys; cbn.
   - coinduction R CIH.
     apply RStepA.
     apply MatchA; auto.
+    intros.
 
 Admitted.

@@ -169,7 +169,7 @@ and coinduction libraries (we fix the type at which we'll use [eq]).
 |*)
   Definition seq: relation (ctree E B R) := eq.
 
-(*|
+  (*|
 [eq] is a post-fixpoint, thus [const eq] is below [t]
 These kind of lemmas are proofs of validity of up-to reasoning
 principles: [t_equ RR] is the companion of the monotone function
@@ -180,54 +180,54 @@ a coinductive proof.
 Here concretely, bisimulation candidates don't ever need
 to be closed by reflexivity in effect: the companion is always reflexive.
 |*)
-	Lemma refl_t {RRR: Reflexive RR}: const seq <= et.
-	Proof.
-		apply leq_t. intro.
-		change (@eq (ctree E B R)  <= equb_ RR eq).
-		intros p ? <-. cbn. desobs p; auto.
-	Qed.
+  Lemma refl_t {RRR: Reflexive RR}: const seq <= et.
+  Proof.
+    apply leq_t. intro.
+    change (@eq (ctree E B R)  <= equb_ RR eq).
+    intros p ? <-. cbn. desobs p; auto.
+  Qed.
 
-(*|
+  (*|
 [converse] is compatible: up-to symmetry is valid
 |*)
-	Lemma converse_t {RRS: Symmetric RR}: converse <= et.
-	Proof.
-		apply leq_t. intros S x y H; cbn. destruct H; auto.
-	Qed.
+  Lemma converse_t {RRS: Symmetric RR}: converse <= et.
+  Proof.
+    apply leq_t. intros S x y H; cbn. destruct H; auto.
+  Qed.
 
-(*|
+  (*|
 [squaring] is compatible: up-to transitivity is valid
 |*)
-	Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= et.
-	Proof.
-		apply leq_t.
-		intros S x z [y xy yz]; cbn.
-		inversion xy; inversion yz; try (exfalso; congruence).
-		- constructor. replace y0 with x1 in * by congruence. eauto.
-		- rewrite <-H in H2.
-			destruct (Vis_eq1 H2).
-			destruct (Vis_eq2 H2) as [-> ->].
-			constructor. intro x0. now exists (k2 x0).
-		- rewrite <- H in H2.
-			destruct (Br_eq1 H2); subst.
-			destruct (Br_eq2 H2) as [-> ->].
-			constructor. intros i. now eexists.
-	Qed.
+  Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= et.
+  Proof.
+    apply leq_t.
+    intros S x z [y xy yz]; cbn.
+    inversion xy; inversion yz; try (exfalso; congruence).
+    - constructor. replace y0 with x1 in * by congruence. eauto.
+    - rewrite <-H in H2.
+      destruct (Vis_eq1 H2).
+      destruct (Vis_eq2 H2) as [-> ->].
+      constructor. intro x0. now exists (k2 x0).
+		                   - rewrite <- H in H2.
+			             destruct (Br_eq1 H2); subst.
+			             destruct (Br_eq2 H2) as [-> ->].
+			             constructor. intros i. now eexists.
+  Qed.
 
-(*|
+  (*|
 Having [const eq], [converse] and [square] below the companion entails respectively
 that the companion, at all point, is reflexive, symmetric, transitive.
 The companion library directly provide these results for bisimilarity, [t R], [b (t R)]
 and [T f R].
 |*)
-	#[global] Instance Equivalence_et `{Equivalence _ RR} S: Equivalence (et S).
-	Proof. apply Equivalence_t. apply refl_t. apply square_t. apply converse_t. Qed.
-	#[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (eT f S).
-	Proof. apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
-	#[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (ebt S).
-	Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.
+  #[global] Instance Equivalence_et `{Equivalence _ RR} S: Equivalence (et S).
+  Proof. apply Equivalence_t. apply refl_t. apply square_t. apply converse_t. Qed.
+  #[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (eT f S).
+  Proof. apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
+  #[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (ebt S).
+  Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.
 
-(*|
+  (*|
 This instance is a bit annoyingly adhoc, but useful for unfolding laws notably:
 essentially we can conclude by reflexivity without stepping completely through
 [equb], but only after exposing it by unfolding and case-analysing on the structure
@@ -549,7 +549,7 @@ of [sup_all] locally.
                                    (fun k => sup (S k)
                                               (fun k' => pairH (bind x k) (bind x' k'))))).
 
-(*|
+    (*|
 Two lemmas to interact with [bind_ctx] before making it opaque:
 - [leq_bind_ctx] specifies relations above the context
 - [in_bind_ctx] specifies how to populate it
@@ -963,6 +963,16 @@ Proof.
   - rewrite bind_br in H. step in H. inv H.
 Qed.
 
+Lemma unfold_forever {E C X} {HasTau: B1 -< C}: forall (k: X -> ctree E C X)(i: X),
+    forever k i ≅ r <- k i ;; Guard (forever k r).
+Proof.
+  intros k i.
+  rewrite (ctree_eta (forever k i)).
+  rewrite unfold_forever_.
+  rewrite <- ctree_eta.
+  reflexivity.
+Qed.
+  
 (*|
 Map
 |*)

@@ -1380,7 +1380,7 @@ Section Sb_Proof_System.
     exists F1; apply EQ.
   Qed.
 
-  Lemma unfold_forever {HasTau: B1 -< C}: forall (k: X -> ctree E C X)(i: X),
+  Lemma sb_unfold_forever {HasTau: B1 -< C}: forall (k: X -> ctree E C X)(i: X),
       forever k i ~ r <- k i ;; forever k r.
   Proof.
     intros k i.

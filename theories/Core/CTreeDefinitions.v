@@ -66,10 +66,10 @@ TODO YZ:
 
 .. coq::
 |*)
-
-  Variant ctreeF (ctree : Type) :=
-    | RetF (r : R)                                       (* a pure computation *)
-    | VisF {X : Type} (e : E X) (k : X -> ctree)          (* an external event *)
+  
+  Variant ctreeF (ctree : Type): Type :=
+    | RetF (r : R)                                        (* a pure computation *)
+    | VisF {X : Type} (e : E X) (k : X -> ctree)     (* an external event *)
     | BrF (vis : bool) {X : Type} (c : B X) (k : X -> ctree) (* an internal non-deterministic branching *)
   .
 
