@@ -48,3 +48,14 @@ cd ctrees
 ```shell
 dune build
 ```
+
+## Associated publications
+
+- Choice Trees: Representing Nondeterministic, Recursive, and Impure Programs in Coq.
+  Nicolas Chappe, Paul He, Ludovic Henrio, Yannick Zakowski, and Steve Zdancewic.
+  [POPL'23](https://dl.acm.org/doi/10.1145/3571254)
+
+## Universe issue
+
+Importing simultaneously some parts of the [Interaction Tree] library and of the [RelationAlgebra] library currently triggers a universe inconsistency, as discussed notably in the following [issue](https://github.com/DeepSpec/InteractionTrees/issues/254).
+Until this problem is resolved, we hence disable universe checks in part of the library via the [Unset Universe Checking] option.
