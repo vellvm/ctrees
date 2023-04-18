@@ -26,7 +26,6 @@ Open Scope ctree_scope.
     For now, we simply specialize results to specific [M]s.
  *)
 
-Unset Universe Checking.
 Theorem ssim_interp_h {E F1 F2 C D1 D2 X Y}
   `{HasB0 : B0 -< D1} `{HasB1 : B1 -< D1} `{HasB0' : B0 -< D2} `{HasB1' : B1 -< D2}
   `{HC1 : C -< D1} `{HC2 : C -< D2}
@@ -47,9 +46,8 @@ Proof.
     apply equ_vis_invT in H1 as ?. subst.
     eapply ssim_clo_bind_gen with (R0 := eq).
     + red. reflexivity.
-    + admit. (* FIXME universe inconsistency *)
-      (*eapply weq_ssim. apply update_val_rel_update_val_rel.
-      apply equ_vis_invE in H1 as [<- ?]. apply H0.*)
+    + eapply weq_ssim. apply update_val_rel_update_val_rel.
+      apply equ_vis_invE in H1 as [<- ?]. apply H0.
     + intros. step. apply step_ss_ret. constructor.
       apply equ_vis_invE in H1 as [<- ?]. subst. apply H1.
   - unfold CTree.map. setoid_rewrite bind_branch.
@@ -58,8 +56,7 @@ Proof.
     destruct vis.
     + step. apply step_ss_brS. intros. exists x0. step. apply step_ss_ret. constructor. apply H1. right; auto. 3: apply H. all: intros H2; inversion H2.
     + step. apply step_ss_brD. intros. exists x0. apply step_ss_ret. constructor. apply H1.
-Admitted.
-Set Universe Checking.
+Qed.
 
 Section FoldCTree.
 

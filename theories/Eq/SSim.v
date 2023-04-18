@@ -1047,7 +1047,7 @@ Section Proof_Rules.
     With invisible schedules, they are always equivalent: neither of them
     produce any challenge for the other.
 |*)
-  Lemma spinS_gen_nonempty : forall {Z Y D F} {L: rel (label E) (label F)} `{HasStuck': B0 -< D}
+  Lemma spinS_gen_nonempty : forall {Z X Y D F} {L: rel (label E) (label F)} `{HasStuck': B0 -< D}
                                (c: C X) (c': C Y) (x: X) (y: Y),
       L tau tau ->
       ssim L (@spinS_gen E C Z X c) (@spinS_gen F C Z Y c').

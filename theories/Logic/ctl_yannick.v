@@ -732,7 +732,7 @@ Module Termination.
     econstructor.
 Qed.
 
-End Termination
+End Termination.
  
                   
 Module Scheduling.
