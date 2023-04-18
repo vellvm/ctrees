@@ -43,8 +43,8 @@ Definition exit_cs {E C} `{csE -< E}: ctree E C unit :=
 From CTree Require Import FoldStateT.
 
 (*| Client process |*)
-Definition client (id: uid)(bakery: uid): ctree (netE uid +' csE) B1 void :=
-  CTree.forever (
+Definition client (id: uid)(bakery: uid): ctree (netE uid +' csE) B1 unit :=
+  CTree.forever (fun _ =>
       (* 1. Ask for a ticket number *)
       send bakery id;;
       (* 2. Loop until received [CS] message *)
@@ -59,7 +59,7 @@ Definition client (id: uid)(bakery: uid): ctree (netE uid +' csE) B1 void :=
                                else
                                  Ret (inl tt)                                 
                     | None => Ret (inl tt)
-                    end) tt).
+                    end) tt) tt.
 
 (* A finite map of [uid] to their number *)
 Notation baker_map := (alist uid nat) (only parsing).
@@ -72,8 +72,8 @@ Definition alist_minv: baker_map -> option (uid * nat) :=
                           end) None.
 
 (*| The baker process, synchronized access to CS through ticket |*)
-Definition baker(bkid: uid): ctree (netE uid +' stateE (nat * baker_map)) B1 void :=
-  CTree.forever (
+Definition baker(bkid: uid): ctree (netE uid +' stateE (nat * baker_map)) B1 unit :=
+  CTree.forever (fun _ =>
       (* 1. Schedule a Critical Section (CS) if possible *)
       '(cnt, book) <- get ;;
       match alist_minv book with
@@ -93,4 +93,4 @@ Definition baker(bkid: uid): ctree (netE uid +' stateE (nat * baker_map)) B1 voi
                         Ret (inr tt)
                     | None =>
                         Ret (inl tt)
-                    end) tt).
+                    end) tt) tt.

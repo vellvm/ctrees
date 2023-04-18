@@ -48,7 +48,7 @@ Section Messaging.
   Notation Qs := (list (list T))  (only parsing).
 
   (*| This determines how we observe parallel message passing processes in our Logic |*)
-  #[global] Instance handler_network_par: (netE +' parE) ~~> state (Qs * uid) :=
+  #[global] Instance handler_netE_parE: (netE +' parE) ~~> state (Qs * uid) :=
     fun X e =>
       '(qs, i) <- get;;
       match e with
@@ -84,13 +84,14 @@ Local Open Scope vector_scope.
 
 Notation vec n A := (Vector.t A n).
 
-Unset Universe Checking.
 (* Fairness proof for [rr] *)
-Lemma fair_rr{E C : Type -> Type} {X S: Type} {n: nat} {s: S} `{HasStuck: B0 -< C} `{HasTau: B1 -< C}
-      `{h: E ~~> state S}: forall (l: vec n (ctree E C X)),              
-    <( {rr l: ctree (E +' parE) C (vec n (ctree E C X))}, {(s,0)} |= AG (AF (now {fun '(_,i) => i = n})))>.
+Lemma fair_rr{E C : Type -> Type} {X S: Type} (n: nat) {s: S}
+      `{HasStuck: B0 -< C} `{HasTau: B1 -< C} `{Par: parE -< E}
+      `{h: E ~~> state (S * nat)}: forall (l: vec n (ctree E C X)) (id: nat),
+    id < n ->
+    <( {rr l: ctree E C (vec n (ctree E C X))}, {(s,0)} |= AG (AF (now {fun '(_,i) => i = id})))>.
   Proof.
-  intro sys; unfold rr; cbn.
+  intros sys i Hid; unfold rr; cbn.
   induction sys; cbn.
   - coinduction R CIH.
     apply RStepA.

@@ -130,7 +130,7 @@ Section Kripke.
     - destruct H as (-> & ->); eapply kRet; eauto; econstructor.
   Qed.
 
-  Lemma ktrans_tau_inv: forall c (t': ctree E C X) (k: X -> ctree E C X) s s',
+  Lemma ktrans_tau_inv: forall {Y : Type} (c : C Y) (t': ctree E C X) (k: Y -> ctree E C X) s s',
       ktrans (BrS c k, s) (t', s') ->
       exists x, t' ≅ k x /\ s = s'.
   Proof.
@@ -138,8 +138,8 @@ Section Kripke.
     shallow_inv_ktrans H.
     exists x0; rewrite <- x; intuition.
   Qed.
-  
-  Lemma ktrans_tau_goal: forall c x (t': ctree E C X) (k: X -> ctree E C X) s s',
+
+  Lemma ktrans_tau_goal: forall {Y : Type} (c : C Y) x (t': ctree E C X) (k: Y -> ctree E C X) s s',
       t' ≅ k x /\ s = s' ->
       ktrans (BrS c k, s) (t', s').
   Proof.
@@ -148,7 +148,7 @@ Section Kripke.
     apply kTau; econstructor; eauto.
   Qed.
 
-  Lemma ktrans_vis_inv: forall e (t': ctree E C X) (k: X -> ctree E C X) s s',
+  Lemma ktrans_vis_inv: forall {Y: Type} (e: E Y) (t': ctree E C X) (k: Y -> ctree E C X) s s',
       ktrans (Vis e k, s) (t', s') ->
       exists x, t' ≅ k x /\ s' = execState (h e) s.
   Proof.
@@ -156,8 +156,8 @@ Section Kripke.
     shallow_inv_ktrans H.
     exists x0; rewrite <- x; intuition.
   Qed.
-  
-  Lemma ktrans_vis_goal: forall e x (t': ctree E C X) (k: X -> ctree E C X) s s',
+
+  Lemma ktrans_vis_goal: forall {Y: Type} (e: E Y) x (t': ctree E C X) (k: Y -> ctree E C X) s s',
       t' ≅ k x /\ s' = execState (h e) s ->
       ktrans (Vis e k, s) (t', s').
   Proof.

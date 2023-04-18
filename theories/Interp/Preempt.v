@@ -108,31 +108,31 @@ Variant parE: Type -> Type :=
   fun _ e => match e with Switch i => put i end.
 
 (*| Run a single [trans] step of tree [a] as processes [i] |*)
-Definition preempt{E C X}`{B1 -< C}
-           (a: ctree E C X)(uid: nat): ctree (E +' parE) C X :=
-  trigger (inr1 (Switch uid)) ;; translate inl1 a. 
+Definition preempt{E C X}`{B1 -< C}`{parE -< E}
+           (a: ctree E C X)(uid: nat): ctree E C X :=
+  trigger (Switch uid) ;; a. 
 
-Lemma unfold_0_preempt{E C X}`{B1 -< C}(i: nat) (t: ctree E C X):
-  preempt (take 0 t) i ≅ trigger (inr1 (Switch i)) ;; Ret t.
+Lemma unfold_0_preempt{E C X}`{B1 -< C}`{parE -< E}(i: nat) (t: ctree E C X):
+  preempt (take 0 t) i ≅ trigger (Switch i) ;; Ret t.
 Proof.
   intros; unfold preempt.
   upto_bind_eq.
-  rewrite unfold_0_take, translate_ret.
-  reflexivity.
+  now rewrite unfold_0_take.
 Qed.
 
-Lemma unfold_Sn_preempt{E C X}`{B1 -< C}: forall (i: nat) (n: nat) (t: ctree E C X),
-    preempt (take (S n) t) i ≅ trigger (inr1 (Switch i)) ;;
+Lemma unfold_Sn_preempt{E C X}`{B1 -< C}`{parE -< E}:
+  forall (i: nat) (n: nat) (t: ctree E C X),
+    preempt (take (S n) t) i ≅ trigger (Switch i) ;;
     match observe t with
     | RetF x => Ret (Ret x)
-    | VisF e k => Vis (inl1 e) (fun i => translate inl1 (take n (k i))) 
-    | BrSF c k => Br true c (fun i => translate inl1 (take n (k i))) 
-    | BrDF c k => Br false c (fun i => translate inl1 (take (S n) (k i)))
+    | VisF e k => Vis e (fun i => take n (k i))
+    | BrSF c k => Br true c (fun i => take n (k i)) 
+    | BrDF c k => Br false c (fun i => take (S n) (k i))
     end.
 Proof.
   intros; unfold preempt.
   upto_bind_eq.
-  rewrite unfold_take, unfold_translate.
+  rewrite unfold_take.
   desobs t; auto; destruct vis; reflexivity.
 Qed.
 
@@ -157,9 +157,9 @@ Qed.
 (*| A round robbin scheduler |*)
 Section RR.
 
-  Context {E C: Type -> Type} {X: Type} {HasTau: B1 -< C}.
+  Context {E C: Type -> Type} {X: Type} {HasTau: B1 -< C} {Par: parE -< E}.
   
-  Equations rr'{n} (v: vec n (ctree E C X)) :ctree (E +' parE) C (vec n (ctree E C X)) :=
+  Equations rr'{n} (v: vec n (ctree E C X)) :ctree E C (vec n (ctree E C X)) :=
     rr' (n:=0) [] := Ret [];
     rr' (n:=S n') (h :: ts) := 
         x <- preempt (take 1 h) n' ;;
@@ -168,7 +168,7 @@ Section RR.
    
   (*| Round robbin scheduler |*)
   Definition rr{n}: vec n (ctree E C X) ->
-                    ctree (E +' parE) C (vec n (ctree E C X)) :=   
+                    ctree E C (vec n (ctree E C X)) :=   
     CTree.forever rr'.
 
   Lemma unfold_rr {n}: forall (v: vec n (ctree E C X)),
@@ -179,11 +179,11 @@ End RR.
 
 Section RRR.
 
-  Context {E C: Type -> Type} {X: Type} {HasTau: B1 -< C} {Hasn: Bn -< C}.
+  Context {E C: Type -> Type} {X: Type} {HasTau: B1 -< C} {Hasn: Bn -< C}
+          {Par: parE -< E}.
 
   (* Randomly pick the next process to schedule, with no replacement *)
-  Equations rrr' {n} (v: vec n (ctree E C X)) :
-    ctree (E +' parE) C (vec n (ctree E C X)) :=
+  Equations rrr' {n} (v: vec n (ctree E C X)): ctree E C (vec n (ctree E C X)) :=
     rrr' (n:=0) []%vector := Ret [];
     rrr' (n:=S n') (h :: ts) := let v := h :: ts in
         i <- branch false (branchn (S n')) ;;        
@@ -192,7 +192,7 @@ Section RRR.
         Ret (x :: xs).
 
   (*| Guarded coinduction of [rrr'] |*)
-  Definition rrr {n} : vec n (ctree E C X) -> ctree (E +' parE) C (vec n (ctree E C X)) :=
+  Definition rrr {n} : vec n (ctree E C X) -> ctree E C (vec n (ctree E C X)) :=
     CTree.forever rrr'.
 
   Lemma unfold_rrr {n}: forall (v: vec n (ctree E C X)),

@@ -15,7 +15,7 @@ From CTree Require Import
      FoldStateT.
 
 From Coq Require Import
-     Setoid
+     Classes.SetoidClass
      Classes.RelationPairs.
 
 From ExtLib Require Import
@@ -616,23 +616,26 @@ Section transitive_closure_of_ktrans.
   Import CtlNotations.
   Local Open Scope ctl_scope.
   Context {E C: Type -> Type} {X Σ: Type} {HasStuck: B0 -< C} {h: E ~~> state Σ}.
+
+  Definition TΣ : EqType := 
+	{| type_of := (ctree E C X * Σ)%type ; Eq := (equ eq * eq)%signature |}.
+    
+  Program Definition ktrans_inv (φ: CtlFormula): srel TΣ TΣ :=
+    {| hrel_of '(t, s) '(t',s') := ktrans (t,s) (t',s') /\ <( t', s' |= φ )> |}. 
+  Next Obligation.
+    destruct H as (HA & HB);
+      unfold RelCompFun in HA, HB; cbn in HA, HB.
+    destruct H0 as (HA' & HB');
+      unfold RelCompFun in HA', HB'; cbn in HA', HB'.
+    subst; rewrite HA; rewrite HA'; intuition.
+  Qed.
   
-  Inductive ktrans_transclos_with_invariant(φ: @CtlFormula Σ): ctree E C X * Σ -> X * Σ -> Prop :=
-  | kTransBase: forall (t t': ctree E C X) s x,
-      <( t, s |= φ )> ->
-      trans (val x) t stuckD ->
-      ktrans_transclos_with_invariant φ (t, s) (x, s)
-  | kTransStep: forall t t' s s' x s'',      
-      <( t', s' |= φ )> ->
-      ktrans (t, s) (t', s') ->
-      ktrans_transclos_with_invariant φ (t', s') (x, s'') ->
-      ktrans_transclos_with_invariant φ (t, s) (x, s'').
-      
 End transitive_closure_of_ktrans.
 
-Notation "w '⇓{' φ '}' x" := (ktrans_transclos_with_invariant φ w x) (at level 50, φ custom ctl, left associativity).
-            
-Infix "≡" := (sem_equiv) (at level 40, left associativity).
+From RelationAlgebra Require Import monoid rel.
+
+Notation "w '⇓{' φ '}' '(' x ',' s ')'" := ((ktrans_inv φ)^* w (Ret x, s)) (at level 50, φ custom ctl, left associativity).            
+Infix "⩸" := (sem_equiv) (at level 40, left associativity).
 
 (*| Laws of CTL |*)
 Section Equalities.
@@ -664,7 +667,7 @@ Section Equalities.
 
 
   Lemma ctl_au_ax: forall (p q: CtlFormula),
-      <( p AU q )> ≡ <( q \/ (p /\ AX (p AU q)) )>.
+      <( p AU q )> ⩸ <( q \/ (p /\ AX (p AU q)) )>.
   Proof.
     split; intros.
     - inv H; [now left | now right].
@@ -672,7 +675,7 @@ Section Equalities.
   Qed.
 
   Lemma ctl_eu_ex: forall (p q: CtlFormula),
-      <( p EU q )>  ≡ <( q \/ (p /\ EX (p EU q)) )>.
+      <( p EU q )> ⩸ <( q \/ (p /\ EX (p EU q)) )>.
   Proof.
     split; cbn; intros.
     - inv H; [now left | now right].
@@ -680,7 +683,7 @@ Section Equalities.
   Qed.
   
   Lemma ctl_af_ax: forall (p: CtlFormula),
-      <( AF p )>  ≡ <( p \/ AX (AF p) )>.
+      <( AF p )> ⩸ <( p \/ AX (AF p) )>.
   Proof.
     split; intros; inv H.
     1,3 : now left.
@@ -688,7 +691,7 @@ Section Equalities.
   Qed.
 
   Lemma ctl_ef_ex: forall (p: CtlFormula),
-      <( EF p )>  ≡ <( p \/ EX (EF p) )>.
+      <( EF p )> ⩸ <( p \/ EX (EF p) )>.
   Proof.
     split; intros; inv H.
     1,3: now left.
@@ -696,7 +699,7 @@ Section Equalities.
   Qed.
 
   Lemma ctl_ar_ax: forall (p q: CtlFormula),
-      <( p AR q )>  ≡ <( p /\ (q \/ AX (p AR q)) )>.
+      <( p AR q )> ⩸ <( p /\ (q \/ AX (p AR q)) )>.
    Proof. 
      split; intros.
      - split; step in H; inv H; auto.
@@ -707,7 +710,7 @@ Section Equalities.
   Qed.
 
    Lemma ctl_er_ex: forall (p q: CtlFormula),
-      <( p ER q )>  ≡ <( p /\ (q \/ EX (p ER q)) )>.
+      <( p ER q )> ⩸ <( p /\ (q \/ EX (p ER q)) )>.
    Proof. 
      split; intros.
      - split; step in H; inv H; auto.
@@ -718,7 +721,7 @@ Section Equalities.
   Qed.
 
    Lemma ctl_ag_ax: forall (p: CtlFormula),
-       <( AG p )>  ≡ <( p /\ AX (AG p) )>.
+       <( AG p )> ⩸ <( p /\ AX (AG p) )>.
    Proof. 
      split; intros.
      - split; step in H; now inv H.
@@ -726,7 +729,7 @@ Section Equalities.
    Qed.
 
    Lemma ctl_eg_ex: forall (p: CtlFormula),
-      <( EG p )>  ≡ <( p /\ EX (EG p) )>.
+      <( EG p )> ⩸ <( p /\ EX (EG p) )>.
   Proof. 
     split; intros.
     - split; step in H; now inv H.
@@ -734,7 +737,7 @@ Section Equalities.
   Qed.
 
   Lemma ctl_ag_involutive: forall (p: CtlFormula),
-      <( AG p )>  ≡ <( AG (AG p) )>.
+      <( AG p )> ⩸ <( AG (AG p) )>.
   Proof. 
     split; intros; unfold_entails;
       revert H; revert t s; coinduction R CIH; intros.    
