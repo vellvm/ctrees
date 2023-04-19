@@ -307,13 +307,12 @@ Section sbisim'_homogenous_theory.
 End sbisim'_homogenous_theory.
 
 Section sbisim'_heterogenous_theory.
-  Arguments label: clear implicits.
   Context {E F C D: Type -> Type} {X Y: Type}
           {L: rel (@label E) (@label F)}
           {HasStuck1: B0 -< C} {HasStuck2: B0 -< D}.
 
-  Notation sb' := (@sb' E F C D X Y _ _).
-  Notation sbisim'  := (@sbisim' E F C D X Y _ _).
+  Notation sb' := (@sb' E F C D X Y HasStuck1 HasStuck2).
+  Notation sbisim'  := (@sbisim' E F C D X Y HasStuck1 HasStuck2).
   Notation st' L := (coinduction.t (sb' L)).
   Notation sbt' L := (coinduction.bt (sb' L)).
   Notation sT' L := (coinduction.T (sb' L)).
@@ -361,12 +360,11 @@ Section sbisim'_heterogenous_theory.
     now rewrite H0, H1 in H2.
   Qed.
 
-  #[global] Instance equ_clos_sT'_goal RR f :
-    Proper (eq ==> equ eq ==> equ eq ==> flip impl) (sT' L f RR).
-  Proof.
-    cbn; intros ? ? ? ? ? eq1 ? ? eq2 H. subst.
-    apply (fT_T equ_clos_st'); econstructor; [eauto | | symmetry; eauto]; assumption.
-  Qed.
+  #[global] Instance equ_clos_sT'_goal RR f x :
+    Proper (equ eq ==> equ eq ==> flip impl) (sT' L f RR x).
+    cbn; intros ? ? eq1 ? ? eq2 H.
+    apply (fT_T equ_clos_st'); econstructor; [eauto | | symmetry; eassumption]; assumption.
+  Time Qed.
 
   #[global] Instance equ_clos_sT'_ctx RR f :
     Proper (eq ==> equ eq ==> equ eq ==> impl) (sT' L f RR).

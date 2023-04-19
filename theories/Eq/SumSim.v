@@ -28,7 +28,7 @@ Arguments trans : simpl never.
 
 (*| The function defining weak simulation (left plays): [trans] of [L] must be answered by
   [ltrans] of [L +' R] plays. |*)
-Program Definition wsl {L R C X} `{B0 -< C}: 
+Program Definition wsl {L R C X} `{B0 -< C}:
   mon (ctree L C X -> ctree (L +' R) C X -> Prop) :=
   {| body R t u :=
     forall l t' (x: X), trans (obs l x) t t' -> exists u' , ltrans l x u u' /\ R t' u'
@@ -39,7 +39,7 @@ Qed.
 
 (*| The function defining weak simulation (right plays): [trans] of [R] must be answered by
   [rtrans] of [L +' R] plays. |*)
-Program Definition wsr {L R C X} `{B0 -< C}: 
+Program Definition wsr {L R C X} `{B0 -< C}:
   mon (ctree R C X -> ctree (L +' R) C X -> Prop) :=
   {| body R t u :=
     forall l t' (x: X), trans (obs l x) t t' -> exists u' , rtrans l x u u' /\ R t' u'

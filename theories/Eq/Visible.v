@@ -10,7 +10,7 @@ From RelationAlgebra Require Import
      normalisation.
 
 From Coinduction Require Import
-	 coinduction rel tactics.
+	coinduction rel tactics.
 
 From CTree Require Import
 	   CTree Eq.Shallow Eq.Equ.
