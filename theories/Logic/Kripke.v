@@ -49,7 +49,7 @@ Notation "E ~~> S" := (Handler E S) (at level 99, right associativity) : type_sc
     end.
 
 (*| Invert [ktrans] |*)
-Ltac shallow_inv_ktrans H := dependent destruction H; try solve [inv H];
+Ltac shallow_inv_ktrans H := cbn in H; dependent destruction H; try solve [inv H];
                              intuition; unfold trans,transR in H; cbn in H;
                              dependent destruction H;
                              repeat change (CTree.subst ?k ?t) with (CTree.bind t k) in H;
@@ -61,27 +61,27 @@ Ltac shallow_inv_ktrans H := dependent destruction H; try solve [inv H];
 Section Kripke.
   Context {E C: Type -> Type} {X S: Type}
           `{h: E ~~> state S} `{HasStuck: B0 -< C}.
-
   (* Kripke state predicates *)
-  Notation SP := (ctree E C X -> S -> Prop).
-    
+  Definition TS : EqType := 
+    {| type_of := (ctree E C X * S)%type ; Eq := (equ eq * eq)%signature |}.
+
   (* Kripke transition given a handler *)
-  Variant ktrans: (ctree E C X * S) -> (ctree E C X * S) -> Prop :=
+  Variant ktransR: hrel TS TS :=
     | kTau (t u: ctree E C X) (s: S):
       trans tau t u ->
-      ktrans (t, s) (u, s)
+      ktransR (t, s) (u, s)
     | kVis (t u: ctree E C X) {Y} (x: Y) (e: E Y) (s: S):
       trans (obs e x) t u ->
-      ktrans (t, s) (u, execState (h e) s)
+      ktransR (t, s) (u, execState (h e) s)
     | kRet (t u: ctree E C X) (x: X) (s: S):
       trans (val x) t stuckD ->
       u ≅ Ret x ->
-      ktrans (t, s) (u, s).
+      ktransR (t, s) (u, s).
 
-  Hint Constructors ktrans: core.
-
-  #[global] Instance proper_ktrans_equ:
-    Proper (equ eq * eq ==> equ eq * eq ==> iff) ktrans.
+  Hint Constructors ktransR: core.
+  
+  #[global] Instance proper_ktransR_equ:
+    Proper (equ eq * eq ==> equ eq * eq ==> iff) ktransR.
   Proof.
     unfold Proper, respectful, impl; cbn.
     intros [t s] [u x] [EQt ?] [t' s'] [u' x'] [EQt' H3]; simpl in *.
@@ -99,6 +99,24 @@ Section Kripke.
     - apply kRet with x0; [now rewrite EQt | now rewrite EQt'].
   Qed.
 
+  Program Definition ktrans: srel TS TS :=
+    {| hrel_of '(t, s) '(t',s') := ktransR (t,s) (t',s') |}. 
+  Next Obligation.
+    destruct H as (HA & HB);
+      unfold RelCompFun in HA, HB; cbn in HA, HB.
+    destruct H0 as (HA' & HB');
+      unfold RelCompFun in HA', HB'; cbn in HA', HB'.
+    subst; rewrite HA; rewrite HA'; intuition.
+  Qed.
+
+  #[global] Instance proper_ktrans_equ:
+    Proper (equ eq * eq ==> equ eq * eq ==> iff) ktrans.
+  Proof.
+    unfold Proper, respectful, impl; cbn.    
+    intros [t s] [u x] [EQt ?] [t' s'] [u' x'] [EQt' H3]; simpl in *.
+    apply proper_ktransR_equ; auto.
+  Qed.
+
   (* LEF: Is this true?
   Lemma trans_obs_sbisim {Y}: forall (t t' u: ctree E C X) (e: E Y) (x: Y) (k: Y -> ctree E C X),
       trans (obs e x) t (k x) ->
@@ -114,12 +132,13 @@ Section Kripke.
   Proof.
     intros * TR  Hsb.
     inv TR; intros.
-    1,2: step in Hsb; apply Hsb in H0 as (l2 & t2' & TR2 & ? & <-); exists t2'; split; eauto.
-    exists (Ret x); rewrite H4; split; eauto.
+    1,2: step in Hsb; apply Hsb in H0 as (l2 & t2' & TR2 & ? & <-); exists t2'; cbn; split; eauto.
+    exists (Ret x); rewrite H4; split; eauto; cbn.
     apply kRet with x; [| reflexivity]. 
     apply trans_val_sbisim with (u:=t2) in H2 as (? & ? & ?); eauto.
     now rewrite H in H0.
   Qed.
+
 
   Lemma ktrans_ret: forall x (t t': ctree E C X) s s',
       ktrans (Ret x, s) (t', s') <->
@@ -127,9 +146,18 @@ Section Kripke.
   Proof.
     split; intros.
     - shallow_inv_ktrans H.
-    - destruct H as (-> & ->); eapply kRet; eauto; econstructor.
+    - destruct H as (-> & ->); cbn; eapply kRet; eauto; econstructor.
   Qed.
 
+  Lemma ktrans_ret_refl: forall {x s},
+      ktrans (Ret x, s) (Ret x, s).
+  Proof.
+    intros.
+    apply ktrans_ret.
+    - exact (Ret x).
+    - intuition.
+  Qed.
+    
   Lemma ktrans_tau_inv: forall {Y : Type} (c : C Y) (t': ctree E C X) (k: Y -> ctree E C X) s s',
       ktrans (BrS c k, s) (t', s') ->
       exists x, t' ≅ k x /\ s = s'.
@@ -145,7 +173,7 @@ Section Kripke.
   Proof.
     intros.
     destruct H as (-> & ->).
-    apply kTau; econstructor; eauto.
+    cbn; apply kTau; econstructor; eauto.
   Qed.
 
   Lemma ktrans_vis_inv: forall {Y: Type} (e: E Y) (t': ctree E C X) (k: Y -> ctree E C X) s s',
@@ -163,7 +191,7 @@ Section Kripke.
   Proof.
     intros.
     destruct H as (-> & ->).
-    eapply kVis; econstructor; eauto.
+    cbn; eapply kVis; econstructor; eauto.
   Qed.
 
   Lemma ktrans_trigger_inv: forall {Y: Type} (e: E Y) u (k: Y -> ctree E C X) s s',
@@ -198,26 +226,26 @@ Proof with eauto.
   intros.
   inv H0.
   - apply trans_bind_inv in H2 as [(HV & t' & TR & EQu) | (x & TRv & TRu)].
-    + left; split.
+    + left; split; cbn.
       * intro CONTRA; destruct CONTRA as (tc & ?);
           rewrite H0 in TR; inversion TR.
       * exists t'; split...
         now apply kTau.
-    + right; exists x; split.
+    + right; exists x; split; cbn.
       * now apply kRet with x.
       * now apply kTau.
   - apply trans_bind_inv in H2 as [(HV & t' & TR & EQu) | (x' & TRv & TRu)].
-    + left; split.
+    + left; split; cbn.
       * intro CONTRA; destruct CONTRA as (tc & ?);
           rewrite H0 in TR; inversion TR.
       * exists t'; split...
         eapply kVis...
-    + right; exists x'; split.
+    + right; exists x'; split; cbn.
       * now apply kRet with x'.
       * eapply kVis...
   - apply trans_bind_inv in H4 as [(HV & t' & TR & EQu) | (x' & TRv & TRu)].
     + now contradiction HV.
-    + right; exists x'; split.
+    + right; exists x'; split; cbn.
       * now apply kRet with x'.
       * rewrite H6.
         now apply kRet with x.

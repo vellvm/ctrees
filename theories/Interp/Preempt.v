@@ -120,6 +120,7 @@ Proof.
   now rewrite unfold_0_take.
 Qed.
 
+
 Lemma unfold_Sn_preempt{E C X}`{B1 -< C}`{parE -< E}:
   forall (i: nat) (n: nat) (t: ctree E C X),
     preempt (take (S n) t) i ≅ trigger (Switch i) ;;
@@ -136,6 +137,23 @@ Proof.
   desobs t; auto; destruct vis; reflexivity.
 Qed.
 
+Lemma unfold_1_preempt{E C: Type -> Type} X `{B1 -< C}`{parE -< E}(i: nat) (t: ctree E C X):
+  preempt (take 1 t) i ≅ trigger (Switch i) ;;
+  match observe t with
+  | RetF x => Ret (Ret x)
+  | VisF e k => Vis e (fun x => Ret (k x))
+  | BrSF c k => Br true c (fun x => Ret (k x))
+  | BrDF c k => Br false c (fun x => take 1 (k x))
+  end.
+Proof.
+  intros.
+  rewrite unfold_Sn_preempt.
+  upto_bind_eq.
+  desobs t; auto.
+  - step; econstructor; intro x; step; reflexivity.
+  - destruct vis; step; econstructor; intros; step; reflexivity.
+Qed.
+    
 (*| Re-attach split ctrees |*)
 Notation flatten u := (u >>= (fun x => x)) (only parsing).
 

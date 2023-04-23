@@ -65,10 +65,18 @@ Definition proc (id: uid)(n: nat): ctree ((netE uid +' parE) +' csE) B01 unit :=
                     | None => Ret (inl tt)
                     end) tt) tt.
 
+From Equations Require Import Equations.
+
+
 Lemma election_live: 
-    <( {rr [proc 0 3; proc 1 3; proc 2 3]},
-     {([]%list, 0, false)} |= AG (AF now {fun '(_, b) => b = true}) )>.
+    <( {rr [proc 2 3; proc 1 3; proc 0 3]}, {([]%list, 0, false)} |= AG (AF now {fun '(_, b) => b = true}) )>.
 Proof.
-  unfold rr.
-  eapply ctl_forever_ar.
+  next.
+  split.
+  - rewrite unfold_rr; simp rr'; rewrite bind_bind, unfold_1_preempt;
+      remember (proc 2 3) as P2; unfold proc in HeqP2; subst; rewrite bind_bind.
+    eapply ctl_bind_au.
+    right.
+    intros.
 Admitted.  
+
