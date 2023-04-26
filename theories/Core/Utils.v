@@ -1,3 +1,5 @@
+#[global] Set Warnings "-intuition-auto-with-star".
+
 From Coq Require Import Fin.
 From Coq Require Export Program.Equality.
 From Coinduction Require Import

@@ -96,17 +96,17 @@ In the heterogeneous case, the relation is not symmetric.
   Proof.
     split; intros.
     - split.
-      + epose proof (weq_ss H). do 13 red in H1. setoid_rewrite <- H1. apply H0.
+      + epose proof (weq_ss H). cbn in H1. setoid_rewrite <- H1. apply H0.
       + cbn in H. assert (flip x == flip y).
         { cbn. split; intro. apply H. apply H1. apply H. apply H1. }
         epose proof (weq_ss H1).
-        do 13 red in H2. setoid_rewrite <- H2. apply H0.
+        cbn in H2. setoid_rewrite <- H2. apply H0.
     - split.
-      + epose proof (weq_ss H). do 13 red in H1. setoid_rewrite H1. apply H0.
+      + epose proof (weq_ss H). cbn in H1. setoid_rewrite H1. apply H0.
       + cbn in H. assert (flip x == flip y).
         { cbn. split; intro. apply H. apply H1. apply H. apply H1. }
         epose proof (weq_ss H1).
-        do 13 red in H2. setoid_rewrite H2. apply H0.
+        cbn in H2. setoid_rewrite H2. apply H0.
   Qed.
 
 End StrongBisim.
