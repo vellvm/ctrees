@@ -25,6 +25,8 @@ From CTree Require Import
      Logic.Kripke
      Logic.Ctl.
 
+From Equations Require Import Equations.
+
 Import CTreeNotations ListNotations VectorNotations CtlNotations.
 Local Open Scope vector_scope.
 Local Open Scope ctree_scope.
@@ -32,51 +34,39 @@ Local Open Scope ctl_scope.
 
 Set Implicit Arguments.
 
-Variant csE: Type -> Type :=
-  | In_CS: bool -> csE unit.
-
-Definition enter_cs {E C} `{csE -< E}: ctree E C unit :=
-  trigger (In_CS true). 
-Definition exit_cs {E C} `{csE -< E}: ctree E C unit :=
-  trigger (In_CS false). 
-
-#[global] Instance handler_cs: csE ~~> state bool :=
-  fun _ e => match e with In_CS b => put b end.
+Variant message :=
+  | Candidate (u: nat)
+  | Elected (u: nat).
 
 (*| Client process |*)
-Definition proc (id: uid)(n: nat): ctree ((netE uid +' parE) +' csE) B01 unit :=
+Definition proc (id: uid)(n: nat): ctree (netE message +' parE) B01 unit :=
   let right := modulo (S id) n in
-  CTree.forever (fun _ =>
-      (* 1. Send my [id] to the process on the right *)
-      send right id;;
-      (* 2. Loop until received [CS] message *)
-      CTree.iter (fun _ =>
-                    m <- recv;;
-                    match m with
-                    | Some x =>
-                        match Nat.compare x id with
-                        (* Maybe my [right] neighbor is the leader *)
-                        | Gt => send right x;; Ret (inr tt)
-                        (* smaller [id] means definitely not the leader *)
-                        | Lt => Ret (inr tt)
-                        (* I am the leader! *)
-                        | Eq => enter_cs ;; Ret (inr tt)
-                        end                    
-                    | None => Ret (inl tt)
-                    end) tt) tt.
+  (* 1. Send my [id] to the process on the right *)
+  send right (Candidate id);;
+  (* 2. Loop until we know the leader *)
+  CTree.iter (fun _ =>
+                m <- recv;;
+                match m with
+                | Some (Candidate candidate) =>
+                    match Nat.compare candidate id with (* candidate < id *)
+                    (* My [left] neighbor proposed a candate, I support that candidate *)
+                    | Gt => send right (Candidate candidate) ;; Ret (inl tt)
+                    (* My left neighbor proposed a candidate, I do not support him *)
+                    | Lt => Ret (inl tt)
+                    (* I am the leader, but only I know *)
+                    | Eq => send right (Elected id) ;; Ret (inr tt)
+                    end
+                | Some (Elected x) =>
+                    (* I know [x] is the leader *)
+                    send right (Elected x) ;; Ret (inr tt)
+                | None => Ret (inl tt) (* dropped packet *)
+                end) tt.
 
-From Equations Require Import Equations.
-
-
-Lemma election_live: 
-    <( {rr [proc 2 3; proc 1 3; proc 0 3]}, {([]%list, 0, false)} |= AG (AF now {fun '(_, b) => b = true}) )>.
+(*| The mailbox of the leader will eventually have a message that he was elected. (edited) |*)
+Lemma election_live:
+  <( {rr [proc 0 1; proc 1 2; proc 2 0]},
+     {([]%list, 0)} |= AF now {(fun '(qs,id) => nth_error qs id = Some [Elected id]%list)})>.
 Proof.
   next.
-  split.
-  - rewrite unfold_rr; simp rr'; rewrite bind_bind, unfold_1_preempt;
-      remember (proc 2 3) as P2; unfold proc in HeqP2; subst; rewrite bind_bind.
-    eapply ctl_bind_au.
-    right.
-    intros.
 Admitted.  
 
