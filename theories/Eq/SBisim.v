@@ -791,15 +791,22 @@ Proof.
   now apply st_clo_bind_eq.
 Qed.
 
-(*|
-And in particular, we get the proper instance justifying rewriting [~ L] to the left of a [bind].
-|*)
 (*#[global] Instance bind_sbisim_cong_gen {E C X X'} (RR: relation (ctree E C X')) `{HasStuck: B0 -< C}
       {L: relation (@label E)} {RL: Reflexive L}:
   Proper (sbisim eq ==> (fun f g => forall x, st L RR (f x) (g x)) ==> st L RR) (@bind E C X X').
 Proof.
   repeat red; intros. eapply st_clo_bind_gen. 2: apply H.
-   Qed.*)
+  (* is_update_val_rel is too strong, eq is just a subrelation here *)
+Abort.*)
+
+(*|
+And in particular, we get the proper instance justifying rewriting [~] to the left of a [bind].
+|*)
+#[global] Instance bind_sbisim_cong_gen {E C X X'} (RR: relation (ctree E C X')) `{HasStuck: B0 -< C}:
+  Proper (sbisim eq ==> pointwise_relation X (st eq RR) ==> st eq RR) (@bind E C X X').
+Proof.
+  repeat red; intros. now apply st_clo_bind_eq.
+Qed.
 
 Ltac __upto_bind_sbisim :=
   match goal with
