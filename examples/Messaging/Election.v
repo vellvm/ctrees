@@ -62,7 +62,7 @@ Definition proc (id: uid)(n: nat): ctree (netE message +' parE) B01 unit :=
                 | None => Ret (inl tt) (* dropped packet *)
                 end) tt.
 
-(*| The mailbox of the leader will eventually have a message that he was elected. (edited) |*)
+(*| The mailbox of the leader will eventually have a message that he was elected. |*)
 Lemma election_live:
   <( {rr [proc 0 1; proc 1 2; proc 2 0]},
      {([]%list, 0)} |= AF now {(fun '(qs,id) => nth_error qs id = Some [Elected id]%list)})>.

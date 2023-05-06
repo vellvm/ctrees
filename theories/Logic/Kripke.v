@@ -48,6 +48,15 @@ Notation "E ~~> S" := (Handler E S) (at level 99, right associativity) : type_sc
         ret r
     end.
 
+
+#[global] Instance handler_prod_assoc {E A B C }{h: E ~~> state (A * (B * C))}:
+  E ~~> state (A * B * C) :=
+  fun _ e =>
+    '(x, y, z) <- get ;;
+    let '(r, (a, (b, c))) := runState (handler _ e) (x, (y, z)) in
+    put (a, b ,c) ;;
+    ret r.
+
 (*| Invert [ktrans] |*)
 Ltac shallow_inv_ktrans H := cbn in H; dependent destruction H; try solve [inv H];
                              intuition; unfold trans,transR in H; cbn in H;

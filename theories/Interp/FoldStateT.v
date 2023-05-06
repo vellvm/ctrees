@@ -819,7 +819,7 @@ From ExtLib Require Import
 
 From CTree Require Import Logic.Kripke.
 
-#[global] Instance stateE_state{S}: stateE S ~~> state S :=
+#[global] Instance handler_stateE{S}: stateE S ~~> state S :=
   fun _ e =>
     match e with
     | Get _ => get

@@ -176,7 +176,7 @@ Qed.
 Section RR.
 
   Context {E C: Type -> Type} {X: Type} {HasTau: B1 -< C} {Par: parE -< E}.
-  
+    
   Equations rr'{n} (v: vec n (ctree E C X)) :ctree E C (vec n (ctree E C X)) :=
     rr' (n:=0) [] := Ret [];
     rr' (n:=S n') (h :: ts) := 
