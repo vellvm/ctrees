@@ -62,10 +62,10 @@ Definition client (baker: uid)(id: uid): Client :=
                                  enter_cs;;
                                  (* DO WORK HERE*)
                                  exit_cs;;
-                                 Ret (inr tt)
+                                 exit
                                else
-                                 Ret (inl tt)                                 
-                    | None => Ret (inl tt)
+                                 retry
+                    | None => retry
                     end) tt) tt.
 
 (* Find the minimum number *)
@@ -95,9 +95,8 @@ Definition baker(bkid: uid): Client :=
                     match m with
                     | Some id =>
                         put (S cnt, alist_add _ id cnt book);;
-                        Ret (inr tt)
-                    | None =>
-                        Ret (inl tt)
+                        exit
+                    | None => retry
                     end) tt) tt.
 
 Fixpoint range{A} n (f: nat -> A): vec n A :=
@@ -112,17 +111,38 @@ Notation requested_ticket bid i ts :=
 Notation entered_cs i :=
   <( now {(fun '(_, id, cs, _, _) => cs = true /\ i = id)} )>.
 
-Check (rr (baker 0 :: range 3 (client 0))%vector).
-
 Definition init_state : (list (list uid) * uid * bool * uid * alist uid uid) :=
   (List.nil, 0, false, 0, []%list).
 
-Lemma bakery_live: forall n i ts,
+Lemma bakery_safety: forall n i j,
+    i <> j ->
     <( {rr (baker 0 :: range n (client 0))%vector},
-       init_state |= AG ({requested_ticket 0 i ts} -> AF {entered_cs i}))>.
+       init_state |= AG (¬ {entered_cs i} /\ {entered_cs j}))>.
 Proof.
-  intros.  
-  next.
+  intros.
+Admitted.
+
+Lemma bakery_liveness: forall n i ts,
+    <( {rr (baker 0 :: range n (client 0))%vector},
+       init_state |= AG ({requested_ticket 0 i ts} ->
+                         AF {entered_cs i}))>.
+Proof.
+  intro n.
+  induction n; unfold init_state; intros.
+  - unfold rr; simp rr'.
+    Opaque entailsF.
+    apply AG_coind''.
+    intros.
+    apply AG_coind''.
+    intros.
+    admit.
+  -
+    cbn.
+    apply AG_coind''.
+    intros CIH t' s' TR.
+    
+    intros.
+    next.
   split.
   - intro H.
 Admitted.  

@@ -16,6 +16,12 @@ Declare Scope fin_vector_scope.
 Notation vec n T := (Vector.t T n).
 Notation fin := Fin.t.
 
+Definition init T :=
+  @Vector.caseS _ (fun n v => vec n T) (fun h n t => t).
+
+Global Arguments init {T} {n} v.
+
+
 Equations vector_remove{A n}(v: vec (S n) A)(i: fin (S n)) : vec n A by wf n lt :=
   vector_remove (h :: h' :: ts) (FS (FS j)) := h :: (vector_remove (h' :: ts) (FS j));
   vector_remove (h :: h' :: ts) (FS F1) := h :: ts;
@@ -133,16 +139,16 @@ Section VInversion.
 End VInversion.
 
 (** List utils *)
-Fixpoint last{A}(l: list A): option A :=
+Fixpoint list_last{A}(l: list A): option A :=
   match l with
   | List.nil => None
   | List.cons h List.nil => Some h
-  | List.cons h ts => last ts
+  | List.cons h ts => list_last ts
   end.
 
-Fixpoint init{A}(l: list A): list A :=
+Fixpoint list_init{A}(l: list A): list A :=
   match l with
   | List.nil => List.nil
   | List.cons h List.nil => List.nil
-  | List.cons h ts => List.cons h (init ts)
+  | List.cons h ts => List.cons h (list_init ts)
   end.

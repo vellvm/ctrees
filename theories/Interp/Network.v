@@ -35,6 +35,9 @@ Fixpoint nth_map{A}(f: A -> A)(l: list A)(i: nat) : list A :=
   | [], _ => []
   end.
 
+Notation retry := (Ret (inl tt)).
+Notation exit := (Ret (inr tt)).
+
 (*| Message passing |*)
 Section Messaging.
 
@@ -46,7 +49,7 @@ Section Messaging.
   | Send : uid -> T -> netE unit.
 
   Notation Qs := (list (list T))  (only parsing).
-
+  
   (*| This determines how we observe parallel message passing processes in our Logic |*)
   #[global] Instance handler_netE_parE: (netE +' parE) ~~> state (Qs * uid) :=
     fun X e =>

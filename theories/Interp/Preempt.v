@@ -21,7 +21,7 @@ From ExtLib Require Import
      Structures.Monad
      Structures.MonadState.
 
-From Equations Require Import Equations.
+From Equations Require Export Equations.
 
 Import CTreeNotations VectorNotations.
 
@@ -189,9 +189,28 @@ Section RR.
                     ctree E C (vec n (ctree E C X)) :=   
     CTree.forever rr'.
 
+  
+  
   Lemma unfold_rr {n}: forall (v: vec n (ctree E C X)),
       rr v ≅ r <- rr' v;; Guard (rr r).
   Proof. intros; step; cbn; auto. Qed.
+
+  Lemma unfold_Sn_rr {n}: forall (v: vec (S n) (ctree E C X)) x xs,
+      rr (x :: xs) ≅
+         (y <- preempt (take 1 x) n ;;
+          ts <- rr' xs ;;
+          Guard (@rr (S n) (y :: ts))).
+  Proof.
+    intros v x xs.
+    rewrite unfold_rr.
+    simp rr'.
+    rewrite !bind_bind.
+    upto_bind_eq.
+    rewrite !bind_bind.
+    upto_bind_eq.
+    rewrite bind_ret_l.
+    reflexivity.
+  Qed.
   
 End RR.
 

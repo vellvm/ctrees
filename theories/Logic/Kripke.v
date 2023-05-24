@@ -33,6 +33,7 @@ Class Handler(E S: Type -> Type): Type :=
 
 Notation "E ~~> S" := (Handler E S) (at level 99, right associativity) : type_scope.
 
+(*| Sums of effects give products in [state] |*)
 #[global] Instance handler_plus{A B X Y} `{HA: A ~~> state X} `{HB: B ~~> state Y}:
   A +' B ~~> state (X * Y) :=
   fun _ e =>
@@ -48,7 +49,7 @@ Notation "E ~~> S" := (Handler E S) (at level 99, right associativity) : type_sc
         ret r
     end.
 
-
+(*| Auto-associate products left |*)
 #[global] Instance handler_prod_assoc {E A B C }{h: E ~~> state (A * (B * C))}:
   E ~~> state (A * B * C) :=
   fun _ e =>
