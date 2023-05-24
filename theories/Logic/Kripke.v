@@ -71,7 +71,7 @@ Section Kripke.
   Context {E C: Type -> Type} {X S: Type}
           `{h: E ~~> state S} `{HasStuck: B0 -< C}.
   (* Kripke state predicates *)
-  Definition TS : EqType := 
+  Definition TS : EqType :=
     {| type_of := (ctree E C X * S)%type ; Eq := (equ eq * eq)%signature |}.
 
   (* Kripke transition given a handler *)
@@ -88,13 +88,13 @@ Section Kripke.
       ktransR (t, s) (u, s).
 
   Hint Constructors ktransR: core.
-  
+
   #[global] Instance proper_ktransR_equ:
     Proper (equ eq * eq ==> equ eq * eq ==> iff) ktransR.
   Proof.
     unfold Proper, respectful, impl; cbn.
     intros [t s] [u x] [EQt ?] [t' s'] [u' x'] [EQt' H3]; simpl in *.
-    unfold RelCompFun in *; cbn in *; subst.    
+    unfold RelCompFun in *; cbn in *; subst.
     split; intro H; inv H.
     - rewrite EQt, EQt' in H1.
       now apply kTau.
@@ -109,7 +109,7 @@ Section Kripke.
   Qed.
 
   Program Definition ktrans: srel TS TS :=
-    {| hrel_of '(t, s) '(t',s') := ktransR (t,s) (t',s') |}. 
+    {| hrel_of '(t, s) '(t',s') := ktransR (t,s) (t',s') |}.
   Next Obligation.
     destruct H as (HA & HB);
       unfold RelCompFun in HA, HB; cbn in HA, HB.
@@ -121,7 +121,7 @@ Section Kripke.
   #[global] Instance proper_ktrans_equ:
     Proper (equ eq * eq ==> equ eq * eq ==> iff) ktrans.
   Proof.
-    unfold Proper, respectful, impl; cbn.    
+    unfold Proper, respectful, impl; cbn.
     intros [t s] [u x] [EQt ?] [t' s'] [u' x'] [EQt' H3]; simpl in *.
     apply proper_ktransR_equ; auto.
   Qed.
@@ -131,7 +131,7 @@ Section Kripke.
       trans (obs e x) t (k x) ->
       t ~ u ->
       exists s, s ~ k x /\ trans (obs e x) u s.
-  Proof. Qed.    
+  Proof. Qed.
    *)
 
   Lemma ktrans_sbisim_l: forall (t1 t2 t1': ctree E C X) s s',
@@ -143,7 +143,7 @@ Section Kripke.
     inv TR; intros.
     1,2: step in Hsb; apply Hsb in H0 as (l2 & t2' & TR2 & ? & <-); exists t2'; cbn; split; eauto.
     exists (Ret x); rewrite H4; split; eauto; cbn.
-    apply kRet with x; [| reflexivity]. 
+    apply kRet with x; [| reflexivity].
     apply trans_val_sbisim with (u:=t2) in H2 as (? & ? & ?); eauto.
     now rewrite H in H0.
   Qed.
@@ -166,7 +166,7 @@ Section Kripke.
     - exact (Ret x).
     - intuition.
   Qed.
-    
+
   Lemma ktrans_tau_inv: forall {Y : Type} (c : C Y) (t': ctree E C X) (k: Y -> ctree E C X) s s',
       ktrans (BrS c k, s) (t', s') ->
       exists x, t' ≅ k x /\ s = s'.
