@@ -128,6 +128,17 @@ Section From_CTree.
           | tau     => fun o => o
           end.
 
+  (* Recurrent case: τ transitions do not impact our observations *)
+  Definition obs_vis
+    {O}
+    (upd_e : {x : Type & E x & x} -> O -> O) :
+    @label E -> O -> O :=
+    fun l => match l with
+          | obs e x => upd_e (existT2 _ _ _ e x)
+          | val x   => fun o => o
+          | tau     => fun o => o
+          end.
+
   (* Observing sound termination *)
   Variant status : Set := | Running | Done.
   Definition upd_status : @label E -> status -> status :=
@@ -159,6 +170,27 @@ Section From_CTree.
    now apply sbisim_bisimK.
   Qed.
 
+  (** Building a Kripke structure over a [ctree]
+      Embarks:
+      - that τ transitions are not observed
+      - observation of safe termination
+      Is parameterized by the observation returned values and interactions
+   *)
+  Definition makeKV
+    (obs : Type)
+    (upd_e : {x : Type & E x & x} -> obs -> obs)
+    : Kripke :=
+    @makeK obs (obs_vis upd_e).
+
+  Lemma sbisim_bisimKV obs upd_e :
+    forall (t s : computation),
+      t ~ s ->
+      forall o, bisimK (@makeKV obs upd_e) (t,o) (s,o).
+  Proof.
+   intros.
+   now apply sbisim_bisimK.
+  Qed.
+
 End From_CTree.
 
 Lemma trans_trigger_last:
@@ -181,6 +213,182 @@ Proof.
   unfold CTree.trigger in TR; inv_trans; eauto.
 Qed.
 
+Section Theory.
+
+  Variable (E B : Type -> Type) (R : Type).
+  Context `{B0 -< B}.
+  Notation prog := (ctree E B R).
+
+  Notation inhabited R := R.
+  Variable (obs : Type) (upd_e: {x : Type & E x & x} -> obs -> obs).
+
+  #[local] Instance K : Kripke := @makeKV E B R _ obs upd_e.
+  Notation upd := (obs_vis upd_e).
+  (* #[export] Instance foo {E B X} `{B0 -< B} (obs : Type) : *)
+  (*   subrelation (@sbisim' E B X _ obs) (bisimK K: relation _). *)
+
+  (* Variant sbisim' : rel K K := *)
+  (* | sbisim'_ t u s (EQ : t ~ u) : sbisim' (t,s) (u,s). *)
+
+
+  (* #[local] Instance K' : Kripke := @makeK E B S _ obs upd. *)
+
+  (* Notation "t , s |= φ " := (satF φ (t,s)) (at level 80, right associativity). *)
+
+  (* We assume total (deterministic) update functions,
+     the transition in the LTS is hence enough information to
+     step in the Kripke structure.
+   *)
+  Lemma step_stepK l (t u : prog) (s : obs):
+    trans l t u ->
+    transK (t,s) (u,upd l s).
+  Proof.
+    intros * TR; econstructor; split; [apply TR | reflexivity ].
+  Qed.
+
+  Ltac next := eapply step_stepK; eauto with trans.
+  Ltac lives := econstructor; next.
+
+  (* Characterising live states *)
+  Lemma live_ret : forall (r : R) (s : obs),
+      live (Ret r,s).
+  Proof.
+    lives.
+  Qed.
+
+  Lemma live_trigger : forall (e : E R) (s : obs),
+      inhabited R ->
+      live (trigger e,s).
+  Proof.
+    unshelve lives; auto.
+  Qed.
+
+  Create HintDb ctl.
+  Hint Resolve live_ret live_trigger : ctl.
+
+  Ltac bkK :=
+    match goal with
+    | h : @stateK _ |- _ => destruct h
+    end.
+  Ltac inv_transK :=
+    (repeat bkK);
+    match goal with
+    | h : transK _ _ |- _ =>
+        destruct h as (? & ? & ?);
+        cbn in *;
+        inv_trans
+    end; cbn in *; subst.
+
+  Existing Instance sat_bisim.
+  (* Instance foo : Proper (sbisim eq ==> sbisim') (fun t => (t,o)). *)
+  Instance foo : Proper (sbisim eq ==> eq ==> bisimK _) (Datatypes.pair).
+  now repeat intro; subst; apply sbisim_bisimK.
+  Qed.
+
+  (* TODO: characterize a class of formula valid in dead states.
+     TODO: specialize over makeK'
+
+     safe_ret (φ : Formula K) : Formula K' :=
+      fun (t,(stat,o)) => stat = Done \/ satF φ (t,o)
+   *)
+  Lemma ret_AX (r : R) (φ : Formula) (s: obs) :
+    satF φ (stuckD, s) ->
+    satF (FAX φ) (Ret r, s).
+  Proof with (eauto with ctl).
+    (* intros * HS. *)
+    constructor...
+    intros.
+    now inv_transK.
+  Qed.
+
+  Lemma ret_AX' (r : R) (p : factK) (s: obs) :
+    p s ->
+    satF (FAX (FNow p)) (Ret r, s).
+  Proof with (eauto with ctl).
+    now intros; apply ret_AX.
+  Qed.
+  (* and other formula.. *)
+
+  Lemma trigger_AX (e : E _) (φ : Formula) (s: obs) :
+    inhabited R ->
+    (forall r, satF φ (Ret r, upd (Trans.obs e r) s)) ->
+    satF (FAX φ) (trigger e,s).
+  Proof with (eauto with ctl).
+    intros * r Hφ.
+    constructor...
+    intros * TR.
+    bkK.
+    destruct TR as (? & TR & ?);
+      cbn in *;
+    eapply trans_trigger_last_inv in TR as (? & ? & ?).
+    subst; rewrite H1; auto.
+  Qed.
+  (* and other formulae *)
+
+  Existing Instance EF_bisim.
+
+  Arguments satF : simpl never.
+
+  Lemma bind_EF (t : prog) (k : R -> prog) (p : factK) (s: obs) :
+    satF (FEF (FNow p)) (t,s) ->
+    satF (FEF (FNow p)) (t >>= k,s).
+  Proof with (eauto with ctl).
+    intros * HS.
+    remember (t,s) as S. revert t s HeqS.
+    induction HS; intros; subst.
+    - now constructor 1.
+    - destruct IH as (s' & TR & HF).
+      inv_transK.
+      destruct x.
+      + econstructor 2.
+        exists (x <- s;; k x, upd tau s0); split.
+        exists tau; split.
+        apply trans_bind_l; auto with trans.
+        reflexivity.
+        apply HF.
+        reflexivity.
+      + econstructor 2.
+        exists (x <- s;; k x, upd (Trans.obs e v) s0); split.
+        exists (Trans.obs e v); split.
+        apply trans_bind_l; auto with trans.
+        reflexivity.
+        apply HF.
+        reflexivity.
+      + cbn in *.
+        specialize (HF _ _ eq_refl).
+        pose proof trans_val_inv H0 as EQ.
+        rewrite EQ in HF.
+        inv HF.
+        * cbn in *.
+          now constructor 1.
+        * exfalso; clear -H1.
+          destruct H1 as (? & (? & TRabs & _) & _).
+          cbn in *.
+          apply trans_bind_inv in TRabs.
+          destruct TRabs as [(_ & (? & abs & _)) | (? & abs & _)].
+          all: eapply stuckD_is_stuck; eauto.
+  Qed.
+
+
+
+  (* Lemma bind_EF (t : prog) (k : R -> prog) (φ : Formula) (s: obs) : *)
+  (*   satF (FEF φ) (t,s) -> *)
+  (*   satF (FEF φ) (t >>= k,s). *)
+  (* Proof with (eauto with ctl). *)
+  (*   intros * HS. *)
+  (*   induction HS. *)
+  (*   - constructor 1. *)
+  (*   intros * r Hφ. *)
+  (*   constructor... *)
+  (*   intros * TR. *)
+  (*   bkK. *)
+  (*   destruct TR as (? & TR & ?); *)
+  (*     cbn in *; *)
+  (*   eapply trans_trigger_last_inv in TR as (? & ? & ?). *)
+  (*   subst; rewrite H1; auto. *)
+  (* Qed. *)
+
+(*
 Section Theory.
 
   Variable (E B : Type -> Type) (R : Type).
@@ -245,12 +453,6 @@ Section Theory.
         cbn in *;
         inv_trans
     end; cbn in *; subst.
-
-  Existing Instance sat_bisim.
-  (* Instance foo : Proper (sbisim eq ==> sbisim') (fun t => (t,o)). *)
-  Instance foo : Proper (sbisim eq ==> eq ==> bisimK _) (Datatypes.pair).
-  now repeat intro; subst; apply sbisim_bisimK.
-  Qed.
 
   (* TODO: characterize a class of formula valid in dead states.
      TODO: specialize over makeK'
@@ -331,4 +533,5 @@ Section Theory.
   (*   eapply trans_trigger_last_inv in TR as (? & ? & ?). *)
   (*   subst; rewrite H1; auto. *)
   (* Qed. *)
- 
+
+*)
