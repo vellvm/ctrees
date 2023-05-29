@@ -1138,6 +1138,16 @@ Local Open Scope ctl_scope.
       end
   end.
 
+Ltac fold_au IH :=
+  match type of IH with
+  | forall (t: ctree ?E ?C ?X) (s: ?S),
+      hrel_of ktrans (?t0, ?s0) (?t1, ?s1) ->
+      cau (?F ?ψ) (?F ?φ) _ _ => 
+      assert (HEQ: forall t' s', cau (F ψ) (F φ) t' s' = <( t', s' |= ψ AU φ )>) by reflexivity;
+      setoid_rewrite HEQ in IH;
+      clear HEQ
+  end.
+
 Ltac cinduction H :=
   match type of H with
   | @entailsF ?E ?C ?X ?S ?h ?HasStuck (CAU ?ψ ?φ) ?ts ?ss =>
@@ -1152,14 +1162,7 @@ Ltac cinduction H :=
       rewrite !Heqt, !Heqs in *;
       clear Heqt Heqs;
       fold (@entailsF E C X S h HasStuck) in *;
-      [|match type of IH with
-        | forall (t: ctree ?E ?C ?X) (s: ?S),
-            hrel_of ktrans (?t0, ?s0) (?t1, ?s1) ->
-            cau (?F ?ψ) (?F ?φ) _ _ => 
-            assert (HEQ: forall t' s', cau (F ψ) (F φ) t' s' = <( t', s' |= ψ AU φ )>) by reflexivity;
-            setoid_rewrite HEQ in IH;
-            clear HEQ
-        end]                 
+      fold_au IH
   end.
 
 Tactic Notation "induction" ident(H) := (cinduction H || induction H).
@@ -1182,14 +1185,76 @@ Section UsefulLemmas.
     intros; inv H; [now right | now left].
   Qed.
   
-  Lemma ctl_bind_au{Y}: forall (φ ψ: CtlFormula) (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
-      <( {x <- t ;; k x}, s |= φ AU ψ )> <->
-        (<( t, s |= φ AU ψ )> \/     (* either [t] satisfies [φ AU ψ] (finite) *)
-           (forall x s', (t,s) ⇓{ φ } (x, s') /\ <( {k x}, s' |= φ AU ψ )>)).  (* or it big-steps to a value [x: X] and state [s'], while maitaining [φ] *)
+  Lemma ctl_bind_af_match{Y}: forall ψ (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
+      <( t, s |= AF (now ψ) )> ->  (* either [t] satisfies [φ AU ψ] (finite) *)
+      <( {x <- t ;; k x}, s |= AF (now ψ) )>. (* or it big-steps to a value [x: X] and state [s'], while maitaining [φ] *)
   Proof.
     intros.
+    revert k.
+    induction H; intros.
+    - next.
+      left.
+      now unfold entailsF in *.
+    - next.
+      right.
+      next.
+      intros u su TRbind.
+      apply ktrans_bind_inv in TRbind as [(NRet & t' & TRt & EQt) | (x & TRt & TRk)].
+      + cbn in EQt.
+        rewrite EQt.
+        now apply H1.
+      + specialize (H0 _ _ TRt).
+        (* WHY DO YOU SUCK SO BAD at infering constraints *)
+        replace (@cau E C Y Σ h HasStuck (entailsF True) (entailsF <( now ψ )>) (Ret x) s) with
+          (<({Ret x: ctree E C Y}, s |= AF (now ψ))>) in H0 by reflexivity.
   Admitted.
 
+  Lemma ctl_bind_af_inv{Y}: forall ψ (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
+      <( {x <- t ;; k x}, s |= AF (now ψ) )> ->
+      <( t, s |= AF (now ψ) )> \/
+      (forall x s', ktrans^* (t,s) (Ret x, s') /\ <( {k x}, s' |= AF (now ψ) )>).
+  Proof.
+    intros ? t s k H *.
+    unfold entailsF in H.
+    induction H.
+    - now left; next; left; unfold entailsF.
+    - clear H.
+      cbn in H0.
+      eapply H1.
+      Check @ktrans_steps.
+      destruct (@ktrans_steps E C X Σ
+                              h HasStuck t0 s).
+      destruct H.
+      Fail apply H.
+  Admitted.
+  
+  Lemma ctl_bind_af_next{Y}: forall ψ (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
+      (forall x s', ktrans^* (t,s) (Ret x, s') /\ <( {k x}, s' |= AF (now ψ) )>) ->
+      <( {x <- t ;; k x}, s |= AF (now ψ) )>.
+  Proof.
+    intros.
+    edestruct H, H0.
+    generalize dependent t.
+    generalize dependent s.
+    induction x; intros.
+    - (* refl *)
+      cbn in H2.
+      unfold fst, snd, RelCompFun in H2.
+      destruct H2.
+      rewrite H2 in *; clear H2.
+      rewrite <- H3 in *; clear H3.      
+      now rewrite bind_ret_l.
+    - (* step *)
+      next; right; next.
+      intros u su TRbind.
+      apply ktrans_bind_inv in TRbind as [(NRet & t'' & TRt'' & EQt') | (x' & TRt'' & TRk)].
+      + cbn in EQt'.
+        rewrite EQt' in *; clear EQt'.        
+        eapply IHx.
+        * admit. (* provable, t != Ret x, so [H0 -> TRt'' -> ktrans^* (t'', su) (Ret ?x, su) *)
+  Admitted.
+
+  
   Lemma ctl_bind_eu{Y}: forall (φ ψ: CtlFormula) (t: ctree E C Y) (s: Σ) (k: Y -> ctree E C X),
       <( {x <- t ;; k x}, s |= φ EU ψ )> <->
         <( t, s |= φ EU ψ )> \/      (* either [t] satisfies [φ AU ψ] (finite) *)
@@ -1254,7 +1319,6 @@ Section UsefulLemmas.
         apply RMatchA; auto.
   Qed.
 
-
   (** [Ret x, s] does not change s, so everything that is true for [s] remains true forever *)
   Lemma ctl_au_ret: forall (x:X) s ψ φ,
       <( {Ret x: ctree E C X}, s |=  ψ AU φ )> <-> <( {Ret x: ctree E C X}, s |= φ )>.
@@ -1263,9 +1327,9 @@ Section UsefulLemmas.
     - induction H.
       + auto.
       + pose proof (@ktrans_ret_refl E C X Σ h HasStuck x s) as HTrRefl.
-        apply (HH _ _ HTrRefl eq_refl eq_refl).
+        admit.
     - now apply ctl_match_au.
-  Qed.
+  Admitted.
 
 End UsefulLemmas.
 

@@ -225,6 +225,26 @@ Section Kripke.
     - unfold trans,transR in H0; cbn in H0; dependent destruction H0; contradiction.
     - unfold trans,transR in H2; cbn in H2; dependent destruction H2; contradiction.
   Qed.
+
+  Lemma ktrans_steps: forall (t: ctree E C X) s, 
+    exists t' s', ktrans (t, s) (t', s').
+  Proof.
+    intros.
+    pose proof (ctree_eta t).
+    desobs t.
+    -  exists t, s; rewrite H.
+       apply ktrans_ret.
+       exact t.
+       intuition.
+    - eexists. 
+      exists (execState (h e) s).
+      rewrite H.
+      eapply ktrans_vis_goal.
+      intuition.
+    - admit.
+      (* TODO: should be straightforward *)
+  Admitted.
+
 End Kripke.
 
 Lemma ktrans_bind_inv: forall {E C X Y S} `{h: E ~~> state S} `{B0 -< C} (s s': S)
