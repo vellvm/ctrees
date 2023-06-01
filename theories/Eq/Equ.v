@@ -282,7 +282,7 @@ Proof. apply equb_eq_equ'. Qed.
 (*|
 Dependent inversion of [equ] and [equb] equations
 -------------------------------------------------
-We assume [JMeq_eq] to invert easily bisimilarity of dependently typed constructors
+We assume [JMeq_eq] to invert neasily bisimilarity of dependently typed constructors
 |*)
 Lemma equ_ret_inv {E B X} (r1 r2 : X) :
   Ret r1 ≅ (Ret r2 : ctree E B X) ->

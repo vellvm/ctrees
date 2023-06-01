@@ -81,24 +81,3 @@ Definition recv {T E C} `{netE T -< E}: ctree E C (option T) :=
   trigger Recv.
 Definition send {T E C} `{netE T -< E}: uid -> T -> ctree E C unit :=
   fun u p => trigger (Send u p). 
-
-Import VectorNotations.
-Local Open Scope vector_scope.
-
-Notation vec n A := (Vector.t A n).
-
-(* Fairness proof for [rr] *)
-Lemma fair_rr{E C : Type -> Type} {X S: Type} (n: nat) {s: S}
-      `{HasStuck: B0 -< C} `{HasTau: B1 -< C} `{Par: parE -< E}
-      `{h: E ~~> state (S * nat)}: forall (l: vec n (ctree E C X)) (id: nat),
-    id < n ->
-    <( {rr l: ctree E C (vec n (ctree E C X))}, {(s,0)} |= AG (AF (now {fun '(_,i) => i = id})))>.
-  Proof.
-  intros sys i Hid; unfold rr; cbn.
-  induction sys; cbn.
-  - coinduction R CIH.
-    apply RStepA.
-    apply MatchA; auto.
-    intros.
-
-Admitted.

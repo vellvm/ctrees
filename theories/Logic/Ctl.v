@@ -1251,7 +1251,7 @@ Section UsefulLemmas.
       + cbn in EQt'.
         rewrite EQt' in *; clear EQt'.        
         eapply IHx.
-        * admit. (* provable, t != Ret x, so [H0 -> TRt'' -> ktrans^* (t'', su) (Ret ?x, su) *)
+        * admit. (* provable, t != Ret , so [H0 -> TRt'' -> ktrans^* (t'', su) (Ret ?x, su) *)
   Admitted.
 
   
@@ -1347,11 +1347,10 @@ Module Experiments.
   Lemma writes_23: forall s,
       <( {put 2 ;; put 3 : ctree (stateE nat) B0 unit}, s |= AX 2 /\ (AX (AX 3)) )>.
   Proof.
-    split; next; intros. 
-    - apply ktrans_trigger_inv in H as ([] & ? & ->).
-      cbn; auto.
-    - apply ktrans_trigger_inv in H as ([] & ? & ->).
-      rewrite H in *; clear H.
+    split; next; intros; apply ktrans_trigger_inv in H as ([] & ? & ->).
+    - cbn; auto.
+    - rewrite H in *; clear H.
+      cbn.
       cbn; auto.
       intros.
       apply ktrans_vis_inv in H as ([] & ? & ->).

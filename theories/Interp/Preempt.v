@@ -83,6 +83,22 @@ Section Take.
                      end.
   Proof. setoid_rewrite unfold_take; reflexivity. Qed.  
 
+  Lemma unfold_1_take: forall (t: ctree E C X),
+      take 1 t ≅ match observe t with
+                 | RetF x => Ret (Ret x)
+                 | VisF e k => Vis e (fun i => Ret (k i))
+                 | BrSF c k => Br true c (fun i => Ret (k i))
+                 | BrDF c k => Br false c (fun i => take 1 (k i))
+                 end.
+  Proof.
+    intro t.
+    setoid_rewrite unfold_take.         
+    desobs t; auto.
+    - now setoid_rewrite unfold_0_take.
+    - destruct vis; try setoid_rewrite unfold_0_take; reflexivity.
+  Qed.
+
+  
   (* Nice educational proof *)
   #[global] Instance equ_eq_take_proper {n}:
     Proper (equ eq ==> equ (equ eq)) (take n).
@@ -179,27 +195,26 @@ Section RR.
     
   Equations rr'{n} (v: vec n (ctree E C X)) :ctree E C (vec n (ctree E C X)) :=
     rr' (n:=0) [] := Ret [];
-    rr' (n:=S n') (h :: ts) := 
-        x <- preempt (take 1 h) n' ;;
-        xs <- rr' ts ;;
-        Ret (x :: xs).
+    rr' (n:=S n') (h :: ts) :=
+      x <- preempt (take 1 h) n' ;;
+      xs <- rr' ts ;;
+      Ret (x :: xs).
    
   (*| Round robbin scheduler |*)
   Definition rr{n}: vec n (ctree E C X) ->
                     ctree E C (vec n (ctree E C X)) :=   
     CTree.forever rr'.
 
-  
-  
   Lemma unfold_rr {n}: forall (v: vec n (ctree E C X)),
       rr v ≅ r <- rr' v;; Guard (rr r).
   Proof. intros; step; cbn; auto. Qed.
 
   Lemma unfold_Sn_rr {n}: forall (v: vec (S n) (ctree E C X)) x xs,
       rr (x :: xs) ≅
-         (y <- preempt (take 1 x) n ;;
-          ts <- rr' xs ;;
-          Guard (@rr (S n) (y :: ts))).
+         y <- preempt (take 1 x) n ;;          
+         ts <- rr' xs ;;
+      
+         Guard (@rr (S n) (y :: ts)).
   Proof.
     intros v x xs.
     rewrite unfold_rr.

@@ -4,19 +4,15 @@ From ITree Require Import
      Events.State
      Indexed.Sum.
 
+From ExtLib Require Import
+     Data.Monads.StateMonad
+     Structures.MonadState.
+
 From Coq Require Import
      Nat
-     List
-     Logic.Eqdep
-     Classes.RelationClasses
-     Program.Tactics.
+     Vector.
 
 From Equations Require Import Equations.
-
-From ExtLib Require Import
-     RelDec
-     Monad
-     Option.
 
 From Coinduction Require Import
      coinduction rel tactics.
@@ -24,107 +20,73 @@ From Coinduction Require Import
 From CTree Require Import
      CTree
      Eq
-     Interp.Fold
-     Interp.FoldStateT
-     Interp.Log
+     Interp.Preempt
      Interp.Network
+     Misc.Vectors
+     Logic.Kripke
      Logic.Ctl.
 
-Import CTreeNotations ListNotations Log CtlNotations Monads Network.  
+Import CTreeNotations VectorNotations CtlNotations.
 Local Open Scope ctree_scope.
+Local Open Scope ctl_scope.
+Local Open Scope vector_scope.
 
 Set Implicit Arguments.
-Set Contextual Implicit.
-Set Asymmetric Patterns.
 
-Module Fair.
+From Coq Require Import Arith.Compare micromega.Lia.
+Check rr'.
 
-  (** Compose [k] with itself [i] times. *)
-  Fixpoint frepeat {E C X}
-           (i: nat) (k: ctree E C X): ctree E C X :=
-    match i with
-    | 0 => k
-    | S n => k ;; frepeat n k
-    end.
-
-  (** This is not associative, consider
-      (A || B) || C ~ A || (B || C)
-   
-      The sequence [B, C] is impossible for the left,
-      as it will do [B, B, ..., B, A] by picking [B] then [C].
-      But it is possible for the right, by taking the branch [B]. *)
-        
-  Definition parafair{E C X}
-             `{BN -< C} `{B1 -< C} `{B2 -< C} `{B0 -< C}
-             (a b: ctree E C X): ctree E C void :=
-    CTree.forever
-      (brD2
-         (i <- branch false (branchN) ;;
-          frepeat i a ;;
-          b)
-         
-         (i <- branch false (branchN) ;;
-          frepeat i b ;;
-          a)).
-
-  Variant ID: Type -> Type :=
-    | Index: nat -> ID unit.
-
-  Definition id{C}(n: nat): ctree ID C unit := trigger (Index n).
-
-  (* Ignore [t], label observation equals [e] *)
-  Inductive obs_eq {E C: Type -> Type}{X Y: Type} :
-    E Y -> ctree E C X -> @label E -> Prop :=
-  | ObsEq y : forall t e, obs_eq e t (obs e y).
-
-  #[global] Instance proper_obs_eq_equ {E C: Type -> Type} {X Y} (e: E Y) {HasStuck: B0 -< C} :
-    Proper (@equ E C X X eq ==> eq ==> iff) (@obs_eq E C X Y e).
-  Proof.
-    unfold Proper, respectful, impl; cbn.      
-    intros x y EQ ? ? <-; split; intro OBS; inv OBS; econstructor; now rewrite EQ.
-  Qed.
-  (** TODO: This would be more simply stated and without [ID] 
-      and [obs_eq] as
-
-    forall l (t1 t2: ctree ID C void),
-      (parafair t1 t2), l |= AG (AF (fun l t => t ≅ t1)) /\
-      (parafair t1 t2), l |= AG (AF (fun l t => t ≅ t2)),
-  *)
-
-  Lemma para_fair {C}
-        `{HBN: BN -< C} `{HB1: B1 -< C} `{HB2: B2 -< C} `{HB0: B0 -< C}:
-    forall l (t: ctree ID C void),
-      t = parafair (id 0) (id 1) ->
-      t, l |= AG (AF (obs_eq (Index 0))).
-  Proof.
-    intros; revert l.
-    unfold ag; subst; coinduction R CIH; intro l.
-    split.
-    (* Eventually [ID = 0] shows up *)
-    - unfold parafair.
-      rewrite ctl_af_ax; right.
+Lemma eventually_rr{C : Type -> Type} {X Σ: Type} (n: nat) {s: Σ}
+      `{HasStuck: B0 -< C} `{HasTau: B1 -< C}:
+  forall (l: vec n (ctree parE C X)) (id: nat),
+    id < n ->
+    <( {rr' l}, 0 |= AF (now {fun i => i = id}))>.
+Proof.
+  intros.
+  induction n.
+  - inv H.
+  - dependent destruction l.
+    assert(forall m n, m < S n -> m = n \/ m < n) by lia.
+    destruct (H0 id n H); clear H0.
+    + (* id = n *)
+      simp rr'.
+      subst.
+      unfold preempt.
+      rewrite bind_trigger.
+      rewrite bind_vis.
+      next; right; next.
+      intros t' s' TR.
+      apply ktrans_vis_inv in TR as ([] & -> & ->).
+      Opaque entailsF.
+      Opaque take.
+      cbn.
+      next.
+      left.
+      auto.
+    + simp rr'.
+      unfold preempt.
+      rewrite bind_trigger, bind_vis.
+      next;right; next.
+      intros t' s' TR.
+      apply ktrans_vis_inv in TR as ([] & -> & ->).
+      clear t'.
       
-      rewrite ctree_eta; cbn; fold_subst.
-      unfold ax; intros; inv_trans_one.
-      (* Never use [trans_bind_inv_l] it loses the target label and introduces a new one! *)
-      destruct x;
-        apply trans_bind_inv in TR as [(HV & t3 & TR & ?) | (l2 & TRV  & TR )].
-      + apply trans_bind_inv in TR as [(HV' & t4 & TR & ?) | (l3 & TRV'  & TR' )].
-        * apply trans_brD_inv in TR as (niter & TR).
-          apply trans_ret_inv in TR as (ST & ->).
-          exfalso; apply HV; econstructor. (* Not a val! *)
-        * eapply trans_val_inv in TRV'. (* Nothing to do with TRV *)
-          clear TRV'.
-          (* [t3] is [id 0]^+ *)
-          destruct l3; cbn in *.
-          (* [0] iterations = [id 0] *)
-          apply trans_bind_inv in TR' as [(HV'' & t4 & TR & ?) | (l3 & TRV'  & TR )].
-          
-          
-  Admitted.
-  
- 
-End Fair.
-  
-
-
+      apply ktrans_trigger_inv in 
+    next.
+    cbn.
+    
+(* Fairness proof for [rr] *)
+Lemma fair_rr{E C : Type -> Type} {X S: Type} (n: nat) {s: S}
+      `{HasStuck: B0 -< C} `{HasTau: B1 -< C} `{Par: parE -< E}
+      `{h: E ~~> state (S * nat)}: forall (l: vec n (ctree E C X)) (id: nat),
+    id < n ->
+    <( {rr l: ctree E C (vec n (ctree E C X))}, {(s,0)} |= AG (AF (now {fun '(_,i) => i = id})))>.
+  Proof.
+    intros sys i Hid; unfold rr.
+    unfold entailsF; coinduction R CIH.
+    induction sys.
+    - inv Hid.
+    - 
+    apply RStepA.
+    apply MatchA; auto.
+    intros.
