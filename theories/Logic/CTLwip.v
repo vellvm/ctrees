@@ -859,7 +859,7 @@ Section Kripke.
       trans_step EQ TR; eauto.
   Qed.
 
-  Lemma sat_bisim (φ : Formula) : good (satF φ).
+  #[global] Instance sat_bisim (φ : Formula) : good (satF φ).
   Proof.
     induction φ;
       eauto using

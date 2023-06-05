@@ -281,8 +281,15 @@ Section Theory.
 
   Existing Instance sat_bisim.
   (* Instance foo : Proper (sbisim eq ==> sbisim') (fun t => (t,o)). *)
-  Instance foo : Proper (sbisim eq ==> eq ==> bisimK _) (Datatypes.pair).
+  #[global] Instance foo : Proper (sbisim eq ==> eq ==> bisimK _) (Datatypes.pair).
   now repeat intro; subst; apply sbisim_bisimK.
+  Qed.
+
+  #[global] Instance foo' : Proper (equ eq ==> eq ==> bisimK _) (Datatypes.pair).
+  Proof.
+    repeat intro. subst. apply foo.
+    apply equ_sbisim_subrelation.
+    typeclasses eauto. assumption. reflexivity.
   Qed.
 
   (* TODO: characterize a class of formula valid in dead states.
@@ -324,6 +331,42 @@ Section Theory.
     subst; rewrite H1; auto.
   Qed.
   (* and other formulae *)
+
+  Lemma ret_AwG x (φ : Formula) (s: obs) :
+    satF φ (Ret x, s) ->
+    satF φ (stuckD, s) ->
+    satF (FAwG φ) (Ret x, s).
+  Proof.
+    intros. cbn. step. split; [apply H0 |].
+    intros. inv_transK.
+    step. split; [subs; apply H1 |].
+    intros. inv_transK. subs. now apply stuckD_is_stuck in H2.
+  Qed.
+
+  Lemma ret_AwG_now x (F : factK) (s: obs) :
+    F s ->
+    satF (FAwG (FNow F)) (Ret x, s).
+  Proof.
+    intros. cbn. step. split; [apply H0 |].
+    intros. inv_transK.
+    step. split; [subs; apply H0 |].
+    intros. inv_transK. subs. now apply stuckD_is_stuck in H1.
+  Qed.
+
+  Lemma vis_AwG {X} (e : E X) k (φ : Formula) (s: obs) :
+    satF φ (Vis e k, s) ->
+    (forall x, satF (FAwG φ) (k x, upd (Trans.obs e x) s)) ->
+    satF (FAwG φ) (Vis e k, s).
+  Proof.
+    intros. cbn. step. constructor.
+    - assumption.
+    - intros. inv_transK. specialize (H1 x0).
+      step.
+      step in H1. destruct H1.
+      split.
+      subs. apply H1.
+      intros. specialize (H2 s'). inv_transK. subs. eauto.
+  Qed.
 
   Existing Instance EF_bisim.
 
@@ -516,7 +559,6 @@ Section Theory.
         (* Must impose that [val] label do not change the observation *)
   Admitted.
 
-
   (* Lemma bind_EF (t : prog) (k : R -> prog) (φ : Formula) (s: obs) : *)
   (*   satF (FEF φ) (t,s) -> *)
   (*   satF (FEF φ) (t >>= k,s). *)
@@ -535,3 +577,4 @@ Section Theory.
   (* Qed. *)
 
 *)
+End Theory.
