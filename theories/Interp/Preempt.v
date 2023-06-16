@@ -6,12 +6,16 @@ Methods and lemmas for splitting ctrees
 .. coq:: none
 |*)
 
-From ITree Require Import Core.Subevent.
+From ITree Require Import
+     Basics
+     Core.Subevent.
 From Coq Require Import Vector Fin.
 
 From CTree Require Import
      CTree
      Logic.Kripke
+     Fold
+     FoldCTree
      Misc.Vectors
      Interp.Fold
      Eq.
@@ -20,6 +24,9 @@ From ExtLib Require Import
      Data.Monads.StateMonad
      Structures.Monad
      Structures.MonadState.
+     
+From RelationAlgebra Require Import
+     monoid rel.
 
 From Equations Require Export Equations.
 
@@ -136,7 +143,6 @@ Proof.
   now rewrite unfold_0_take.
 Qed.
 
-
 Lemma unfold_Sn_preempt{E C X}`{B1 -< C}`{parE -< E}:
   forall (i: nat) (n: nat) (t: ctree E C X),
     preempt (take (S n) t) i ≅ trigger (Switch i) ;;
@@ -226,6 +232,21 @@ Section RR.
     rewrite bind_ret_l.
     reflexivity.
   Qed.
+
+  Section Foo.
+    Context {Σ: Type}.
+
+    Check @finterp.
+    
+    Typeclasses eauto := 5.
+    (** This is weird, [interp] introduces an [iter] while it is
+        a fact that [rr' l] is finite *)
+    Check @take.
+    Lemma ktrans_rr {Σ n} {h: E ~~> stateT Σ (ctree E C)}
+          (l: vec n (ctree E C X)) (s: Σ) :
+      (*let '(next, s') := runState (interp h (take n (rr l))) s *) in
+      let '(next, s') := runState (finterp n h (rr l)) s in
+      ktrans^* (rr l, s) (next, s').
   
 End RR.
 

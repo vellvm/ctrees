@@ -117,11 +117,3 @@ exists j, V /\ I ==> AX (proc j) |- V décroit strict
 V ==> AF (sched n proc) |- V décroit strict
 
  *)
-
-(*| The mailbox of the leader will eventually have a message that he was elected. |*)
-Lemma election_live:
-  <( {rr [proc 0 3; proc 1 3; proc 2 3]},
-     {([]%list, 0)} |= AG (AF now {(fun '(qs,id) => nth_error qs id = Some [Elected id]%list)}))>.
-Proof.
-  next.
-Admitted.

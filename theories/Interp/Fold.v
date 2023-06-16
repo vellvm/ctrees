@@ -76,6 +76,31 @@ Definition translate {E F C} (h : E ~> F) : ctree E C ~> ctree F C
 
 Arguments translate {E F C} h [T].
 
+
+(** This is a generalization of [take] and [fold],
+    it extracts [n] visible steps and interpretes them to [M]
+    keeping the rest as a continuation [ktree E R].
+ *)
+Notation "M ⊙ E" := (fun T => M (E T)) (at level 40).
+
+Fixpoint finterp {E C M : Type -> Type}
+         {MM : Monad M}
+         (* These should be provable I think *)
+          {MB: MonadBr C M}
+         (n: nat) (h: E ~> M): forall T, ctree E C T -> M (ctree E C T) :=
+  fun R t =>
+      match n with
+      | 0 => ret t
+      | S m => 
+          match observe t with
+          | RetF x => ret (Ret x)
+          | VisF e k => bind (h _ e) (fun x => finterp m h (k x))
+          | BrF b c k => bind (mbr b c) (fun x => finterp m h (k x))
+          end
+      end.
+
+Arguments finterp {E C M MM MMM MB} n h [T].
+
 (** Useful congruences and lemmas for [interp] and [refine] *)
 #[global] Instance interp_equ {E C X} `{HasTau: B1 -< C}  h:
   Proper (equ eq ==> @equ E C X X eq) (@interp E C _ _ _ _ _ h X).

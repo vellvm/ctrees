@@ -34,9 +34,13 @@ Local Open Scope vector_scope.
 Set Implicit Arguments.
 
 From Coq Require Import Arith.Compare micromega.Lia.
-Check rr'.
 
-Lemma eventually_rr{C : Type -> Type} {X Σ: Type} (n: nat) {s: Σ}
+
+Lemma steps_rr{C: Type -> Type} {X Σ: Type} (n: nat) (s: Σ),
+  `{HasStuck: B0 -< C} `{HasTau: B1 -< C}:
+  <( {rr l}, s |= AX^i (AF φ) )> -> <( {rr l}, s |= AF φ )> 
+                                       
+Lemma eventually_rr{C : Type -> Type} {X Σ: Type} (n: nat) (s: Σ)
       `{HasStuck: B0 -< C} `{HasTau: B1 -< C}:
   forall (l: vec n (ctree parE C X)) (id: nat),
     id < n ->

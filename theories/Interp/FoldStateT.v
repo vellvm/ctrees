@@ -26,6 +26,7 @@ Set Implicit Arguments.
   MonadTrigger E (stateT S M) :=
   fun _ e s => v <- mtrigger e;; ret (s, v).
 
+
 Definition fold_state {E C M} S
   {FM : Functor M} {MM : Monad M} {IM : MonadIter M}
   (h : E ~> stateT S M) (g : bool -> C ~> stateT S M) :

@@ -17,7 +17,7 @@ From CTree Require Import
      Logic.Kripke
      Logic.Ctl.
 
-Import CTree CTreeNotations CtlNotations.
+Import CTree CTreeNotations CtlNotations EquNotations.
 Local Open Scope nat_scope.
 Local Open Scope ctl_scope.
 Local Open Scope ctree_scope.
@@ -73,21 +73,21 @@ Section LawBN.
   Proof. lia. Qed.
 
   Lemma quat_nat_bool: forall (n a b: nat),
-      ((a <=? n) = true /\ (b <=? n) = true) \/
-        ((a <=? n) = true /\ (n <? b) = true) \/
-        ((n <? a) = true /\ (b <=? n) = true) \/
-        ((n <? a) = true /\ (n <? b) = true).
+      ((a <=? n) && (b <=? n)) = true \/
+        ((a <=? n) && (n <? b)) = true \/
+        ((n <? a) && (b <=? n)) = true \/
+        ((n <? a) && (n <? b)) = true.
   Proof.
     intros.
     destruct (quat_nat_dec n a b); destruct H; intros.
-    - left; split.                      
+    - left; apply andb_true_iff; split.
       + destruct (PeanoNat.Nat.leb_spec0 a n); auto.
       + destruct (PeanoNat.Nat.leb_spec0 b n); auto.
-    - right; left; split; inv H.
+    - right; left; apply andb_true_iff; split; inv H.
       + destruct (PeanoNat.Nat.leb_spec0 a n); auto.
       + destruct (PeanoNat.Nat.ltb_spec0 n b); auto.
     - inv H; inv H0; right; right;
-        [left | right]; split.
+        [left | right]; apply andb_true_iff; split.
       + destruct (PeanoNat.Nat.ltb_spec0 n a); auto.
       + destruct (PeanoNat.Nat.leb_spec0 b n); auto.
       + destruct (PeanoNat.Nat.ltb_spec0 n a); auto.
@@ -99,13 +99,15 @@ Section LawBN.
       <( {interp (h_choiceE n) beacon}, {(0,0)} |= AF (now {fun '(t, _) => t > 0}) )>.
   Proof.
     Opaque entailsF.
+    Opaque ktrans.
     intro n.
     induction n; unfold beacon; rewrite unfold_interp; unfold h_choiceE; cbn;
       rewrite !bind_bind; fold_subst; unfold get; rewrite bind_trigger.
     - next; right.
       Transparent entailsF. unfold entailsF. cbn.
-      unfold get.
-      intros.
-      intros.
+      intros. edestruct s' as (tc' & fc').
+      apply ktrans_vis_inv in H as ((tc & fc) & ?).
+      destruct (quat_nat_bool 0 tc fc).
+      + rewrite H0 in H; cbn in H.
   Admitted.
 End LawBN.
