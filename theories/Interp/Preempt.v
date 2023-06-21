@@ -12,6 +12,7 @@ From Coq Require Import Vector Fin.
 From CTree Require Import
      CTree
      Logic.Kripke
+     Logic.Ctl
      Misc.Vectors
      Interp.Fold
      Eq.
@@ -192,14 +193,14 @@ Qed.
 Section RR.
 
   Context {E C: Type -> Type} {X: Type} {HasTau: B1 -< C} {Par: parE -< E}.
-    
+
   Equations rr'{n} (v: vec n (ctree E C X)) :ctree E C (vec n (ctree E C X)) :=
     rr' (n:=0) [] := Ret [];
     rr' (n:=S n') (h :: ts) :=
-      x <- preempt (take 1 h) n' ;;
+      x <- take 1 h ;;
       xs <- rr' ts ;;
       Ret (x :: xs).
-   
+
   (*| Round robbin scheduler |*)
   Definition rr{n}: vec n (ctree E C X) ->
                     ctree E C (vec n (ctree E C X)) :=   
@@ -211,7 +212,7 @@ Section RR.
 
   Lemma unfold_Sn_rr {n}: forall (v: vec (S n) (ctree E C X)) x xs,
       rr (x :: xs) ≅
-         y <- preempt (take 1 x) n ;;          
+         y <- take 1 x ;;
          ts <- rr' xs ;;
       
          Guard (@rr (S n) (y :: ts)).
@@ -226,7 +227,7 @@ Section RR.
     rewrite bind_ret_l.
     reflexivity.
   Qed.
-  
+
 End RR.
 
 Section RRR.

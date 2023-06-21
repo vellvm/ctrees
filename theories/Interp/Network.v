@@ -45,8 +45,8 @@ Section Messaging.
 
   (*| Network effects |*)
   Inductive netE: Type -> Type :=
-  | Recv: netE (option T)
-  | Send : uid -> T -> netE unit.
+  | Recv : uid -> netE (option T)
+  | Send : uid -> uid -> T -> netE unit.
 
   Notation Qs := (list (list T))  (only parsing).
   
@@ -57,27 +57,43 @@ Section Messaging.
       match e with
       |inl1 s => 
          match s in netE Y return X = Y -> state (Qs * uid) Y with
-         | Recv => fun _: X = option T =>                          
+         | Recv i => fun _: X = option T =>
                     match nth_error qs i with
                     | None | Some [] => ret None
                     | Some (msg :: ts) =>
                         put (nth_map (fun _ => ts) qs i, i);;
                         ret (Some msg)
                     end
-         | Send to msg => fun _ => put (nth_map (fun q => q ++ [msg]) qs to, i)
+         | Send i to msg => fun _ => put (nth_map (fun q => q ++ [msg]) qs to, i)
          end eq_refl
       | inr1 s =>
           match s in parE Y return X = Y -> state (Qs * uid) Y with
           | Switch i' => fun _ => put (qs, i')
           end eq_refl
       end.
-  
+
+  Definition handler_netE {S : Type}
+    (h' : Qs -> S -> forall X, netE X -> S) : netE ~~> state (Qs * S) :=
+    fun X e =>
+      '(qs, s) <- get;;
+       let s' := h' qs s X e in
+       match e in netE Y return X = Y -> state (Qs * S) Y with
+         | Recv i => fun _: X = option T =>
+                    match nth_error qs i with
+                    | None | Some [] => ret None
+                    | Some (msg :: ts) =>
+                        put (nth_map (fun _ => ts) qs i, s');;
+                        ret (Some msg)
+                    end
+         | Send i to msg => fun _ => put (nth_map (fun q => q ++ [msg]) qs to, s')
+         end eq_refl.
+
 End Messaging.
 
 Arguments Recv {T}.
 Arguments Send {T}.
 
-Definition recv {T E C} `{netE T -< E}: ctree E C (option T) :=
-  trigger Recv.
-Definition send {T E C} `{netE T -< E}: uid -> T -> ctree E C unit :=
-  fun u p => trigger (Send u p). 
+Definition recv {T E C} `{netE T -< E} i: ctree E C (option T) :=
+  trigger (Recv i).
+Definition send {T E C} `{netE T -< E} i: uid -> T -> ctree E C unit :=
+  fun u p => trigger (Send i u p).
