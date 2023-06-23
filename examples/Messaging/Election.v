@@ -63,6 +63,10 @@ Definition proc_loop (id: uid)(right: uid): ctree (netE message) B01 unit :=
        m <- recv id;;
        proc_handle_msg id right m) tt.
 
+(* send from to msg *)
+(* Before: Switch_to i ~> event modelling that process i is being scheduled
+   This is currently removed
+ *)
 (*| Client process |*)
 Definition proc (id: uid)(n: nat): ctree (netE message) B01 unit :=
   let right := modulo (S id) n in
@@ -138,7 +142,9 @@ Section Fair.
     exists (i : fin n) t',
     trans l (Vector.nth v i) t' /\ T' ≅ sched (replace v i t').
 
-  (* Process i will make some progress in finite time *)
+  (* Process i will make some progress in finite time
+     sched_fair1_ i v ≜ eventually, sched (v1,..,vn) ~>* sched (v1', ..vi, ..,vn') ~> sched (v1', ..vi',..,vn')
+   *)
   Inductive sched_fair1_ i : vec n (ctree E C X) -> Prop :=
   | sched_fair1_now : forall v,
     (forall l t', trans l v[@i] t' -> trans l (sched v) (sched (replace v i t'))) ->
@@ -174,6 +180,11 @@ Section Fair.
     - destruct (H5) as [(? & ? & ?) _]. now apply H3 in H6.
   Qed.
 
+  (* What happens if
+     [vi] : [Ret v -val v> ∅]
+
+   *)
+
 End Fair.
 
 Lemma ktrans_trans : forall {E C X St h} `{B0 -< C} (s s' : St) (t t' : ctree E C X),
@@ -183,9 +194,11 @@ Proof.
   intros. inversion H0; subst; etrans.
 Qed.
 
+(* Attempt to have a meta-theorem reducing the correctness and termination of a "scheduled" system *)
 Theorem distr_system_dec_variant : forall {n C X St Msg} `{HasB0: B0 -< C}
   (h : list (list Msg) -> St -> forall X, netE Msg X -> St)
-  (Inv : vec n (ctree (netE Msg) C X) -> list (list Msg) -> St -> Prop) (var : St -> nat)
+  (Inv : vec n (ctree (netE Msg) C X) -> list (list Msg) -> St -> Prop)
+  (var : St -> nat)
   (Hprog :
     forall (sched : vec n (ctree (netE Msg) C X) -> ctree (netE Msg) C X)
     (Hc : sched_correct sched) (*(Hf : sched_fair (HasB0 := HasB0) sched)*)
@@ -199,6 +212,7 @@ Theorem distr_system_dec_variant : forall {n C X St Msg} `{HasB0: B0 -< C}
   forall (sched : vec n (ctree (netE Msg) C X) -> ctree (netE Msg) C X)
   (Hc : sched_correct sched) (*(Hf : sched_fair (HasB0 := HasB0) sched)*) v qs st,
   Inv v qs st ->
+  (* Then the global system reaches *)
   entailsF (h := handler_netE h) <(AF (now {(fun '(qs, st) => var st = 0)}))> (sched v) (qs, st).
 Proof.
   intros.
@@ -219,13 +233,16 @@ Proof.
     + subst. exfalso. subs.
 Admitted.
 
+(* Logical state: the logical information about the dynamics we wish to keep track of. *)
 Variant candidate_state : Type :=
 | CandBegin
 | CandTraveling (d: nat)
 | CandLost.
 
 Variant election_state : Type :=
+(* First phase of the protocol *)
 | VCandidates (l: list candidate_state)
+(* Second phase of the protocol *)
 | VElected (i: nat) (* i => i hops *)
 .
 
@@ -262,9 +279,12 @@ Qed.
 Definition fin_of_nat_mod i : fin n :=
   Fin.of_nat_lt (p := i mod n) (Nat.mod_upper_bound i n Hn).
 
-(* Invariant during phase 1 (Candidate messages) *)
+(* Invariant during phase 1 (Candidate messages)
+   Three components in the "moral" configuration: the code, the dynamic state, the logical state
+ *)
 Definition election_invariant_candidates
   (cand_progress : list candidate_state) qs :=
+  (* Well-formedness *)
   List.length cand_progress = n /\
   List.nth (proj1_sig (Fin.to_nat (max_id wf))) cand_progress CandLost <> CandLost /\
   forall i (Hi : (i < n)%nat),
@@ -327,6 +347,9 @@ Definition cand_state_value (st : candidate_state) :=
   | CandLost => 0
   end.
 
+(*
+  Correctness of system is a direct consequence of [election_variant = 0] is reachable
+ *)
 Definition election_variant (st : election_state) :=
   match st with
   | VCandidates l => 2 * n + List.fold_left (fun m st => m + cand_state_value st) l 0
@@ -354,6 +377,24 @@ Definition handle_election_state (qs: list (list message)) (st: election_state) 
   | _ => st
   end.
 
+(* Progress in Lef's sense is decreasing the variant, but here the variant decrease always *)
+(*
+  checking your mailbox and it's empty ~> hidden by interpretation
+  Relies on a «medium step» so to speak: «internal» steps are aggregated together with the next «visible» step.
+
+  Are they useful ~> ???
+
+  What have we proved in the end?
+
+  ctree E
+  L == Ldata
+  E X -> L -> L
+
+
+
+  handle h ∘ handle g
+
+ *)
 Theorem election_progress :
   forall (sched : vec n (ctree (netE message) B01 unit) -> ctree (netE message) B01 unit)
   (Hc : sched_correct sched) (Hf : sched_fair sched)
