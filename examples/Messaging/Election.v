@@ -40,15 +40,7 @@ Variant message :=
   | Candidate (u: nat)
   | Elected (u: nat).
 
-(*| Client process |*)
-Definition proc (id: uid)(n: nat): ctree (netE message) B01 unit :=
-  let right := modulo (S id) n in
-  (* 1. Send my [id] to the process on the right *)
-  send id right (Candidate id);;
-  (* 2. Loop until we know the leader *)
-  CTree.iter
-    (fun _ =>
-       m <- recv id;;
+Definition proc_handle_msg (id: uid)(right: uid) (m: option message): ctree (netE message) B01 (unit + unit) :=
        match m with
        | Some (Candidate candidate) =>
            match Nat.compare candidate id with (* candidate < id *)
@@ -63,7 +55,21 @@ Definition proc (id: uid)(n: nat): ctree (netE message) B01 unit :=
            (* I know [x] is the leader *)
            send id right (Elected x) ;; Ret (inr tt)
        | None => Ret (inl tt) (* Didn't receive anything *)
-       end) tt.
+       end.
+
+Definition proc_loop (id: uid)(right: uid): ctree (netE message) B01 unit :=
+  CTree.iter
+    (fun _ =>
+       m <- recv id;;
+       proc_handle_msg id right m) tt.
+
+(*| Client process |*)
+Definition proc (id: uid)(n: nat): ctree (netE message) B01 unit :=
+  let right := modulo (S id) n in
+  (* 1. Send my [id] to the process on the right *)
+  send id right (Candidate id);;
+  (* 2. Loop until we know the leader *)
+  proc_loop id right.
 
 (*
   For the system "sched {proc(id,n) | 0 <= id < n}"
@@ -135,8 +141,8 @@ Section Fair.
   (* Process i will make some progress in finite time *)
   Inductive sched_fair1_ i : vec n (ctree E C X) -> Prop :=
   | sched_fair1_now : forall v,
-    ((exists l T', trans l (sched v) T') /\
-      forall l T', trans l (sched v) T' -> exists t', T' ≅ (sched (replace v i t'))) ->
+    (forall l t', trans l v[@i] t' -> trans l (sched v) (sched (replace v i t'))) ->
+    (forall l T', trans l (sched v) T' -> exists t', trans l v[@i] t' /\ T' ≅ (sched (replace v i t'))) ->
     sched_fair1_ i v
   | sched_fair1_later : forall v,
     (exists l T', trans l (sched v) T') /\
@@ -157,18 +163,61 @@ Section Fair.
 
   (* Whenever a process can progress, it will do so in finite time *)
   Definition sched_fair := forall v, (gfp sched_fairF) v.
+
+  Lemma sched_fair_not_stuck : sched_correct -> sched_fair -> forall v i, ~ is_stuck v[@i] -> ~ is_stuck (sched v).
+  Proof.
+    intros.
+    red in H0. specialize (H0 v). step in H0. destruct H0.
+    intro. apply H1. red. intros. intro.
+    apply H0 in H4 as ?. destruct H5.
+    - apply H5 in H4. now apply H3 in H4.
+    - destruct (H5) as [(? & ? & ?) _]. now apply H3 in H6.
+  Qed.
+
 End Fair.
 
-Definition from_to_ (i j : nat) : nat -> Prop :=
-  fun k => Nat.le i k /\ Nat.lt k j.
+Lemma ktrans_trans : forall {E C X St h} `{B0 -< C} (s s' : St) (t t' : ctree E C X),
+  ktrans (h := h) (t, s) (t', s') ->
+   (exists l, trans l t t') \/ exists r, trans (val r) t stuckD /\ t' ≅ Ret r /\ s = s'.
+Proof.
+  intros. inversion H0; subst; etrans.
+Qed.
 
-Definition from_to {n} (i j : fin n) : fin n -> Prop :=
-  fun k =>
-    let i := proj1_sig (Fin.to_nat i) in
-    let j := proj1_sig (Fin.to_nat j) in
-    let k := proj1_sig (Fin.to_nat k) in
-    (Nat.le i j -> from_to_ i j k) /\
-    (Nat.lt j i -> from_to_ j n k /\ from_to_ 0 i k).
+Theorem distr_system_dec_variant : forall {n C X St Msg} `{HasB0: B0 -< C}
+  (h : list (list Msg) -> St -> forall X, netE Msg X -> St)
+  (Inv : vec n (ctree (netE Msg) C X) -> list (list Msg) -> St -> Prop) (var : St -> nat)
+  (Hprog :
+    forall (sched : vec n (ctree (netE Msg) C X) -> ctree (netE Msg) C X)
+    (Hc : sched_correct sched) (*(Hf : sched_fair (HasB0 := HasB0) sched)*)
+    v qs st, Inv v qs st -> var st > 0 -> ~is_stuck (sched v))
+  (Hdec :
+    forall (sched : vec n (ctree (netE Msg) C X) -> ctree (netE Msg) C X)
+    (Hc : sched_correct sched) (*(Hf : sched_fair (HasB0 := HasB0) sched)*)
+    v qs st, Inv v qs st -> var st > 0 ->
+    forall v' qs' st', ktrans (h := handler_netE h) (sched v, (qs, st)) (sched v', (qs', st')) ->
+    Inv v' qs' st' /\ var st' < var st),
+  forall (sched : vec n (ctree (netE Msg) C X) -> ctree (netE Msg) C X)
+  (Hc : sched_correct sched) (*(Hf : sched_fair (HasB0 := HasB0) sched)*) v qs st,
+  Inv v qs st ->
+  entailsF (h := handler_netE h) <(AF (now {(fun '(qs, st) => var st = 0)}))> (sched v) (qs, st).
+Proof.
+  intros.
+  remember (var st) as i. assert (var st <= i)%nat by lia. clear Heqi.
+  revert v qs st H H0. induction i; intros.
+  - left. cbn. lia.
+  - inversion H0. 2: { apply IHi; auto. }
+    next. right. apply ctl_ax. intros. apply ktrans_trans in H1 as ?.
+    destruct (H3) as [ [] | (? & ? & ? & ?) ]; clear H3.
+    + apply Hc in H4 as (? & ? & ? & ?).
+      rewrite H4 in H1.
+      cbn in Hdec. destruct s'.
+      unshelve epose proof (Hdec _ _ _ _ _ _ _ _ _ _ H1) as []; auto.
+      lia.
+      assert (var s <= i)%nat by lia.
+      replace t' with (sched (replace v x0 x1)) by admit.
+      apply IHi; auto.
+    + subst. exfalso. subs.
+Admitted.
 
 Variant candidate_state : Type :=
 | CandBegin
@@ -179,7 +228,6 @@ Variant election_state : Type :=
 | VCandidates (l: list candidate_state)
 | VElected (i: nat) (* i => i hops *)
 .
-Arguments election_state : clear implicits.
 
 Definition ids_wf {n} (ids : vec n nat) :=
   forall j k, j <> k -> Vector.nth ids j <> Vector.nth ids k.
@@ -191,42 +239,101 @@ Lemma max_id_correct : forall {n} (ids : vec n nat) (wf : ids_wf ids),
   forall k, k <> max_id wf -> Vector.nth ids k < Vector.nth ids (max_id wf).
 Admitted.
 
+Section Election.
+
+Context {n : nat} (Hn : n <> 0) (ids : vec n nat) (wf : ids_wf ids).
+
+Open Scope nat_scope.
+
+Definition from_to_ (i j : nat) : nat -> Prop :=
+  fun k => i <= k /\ k < j.
+
+Definition from_to (i j : nat) : nat -> Prop :=
+  fun k =>
+    (i <= j -> from_to_ i j k) /\
+    (j < i -> from_to_ j n k /\ from_to_ 0 i k).
+
+Lemma from_to_bound : forall (i j k : nat) (Hi: i < n) (Hj: j < n), from_to i j k ->
+  k < n.
+Proof.
+  intros. destruct H. unfold from_to_ in *. lia.
+Qed.
+
+Definition fin_of_nat_mod i : fin n :=
+  Fin.of_nat_lt (p := i mod n) (Nat.mod_upper_bound i n Hn).
+
 (* Invariant during phase 1 (Candidate messages) *)
-Program Definition election_invariant_candidates n (ids : vec (S n) nat) (wf : ids_wf ids)
+Definition election_invariant_candidates
   (cand_progress : list candidate_state) qs :=
-  List.length cand_progress = S n /\
+  List.length cand_progress = n /\
   List.nth (proj1_sig (Fin.to_nat (max_id wf))) cand_progress CandLost <> CandLost /\
-  forall i (Hi : (i < S n)%nat),
+  forall i (Hi : (i < n)%nat),
     (List.nth_error cand_progress i = Some CandBegin \/ List.nth_error cand_progress i = Some CandLost) ->
       ~ In (Candidate i) (concat qs) /\
     forall p, List.nth_error cand_progress i = Some (CandTraveling p) ->
       let i' := Fin.of_nat_lt Hi in
-      let j := (i + p + 1) mod (S n) in
+      let s := (i + 1) mod n in
+      let j := (i + p + 1) mod n in
       (In (Candidate n) (List.nth j qs []%list)) /\
-      (forall k, from_to i' (Fin.of_nat_lt (p := j) _) k ->
-        Vector.nth ids k < Vector.nth ids i' /\
-        (i' = max_id wf -> k <> i' -> List.nth_error cand_progress (proj1_sig (Fin.to_nat k)) = Some CandLost)).
-Next Obligation.
-  lia.
-Qed.
+      (forall k (Hk: from_to s j k),
+        let k' := Fin.of_nat_lt (@from_to_bound s j k (Nat.mod_upper_bound _ _ Hn) (Nat.mod_upper_bound _ _ Hn) Hk) in
+        Vector.nth ids k' < Vector.nth ids i' /\
+        (i' = max_id wf -> k <> i -> List.nth_error cand_progress k = Some CandLost)).
 
 (* Invariant during phase 2 (Elected message) *)
-Definition election_invariant_elected n (ids : vec (S n) nat) (wf : ids_wf ids)
+Definition election_invariant_elected
   (elected_progress : nat) (qs: list (list message)) :=
   forall (He : elected_progress < n),
   let m := proj1_sig (Fin.to_nat (max_id wf)) in
   let e' := Fin.of_nat_lt He in
-  let j := (m + elected_progress + 1) mod (S n) in
+  let j := (m + elected_progress + 1) mod n in
   List.nth j qs []%list = [Elected m]%list /\
   forall k, k <> j -> List.nth k qs []%list = []%list.
 
-Definition election_invariant n (ids : vec (S n) nat) (wf : ids_wf ids) st qs :=
+Definition election_state_invariant st qs :=
   match st with
-  | VCandidates l => election_invariant_candidates wf l qs
-  | VElected n => election_invariant_elected wf n qs
+  | VCandidates l => election_invariant_candidates l qs
+  | VElected n => election_invariant_elected n qs
   end.
 
-Definition handle_election_state n (qs: list (list message)) (st: election_state) :
+Definition election_src_invariant_candidate st i (t : ctree (netE message) B01 unit) :=
+  match st with
+  | CandBegin => t ≅ proc i n
+  | CandTraveling j =>
+    (j < n -> t ≅ proc_loop i ((i + 1) mod n)) /\
+    (j = n -> t ≅ Ret tt)
+  | CandLost => t ≅ proc_loop i ((i + 1) mod n)
+  end.
+
+Definition election_src_invariant st (v : vec n (ctree (netE message) B01 unit)) :=
+  match st with
+  | VCandidates l => forall i (Hi : i < n),
+    election_src_invariant_candidate (nth i l CandLost) i v[@Fin.of_nat_lt Hi]
+  | VElected d =>
+    let m := proj1_sig (Fin.to_nat (max_id wf)) in
+    forall i (Hi: i < n),
+    (from_to ((S m) mod n) ((m + d + 1) mod n) i ->
+      v[@Fin.of_nat_lt Hi] ≅ Ret tt) /\
+    (not (from_to ((S m) mod n) ((m + d + 1) mod n) i) ->
+      v[@Fin.of_nat_lt Hi] ≅ proc_loop i ((i + 1) mod n))
+  end.
+
+Definition election_invariant v qs st := election_state_invariant st qs /\ election_src_invariant st v.
+
+Definition cand_state_value (st : candidate_state) :=
+  match st with
+  | CandBegin => n + 1
+  | CandTraveling d => n - d
+  | CandLost => 0
+  end.
+
+Definition election_variant (st : election_state) :=
+  match st with
+  | VCandidates l => 2 * n + List.fold_left (fun m st => m + cand_state_value st) l 0
+  | VElected d => n - d
+  end.
+
+Definition handle_election_state (qs: list (list message)) (st: election_state) :
   forall X, netE message X -> election_state :=
   fun X e =>
   match e with
@@ -247,36 +354,20 @@ Definition handle_election_state n (qs: list (list message)) (st: election_state
   | _ => st
   end.
 
-Lemma ktrans_trans : forall {E C X St h} `{B0 -< C} (s s' : St) (t t' : ctree E C X),
-  ktrans (h := h) (t, s) (t', s') ->
-  exists l, trans l t t'.
+Theorem election_progress :
+  forall (sched : vec n (ctree (netE message) B01 unit) -> ctree (netE message) B01 unit)
+  (Hc : sched_correct sched) (Hf : sched_fair sched)
+  v qs st, election_invariant v qs st -> election_variant st > 0 -> ~is_stuck (sched v).
 Proof.
-  intros. inversion H0; subst; eauto. (* wrong in the Ret case *)
-Admitted.
+  intros.
+  destruct H. destruct st.
+  - clear H0. cbn in H, H1. destruct H. destruct H0.
+    specialize (H1 (proj1_sig (Fin.to_nat (max_id wf))) (proj2_sig (Fin.to_nat (max_id wf)))).
+    destruct (nth (proj1_sig (Fin.to_nat (max_id wf))) l CandLost) eqn:?.
+    + cbn in H1. eapply sched_fair_not_stuck; auto. rewrite H1.
+      intro. eapply H3. etrans.
+    + cbn in H1. eapply sched_fair_not_stuck; auto. admit.
+    + auto.
+Abort.
 
-Theorem distr_system_dec_variant : forall {n C X St Msg} `{HasB0: B0 -< C}
-  (h : list (list Msg) -> St -> forall X, netE Msg X -> St)
-  (Inv : vec n (ctree (netE Msg) C X) -> list (list Msg) -> St -> Prop) (var : St -> nat)
-  (sched : vec n (ctree (netE Msg) C X) -> ctree (netE Msg) C X)
-  (Hc : sched_correct sched) (Hf : sched_fair (HasB0 := HasB0) sched)
-  (Hprog : forall v qs st, Inv v qs st -> var st > 0 -> ~is_stuck (sched v))
-  (Hdec : forall v qs st, Inv v qs st -> var st > 0 ->
-    forall v' qs' st', ktrans (h := handler_netE h) (sched v, (qs, st)) (sched v', (qs', st')) ->
-    Inv v' qs' st' /\ var st' < var st),
-  forall v qs st, Inv v qs st -> entailsF (h := handler_netE h) <(AF (now {(fun '(qs, st) => var st = 0)}))> (sched v) (qs, st).
-Proof.
-  intros. cbn.
-  remember (var st) as i. assert (var st <= i)%nat by lia. clear Heqi.
-  revert v qs st H H0. induction i; intros.
-  - left. lia.
-  - inversion H0. 2: { apply IHi; auto. }
-    right. apply I. intros. apply ktrans_trans in H1 as ?. destruct H3.
-    apply Hc in H3 as (? & ? & ? & ?).
-    rewrite H4 in H1.
-    cbn in Hdec. destruct s'.
-    unshelve epose proof (Hdec _ _ _ _ _ _ _ _ H1) as []; auto.
-    lia.
-    assert (var s <= i)%nat by lia.
-    replace t' with (sched (replace v x0 x1)) by admit.
-    apply IHi; auto.
-Admitted.
+End Election.
