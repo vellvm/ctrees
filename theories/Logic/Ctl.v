@@ -654,7 +654,7 @@ Ltac cdestruct H0 :=
 #[global] Tactic Notation "split" := (csplit || split).
 #[global] Tactic Notation "right" := (cright || right).
 #[global] Tactic Notation "left" := (cleft || left).
-#[global] Tactic Notation "destruct" ident(H) := (cdestruct H || destruct H).
+#[local] Tactic Notation "destruct" ident(H) := (cdestruct H || destruct H).
 
 (*| Deeply embed constructors of [cau, ceu, car, cer] |*)
 Section Constructors.
@@ -1165,7 +1165,7 @@ Ltac cinduction H :=
       fold_au IH
   end.
 
-Tactic Notation "induction" ident(H) := (cinduction H || induction H).
+#[local] Tactic Notation "induction" ident(H) := (cinduction H || induction H).
 
 #[local] Ltac __coinduction_g R H :=
   unfold entailsF; coinduction R H.
@@ -1314,7 +1314,6 @@ Section UsefulLemmas.
         specialize (CIH _ _ H).
         apply ktrans_ret in TR as (Heq & <-).
         now rewrite Heq.
-        exact t'.
       + destruct H.
         apply RMatchA; auto.
   Qed.
@@ -1353,7 +1352,7 @@ Module Experiments.
       cbn.
       cbn; auto.
       intros.
-      apply ktrans_vis_inv in H as ([] & ? & ->).
+      apply ktrans_vis_inv in H as ([] & ? & ? & ?).
       cbn; auto.
   Qed.      
 
@@ -1385,7 +1384,7 @@ Module Experiments.
     next; right; intros.
     next.
     intros.
-    apply ktrans_vis_inv in H as ([] & -> & ->).
+    apply ktrans_vis_inv in H as ([] & -> & -> & ->).
     unfold entailsF; apply MatchA.
     reflexivity.
   Qed.
@@ -1396,7 +1395,7 @@ Module Experiments.
     next.
     split; auto.
     next; intros.
-    apply ktrans_vis_inv in H as ([] & ? & ->).
+    apply ktrans_vis_inv in H as ([] & ? & _ & ->).
     rewrite H.
     coinduction R CIH.
     apply RStepA; auto. 
@@ -1404,7 +1403,6 @@ Module Experiments.
     apply ktrans_ret in H0 as (? & <-).
     rewrite H0.
     apply CIH.
-    exact t'0.
   Qed.
 
   Lemma maybegood'': 

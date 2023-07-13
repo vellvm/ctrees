@@ -82,6 +82,7 @@ Section Kripke.
       ktransR (t, s) (u, s)
     | kVis (t u: ctree E C X) {Y} (x: Y) (e: E Y) (s: S):
       trans (obs e x) t u ->
+      fst (runState (h e) s) = x ->
       ktransR (t, s) (u, execState (h e) s)
     | kRet (t u: ctree E C X) (x: X) (s: S):
       trans (val x) t stuckD ->
@@ -99,12 +100,12 @@ Section Kripke.
     split; intro H; inv H.
     - rewrite EQt, EQt' in H1.
       now apply kTau.
-    - rewrite EQt, EQt' in H1.
+    - rewrite EQt, EQt' in H3.
       eapply kVis; eauto.
     - apply kRet with x0; [now rewrite <- EQt | now rewrite <- EQt'].
     - rewrite <- EQt, <- EQt' in H1.
       now apply kTau.
-    - rewrite <- EQt, <- EQt' in H1.
+    - rewrite <- EQt, <- EQt' in H3.
       eapply kVis; eauto.
     - apply kRet with x0; [now rewrite EQt | now rewrite EQt'].
   Qed.
@@ -142,7 +143,8 @@ Section Kripke.
   Proof.
     intros * TR  Hsb.
     inv TR; intros.
-    1,2: step in Hsb; apply Hsb in H0 as (l2 & t2' & TR2 & ? & <-); exists t2'; cbn; split; eauto.
+    1: step in Hsb; apply Hsb in H0 as (l2 & t2' & TR2 & ? & <-); exists t2'; cbn; split; eauto.
+    1: step in Hsb; apply Hsb in H2 as (l2 & t2' & TR2 & ? & <-); exists t2'; cbn; split; eauto.
     exists (Ret x); rewrite H4; split; eauto; cbn.
     apply kRet with x; [| reflexivity]. 
     apply trans_val_sbisim with (u:=t2) in H2 as (? & ? & ?); eauto.
@@ -150,7 +152,7 @@ Section Kripke.
   Qed.
 
 
-  Lemma ktrans_ret: forall x (t t': ctree E C X) s s',
+  Lemma ktrans_ret: forall x (t': ctree E C X) s s',
       ktrans (Ret x, s) (t', s') <->
       t' ≅ Ret x /\ s = s'.
   Proof.
@@ -163,9 +165,7 @@ Section Kripke.
       ktrans (Ret x, s) (Ret x, s).
   Proof.
     intros.
-    apply ktrans_ret.
-    - exact (Ret x).
-    - intuition.
+    apply ktrans_ret. intuition.
   Qed.
     
   Lemma ktrans_tau_inv: forall {Y : Type} (c : C Y) (t': ctree E C X) (k: Y -> ctree E C X) s s',
@@ -188,19 +188,20 @@ Section Kripke.
 
   Lemma ktrans_vis_inv: forall {Y: Type} (e: E Y) (t': ctree E C X) (k: Y -> ctree E C X) s s',
       ktrans (Vis e k, s) (t', s') ->
-      exists x, t' ≅ k x /\ s' = execState (h e) s.
+      exists x, t' ≅ k x /\ x = fst (runState (h e) s) /\ s' = execState (h e) s.
   Proof.
     intros.
     shallow_inv_ktrans H.
-    exists x0; rewrite <- x; intuition.
+    eexists; rewrite <- x, <- H; intuition.
   Qed.
 
   Lemma ktrans_vis_goal: forall {Y: Type} (e: E Y) x (t': ctree E C X) (k: Y -> ctree E C X) s s',
-      t' ≅ k x /\ s' = execState (h e) s ->
+      t' ≅ k x /\ (x, s') = runState (h e) s ->
       ktrans (Vis e k, s) (t', s').
   Proof.
     intros.
-    destruct H as (-> & ->).
+    destruct H as (-> & ?).
+    rewrite surjective_pairing in H. inv H.
     cbn; eapply kVis; econstructor; eauto.
   Qed.
 
@@ -211,9 +212,9 @@ Section Kripke.
     intros.
     shallow_inv_ktrans H.
     rewrite bind_ret_l in H.
-    exists x0.
+    eexists.
     rewrite x in H.
-    intuition.
+    intuition. now rewrite H.
   Qed.
 
   Lemma ktrans_stuck_inv: forall (t: ctree E C X) s s',
@@ -222,7 +223,7 @@ Section Kripke.
     intros * CONTRA.
     inv CONTRA.
     - unfold trans,transR in H0; cbn in H0; dependent destruction H0; contradiction.
-    - unfold trans,transR in H0; cbn in H0; dependent destruction H0; contradiction.
+    - unfold trans,transR in H2; cbn in H2; dependent destruction H2; contradiction.
     - unfold trans,transR in H2; cbn in H2; dependent destruction H2; contradiction.
   Qed.
 
@@ -234,13 +235,12 @@ Section Kripke.
     desobs t.
     -  exists t, s; rewrite H.
        apply ktrans_ret.
-       exact t.
        intuition.
     - eexists. 
       exists (execState (h e) s).
       rewrite H.
       eapply ktrans_vis_goal.
-      intuition.
+      intuition. now rewrite surjective_pairing.
     - admit.
       (* TODO: should be straightforward *)
   Admitted.
@@ -264,7 +264,7 @@ Proof with eauto.
     + right; exists x; split; cbn.
       * now apply kRet with x.
       * now apply kTau.
-  - apply trans_bind_inv in H2 as [(HV & t' & TR & EQu) | (x' & TRv & TRu)].
+  - apply trans_bind_inv in H4 as [(HV & t' & TR & EQu) | (x' & TRv & TRu)].
     + left; split; cbn.
       * intro CONTRA; destruct CONTRA as (tc & ?);
           rewrite H0 in TR; inversion TR.

@@ -79,9 +79,9 @@ Section Messaging.
        let s' := h' qs s X e in
        match e in netE Y return X = Y -> state (Qs * S) Y with
          | Recv i => fun _: X = option T =>
-                    match nth_error qs i with
-                    | None | Some [] => ret None
-                    | Some (msg :: ts) =>
+                    match List.nth i qs [] with
+                    | [] => ret None
+                    | msg :: ts =>
                         put (nth_map (fun _ => ts) qs i, s');;
                         ret (Some msg)
                     end
