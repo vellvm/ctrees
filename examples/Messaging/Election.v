@@ -222,20 +222,23 @@ Proof.
     eapply H2; eauto. eapply Hinv; eauto. admit.
 Admitted.
 
-(* TODO clean up, use more section variables *)
-Definition ids_wf {n} (ids : vec n nat) :=
-  forall j k, j <> k -> Vector.nth ids j <> Vector.nth ids k.
+Definition ids_wf n (ids : list nat) :=
+  length ids = n /\
+  forall j k, j <> k -> List.nth j ids 0 <> List.nth k ids 0.
 
-Definition max_id {n} (ids : vec n nat) (wf : ids_wf ids) : fin n.
+Definition max_id n ids (wf : ids_wf n ids) : nat.
 Admitted.
 
-Lemma max_id_correct : forall {n} (ids : vec n nat) (wf : ids_wf ids),
-  forall k, k <> max_id wf -> Vector.nth ids k < Vector.nth ids (max_id wf).
+Lemma max_id_correct : forall n ids (wf : ids_wf n ids),
+  forall k, k <> max_id wf -> List.nth k ids 0 < List.nth (max_id wf) ids 0.
 Admitted.
 
 Section Election.
 
-Context {n : nat} (Hn : n <> 0) (ids : vec n nat) (wf : ids_wf ids).
+Context {n : nat} (Hn : n <> 0) (ids : list nat) (ids_wf : ids_wf n ids).
+
+Let im := max_id ids_wf.
+Let max := List.nth im ids 0.
 
 Variant message :=
   | Candidate (u: nat)
@@ -354,10 +357,9 @@ Proof.
 Qed.
 
 Definition next_proc_and_msg st :=
-  let m := (proj1_sig (Fin.to_nat (max_id wf))) in
   match st.(s_progress) with
-  | MaxCandidate d => ((m + d) mod n, Candidate m)
-  | MaxElected d => ((m + d + 1) mod n, Elected m)
+  | MaxCandidate d => ((im + d) mod n, Candidate max)
+  | MaxElected d => ((im + d + 1) mod n, Elected max)
   end.
 
 Definition next_proc st :=
@@ -380,7 +382,6 @@ Definition handle_send qs st i (q : nat * bool) :=
 Definition handle_election_state (qs: list (list message)) (st: election_state) :
   forall X, netE message X -> election_state :=
   fun X e =>
-  let m := (proj1_sig (Fin.to_nat (max_id wf))) in
   let next := next_proc st in
   match e with
   | Send i to msg =>
@@ -389,7 +390,7 @@ Definition handle_election_state (qs: list (list message)) (st: election_state) 
     let q := if Nat.eqb i next then handle_send qs st i st.(s_queue) else st.(s_queue) in
     match st.(s_progress), msg with
     | MaxCandidate d, Candidate c =>
-      let progress := if Nat.eqb c ids[@max_id wf] then MaxCandidate (S d) else st.(s_progress) in
+      let progress := if Nat.eqb c max then MaxCandidate (S d) else st.(s_progress) in
       mk_election_state p progress q
     | MaxElected d, Candidate c =>
       mk_election_state p st.(s_progress) q
@@ -429,15 +430,14 @@ Definition election_invariant_candidates
   st qs :=
   (* Well-formedness *)
   let procs := st.(s_procs) in
-  let m := (proj1_sig (Fin.to_nat (max_id wf))) in
   (forall i, count_occ eq_dec_message (concat (ext_mailbox qs st)) (Candidate i) <= 1) /\
-  (forall i j, In (Candidate i) (List.nth j (ext_mailbox qs st) []%list) -> exists k, i = ids[@k]) /\
+  (forall i j, In (Candidate i) (List.nth j (ext_mailbox qs st) []%list) -> exists k, k < n /\ i = List.nth k ids 0) /\
   forall i (Hi : (i < n)%nat),
     match List.nth_error procs i with
     | Some ProcBegin => ~ In (Candidate i) (concat (ext_mailbox qs st))
     | _ =>
       (* A losing candidate cannot travel beyond the process with the max id *)
-      (forall k, k <> m -> In (Candidate ids[@Fin.of_nat_lt Hi]) (List.nth k (ext_mailbox qs st) []%list) -> from_to ((i + 1) mod n) ((m + 1) mod n) k)
+      (forall k, k <> im -> In (Candidate (List.nth i ids 0)) (List.nth k (ext_mailbox qs st) []%list) -> from_to ((i + 1) mod n) ((im + 1) mod n) k)
     end.
 
 (* Invariant regarding the position in the mailbox of the current message of interest *)
@@ -449,7 +449,6 @@ Definition election_invariant_msg_location
 (* Invariant regarding the max candidate *)
 Definition election_invariant_max
   (st : election_state) (qs: list (list message)) :=
-  let m := (proj1_sig (Fin.to_nat (max_id wf))) in
   let elected_progress := st.(s_progress) in
   fst st.(s_queue) < n /\
   match elected_progress with
@@ -458,18 +457,18 @@ Definition election_invariant_max
     (forall c, ~In (Elected c) (concat (ext_mailbox qs st))) /\
     {Hd : d <= n |
       (* The message can only be in the mailbox at distance d from the max *)
-      (d <> 0 -> election_invariant_msg_location st qs ((m + d) mod n) (Candidate ids[@max_id wf])) /\
-      (d = 0 -> ~In (Candidate ids[@max_id wf]) (concat (ext_mailbox qs st)))
+      (d <> 0 -> election_invariant_msg_location st qs ((im + d) mod n) (Candidate max)) /\
+      (d = 0 -> ~In (Candidate max) (concat (ext_mailbox qs st)))
     }
   | MaxElected elected_progress =>
     {He : elected_progress < n |
       let e' := Fin.of_nat_lt He in
-      let j := (m + elected_progress + 1) mod n in
-      (* There are no (Candidate m) messages left *)
-      (forall k, ~ In (Candidate ids[@max_id wf]) (List.nth k (ext_mailbox qs st) []%list)) /\
+      let j := (im + elected_progress + 1) mod n in
+      (* There are no (Candidate max) messages left *)
+      (forall k, ~ In (Candidate max) (List.nth k (ext_mailbox qs st) []%list)) /\
       (* There can only be one elected message *)
-      election_invariant_msg_location st qs j (Elected ids[@max_id wf]) /\
-      forall c k, c <> ids[@max_id wf] -> ~In (Elected c) (List.nth k (ext_mailbox qs st) []%list)
+      election_invariant_msg_location st qs j (Elected max) /\
+      forall c k, c <> max -> ~In (Elected c) (List.nth k (ext_mailbox qs st) []%list)
     }
   end.
 
@@ -490,37 +489,42 @@ Definition election_src_invariant_candidate st i (t : ctree (netE message) B01 u
 
 (* Links proc_states and election progress *)
 Definition election_src_invariant st (v : vec n (ctree (netE message) B01 unit)) :=
-  let m := proj1_sig (Fin.to_nat (max_id wf)) in
-  (forall i (Hi : i < n),
-    election_src_invariant_candidate (nth i st.(s_procs) ProcBegin) i v[@Fin.of_nat_lt Hi]) /\
   match st.(s_progress) with
   | MaxCandidate d =>
-    (d = 0 -> nth m st.(s_procs) ProcBegin = ProcBegin) /\
+    (d = 0 -> nth im st.(s_procs) ProcBegin = ProcBegin) /\
     forall k, nth k st.(s_procs) ProcBegin <> ProcElected
   | MaxElected d =>
     forall i (Hi: i < n),
     nth i st.(s_procs) ProcBegin <> ProcBegin /\
-    (from_to ((S m) mod n) ((m + d + 1) mod n) i <->
+    (from_to ((S im) mod n) ((im + d + 1) mod n) i <->
       nth i st.(s_procs) ProcBegin = ProcElected)
   end.
 
-Definition election_invariant v qs st := election_state_invariant st qs /\ election_src_invariant st v.
-Opaque election_invariant.
+Record election_invariant v qs st :=
+{
+  wf_queue_len : List.length qs = n;
+  wf_procs_len : List.length st.(s_procs) = n;
+  wf_candidates : election_invariant_candidates st qs;
+  wf_progress : election_invariant_max st qs;
+  wf_src_candidates : forall i (Hi : i < n),
+    election_src_invariant_candidate (nth i st.(s_procs) ProcBegin) i v[@Fin.of_nat_lt Hi];
+  wf_src_progress : election_src_invariant st v
+}.
 
 Lemma election_elected_proc_states :
   forall v qs st d,
   election_invariant v qs st ->
   st.(s_progress) = MaxElected d ->
   forall i (Hi : i < n),
-  let m := proj1_sig (Fin.to_nat (max_id wf)) in
-  (from_to ((S m) mod n) ((m + d + 1) mod n) i /\
+  (from_to ((S im) mod n) ((im + d + 1) mod n) i /\
     nth i st.(s_procs) ProcBegin = ProcElected) \/
-  ( ~from_to ((S m) mod n) ((m + d + 1) mod n) i /\
+  ( ~from_to ((S im) mod n) ((im + d + 1) mod n) i /\
     (nth i st.(s_procs) ProcBegin = ProcWaiting \/
       exists m, nth i st.(s_procs) ProcBegin = ProcProcessing m)).
 Proof.
-  intros. destruct H as [_ ?]. destruct H as [_ ?]. rewrite H0 in H.
-  destruct (from_to_dec (S m mod n) ((m + d + 1) mod n) i).
+  intros.
+  apply wf_src_progress in H. red in H. rewrite H0 in H.
+  destruct (from_to_dec (S im mod n) ((im + d + 1) mod n) i).
   - left. split; auto.
     now apply H in f.
   - right. split; auto.
@@ -532,7 +536,7 @@ Lemma election_map_proc_state :
   forall v qs st i (Hi : i < n), election_invariant v qs st ->
     election_src_invariant_candidate (nth i st.(s_procs) ProcBegin) i v[@Fin.of_nat_lt Hi].
 Proof.
-  intros. destruct H as [_ ?]. destruct H as [? _]. apply H.
+  intros. eapply wf_src_candidates in H. apply H.
 Qed.
 
 (*
@@ -574,27 +578,25 @@ Qed.
 (* Messages that do not make the system progress are
    non-maximal Candidate messages *)
 Lemma election_other_messages :
-  let m := proj1_sig (Fin.to_nat (max_id wf)) in
   forall v qs st msg k,
   election_invariant v qs st ->
   k <> next_proc st ->
   In msg (List.nth k (ext_mailbox qs st) []%list) ->
-  exists i, i <> max_id wf /\ msg = Candidate ids[@i].
+  exists i, i <> im /\ msg = Candidate (List.nth i ids 0).
 Proof.
-  intros.
-  destruct H as [? _]. destruct H as (? & ? & ?). destruct H3.
+  intros. destruct H. destruct wf_progress0.
   destruct (s_progress st) eqn:?.
   - (* phase 1 *)
-    destruct H4 as (? & ? & ?).
+    destruct H2 as (? & ? & ?).
     assert (k < length (ext_mailbox qs st)).
     { eapply nth_not_default. eapply in_not_nil. apply H1. }
     destruct msg.
     2: {
-      exfalso. apply (H4 u). apply in_concat. eexists. split; [| apply H1].
+      exfalso. apply (H2 u). apply in_concat. eexists. split; [| apply H1].
       now apply nth_In.
     }
-    destruct H2 as (_ & ? & _).
-    apply H2 in H1 as ?. destruct H6 as [? ->].
+    destruct wf_candidates0 as (_ & ? & _).
+    apply H4 in H1 as ?. destruct H5 as (? & ? & ->).
     exists x0. split; auto. intro. subst.
     destruct (nat_eqdec n0 0).
     + apply a in e. apply e.
@@ -604,18 +606,18 @@ Proof.
       apply In_nth_error in H1 as []. apply H6 in H1 as [-> ->].
       unfold next_proc, next_proc_and_msg in H0. rewrite Heqe in H0. contradiction.
   - (* phase 2 *)
-    destruct H4 as (? & ? & ?).
+    destruct H2 as (? & ? & ?).
     assert (k < length (ext_mailbox qs st)).
     { eapply nth_not_default. eapply in_not_nil. apply H1. }
     destruct msg.
-    + destruct H2 as (_ & ? & _). apply H2 in H1 as ?. destruct H7 as [? ->].
+    + destruct wf_candidates0 as (_ & ? & _). apply H5 in H1 as ?. destruct H6 as (? & ? & ->).
       exists x0. split; auto. intro. subst.
-      now apply H4 in H1.
-    + exfalso. destruct (nat_eqdec u ids[@max_id wf]). subst.
-      * destruct H5 as [ [_ ?] _]. red in H5.
-        apply In_nth_error in H1 as []. apply H5 in H1 as [-> ->].
+      now apply H2 in H1.
+    + exfalso. destruct (nat_eqdec u max). subst.
+      * destruct H3 as [ [_ ?] _]. red in H3.
+        apply In_nth_error in H1 as []. apply H3 in H1 as [-> ->].
         unfold next_proc, next_proc_and_msg in H0. rewrite Heqe in H0. contradiction.
-      * now apply H5 in H1.
+      * now apply H3 in H1.
 Qed.
 
 Lemma election_processing_ext_mailbox :
@@ -624,13 +626,12 @@ Lemma election_processing_ext_mailbox :
   nth i (s_procs st) ProcBegin = ProcProcessing msg ->
   hd_error (nth i (ext_mailbox qs st) []%list) = Some msg.
 Proof.
-  intros.
-  destruct H as [(? & _ & _) [? _] ].
-  specialize (H1 i Hi). red in H1. rewrite H0 in H1.
+  intros. destruct H.
+  specialize (wf_src_candidates0 i Hi). red in wf_src_candidates0. rewrite H0 in wf_src_candidates0.
   change []%list with (ext_mailbox1 ([]%list, ProcBegin)).
-  unfold ext_mailbox. rewrite map_nth. unfold ext_mailbox1. Search combine nth.
-  rewrite combine_nth, H0. reflexivity. admit. (* TODO add qs length to invariant *)
-Admitted.
+  unfold ext_mailbox. rewrite map_nth. unfold ext_mailbox1.
+  rewrite combine_nth, H0. reflexivity. now rewrite wf_queue_len0.
+Qed.
 
 Lemma hd_error_in : forall {A} (l : list A) a, hd_error l = Some a -> In a l.
 Proof.
@@ -708,16 +709,15 @@ Proof.
 
 (* Stability of variant when an uninteresting process is scheduled *)
 Theorem election_cst_elected :
-  let m := proj1_sig (Fin.to_nat (max_id wf)) in
   forall i (Hi : i <> 0 /\ i < n) v T st st' qs qs',
   election_invariant v qs st ->
   fst (election_variant st) = i ->
-  proj1_sig (Fin.to_nat (next_id v)) <> (m + (n - i)) mod n ->
+  proj1_sig (Fin.to_nat (next_id v)) <> (im + (n - i)) mod n ->
   ktrans (sched v, (qs, st)) (T, (qs', st')) -> election_variant st' = election_variant st.
 Proof.
   intros.
   destruct st as [? [] ].
-  { cbn in H0. destruct H as [(? & ? & ?) _]. cbn in H4. destruct H4 as (? & _ & []). lia. }
+  { cbn in H0. destruct H. destruct wf_progress0 as (_ & _ & [? _]). lia. }
   unshelve eapply election_does_progress in H as ?; eauto.
   2: { cbn. cbn in H0. intro. inversion H3. lia. }
   destruct H3 as (? & ? & ?).
@@ -735,7 +735,7 @@ Proof.
       rewrite H5 in H6. red in H6. rewrite H6 in H4.
       destruct (List.hd_error (List.nth (proj1_sig (Fin.to_nat (next_id v))) qs []%list)) eqn:?.
       * (* non-empty mailbox *)
-        apply ktrans_proc_loop_some_inv with (m := m0) in H4 as (? & -> & ->); auto.
+        apply ktrans_proc_loop_some_inv with (m := m) in H4 as (? & -> & ->); auto.
         cbn. f_equal. destruct (_ =? _) eqn:?; auto.
         apply Nat.eqb_eq in Heqb. cbn in Heqb. cbn in H0. subst. rewrite Heqb in H1.
         clear -H1 Hi. exfalso. apply H1. apply Nat.mod_wd; auto. lia.
