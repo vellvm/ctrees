@@ -239,39 +239,40 @@ Context {n : nat} (Hn : n <> 0) (ids : list nat) (ids_wf : ids_wf n ids).
 
 Let im := max_id ids_wf.
 Let max := List.nth im ids 0.
+Let pid i := List.nth i ids 0.
 
 Variant message :=
   | Candidate (u: nat)
   | Elected (u: nat).
 
 (* TODO use ids *)
-Definition proc_handle_msg (id: uid)(right: uid) (m: option message): ctree (netE message) B01 (unit + unit) :=
+Definition proc_handle_msg (i: uid)(right: uid) (m: option message): ctree (netE message) B01 (unit + unit) :=
        match m with
        | Some (Candidate candidate) =>
-           match Nat.compare candidate id with (* candidate < id *)
+           match Nat.compare candidate (pid i) with (* candidate < id *)
            (* My [left] neighbor proposed a candidate, I support that candidate *)
-           | Gt => send id right (Candidate candidate) ;; Ret (inl tt)
+           | Gt => send i right (Candidate candidate) ;; Ret (inl tt)
            (* My left neighbor proposed a candidate, I do not support him *)
            | Lt => Ret (inl tt)
            (* I am the leader, but only I know *)
-           | Datatypes.Eq => send id right (Elected id) ;; Ret (inr tt)
+           | Datatypes.Eq => send i right (Elected (pid i)) ;; Ret (inr tt)
            end
        | Some (Elected x) =>
            (* I know [x] is the leader *)
-           send id right (Elected x) ;; Ret (inr tt)
+           send i right (Elected x) ;; Ret (inr tt)
        | None => Ret (inl tt) (* Didn't receive anything *)
        end.
 
-Definition proc_loop (id: uid)(right: uid): ctree (netE message) B01 unit :=
+Definition proc_loop (i: uid)(right: uid): ctree (netE message) B01 unit :=
   CTree.iter
     (fun _ =>
-       m <- recv id;;
-       proc_handle_msg id right m) tt.
+       m <- recv i;;
+       proc_handle_msg i right m) tt.
 
-Definition proc_loop_handle_msg (id: uid)(right: uid) (m: option message): ctree (netE message) B01 unit :=
-  lr <- proc_handle_msg id right m;;
+Definition proc_loop_handle_msg (i: uid)(right: uid) (m: option message): ctree (netE message) B01 unit :=
+  lr <- proc_handle_msg i right m;;
   match lr with
-  | inl l => Guard (proc_loop id right)
+  | inl l => Guard (proc_loop i right)
   | inr r => Ret r
   end.
 
@@ -280,11 +281,11 @@ Definition proc_loop_handle_msg (id: uid)(right: uid) (m: option message): ctree
    This is currently removed
  *)
 (*| Client process |*)
-Definition proc (id: uid)(right: nat): ctree (netE message) B01 unit :=
+Definition proc (i: uid)(right: nat): ctree (netE message) B01 unit :=
   (* 1. Send my [id] to the process on the right *)
-  send id right (Candidate id);;
+  send i right (Candidate (pid i));;
   (* 2. Loop until we know the leader *)
-  proc_loop id right.
+  proc_loop i right.
 
 (* Logical state: the logical information about the dynamics we wish to keep track of. *)
 Variant proc_state : Type :=
@@ -483,7 +484,7 @@ Definition election_src_invariant_candidate st i (t : ctree (netE message) B01 u
   | ProcBegin => t ≅ proc i n
   | ProcWaiting =>
     (t ≅ proc_loop i ((i + 1) mod n))
-  | ProcProcessing m => t ≅ proc_handle_msg i ((i + 1) mod n) (Some m);; proc_loop i ((i + 1) mod n)
+  | ProcProcessing m => t ≅ proc_loop_handle_msg i ((i + 1) mod n) (Some m)
   | ProcElected => t ≅ Ret tt \/ t ≅ stuckD
   end.
 
@@ -680,32 +681,86 @@ Proof.
   rewrite H. cbn. rewrite bind_ret_l. now apply br_equ.
 Qed.
 
-(*
-Lemma ktrans_proc_handle_other_candidate_gt_inv : forall i j c t' v qs qs' st st'
+Definition incr_progress p :=
+  match p with
+  | MaxCandidate d => MaxCandidate (S d)
+  | MaxElected d => MaxElected (S d)
+  end.
+
+Lemma proc_handle_msg_equ_inv : forall i (Hi : i < n) j j' msg msg',
+  proc_loop_handle_msg i j (Some msg) ≅ proc_loop_handle_msg i j' (Some msg') ->
+    (msg = msg' /\ j' = j) \/
+    (exists c c', msg = Candidate c /\ msg' = Candidate c' /\ c < pid i /\ c' < pid i) \/
+    (msg = Candidate (pid i) /\ msg' = Elected (pid i)) \/
+    (msg = Elected (pid i) /\ msg' = Candidate (pid i)).
+Proof.
+  intros. unfold proc_loop_handle_msg, proc_loop, proc_handle_msg, send in H.
+  destruct msg; [destruct (u ?= pid i) eqn:? |]; (destruct msg'; [destruct (u0 ?= pid i) eqn:? |]); try eauto.
+  all: try solve [inv_equ].
+  - inv_equ. inv EQe. apply Nat.compare_eq_iff in Heqc, Heqc0. subst; eauto.
+  - inv_equ. inv EQe. apply Nat.compare_eq_iff in Heqc. subst. eauto.
+  - apply Nat.compare_lt_iff in Heqc, Heqc0. eauto 8.
+  - inv_equ. inv EQe. eauto.
+  - inv_equ. inv EQe. apply Nat.compare_eq_iff in Heqc. subst. eauto.
+  - inv_equ. inv EQe. eauto.
+Qed.
+
+Lemma proc_handle_msg_inv : forall i (Hi : i < n) j msg v qs st
   (INV: election_invariant v qs st),
+  v[@Fin.of_nat_lt Hi] ≅ proc_loop_handle_msg i j (Some msg) ->
+  exists msg', List.nth i st.(s_procs) ProcBegin = ProcProcessing msg' /\
+  (msg' = msg) \/
+    (exists c c', msg = Candidate c /\ msg' = Candidate c' /\ c < pid i /\ c' < pid i) \/
+    (msg = Candidate (pid i) /\ msg' = Elected (pid i)) \/
+    (msg = Elected (pid i) /\ msg' = Candidate (pid i)).
+Proof.
+  intros.
+  pose proof INV.(wf_src_candidates). red in H0. specialize (H0 i Hi).
+  unfold proc, proc_loop_handle_msg, proc_loop, proc_handle_msg, send, recv in *.
+  destruct (nth i (s_procs st) ProcBegin) eqn:?; [| | | destruct H0]; rewrite H0 in H; clear H0.
+  - destruct msg; try solve [inv_equ].
+    destruct (u ?= pid i) eqn:?; inv_equ.
+    inv EQe. apply Nat.compare_gt_iff in Heqc. lia.
+  - rewrite unfold_iter, bind_bind in H. destruct msg; try solve [inv_equ].
+    destruct (u ?= pid i) eqn:?; inv_equ.
+  - apply proc_handle_msg_equ_inv in H; auto. intuition; eauto 6.
+    destruct H as (? & ? & ? & ? & ? & ?). eauto 9.
+  - destruct msg; try solve [inv_equ].
+    destruct (u ?= pid i) eqn:?; inv_equ.
+  - destruct msg; try solve [inv_equ].
+    destruct (u ?= pid i) eqn:?; inv_equ.
+Qed.
+
+Lemma ktrans_proc_handle_other_candidate_gt_inv : forall i (Hi : i < n) j c t' v qs qs' st st'
+  (INV: election_invariant v qs st)
+  (Hvi: v[@Fin.of_nat_lt Hi] ≅ proc_loop_handle_msg i j (Some (Candidate c))),
   ktrans (proc_loop_handle_msg i j (Some (Candidate c)), (qs, st)) (t', (qs', st')) ->
-  c > i ->
+  c > pid i ->
   i <> next_proc st ->
   t' ≅ Guard (proc_loop i j) /\
   qs' = nth_map (fun q => (q ++ [Candidate c])%list) qs j /\
   st' = mk_election_state
     (nth_map (fun _ => ProcWaiting) st.(s_procs) i)
-    st.(s_progress)
+    (if c =? max then incr_progress st.(s_progress) else st.(s_progress))
     st.(s_queue).
 Proof.
   intros.
   unfold proc_loop_handle_msg, proc_handle_msg in H.
   apply Nat.compare_gt_iff in H0. rewrite H0 in H.
   rewrite bind_bind in H. setoid_rewrite bind_trigger in H.
-  apply ktrans_vis_inv in H as ([] & ? & _ & ?). rewrite bind_ret_l in H.
+  apply ktrans_vis_inv in H as ([] & ? & _ & ?). rewrite bind_ret_l in H. split; auto.
   cbn in H2. unfold execState in H2. cbn in H2.
-  inversion H2.
+  injection H2 as ?. subst. split; auto.
   apply Nat.eqb_neq in H1. rewrite !H1.
-  destruct (s_progress st) eqn:?.
-  - assert (In (Candidate c) (List.nth i (ext_mailbox qs st) []%list)).
-    {
-      apply hd_error_in. eapply election_processing_ext_mailbox; eauto.
-*)
+  eapply proc_handle_msg_inv in Hvi as ?; eauto. destruct H2 as [? [? | [? | [? | ?] ] ] ].
+  2: { destruct H2 as (? & ? & ? & ? & ? & ?). apply Nat.compare_gt_iff in H0. inversion H2. lia. }
+  2, 3: destruct H2; inversion H2; apply Nat.compare_gt_iff in H0; lia.
+  destruct H2 as [? ->].
+  eapply election_processing_ext_mailbox in H2; eauto. apply hd_error_in in H2.
+  apply wf_progress in INV. destruct INV. destruct st.(s_progress) eqn:?; auto.
+  destruct (c =? max) eqn:?; auto. apply Nat.eqb_eq in Heqb as ->.
+  destruct H4. now apply a in H2.
+Qed.
 
 (* Stability of variant when an uninteresting process is scheduled *)
 Theorem election_cst_elected :

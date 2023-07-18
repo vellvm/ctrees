@@ -1080,6 +1080,14 @@ Ltac ctree_head_in t h :=
       change t with (Vis e (fun x => Ret x) : ctree E B R) in h
   | @CTree.branch ?E ?B ?vis ?X ?b =>
       change t with (Br vis b (fun x => Ret x) : ctree E B X) in h
+  | CTree.bind (CTree.bind ?t ?k) ?k' =>
+      rewrite (bind_bind t k k') in h;
+      ctree_head_in (CTree.bind t (fun x => CTree.bind (k x) k')) h
+  | CTree.bind (CTree.trigger ?e) ?k =>
+      rewrite (bind_trigger e k) in h
+  | CTree.bind (Ret ?r) ?k =>
+      rewrite (bind_ret_l r k) in h;
+      ctree_head_in (k r) h
   | _ => idtac
   end.
 
