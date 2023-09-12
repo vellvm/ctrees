@@ -232,20 +232,12 @@ from Section 2 are indeed equivalent.
     repeat setoid_rewrite sb_guard.
     cbn.
     rewrite interp_state_ret.
-    play.
-    - rewrite unfold_interp_state in TR. cbn in TR. rewrite bind_ret_l in TR.
-      inv_trans. cbn in TR.
-      rewrite unfold_interp_state in TR. cbn in TR.
-      inv_trans. subst.
-      rewrite alist_add_alist_add. 2: apply RelDec_Correct_string.
-      eapply equ_sbisim_subrelation with (L := eq) in EQ; [| typeclasses eauto].
-      eexists; etrans.
-    - inv_trans. subst. do 2 eexists; split; [| split].
-      rewrite unfold_interp_state. cbn. rewrite bind_ret_l.
-      apply trans_guard. rewrite unfold_interp_state. cbn.
-      rewrite alist_add_alist_add. 2: apply RelDec_Correct_string.
-      etrans. now rewrite EQ.
-      auto.
+    unfold trigger. rewrite interp_state_vis.
+    cbn. rewrite bind_ret_l, sb_guard.
+    cbn. rewrite interp_state_ret.
+    apply sb_ret.
+    rewrite alist_add_alist_add; [reflexivity |].
+    apply RelDec_Correct_string.
   Qed.
 
 End Theory.
