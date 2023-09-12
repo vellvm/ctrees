@@ -247,14 +247,22 @@ Section State.
   Lemma interp_state_guard `{B1 -< C} `{C -< D}
     (t : ctree E C R) (s : S) :
     interp_state h (Guard t) s ≅
-    brD (▷ branch1: C _) (fun _ => (Guard (interp_state h t s))).
+    Guard (H := fun _ c => H1 _ (H0 _ c))
+      (Guard (interp_state h t s)).
   Proof.
     unfold Guard at 1.
     rewrite interp_state_br.
     cbn.
     unfold branch; rewrite bind_br.
-    step; constructor; intros [].
+    rewrite subevent_subevent.
+    apply br_equ. intros.
     rewrite bind_ret_l.
+    reflexivity.
+  Qed.
+
+  Lemma interp_interp_state `{C -< D} : forall (t : ctree E C R) s,
+    interp h t s ≅ interp_state h t s.
+  Proof.
     reflexivity.
   Qed.
 

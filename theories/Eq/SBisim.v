@@ -1026,10 +1026,10 @@ Do we actually need them on [sb (st R)], or something else?
 Section Proof_Rules.
 
   Arguments label : clear implicits.
-  Context {E C : Type -> Type} {X: Type}
-          `{HasStuck : B0 -< C}.
+  Context {E F C D : Type -> Type} {X Y: Type} {L : rel (label E) (label F)}
+          `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}.
 
-  Lemma step_sb_ret_gen {Y F D} {L: rel (label E) (label F)} `{B0 -< D}
+  Lemma step_sb_ret_gen
         (x: X) (y: Y) (R : rel (ctree E C X) (ctree F D Y)) :
     R stuckD stuckD ->
     L (val x) (val y) ->
@@ -1041,7 +1041,7 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
-  Lemma step_sb_ret {Y F D} {L: rel (label E) (label F)} `{B0 -< D}
+  Lemma step_sb_ret
         (x: X) (y: Y) (R : rel (ctree E C X) (ctree F D Y)) :
     L (val x) (val y) ->
     sbt L R (Ret x) (Ret y).
@@ -1057,8 +1057,8 @@ Section Proof_Rules.
     The vis nodes are deterministic from the perspective of the labeled transition system,
     stepping is hence symmetric and we can just recover the itree-style rule.
   |*)
-  Lemma step_sb_vis_gen {Y F D X' Y'} `{B0 -< D} (e: E X) (f: F Y)
-        (k: X -> ctree E C X') (k': Y -> ctree F D Y') {L R : rel _ _}:
+  Lemma step_sb_vis_gen {X' Y'} (e: E X') (f: F Y')
+        (k: X' -> ctree E C X) (k': Y' -> ctree F D Y) {R : rel _ _}:
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (forall x, exists y, R (k x) (k' y) /\ L (obs e x) (obs f y)) ->
     (forall y, exists x, R (k x) (k' y) /\ L (obs e x) (obs f y)) ->
@@ -1069,8 +1069,8 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
-  Lemma step_sb_vis {Y F D X' Y'} `{B0 -< D}
-        (e: E X) (f: F Y) (k: X -> ctree E C X') (k': Y -> ctree F D Y') {L R : rel _ _}:
+  Lemma step_sb_vis {X' Y'}
+        (e: E X') (f: F Y') (k: X' -> ctree E C X) (k': Y' -> ctree F D Y) {R : rel _ _}:
     (forall x, exists y, st L R (k x) (k' y) /\ L (obs e x) (obs f y)) ->
     (forall y, exists x, st L R (k x) (k' y) /\ L (obs e x) (obs f y)) ->
     sbt L R (Vis e k) (Vis f k').
@@ -1080,8 +1080,8 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
-  Lemma step_sb_vis_id_gen {F D X' Y'} `{B0 -< D}
-        (e: E X) (f: F X) (k: X -> ctree E C X') (k': X -> ctree F D Y') {L R : rel _ _}:
+  Lemma step_sb_vis_id_gen {X'}
+        (e: E X') (f: F X') (k: X' -> ctree E C X) (k': X' -> ctree F D Y) {R : rel _ _}:
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     (forall x, R (k x) (k' x) /\ L (obs e x) (obs f x)) ->
     sb L R (Vis e k) (Vis f k').
@@ -1091,8 +1091,8 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
-  Lemma step_sb_vis_id {F D X' Y'} `{B0 -< D}
-        (e: E X) (f: F X) (k: X -> ctree E C X') (k': X -> ctree F D Y') {L R : rel _ _}:
+  Lemma step_sb_vis_id {X'}
+        (e: E X') (f: F X') (k: X' -> ctree E C X) (k': X' -> ctree F D Y) {R : rel _ _}:
     (forall x, st L R (k x) (k' x)) ->
     (forall x, L (obs e x) (obs f x)) ->
     sbt L R (Vis e k) (Vis f k').
@@ -1105,8 +1105,8 @@ Section Proof_Rules.
   (*|
     Same goes for visible tau nodes.
   |*)
-  Lemma step_sb_step_gen {Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C}
-        `{HasTau': B1 -< D} (t : ctree E C X) (t' : ctree F D Y) (R L: rel _ _) :
+  Lemma step_sb_step_gen `{HasTau: B1 -< C}
+        `{HasTau': B1 -< D} (t : ctree E C X) (t' : ctree F D Y) (R: rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     L tau tau ->
     (R t t') ->
@@ -1116,8 +1116,8 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
-  Lemma step_sb_step {Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C}
-        `{HasTau': B1 -< D} (t : ctree E C X) (t' : ctree F D Y) (R L: rel _ _) :
+  Lemma step_sb_step `{HasTau: B1 -< C} `{HasTau': B1 -< D}
+        (t : ctree E C X) (t' : ctree F D Y) (R: rel _ _) :
     L tau tau ->
     (st L R t t') ->
     sbt L R (Step t) (Step t').
@@ -1132,8 +1132,8 @@ Section Proof_Rules.
     A useful special case is the one where the arity coincide and we simply use the identity
     in both directions. We can in this case have [n] rather than [2n] obligations.
     |*)
-  Lemma step_sb_brS_gen {X' Y Y' F D} (c : C X) (c' : D Y) `{B0 -< D}
-        (k : X -> ctree E C X') (k' : Y -> ctree F D Y') (L R : rel _ _):
+  Lemma step_sb_brS_gen {X' Y'} (c : C X') (c' : D Y')
+        (k : X' -> ctree E C X) (k' : Y' -> ctree F D Y) (R : rel _ _):
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     L tau tau ->
     (forall x, exists y, R (k x) (k' y)) ->
@@ -1152,8 +1152,8 @@ Section Proof_Rules.
       cbn; rewrite EQ; eauto.
   Qed.
 
-  Lemma step_sb_brS {Y F D X' Y'} (c : C X) (c' : D Y) `{B0 -< D}
-        (k : X -> ctree E C X') (k' : Y -> ctree F D Y') (L R : rel _ _):
+  Lemma step_sb_brS {Z Z'} (c : C Z) (c' : D Z')
+        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R : rel _ _):
     L tau tau ->
     (forall x, exists y, st L R (k x) (k' y)) ->
     (forall y, exists x, st L R (k x) (k' y)) ->
@@ -1164,19 +1164,21 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
-  Lemma step_sb_brS_id_gen {F X' Y'} (c : C X)
-        (k : X -> ctree E C X') (k' : X -> ctree F C Y') (R L: rel _ _) :
+  Lemma step_sb_brS_id_gen {X'} (c : C X')
+        (k : X' -> ctree E C X) (k' : X' -> ctree F C Y) (R : rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     L tau tau ->
     (forall x, R (k x) (k' x)) ->
     sb L R (BrS c k) (BrS c k').
   Proof.
     intros PROP ? EQs.
-    apply step_sb_brS_gen; trivial; intros x; exists x; auto.
+    split; apply step_ss_brS_id_gen; eauto.
+    - typeclasses eauto.
+    - cbn. eauto.
   Qed.
 
-  Lemma step_sb_brS_id {F X' Y'} (c : C X)
-        (k : X -> ctree E C X') (k' : X -> ctree F C Y') (R L: rel _ _):
+  Lemma step_sb_brS_id {X'} (c : C X')
+        (k : X' -> ctree E C X) (k' : X' -> ctree F C Y) (R : rel _ _):
     L tau tau ->
     (forall x, st L R (k x) (k' x)) ->
     sbt L R (BrS c k) (BrS c k').
@@ -1189,8 +1191,8 @@ Section Proof_Rules.
     For invisible nodes, the situation is different: we may kill them, but that execution
     cannot act as going under the guard.
   |*)
-  Lemma step_sb_guard_gen {Y F D} `{B0 -< D} `{B1 -< C} `{B1 -< D}
-        (t : ctree E C X) (t' : ctree F D Y) (R L: rel _ _) :
+  Lemma step_sb_guard_gen `{B1 -< C} `{B1 -< D}
+        (t : ctree E C X) (t' : ctree F D Y) (R : rel _ _) :
     sb L R t t' ->
     sb L R (Guard t) (Guard t').
   Proof.
@@ -1198,16 +1200,16 @@ Section Proof_Rules.
     split; apply step_ss_guard_gen; apply EQ.
   Qed.
 
-  Lemma step_sb_guard {Y F D} `{B0 -< D} `{B1 -< D} `{B1 -< C}
-        (t : ctree E C X) (t' : ctree F D Y) (R L: rel _ _) :
+  Lemma step_sb_guard `{B1 -< D} `{B1 -< C}
+        (t : ctree E C X) (t' : ctree F D Y) (R : rel _ _) :
     sbt L R t t' ->
     sbt L R (Guard t) (Guard t').
   Proof.
     now apply step_sb_guard_gen.
   Qed.
 
-  Lemma step_sb_brD_gen {Y X' Y' F D} `{B0 -< D} (c : C X) (d: D Y)
-        (k : X -> ctree E C X') (k' : Y -> ctree F D Y') (R L: rel _ _) :
+  Lemma step_sb_brD_gen {X' Y'} (c : C X') (d: D Y')
+        (k : X' -> ctree E C X) (k' : Y' -> ctree F D Y) (R : rel _ _) :
     (forall x, exists y, sb L R (k x) (k' y)) ->
     (forall y, exists x, sb L R (k x) (k' y)) ->
     sb L R (BrD c k) (BrD d k').
@@ -1218,8 +1220,8 @@ Section Proof_Rules.
     - destruct (EQs2 x) as [z [_ BA]]. eauto.
   Qed.
 
-  Lemma step_sb_brD {Y X' Y' F D} `{B0 -< D} (c : C X) (d: D Y)
-        (k : X -> ctree E C X') (k' : Y -> ctree F D Y') (R L: rel _ _) :
+  Lemma step_sb_brD {X' Y'} (c : C X') (d: D Y')
+        (k : X' -> ctree E C X) (k' : Y' -> ctree F D Y) (R : rel _ _) :
     (forall x, exists y, sbt L R (k x) (k' y)) ->
     (forall y, exists x, sbt L R (k x) (k' y)) ->
     sbt L R (BrD c k) (BrD d k').
@@ -1227,22 +1229,42 @@ Section Proof_Rules.
     now apply step_sb_brD_gen.
   Qed.
 
-  Lemma step_sb_brD_id_gen {Y Z F} (c : C X)
-        (k : X -> ctree E C Y) (k' : X -> ctree F C Z) (R L: rel _ _) :
+  Lemma step_sb_brD_id_gen {Z} (c : C Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F C Y) (R : rel _ _) :
     (forall x, sb L R (k x) (k' x)) ->
     sb L R (BrD c k) (BrD c k').
   Proof.
-    intros; apply step_sb_brD_gen.
+    intros. split; apply step_ss_brD_id_gen.
     intros x; exists x; apply H.
     intros x; exists x; apply H.
   Qed.
 
-  Lemma step_sb_brD_id  {Y Z F} (c : C X)
-        (k : X -> ctree E C Y) (k' : X -> ctree F C Z) (R L: rel _ _) :
+  Lemma step_sb_brD_id {Z} (c : C Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F C Y) (R : rel _ _) :
     (forall x, sbt L R (k x) (k' x)) ->
     sbt L R (BrD c k) (BrD c k').
   Proof.
     now apply step_sb_brD_id_gen.
+  Qed.
+
+  Lemma step_sb_brD_l_gen {Z R}
+    (c : C Z) (z : Z) (k : Z -> ctree E C X) (t : ctree F D Y) :
+    (forall x, sb L R (k x) t) ->
+    sb L R (BrD c k) t.
+  Proof.
+    split.
+    - apply step_ss_brD_l_gen.
+      apply H.
+    - apply step_ss_brD_r_gen with (x := z).
+      apply H.
+  Qed.
+
+  Lemma step_sb_brD_l {Z R}
+    (c : C Z) (z : Z) (k : Z -> ctree E C X) (t : ctree F D Y) :
+    (forall x, sbt L R (k x) t) ->
+    sbt L R (BrD c k) t.
+  Proof.
+    now apply step_sb_brD_l_gen.
   Qed.
 
 End Proof_Rules.
@@ -1376,15 +1398,24 @@ Section Sb_Proof_System.
     now step in H0.
   Qed.
 
-  Lemma sb_brD_idempotent `{B1 -< C} {HasFin : Bn -< C} n (k: fin (S n) -> ctree E C X) (t: ctree E C X):
+  Lemma sb_brD_idempotent {Y} `{B1 -< C} c (y : Y) (k: Y -> ctree E C X) (t: ctree E C X):
+      (forall x, k x ~ t) ->
+      BrD c k ~ t.
+  Proof.
+    intros * EQ. step.
+    apply step_sb_brD_l_gen; auto.
+    intros. specialize (EQ x).
+    now step in EQ.
+  Qed.
+
+  Lemma sb_brDn_idempotent `{B1 -< C} {HasFin : Bn -< C} n (k: fin (S n) -> ctree E C X) (t: ctree E C X):
       (forall x, k x ~ t) ->
       brDn k ~ t.
   Proof.
     intros * EQ.
-    rewrite <- sb_guard with (t:=t).
-    apply sb_brD; intros.
-    exists tt; apply EQ.
-    exists F1; apply EQ.
+    apply sb_brD_idempotent.
+    apply F1.
+    apply EQ.
   Qed.
 
   Lemma sb_unfold_forever {HasTau: B1 -< C}: forall (k: X -> ctree E C X)(i: X),
