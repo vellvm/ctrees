@@ -1234,9 +1234,7 @@ Section Proof_Rules.
     (forall x, sb L R (k x) (k' x)) ->
     sb L R (BrD c k) (BrD c k').
   Proof.
-    intros. split; apply step_ss_brD_id_gen.
-    intros x; exists x; apply H.
-    intros x; exists x; apply H.
+    intros. split; apply step_ss_brD_id_gen; apply H.
   Qed.
 
   Lemma step_sb_brD_id {Z} (c : C Z)

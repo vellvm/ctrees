@@ -912,25 +912,6 @@ Section Proof_Rules.
     For invisible nodes, the situation is different: we may kill them, but that execution
     cannot act as going under the guard.
     |*)
-  Lemma step_ss_guard_gen {Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C} `{HasTau': B1 -< D}
-        (t: ctree E C X) (t': ctree F D Y) (R L: rel _ _):
-    ss L R t t' ->
-    ss L R (Guard t) (Guard t').
-  Proof.
-    intros EQ.
-    intros ? ? TR; inv_trans; subst.
-    apply EQ in TR as (? & ? & ? & ? & ?); subst.
-    do 2 eexists; split; [etrans | split; trivial].
-  Qed.
-
-  Lemma step_ss_guard {Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C} `{HasTau': B1 -< D}
-        (t: ctree E C X) (t': ctree F D Y) (R L: rel _ _):
-    ssbt L R t t' ->
-    ssbt L R (Guard t) (Guard t').
-  Proof.
-    apply step_ss_guard_gen.
-  Qed.
-
   Lemma step_ss_brD_l_gen {Y F D Z} `{HasStuck': B0 -< D} (c : C Z)
         (k : Z -> ctree E C X) (t': ctree F D Y) (R L: rel _ _):
     (forall x, ss L R (k x) t') ->
@@ -1013,31 +994,54 @@ Section Proof_Rules.
     intros. destruct (H x). step in H0. exists x0. apply H0.
   Qed.
 
-  Lemma step_ss_brD_id_gen {Y F D n m} `{HasStuck': B0 -< D} (c: C n) (d: D m)
-        (k : n -> ctree E C X) (k' : m -> ctree F D Y)
+  Lemma step_ss_brD_id_gen {Y F D n} `{HasStuck': B0 -< D} (c: C n) (d: D n)
+        (k : n -> ctree E C X) (k' : n -> ctree F D Y)
         (R L : rel _ _) :
-    (forall x, exists y, ss L R (k x) (k' y)) ->
+    (forall x, ss L R (k x) (k' x)) ->
     ss L R (BrD c k) (BrD d k').
   Proof.
    intros; apply step_ss_brD_gen.
-    intros x; destruct (H x) as [y ?]; exists y; apply H0.
+   eauto.
   Qed.
 
-  Lemma step_ss_brD_id {Y F D n m} `{HasStuck': B0 -< D} (c: C n) (d: D m)
-    (k : n -> ctree E C X) (k': m -> ctree F D Y) (R L: rel _ _) :
-    (forall x, exists y, ssbt L R (k x) (k' y)) ->
+  Lemma step_ss_brD_id {Y F D n} `{HasStuck': B0 -< D} (c: C n) (d: D n)
+    (k : n -> ctree E C X) (k': n -> ctree F D Y) (R L: rel _ _) :
+    (forall x, ssbt L R (k x) (k' x)) ->
     ssbt L R (BrD c k) (BrD d k').
   Proof.
     apply step_ss_brD_id_gen.
   Qed.
 
-  Lemma ssim_brD_id {Y F D n m} `{HasStuck': B0 -< D} (c: C n) (d: D m)
-    (k : n -> ctree E C X) (k': m -> ctree F D Y) (L: rel _ _) :
-    (forall x, exists y, ssim L (k x) (k' y)) ->
+  Lemma ssim_brD_id {Y F D n} `{HasStuck': B0 -< D} (c: C n) (d: D n)
+    (k : n -> ctree E C X) (k': n -> ctree F D Y) (L: rel _ _) :
+    (forall x, ssim L (k x) (k' x)) ->
     ssim L (BrD c k) (BrD d k').
   Proof.
-    intros. step. apply step_ss_brD_id.
-    intros. destruct (H x). step in H0. exists x0. assumption.
+    intros. apply ssim_brD. eauto.
+  Qed.
+
+  Lemma step_ss_guard_gen {Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C} `{HasTau': B1 -< D}
+        (t: ctree E C X) (t': ctree F D Y) (R L: rel _ _):
+    ss L R t t' ->
+    ss L R (Guard t) (Guard t').
+  Proof.
+    intros EQ. now apply step_ss_brD_id_gen.
+  Qed.
+
+  Lemma step_ss_guard {Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C} `{HasTau': B1 -< D}
+        (t: ctree E C X) (t': ctree F D Y) (R L: rel _ _):
+    ssbt L R t t' ->
+    ssbt L R (Guard t) (Guard t').
+  Proof.
+    apply step_ss_guard_gen.
+  Qed.
+
+  Lemma ssim_guard {Y F D} `{HasStuck': B0 -< D} `{HasTau: B1 -< C} `{HasTau': B1 -< D}
+        (t: ctree E C X) (t': ctree F D Y) (L: rel _ _):
+    ssim L t t' ->
+    ssim L (Guard t) (Guard t').
+  Proof.
+    intros. now apply ssim_brD_id.
   Qed.
 
 (*|
