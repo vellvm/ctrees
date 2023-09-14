@@ -16,8 +16,7 @@ that take internal non-determinism into account.
 |*)
 From Coq Require Import RelationClasses Program.
 
-From Coinduction Require Import
-	coinduction rel tactics.
+From Coinduction Require Import all.
 
 From ITree Require Import Core.Subevent.
 
@@ -27,10 +26,10 @@ From CTree Require Import
 
 Import CTree.
 
-#[local] Ltac step_ := step; simpl body.
+(*#[local] Ltac step_ := step; simpl body.
 #[local] Ltac step := step_.
 #[local] Ltac step_in H := step in H; simpl body in H.
-#[local] Tactic Notation "step" "in" ident(H) := step_in H.
+#[local] Tactic Notation "step" "in" ident(H) := step_in H.*)
 
 (*|
 .. coq::
@@ -107,8 +106,8 @@ Ltac fold_equ :=
     | |- context[@fequ ?E ?B ?R1 ?R2 ?RR] => fold (@equ E B R1 R2 RR)
     end.
 
-Ltac __coinduction_equ R H :=
-  unfold equ; apply_coinduction; fold_equ; intros R H.
+(*Ltac __coinduction_equ R H :=
+  unfold equ; apply_coinduction; fold_equ; intros R H.*)
 
 Tactic Notation "__step_equ" :=
   match goal with
@@ -120,10 +119,10 @@ Tactic Notation "__step_equ" :=
 
 #[local] Tactic Notation "step" := __step_equ || step.
 
-#[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
-  __coinduction_equ R H.
+(*#[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
+  __coinduction_equ R H.*)
 
-Ltac __step_in_equ H :=
+(*Ltac __step_in_equ H :=
   match type of H with
   | context [@equ ?E ?B ?R1 ?R2 ?RR _ _] =>
       unfold equ in H;
@@ -131,7 +130,7 @@ Ltac __step_in_equ H :=
       fold (@equ E B R1 R2 RR) in H
   end.
 
-#[local] Tactic Notation "step" "in" ident(H) := __step_in_equ H || step in H.
+#[local] Tactic Notation "step" "in" ident(H) := __step_in_equ H || step in H.*)
 
 Module EquNotations.
 
@@ -141,7 +140,7 @@ Module EquNotations.
 (*|
 The associated companions:
 |*)
-  Notation et Q  := (t (fequ Q)).
+  (*Notation et Q  := (t (fequ Q)).
   Notation eT Q  := (T (fequ Q)).
   Notation ebt Q := (bt (fequ Q)).
   Notation ebT Q := (bT (fequ Q)).
@@ -150,7 +149,7 @@ The associated companions:
   Notation "t {{≅ Q }} u" := (equb Q (equ Q) t u) (at level 79).
   Notation "t [≅] u" := (et eq _ t u) (at level 79).
   Notation "t {≅} u" := (ebt eq _ t u) (at level 79).
-  Notation "t {{≅}} u" := (equb eq (equ eq) t u) (at level 79).
+  Notation "t {{≅}} u" := (equb eq (equ eq) t u) (at level 79).*)
 
 End EquNotations.
 
@@ -159,9 +158,10 @@ Import EquNotations.
 Section equ_theory.
 
   Context {E B : Type -> Type} {R : Type} (RR : R -> R -> Prop).
-  Notation eT  := (coinduction.T (fequ (E := E) (B := B) RR)).
+  Notation fequ := (fequ (E := E) (B := B)).
+  (*Notation eT  := (coinduction.T (fequ (E := E) (B := B) RR)).
   Notation et  := (coinduction.t (fequ (E := E) (B := B) RR)).
-  Notation ebt := (coinduction.bt (fequ (E := E) (B := B) RR)).
+  Notation ebt := (coinduction.bt (fequ (E := E) (B := B) RR)).*)
 (*|
 This is just a hack suggested by Damien Pous to avoid a
 universe inconsistency when using both the relational algebra
@@ -180,38 +180,40 @@ a coinductive proof.
 Here concretely, bisimulation candidates don't ever need
 to be closed by reflexivity in effect: the companion is always reflexive.
 |*)
-  Lemma refl_t {RRR: Reflexive RR}: const seq <= et.
+  Lemma refl_t {RRR: Reflexive RR} {C: Chain (fequ RR)}: Reflexive (elem C).
   Proof.
-    apply leq_t. intro.
-    change (@eq (ctree E B R)  <= equb_ RR eq).
-    intros p ? <-. cbn. desobs p; auto.
+    apply Reflexive_chain.
+    intros. intro.
+    cbn. desobs x; auto.
   Qed.
 
   (*|
 [converse] is compatible: up-to symmetry is valid
 |*)
-  Lemma converse_t {RRS: Symmetric RR}: converse <= et.
+  Lemma converse_t {RRS: Symmetric RR} {C: Chain (fequ RR)}: Symmetric (elem C).
   Proof.
-    apply leq_t. intros S x y H; cbn. destruct H; auto.
+    apply Symmetric_chain.
+    cbn. red. intros.
+    destruct H0; auto.
   Qed.
 
   (*|
 [squaring] is compatible: up-to transitivity is valid
 |*)
-  Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR}: square <= et.
+  Lemma square_t {RRR: Reflexive RR} {RRT: Transitive RR} {C: Chain (fequ RR)}: Transitive (elem C).
   Proof.
-    apply leq_t.
-    intros S x z [y xy yz]; cbn.
-    inversion xy; inversion yz; try (exfalso; congruence).
+    apply Transitive_chain.
+    cbn. red. intros ????? xy yz.
+    inversion xy; inversion yz; cbn; try (exfalso; congruence).
     - constructor. replace y0 with x1 in * by congruence. eauto.
-    - rewrite <-H in H2.
+    - rewrite <- H3 in H2.
       destruct (Vis_eq1 H2).
       destruct (Vis_eq2 H2) as [-> ->].
-      constructor. intro x0. now exists (k2 x0).
-		                   - rewrite <- H in H2.
-			             destruct (Br_eq1 H2); subst.
-			             destruct (Br_eq2 H2) as [-> ->].
-			             constructor. intros i. now eexists.
+      constructor. intro x0. eauto.
+    - rewrite <- H3 in H2.
+      destruct (Br_eq1 H2); subst.
+      destruct (Br_eq2 H2) as [-> ->].
+      constructor. intros i. eauto.
   Qed.
 
   (*|
@@ -220,12 +222,12 @@ that the companion, at all point, is reflexive, symmetric, transitive.
 The companion library directly provide these results for bisimilarity, [t R], [b (t R)]
 and [T f R].
 |*)
-  #[global] Instance Equivalence_et `{Equivalence _ RR} S: Equivalence (et S).
-  Proof. apply Equivalence_t. apply refl_t. apply square_t. apply converse_t. Qed.
-  #[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (eT f S).
+  #[global] Instance Equivalence_et `{Equivalence _ RR} {C: Chain (fequ RR)}: Equivalence (elem C).
+  Proof. constructor. apply refl_t. apply converse_t. apply square_t. Qed.
+  (*#[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (eT f S).
   Proof. apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
   #[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (ebt S).
-  Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.
+  Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.*)
 
   (*|
 This instance is a bit annoyingly adhoc, but useful for unfolding laws notably:
@@ -247,17 +249,23 @@ Proof. apply Equivalence_et. typeclasses eauto. Qed.
 #[global] Hint Constructors equb : core.
 Arguments equb_ {E B R1 R2} RR eq t1 t2/.
 
+Ltac step_in H :=
+  match type of H with
+  | gfp ?b ?x ?y => apply (gfp_fp b x y) in H
+  end.
+
+Tactic Notation "step" "in" ident(H) := step_in H.
 
 #[global] Instance equb_eq_equ' {E B X Y} {R : rel X Y} :
   Proper (equ eq ==> equ eq ==> flip impl) (@equ E B X Y R).
 Proof.
   unfold Proper, respectful, flip, impl; cbn.
-  unfold equ; coinduction ? IH.
-  intros t t' EQt u u' EQu EQ.
+  unfold equ at 4. coinduction C CH. intros t t' EQt u u' EQu EQ.
+  unfold equ in *.
   step in EQt.
   step in EQu.
   step in EQ.
-  cbn*; inv EQt; rewrite <- H in EQ.
+  cbn in *; inv EQt; rewrite <- H in EQ.
   - inv EQ.
     rewrite <- H3 in EQu.
     inv EQu; auto.
@@ -265,8 +273,7 @@ Proof.
     cbn.
     rewrite <- x in EQu.
     dependent destruction EQu.
-    rewrite <- x.
-    eauto.
+    rewrite <- x. eauto.
   - dependent destruction EQ.
     cbn.
     rewrite <- x in EQu.
@@ -288,16 +295,16 @@ Lemma equ_ret_inv {E B X} (r1 r2 : X) :
   Ret r1 ≅ (Ret r2 : ctree E B X) ->
   r1 = r2.
 Proof.
-  intros EQ. step in EQ.
-  dependent induction EQ; auto.
+  intros EQ. unfold equ in EQ. step in EQ.
+  inversion EQ; auto.
 Qed.
 
 Lemma equ_vis_invT {E B X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E B S) k2 :
   Vis e1 k1 ≅ Vis e2 k2 ->
   X = Y.
 Proof.
-  intros EQ. step in EQ.
-  dependent induction EQ; auto.
+  intros EQ. unfold equ in EQ. step in EQ.
+  inversion EQ; auto.
 Qed.
 
 Lemma equ_vis_invE {E B X S} (e1 e2 : E X) (k1 k2 : X -> ctree E B S) :

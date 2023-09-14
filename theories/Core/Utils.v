@@ -2,15 +2,14 @@
 
 From Coq Require Import Fin.
 From Coq Require Export Program.Equality.
-From Coinduction Require Import
-	coinduction rel tactics.
+From Coinduction Require Import all.
 From ITree Require Import Basics.Basics.
 
 Notation fin := Fin.t.
 
-#[global] Arguments bt : simpl never.
+(*#[global] Arguments bt : simpl never.
 Ltac next := unfold bt; cbn.
-Tactic Notation "cbn*" := next.
+Tactic Notation "cbn*" := next.*)
 
 Polymorphic Class MonadTrigger (E : Type -> Type) (M : Type -> Type) : Type :=
   mtrigger : forall {X}, E X -> M X.
@@ -20,7 +19,7 @@ Polymorphic Class MonadBr (B : Type -> Type) (M : Type -> Type) : Type :=
 
 Notation rel X Y := (X -> Y -> Prop).
 
-Lemma t_gfp_bt : forall {X} `{CompleteLattice X} (b : mon X),
+(*Lemma t_gfp_bt : forall {X} `{CompleteLattice X} (b : mon X),
   t b (gfp (bt b)) == gfp b.
 Proof.
   intros. cbn.
@@ -48,7 +47,7 @@ Qed.
   Proper (weq ==> weq) (@gfp (rel X Y) _).
 Proof.
   intros. intros ? ? ?. now apply t_weq.
-Qed.
+Qed.*)
 
 Ltac invert :=
   match goal with
@@ -72,7 +71,7 @@ Ltac break_match_in H :=
 
 (* A smarter version of this should be part of the [coinduction] library *)
 
-Ltac step_ :=
+(*Ltac step_ :=
   match goal with
   | |- gfp ?b ?x ?y ?z => apply (proj2 (gfp_fp b x y z))
   | |- body (t ?b) ?R ?x ?y ?z => apply (bt_t b R x y z)
@@ -97,7 +96,7 @@ Ltac step_in H :=
   | body (t ?b) ?R ?x => apply (bt_t b R x) in H
   | _ => red in H; step_in H
   end.
-Tactic Notation "step" "in" ident(H) := step_in H.
+Tactic Notation "step" "in" ident(H) := step_in H.*)
 
 Class Injective {A B}(R: rel A B) := {
     inj: forall x x' y, R x y /\ R x' y -> x = x';
