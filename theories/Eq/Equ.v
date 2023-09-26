@@ -224,10 +224,6 @@ and [T f R].
 |*)
   #[global] Instance Equivalence_et `{Equivalence _ RR} {C: Chain (fequ RR)}: Equivalence (elem C).
   Proof. constructor. apply refl_t. apply converse_t. apply square_t. Qed.
-  (*#[global] Instance Equivalence_T `{Equivalence _ RR} f S: Equivalence (eT f S).
-  Proof. apply Equivalence_T. apply refl_t. apply square_t. apply converse_t. Qed.
-  #[global] Instance Equivalence_bt `{Equivalence _ RR} S: Equivalence (ebt S).
-  Proof. apply Equivalence_bt. apply refl_t. apply square_t. apply converse_t. Qed.*)
 
 (*|
 This instance is a bit annoyingly adhoc, but useful for unfolding laws notably:
@@ -244,17 +240,10 @@ of the tree.
 End equ_theory.
 
 #[global] Instance Equivalence_equ {E B R}: Equivalence (@equ E B R R eq).
-Proof. apply Equivalence_et. typeclasses eauto. Qed.
+Proof. typeclasses eauto. Qed.
 
 #[global] Hint Constructors equb : core.
 Arguments equb_ {E B R1 R2} RR eq t1 t2/.
-
-(* Ltac step_in H := *)
-(*   match type of H with *)
-(*   | gfp ?b ?x ?y => apply (gfp_fp b x y) in H *)
-(*   end. *)
-
-(* Tactic Notation "step" "in" ident(H) := step_in H. *)
 
 #[global] Instance equb_eq_equ' {E B X Y} {R : rel X Y} :
   Proper (equ eq ==> equ eq ==> flip impl) (@equ E B X Y R).
@@ -295,7 +284,7 @@ Lemma equ_ret_inv {E B X} (r1 r2 : X) :
   Ret r1 ≅ (Ret r2 : ctree E B X) ->
   r1 = r2.
 Proof.
-  intros EQ. unfold equ in EQ. step in EQ.
+  intros EQ. step in EQ.
   inversion EQ; auto.
 Qed.
 
@@ -303,7 +292,7 @@ Lemma equ_vis_invT {E B X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E B S) k2 
   Vis e1 k1 ≅ Vis e2 k2 ->
   X = Y.
 Proof.
-  intros EQ. unfold equ in EQ. step in EQ.
+  intros EQ. step in EQ.
   inversion EQ; auto.
 Qed.
 
@@ -546,14 +535,20 @@ Heterogeneous [pair], todo move to coinduction library
         (forall x x', SS x x' -> elem R (k x) (k' x')) ->
         elem R (bind t k) (bind t' k').
     Proof.
-      eapply tower.
-      - intros r INC t t' k k' EQ HK.
-        apply INC.
-        (* 2:assumption. *)
-        (* Unset Printing Notations. *)
-        (* unfold equ in EQ. *)
-      (* TODO *)
-    Admitted.
+      apply tower.
+      - intros ? INC ? ? ? ? tt' kk' ? ?.
+        apply INC. apply H. apply tt'.
+        intros x x' xx'. apply leq_infx in H. apply H. now apply kk'.
+      - intros ? ? ? ? ? ? tt' kk'.
+        step in tt'.
+        cbn. unfold observe. cbn.
+        destruct tt'.
+        + now apply kk'.
+        + constructor. intros. apply H. apply REL.
+          intros. apply (b_chain x). now apply kk'.
+        + constructor. intros. apply H. apply REL.
+          intros. apply (b_chain x). now apply kk'.
+    Qed.
 
     #[global] Instance bind_chain
       {E B: Type -> Type} {X Y: Type} (RR : Y -> Y -> Prop)
