@@ -71,17 +71,17 @@ Ltac break_match_in H :=
 
 (* A smarter version of this should be part of the [coinduction] library *)
 
-(*Ltac step_ :=
+Ltac step_ :=
   match goal with
-  | |- gfp ?b ?x ?y ?z => apply (proj2 (gfp_fp b x y z))
-  | |- body (t ?b) ?R ?x ?y ?z => apply (bt_t b R x y z)
-  | |- body (body (T ?b) ?f) ?R ?x ?y ?z => apply (bT_T b f R x y z)
-  | |- gfp ?b ?x ?y => apply (proj2 (gfp_fp b x y))
-  | |- body (t ?b) ?R ?x ?y => apply (bt_t b R x y)
-  | |- body (body (T ?b) ?f) ?R ?x ?y => apply (bT_T b f R x y)
-  | |- gfp ?b ?x => apply (proj2 (gfp_fp b x))
-  | |- body (t ?b) ?R ?x => apply (bt_t b R x)
-  | |- body (body (T ?b) ?f) ?R ?x => apply (bT_T b f R x)
+  | |- gfp ?b ?x ?y ?z => apply (proj1 (gfp_fp b x y z))
+  (* | |- body (t ?b) ?R ?x ?y ?z => apply (bt_t b R x y z) *)
+  (* | |- body (body (T ?b) ?f) ?R ?x ?y ?z => apply (bT_T b f R x y z) *)
+  | |- gfp ?b ?x ?y => apply (proj1 (gfp_fp b x y))
+  (* | |- body (t ?b) ?R ?x ?y => apply (bt_t b R x y) *)
+  (* | |- body (body (T ?b) ?f) ?R ?x ?y => apply (bT_T b f R x y) *)
+  | |- gfp ?b ?x => apply (proj1 (gfp_fp b x))
+  (* | |- body (t ?b) ?R ?x => apply (bt_t b R x) *)
+  (* | |- body (body (T ?b) ?f) ?R ?x => apply (bT_T b f R x) *)
   end.
 
 Ltac step := first [step_ | red; step_].
@@ -89,14 +89,14 @@ Ltac step := first [step_ | red; step_].
 Ltac step_in H :=
   match type of H with
   | gfp ?b ?x ?y ?z => apply (gfp_fp b x y z) in H
-  | body (t ?b) ?R ?x ?y ?z => apply (bt_t b R x y z) in H
+  (* | body (t ?b) ?R ?x ?y ?z => apply (bt_t b R x y z) in H *)
   | gfp ?b ?x ?y => apply (gfp_fp b x y) in H
-  | body (t ?b) ?R ?x ?y => apply (bt_t b R x y) in H
+  (* | body (t ?b) ?R ?x ?y => apply (bt_t b R x y) in H *)
   | gfp ?b ?x => apply (gfp_fp b x) in H
-  | body (t ?b) ?R ?x => apply (bt_t b R x) in H
+  (* | body (t ?b) ?R ?x => apply (bt_t b R x) in H *)
   | _ => red in H; step_in H
   end.
-Tactic Notation "step" "in" ident(H) := step_in H.*)
+Tactic Notation "step" "in" ident(H) := step_in H.
 
 Class Injective {A B}(R: rel A B) := {
     inj: forall x x' y, R x y /\ R x' y -> x = x';
