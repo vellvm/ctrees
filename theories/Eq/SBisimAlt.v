@@ -375,8 +375,44 @@ Section sbisim'_heterogenous_theory.
     now rewrite <- eq1, <- eq2.
   Qed.
 
+  Lemma sb'_true_ss' R :
+    forall (t : ctree E C X) (u : ctree F D Y),
+    sb' L R true t u <-> ss'_gen L (fun t u => forall side, R side t u) (R true) t u.
+  Proof.
+    split; intros.
+    - now apply H.
+    - split; intros; try discriminate. apply H.
+  Qed.
+
+  Lemma sb'_false_ss' R :
+    forall (t : ctree E C X) (u : ctree F D Y),
+    sb' L R false t u <-> ss'_gen (flip L) (fun u t => forall side, R side t u) (flip (R false)) u t.
+  Proof.
+    split; intros.
+    - now apply H.
+    - split; intros; try discriminate. apply H.
+  Qed.
+
+  Lemma sb'_true_stuck R :
+    forall b (u : ctree F D Y) k,
+    sb' L R true (go (@BrF E C X _ b void (subevent _ branch0) k)) u.
+  Proof.
+    intros. apply sb'_true_ss'.
+    apply ss'_stuck.
+  Qed.
+
 End sbisim'_heterogenous_theory.
 
+Lemma sb'_stuck {E F C D X Y L} {HasStuck1: B0 -< C} {HasStuck2: B0 -< D} R :
+  forall side b b' k k',
+  sb' L R side
+    (go (@BrF E C X _ b void (subevent _ branch0) k))
+    (go (@BrF F D Y _ b' void (subevent _ branch0) k')).
+Proof.
+  intros. destruct side.
+  - apply sb'_true_stuck.
+  - apply sb'_flip. cbn -[sb']. apply sb'_true_stuck.
+Qed.
 
 Section Proof_Rules.
 
@@ -389,16 +425,28 @@ Section Proof_Rules.
           {R : bool -> rel (ctree E C X) (ctree F D Y)}
           {HR: Proper (eq ==> equ eq ==> equ eq ==> impl) R}.
 
-  Lemma step_sb'_ret x y :
+  Lemma step_sb'_ret :
+    forall {R : _ -> rel _ _} {HR: Proper (eq ==> equ eq ==> equ eq ==> impl) R}
+    x y,
     L (val x) (val y) ->
     (forall side, R side stuckD stuckD) ->
     forall side, sb' L R side (Ret x : ctree E C X) (Ret y : ctree F D Y).
   Proof.
-    intros Rstuck PROP Lval. split; intros; subst.
+    clear R HR.
+    intros R HR x y Rstuck PROP Lval. split; intros; subst.
     - unshelve eapply step_ss'_ret; auto.
       cbn. intros. rewrite <- H. specialize (H1 side). now subs.
     - unshelve eapply step_ss'_ret; auto.
       cbn. intros. specialize (H1 side). now subs.
+  Qed.
+
+  Lemma step_sbt'_ret x y :
+    L (val x) (val y) ->
+    forall side, sbt' L R side (Ret x : ctree E C X) (Ret y : ctree F D Y).
+  Proof.
+    intros. apply step_sb'_ret.
+    - exact H.
+    - intros. step. apply sb'_stuck.
   Qed.
 
 (*|
@@ -462,6 +510,17 @@ Section Proof_Rules.
     intros; apply step_sb'_brS; eauto.
   Qed.
 
+  Lemma step_sb'_brS_l {Z} :
+    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y),
+    (forall x, exists l' u', trans l' u u' /\ (forall side, R side (k x) u') /\ L tau l') ->
+    sb' L R true (BrS c k) u.
+  Proof.
+    split; intros; subst; try discriminate.
+    unshelve eapply step_ss'_brS_l.
+    - cbn. intros. specialize (H3 side). now subs.
+    - apply H.
+  Qed.
+
   (*|
     Same goes for visible tau nodes.
     |*)
@@ -494,6 +553,15 @@ Section Proof_Rules.
     sb' L R side (BrD c k) (BrD d k').
   Proof.
     intros. apply step_sb'_brD; eauto.
+  Qed.
+
+  Lemma step_sb'_brD_l {Z} :
+    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y),
+    (forall x, st' L R true (k x) u) ->
+    sbt' L R true (BrD c k) u.
+  Proof.
+    split; intros; subst; try discriminate.
+    now apply step_ss'_brD_l.
   Qed.
 
   Lemma step_sb'_guard `{HasTau: B1 -< C} `{HasTau': B1 -< D}
@@ -572,6 +640,15 @@ Section Inversion_Rules.
     setoid_rewrite EQ in H2. etrans.
   Qed.
 
+  Lemma sb'_true_vis_l_inv {Z R} :
+    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
+    sb' L R true (Vis e k) u ->
+    exists l' u', trans l' u u' /\ (forall side, R side (k x) u') /\ L (obs e x) l'.
+  Proof.
+    intros. apply sb'_true_ss' in H.
+    now apply ss'_vis_l_inv with (x := x) in H.
+  Qed.
+
   Lemma sb'_true_brS_inv {Z Z' R} :
     forall (c : C Z) (c' : D Z') (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y),
     (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
@@ -583,6 +660,15 @@ Section Inversion_Rules.
     apply H0 in H1; etrans.
     destruct H1 as (? & ? & ? & ? & ?). inv_trans. subst.
     setoid_rewrite EQ in H2. etrans.
+  Qed.
+
+  Lemma sb'_true_brS_l_inv {Z R} :
+    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
+    sb' L R true (BrS c k) u ->
+    exists l' u', trans l' u u' /\ (forall side, R side (k x) u') /\ L tau l'.
+  Proof.
+    intros. apply sb'_true_ss' in H.
+    now apply ss'_brS_l_inv with (x := x) in H.
   Qed.
 
   Lemma sb'_eq_vis_invT {Z Z' R} :
@@ -618,7 +704,7 @@ Section Inversion_Rules.
       setoid_rewrite EQ in H2. apply obs_eq_inv in H3 as [<- <-]. auto.
   Qed.
 
-  Lemma sb'_true_vis_l_inv {Z R} :
+  Lemma sb'_true_vis_l_inv' {Z R} :
     forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y),
     Respects_val L ->
     Respects_tau L ->
@@ -642,7 +728,7 @@ Section Inversion_Rules.
       pose proof (H1 (Is_val _)). inversion H2.
   Qed.
 
-  Lemma sb'_true_brS_l_inv {Z R} :
+  Lemma sb'_true_brS_l_inv' {Z R} :
     forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y),
     Respects_tau L ->
     (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->

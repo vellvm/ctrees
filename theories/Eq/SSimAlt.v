@@ -524,6 +524,8 @@ Section Proof_Rules.
 
 End Proof_Rules.
 
+(* Specialized proof rules *)
+
 Lemma step_ssbt'_ret {E F C D X Y} `{HasB0: B0 -< C} `{HasB0': B0 -< D}
   (x : X) (y : Y) (L R : rel _ _) :
   L (val x) (val y) ->
@@ -569,6 +571,33 @@ Proof.
   - step in H. apply H.
   - apply H0.
 Qed.
+
+Section Inversion_Rules.
+
+  Context {E F C D : Type -> Type}
+          {X Y : Type}
+          {HasStuck: B0 -< C}
+          {HasStuck': B0 -< D}
+          {L : rel (@label E) (@label F)}
+          {R Reps : rel (ctree E C X) (ctree F D Y)}.
+
+  Lemma ss'_vis_l_inv {Z} :
+    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
+    ss'_gen L R Reps (Vis e k) u ->
+    exists l' u', trans l' u u' /\ R (k x) u' /\ L (obs e x) l'.
+  Proof.
+    intros. apply H; etrans.
+  Qed.
+
+  Lemma ss'_brS_l_inv {Z} :
+    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
+    ss'_gen L R Reps (BrS c k) u ->
+    exists l' u', trans l' u u' /\ R (k x) u' /\ L tau l'.
+  Proof.
+    intros. apply H; etrans.
+  Qed.
+
+End Inversion_Rules.
 
 (*|
 Up-to [bind] context simulations

@@ -425,6 +425,14 @@ Section bind.
     - auto.
   Qed.
 
+  #[global] Instance Respects_val_update_val_rel :
+    Respects_val update_val_rel.
+  Proof.
+    constructor. intros. destruct H.
+    - split; etrans.
+    - tauto.
+  Qed.
+
   Definition is_update_val_rel (L0 : rel (@label E) (@label F)) : Prop :=
     forall l1 l2, wf_val X l1 -> wf_val Y l2 -> (L0 l1 l2 <-> update_val_rel l1 l2).
 
@@ -1128,6 +1136,23 @@ Inversion principles
         apply IN.
   Qed.
 
+  Lemma ss_vis_l_inv {F D Y Z L R} `{HasB0': B0 -< D} :
+    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
+    ss L R (Vis e k) u ->
+    exists l' u', trans l' u u' /\ R (k x) u' /\ L (obs e x) l'.
+  Proof.
+    intros. apply H; etrans.
+  Qed.
+
+  Lemma ssim_vis_l_inv {F D Y Z L} `{HasB0': B0 -< D} :
+    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
+    ssim L (Vis e k) u ->
+    exists l' u', trans l' u u' /\ ssim L (k x) u' /\ L (obs e x) l'.
+  Proof.
+    intros. step in H.
+    now simple apply ss_vis_l_inv with (x := x) in H.
+  Qed.
+
   Lemma ssim_brS_inv {F D Y} {L: rel (label E) (label F)} `{HasStuck': B0 -< D}
         n m (cn: C n) (cm: D m) (k1 : n -> ctree E C X) (k2 : m -> ctree F D Y) :
     ssim L (BrS cn k1) (BrS cm k2) ->
@@ -1137,6 +1162,23 @@ Inversion principles
     eplay.
     subst; inv_trans.
     eexists; eauto.
+  Qed.
+
+  Lemma ss_brS_l_inv {F D Y Z L R} `{HasB0': B0 -< D} :
+    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
+    ss L R (BrS c k) u ->
+    exists l' u', trans l' u u' /\ R (k x) u' /\ L tau l'.
+  Proof.
+    intros. apply H; etrans.
+  Qed.
+
+  Lemma ssim_brS_l_inv {F D Y Z L} `{HasB0': B0 -< D} :
+    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
+    ssim L (BrS c k) u ->
+    exists l' u', trans l' u u' /\ ssim L (k x) u' /\ L tau l'.
+  Proof.
+    intros. step in H.
+    now simple apply ss_brS_l_inv with (x := x) in H.
   Qed.
 
   Lemma ss_brD_l_inv {F D Y} {L: rel (label E) (label F)} `{HasStuck': B0 -< D}
