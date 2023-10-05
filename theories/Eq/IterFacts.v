@@ -11,6 +11,7 @@ From CTree Require Import
      CTree
      Utils
      Eq
+     Eq.SSimAlt
      Eq.SBisimAlt.
 
 Import CTree.
@@ -24,19 +25,32 @@ Definition iter_gen {E B X I} `{B1 -< B}
   | inr x => Ret x
   end.
 
-Section TransIter.
-
-Context {E B : Type -> Type} {X : Type} {I : Type}.
-Context `{HasB0 : B0 -< B} `{HasB1 : B1 -< B}.
-Context (step : I -> ctree E B (I + X)).
-
-Lemma iter_iter_gen : forall (i : I),
+Lemma iter_iter_gen {E B X I} `{B1 -< B} :
+  forall (i : I) (step : I -> ctree E B (I + X)),
   iter step i ≅ iter_gen step (step i).
 Proof.
   intros. unfold iter_gen.
   rewrite unfold_iter.
   reflexivity.
 Qed.
+
+#[global] Instance iter_gen_equ {E B X I} `{HasB1: B1 -< B} :
+  Proper ((pointwise eq (equ eq)) ==> equ eq ==> equ eq) (@iter_gen E B X I _).
+Proof.
+  cbn. intros step step' ? t t' EQ.
+  unfold iter_gen.
+  revert t t' EQ. coinduction R CH. intros.
+  subs. upto_bind_eq. red in H.
+  destruct x; [| reflexivity].
+  constructor. intros _.
+  rewrite !iter_iter_gen. apply CH. now apply H.
+Qed.
+
+Section TransIter.
+
+Context {E B : Type -> Type} {X : Type} {I : Type}.
+Context `{HasB0 : B0 -< B} `{HasB1 : B1 -< B}.
+Context (step : I -> ctree E B (I + X)).
 
 Inductive trans_it (step : I -> ctree E B (I + X)) (t : ctree E B (I + X)) l T : Prop :=
 | it_next i :
@@ -148,6 +162,7 @@ Qed.
 
 End TransIter.
 
+(* Thanks to SSimAlt, this proof does not need trans_iter_gen. *)
 Theorem ssim_iter_gen {E F C D A B B'}
   `{HasB0 : B0 -< C} `{HasB1 : B1 -< C} `{HasB0' : B0 -< D} `{HasB1' : B1 -< D}
   (L : rel (@label E) (@label F)) (Ra : relation A) (Rb : rel B B') L0
@@ -160,39 +175,34 @@ Theorem ssim_iter_gen {E F C D A B B'}
   iter_gen step t (≲L) iter_gen step' t'.
 Proof.
   repeat intro.
+  setoid_rewrite ssim_ssim'.
   revert step step' t t' H H0.
-  coinduction R CH.
-  do 3 red. cbn. intros.
-  apply trans_iter_gen in H1.
-  revert t' H0. induction H1; intros.
-  - step in H2. apply H2 in H0 as (? & ? & ? & ? & ?).
-    apply HL0 in H4; etrans.
-    apply update_val_rel_val_l in H4 as (? & -> & ?).
-    apply trans_val_inv in H0 as ?. rewrite H5 in H0. clear x0 H3 H5.
-    destruct x1. 2: { destruct H4. } cbn in H4.
-    apply H in H4.
-    apply IHtrans_it in H4 as (? & ? & ? & ? & ?). subst. clear IHtrans_it.
-    exists x, x0; auto. split; auto.
-    unfold iter_gen.
-    apply trans_bind_r with (x := inl a); auto.
-    apply trans_guard. apply H3.
-  - destruct H0 as (? & ? & ?).
-    step in H1. apply H1 in H0 as (? & ? & ? & ? & ?). subst.
-    exists x, (iter_gen step' x0).
-    apply HL0 in H5; etrans.
-    apply update_val_rel_nonval_l in H5 as []; auto.
-    split; [| split]; auto.
-    + apply trans_bind_l; auto.
-    + rewrite H2. apply CH; auto.
-  - subst.
-    step in H3. apply H3 in H0 as (? & ? & ? & ? & ?). subst.
-    apply HL0 in H4; etrans.
-    apply update_val_rel_val_l in H4 as (? & -> & ?).
-    apply trans_val_inv in H0 as ?. rewrite H5 in H0. clear x0 H1 H5.
-    destruct x1. 1: { destruct H4. } cbn in H4.
-    exists (val b), stuckD. split.
-    2: { split. rewrite H2. step. apply stuckD_ss. apply HRb. apply H4. }
-    eapply trans_bind_r. apply H0. cbn. etrans.
+  red. coinduction R CH. intros.
+  unfold iter_gen.
+  rewrite (ctree_eta t) in * |- *. destruct (observe t); [| | destruct vis].
+  - (* Ret *)
+    eapply ssbt'_clo_bind_gen; eauto.
+    intros. destruct x, y; try destruct H1.
+    + apply step_ss'_guard. rewrite !iter_iter_gen. apply CH; auto.
+    + apply step_ssbt'_ret. now apply HRb.
+  - (* Vis *)
+    rewrite bind_vis. apply step_ss'_vis_l. intros.
+    step in H0. simple eapply ss_vis_l_inv in H0.
+    destruct H0 as (l' & u' & TR & SIM & Hl').
+    apply HL0 in Hl'; etrans.
+    apply update_val_rel_nonval_l in Hl' as []; etrans.
+    eauto 7 with trans.
+  - (* BrS *)
+    rewrite bind_br. apply step_ss'_brS_l. intros.
+    step in H0. simple eapply ss_brS_l_inv in H0.
+    edestruct H0 as (l' & u' & TR & SIM & Hl').
+    apply HL0 in Hl'; etrans.
+    apply update_val_rel_nonval_l in Hl' as []; etrans.
+    eauto 7 with trans.
+  - (* BrD *)
+    rewrite bind_br. apply step_ss'_brD_l. intros.
+    apply ssim_brD_l_inv with (x := x) in H0.
+    apply CH; auto.
 Qed.
 
 #[global] Instance ssim_iter_gen_eq {E B X Y} `{HasB0 : B0 -< B} `{HasB1 : B1 -< B} :
