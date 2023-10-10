@@ -34,8 +34,7 @@ closed under [equ] rather than [eq].
 
 From Coq Require Import Fin.
 
-From Coinduction Require Import
-     coinduction rel tactics.
+From Coinduction Require Import all.
 
 From ITree Require Import
      Core.Subevent

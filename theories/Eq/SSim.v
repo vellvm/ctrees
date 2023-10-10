@@ -2,12 +2,11 @@ From Coq Require Import
      Lia
      Basics
      Fin
-     RelationClasses
+     CRelationClasses
      Program.Equality
      Logic.Eqdep.
 
-From Coinduction Require Import
-     coinduction rel tactics.
+From Coinduction Require Import all.
 
 From ITree Require Import Core.Subevent.
 
@@ -21,6 +20,7 @@ From CTree Require Import
 From RelationAlgebra Require Export
      rel srel.
 
+Import CoindNotations.
 Import CTree.
 Set Implicit Arguments.
 
@@ -62,36 +62,41 @@ End StrongSim.
 Definition ssim {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D} L :=
   (gfp (@ss E F C D X Y _ _ L): hrel _ _).
 
-#[global] Instance weq_ssim : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
-  Proper (weq ==> weq) (@ssim E F C D X Y _ _).
-Proof.
-  intros. split.
-  - intro. unfold ssim.
-    epose proof (gfp_weq (ss x) (ss y)). lapply H3.
-    + intro. red in H4. cbn in H4. rewrite <- H4. unfold ssim in H2. apply H2.
-    + now rewrite H1.
-  - intro. unfold ssim.
-    epose proof (gfp_weq (ss x) (ss y)). lapply H3.
-    + intro. red in H4. cbn in H4. rewrite H4. unfold ssim in H2. apply H2.
-    + now rewrite H1.
-Qed.
+(* #[global] Instance weq_ssim : forall {E F C D X Y} `{B0 -< C} `{B0 -< D}, *)
+(*   Proper (weq ==> weq) (@ssim E F C D X Y _ _). *)
+(* Proof. *)
+(*   intros. split. *)
+(*   - intro. unfold ssim. *)
+(*     epose proof (gfp_weq (ss x) (ss y)). lapply H3. *)
+(*     + intro. red in H4. cbn in H4. rewrite <- H4. unfold ssim in H2. apply H2. *)
+(*     + now rewrite H1. *)
+(*   - intro. unfold ssim. *)
+(*     epose proof (gfp_weq (ss x) (ss y)). lapply H3. *)
+(*     + intro. red in H4. cbn in H4. rewrite H4. unfold ssim in H2. apply H2. *)
+(*     + now rewrite H1. *)
+(* Qed. *)
 
 Module SSimNotations.
 
   (*| ss (simulation) notation |*)
-  Notation sst L := (t (ss L)).
-  Notation ssbt L := (bt (ss L)).
-  Notation ssT L := (T (ss L)).
-  Notation ssbT L := (bT (ss L)).
 
-  Notation "t (≲ L ) u" := (ssim L t u) (at level 70).
-  Notation "t ≲ u" := (ssim eq t u) (at level 70). (* FIXME we should ensure that return types are the same. *)
-  Notation "t [≲ L ] u" := (ss L _ t u) (at level 79).
-  Notation "t [≲] u" := (ss eq _ t u) (at level 79).
-  Notation "t {≲ L } u" := (sst L _ t u) (at level 79).
-  Notation "t {≲} u" := (sst eq _ t u) (at level 79).
-  Notation "t {{≲ L }} u" := (ssbt L _ t u) (at level 79).
-  Notation "t {{≲}} u" := (ssbt eq _ t u) (at level 79).
+  Infix "≲" := (ssim eq) (at level 70).
+  Notation "t (≲ Q ) u" := (ssim Q t u) (at level 79).
+  Notation "t '[≲' R ']' u" := (ss R (` _) t u) (at level 90, only printing).
+
+  (* Notation sst L := (t (ss L)). *)
+  (* Notation ssbt L := (bt (ss L)). *)
+  (* Notation ssT L := (T (ss L)). *)
+  (* Notation ssbT L := (bT (ss L)). *)
+
+  (* Notation "t (≲ L ) u" := (ssim L t u) (at level 70). *)
+  (* Notation "t ≲ u" := (ssim eq t u) (at level 70). (* FIXME we should ensure that return types are the same. *) *)
+  (* Notation "t [≲ L ] u" := (ss L _ t u) (at level 79). *)
+  (* Notation "t [≲] u" := (ss eq _ t u) (at level 79). *)
+  (* Notation "t {≲ L } u" := (sst L _ t u) (at level 79). *)
+  (* Notation "t {≲} u" := (sst eq _ t u) (at level 79). *)
+  (* Notation "t {{≲ L }} u" := (ssbt L _ t u) (at level 79). *)
+  (* Notation "t {{≲}} u" := (ssbt eq _ t u) (at level 79). *)
 
 End SSimNotations.
 
@@ -104,109 +109,106 @@ Ltac fold_ssim :=
     | |- context[gfp (@ss ?E ?F ?C ?D ?X ?Y _ _ ?L)]      => fold (@ssim E F C D X Y _ _ L)
     end.
 
-Ltac __coinduction_ssim R H :=
-  (try unfold ssim);
-  apply_coinduction; fold_ssim; intros R H.
+(* Ltac __coinduction_ssim R H := *)
+(*   (try unfold ssim); *)
+(*   apply_coinduction; fold_ssim; intros R H. *)
 
-Tactic Notation "__step_ssim" :=
-  match goal with
-  | |- context[@ssim ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
-      unfold ssim;
-      step;
-      fold (@ssim E F C D X Y _ _ L)
-  end.
+(* Tactic Notation "__step_ssim" := *)
+(*   match goal with *)
+(*   | |- context[@ssim ?E ?F ?C ?D ?X ?Y _ _ ?LR] => *)
+(*       unfold ssim; *)
+(*       step; *)
+(*       fold (@ssim E F C D X Y _ _ L) *)
+(*   end. *)
 
-#[local] Tactic Notation "step" := __step_ssim || step.
+(* #[local] Tactic Notation "step" := __step_ssim || step. *)
 
-#[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
-  __coinduction_ssim R H || coinduction R H.
+(* #[local] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) := *)
+(*   __coinduction_ssim R H || coinduction R H. *)
 
-Ltac __step_in_ssim H :=
-  match type of H with
-  | context[@ssim ?E ?F ?C ?D ?X ?Y _ _ ?LR] =>
-      unfold ssim in H;
-      step in H;
-      fold (@ssim E F C D X Y _ _ L) in H
-  end.
+(* Ltac __step_in_ssim H := *)
+(*   match type of H with *)
+(*   | context[@ssim ?E ?F ?C ?D ?X ?Y _ _ ?LR] => *)
+(*       unfold ssim in H; *)
+(*       step in H; *)
+(*       fold (@ssim E F C D X Y _ _ L) in H *)
+(*   end. *)
 
-#[local] Tactic Notation "step" "in" ident(H) := __step_in_ssim H || step in H.
+(* #[local] Tactic Notation "step" "in" ident(H) := __step_in_ssim H || step in H. *)
 
 Import CTreeNotations.
 Import EquNotations.
 
 Section ssim_homogenous_theory.
-  Context {E C: Type -> Type} {X: Type}
+  Context {E B: Type -> Type} {X: Type}
           {L: relation (@label E)}
-          {HasStuck1: B0 -< C}.
+          {HasStuck1: B0 -< B}.
 
-  Notation ss := (@ss E E C C X X _ _).
-  Notation ssim := (@ssim E E C C X X _ _).
-  Notation sst L := (coinduction.t (ss L)).
-  Notation ssbt L := (coinduction.bt (ss L)).
-  Notation ssT L := (coinduction.T (ss L)).
+  Notation ss := (@ss E E B B X X _ _).
+  (* Notation ssim := (@ssim E E C C X X _ _). *)
+  (* Notation sst L := (coinduction.t (ss L)). *)
+  (* Notation ssbt L := (coinduction.bt (ss L)). *)
+  (* Notation ssT L := (coinduction.T (ss L)). *)
 
   (*|
     Various results on reflexivity and transitivity.
   |*)
-  Lemma refl_sst `{Reflexive _ L}: const seq <= (sst L).
+  (* Lemma refl_sst `{Reflexive _ L}: const seq <= (sst L). *)
+  #[global] Instance refl_sst {LR: Reflexive L} {C: Chain (ss L)}: Reflexive `C.
   Proof.
-    apply leq_t. cbn.
-    intros. unfold seq in H0. subst. eauto.
+    apply Reflexive_chain.
+    cbn; eauto.
   Qed.
 
-  Lemma square_sst `{Transitive _ L}: square <= (sst L).
+  #[global] Instance square_sst {LT: Transitive L} {C: Chain (ss L)}: Transitive `C.
   Proof.
-    apply Coinduction; cbn.
-    intros R x z [y xy yz] l x' xx'.
+    apply Transitive_chain.
+    cbn. intros ????? xy yz.
+    intros ?? xx'.
     destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
     destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
-    exists l'', z'.
-    split.
-    assumption.
-    split.
-    apply (f_Tf (ss L)).
-    exists y'; eauto.
-    transitivity l'; auto.
+    eauto 8.
   Qed.
 
-  (*| Reflexivity |*)
-  #[global] Instance Reflexive_sst R `{Reflexive _ L}: Reflexive (sst L R).
-  Proof. apply build_reflexive; apply ft_t; apply (refl_sst). Qed.
-
-  Corollary Reflexive_ssim `{Reflexive _ L}: Reflexive (ssim L).
-  Proof. now apply Reflexive_sst. Qed.
-
-  #[global] Instance Reflexive_ssbt R `{Reflexive _ L}: Reflexive (ssbt L R).
-  Proof. apply build_reflexive; apply fbt_bt; apply refl_sst. Qed.
-
-  #[global] Instance Reflexive_ssT f R `{Reflexive _ L}: Reflexive (ssT L f R).
-  Proof. apply build_reflexive; apply fT_T; apply refl_sst. Qed.
-
-  (*| Transitivity |*)
-  #[global] Instance Transitive_sst R `{Transitive _ L}: Transitive (sst L R).
-  Proof. apply build_transitive; apply ft_t; apply (square_sst). Qed.
-
-  Corollary Transitive_ssim `{Transitive _ L}: Transitive (ssim L).
-  Proof. now apply Transitive_sst. Qed.
-
-  #[global] Instance Transitive_ssbt R `{Transitive _ L}: Transitive (ssbt L R).
-  Proof. apply build_transitive; apply fbt_bt; apply square_sst. Qed.
-
-  #[global] Instance Transitive_ssT f R `{Transitive _ L}: Transitive (ssT L f R).
-  Proof. apply build_transitive; apply fT_T; apply square_sst. Qed.
-
   (*| PreOrder |*)
-  #[global] Instance PreOrder_sst R `{PreOrder _ L}: PreOrder (sst L R).
+  #[global] Instance PreOrder_sst {LPO: PreOrder L} {C: Chain (ss L)}: PreOrder `C.
   Proof. split; typeclasses eauto. Qed.
 
-  Corollary PreOrder_ssim `{PreOrder _ L}: PreOrder (ssim L).
-  Proof. split; typeclasses eauto. Qed.
 
-  #[global] Instance PreOrder_ssbt R `{PreOrder _ L}: PreOrder (ssbt L R).
-  Proof. split; typeclasses eauto. Qed.
+  (* (*| Reflexivity |*) *)
+  (* #[global] Instance Reflexive_sst R `{Reflexive _ L}: Reflexive (sst L R). *)
+  (* Proof. apply build_reflexive; apply ft_t; apply (refl_sst). Qed. *)
 
-  #[global] Instance PreOrder_ssT f R `{PreOrder _ L}: PreOrder (ssT L f R).
-  Proof. split; typeclasses eauto. Qed.
+  (* Corollary Reflexive_ssim `{Reflexive _ L}: Reflexive (ssim L). *)
+  (* Proof. now apply Reflexive_sst. Qed. *)
+
+  (* #[global] Instance Reflexive_ssbt R `{Reflexive _ L}: Reflexive (ssbt L R). *)
+  (* Proof. apply build_reflexive; apply fbt_bt; apply refl_sst. Qed. *)
+
+  (* #[global] Instance Reflexive_ssT f R `{Reflexive _ L}: Reflexive (ssT L f R). *)
+  (* Proof. apply build_reflexive; apply fT_T; apply refl_sst. Qed. *)
+
+  (* (*| Transitivity |*) *)
+  (* #[global] Instance Transitive_sst R `{Transitive _ L}: Transitive (sst L R). *)
+  (* Proof. apply build_transitive; apply ft_t; apply (square_sst). Qed. *)
+
+  (* Corollary Transitive_ssim `{Transitive _ L}: Transitive (ssim L). *)
+  (* Proof. now apply Transitive_sst. Qed. *)
+
+  (* #[global] Instance Transitive_ssbt R `{Transitive _ L}: Transitive (ssbt L R). *)
+  (* Proof. apply build_transitive; apply fbt_bt; apply square_sst. Qed. *)
+
+  (* #[global] Instance Transitive_ssT f R `{Transitive _ L}: Transitive (ssT L f R). *)
+  (* Proof. apply build_transitive; apply fT_T; apply square_sst. Qed. *)
+
+  (* Corollary PreOrder_ssim `{PreOrder _ L}: PreOrder (ssim L). *)
+  (* Proof. split; typeclasses eauto. Qed. *)
+
+  (* #[global] Instance PreOrder_ssbt R `{PreOrder _ L}: PreOrder (ssbt L R). *)
+  (* Proof. split; typeclasses eauto. Qed. *)
+
+  (* #[global] Instance PreOrder_ssT f R `{PreOrder _ L}: PreOrder (ssT L f R). *)
+  (* Proof. split; typeclasses eauto. Qed. *)
 
 End ssim_homogenous_theory.
 
@@ -221,100 +223,103 @@ Section ssim_heterogenous_theory.
 
   Notation ss := (@ss E F C D X Y _ _).
   Notation ssim  := (@ssim E F C D X Y _ _).
-  Notation sst L := (coinduction.t (ss L)).
-  Notation ssbt L := (coinduction.bt (ss L)).
-  Notation ssT L := (coinduction.T (ss L)).
+  (* Notation sst L := (coinduction.t (ss L)). *)
+  (* Notation ssbt L := (coinduction.bt (ss L)). *)
+  (* Notation ssT L := (coinduction.T (ss L)). *)
 
 (*|
    Strong simulation up-to [equ] is valid
    ----------------------------------------
 |*)
-  Lemma equ_clos_sst : equ_clos <= (sst L).
+
+  Lemma equ_clos_sst {c: Chain (ss L)}:
+    forall x y, equ_clos `c x y -> `c x y.
   Proof.
-    apply Coinduction; cbn.
-    intros R x y [x' y' x'' y'' EQ' EQ''] l z x'z.
-    rewrite EQ' in x'z.
-    destruct (EQ'' _ _ x'z) as (l' & ? & ? & ? & ?).
-    exists l', x0.
-    split.
-    - rewrite <- Equu; auto.
-    - split; auto.
-      eapply (f_Tf (ss L)).
-      econstructor; auto; auto.
+    apply tower.
+    - intros ? INC x y [x' y' x'' y'' EQ' EQ''] ??. red.
+      apply INC; auto.
+      econstructor; eauto.
+      apply leq_infx in H.
+      now apply H.
+    - intros a b ?? [x' y' x'' y'' EQ' EQ''] ? ? tr.
+      rewrite EQ' in tr.
+      edestruct EQ'' as (l' & ? & ? & ? & ?); [eauto |].
+      exists l',x0; intuition.
+      rewrite <- Equu; auto.
   Qed.
 
-  #[global] Instance equ_clos_sst_goal {RR} :
-    Proper (equ eq ==> equ eq ==> flip impl) (sst L RR).
+  #[global] Instance equ_clos_sst_goal {c: Chain (ss L)} :
+    Proper (equ eq ==> equ eq ==> flip impl) `c.
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
+    apply equ_clos_sst; econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_clos_sst_ctx {RR} :
-    Proper (equ eq ==> equ eq ==> impl) (sst L RR).
+  #[global] Instance equ_clos_sst_ctx  {c: Chain (ss L)} :
+    Proper (equ eq ==> equ eq ==> impl) `c.
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst); econstructor; [symmetry; eauto | | eauto]; assumption.
+    apply equ_clos_sst; econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_ssbt_closed_goal {r} :
-    Proper (equ eq ==> equ eq ==> flip impl) (ssbt L r).
-  Proof.
-    cbn. intros.
-    apply (fbt_bt equ_clos_sst); econstructor; eauto.
-    now symmetry.
-  Qed.
+  (* #[global] Instance equ_ssbt_closed_goal {r} : *)
+  (*   Proper (equ eq ==> equ eq ==> flip impl) (ssbt L r). *)
+  (* Proof. *)
+  (*   cbn. intros. *)
+  (*   apply (fbt_bt equ_clos_sst); econstructor; eauto. *)
+  (*   now symmetry. *)
+  (* Qed. *)
 
-  #[global] Instance equ_ssbt_closed_ctx {r} :
-    Proper (equ eq ==> equ eq ==> impl) (ssbt L r).
-  Proof.
-    cbn; intros.
-    now rewrite H, H0 in H1.
-  Qed.
+  (* #[global] Instance equ_ssbt_closed_ctx {r} : *)
+  (*   Proper (equ eq ==> equ eq ==> impl) (ssbt L r). *)
+  (* Proof. *)
+  (*   cbn; intros. *)
+  (*   now rewrite H, H0 in H1. *)
+  (* Qed. *)
 
-  #[global] Instance equ_clos_ssT_goal RR f :
-    Proper (equ eq ==> equ eq ==> flip impl) (ssT L f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T equ_clos_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
-  Qed.
+  (* #[global] Instance equ_clos_ssT_goal RR f : *)
+  (*   Proper (equ eq ==> equ eq ==> flip impl) (ssT L f RR). *)
+  (* Proof. *)
+  (*   cbn; intros ? ? eq1 ? ? eq2 H. *)
+  (*   apply (fT_T equ_clos_sst); econstructor; [eauto | | symmetry; eauto]; assumption. *)
+  (* Qed. *)
 
-  #[global] Instance equ_clos_ssT_ctx RR f :
-    Proper (equ eq ==> equ eq ==> impl) (ssT L f RR).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T equ_clos_sst); econstructor; [symmetry; eauto | | eauto]; assumption.
-  Qed.
+  (* #[global] Instance equ_clos_ssT_ctx RR f : *)
+  (*   Proper (equ eq ==> equ eq ==> impl) (ssT L f RR). *)
+  (* Proof. *)
+  (*   cbn; intros ? ? eq1 ? ? eq2 H. *)
+  (*   apply (fT_T equ_clos_sst); econstructor; [symmetry; eauto | | eauto]; assumption. *)
+  (* Qed. *)
 
-  #[global] Instance equ_clos_ssim_goal :
-    Proper (equ eq ==> equ eq ==> flip impl) (ssim L).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
-  Qed.
+  (* #[global] Instance equ_clos_ssim_goal : *)
+  (*   Proper (equ eq ==> equ eq ==> flip impl) (ssim L). *)
+  (* Proof. *)
+  (*   cbn; intros ? ? eq1 ? ? eq2 H. *)
+  (*   apply (ft_t equ_clos_sst); econstructor; [eauto | | symmetry; eauto]; assumption. *)
+  (* Qed. *)
 
-  #[global] Instance equ_clos_ssim_ctx :
-    Proper (equ eq ==> equ eq ==> impl) (ssim L).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst); econstructor; [symmetry; eauto | | eauto]; assumption.
-  Qed.
+  (* #[global] Instance equ_clos_ssim_ctx : *)
+  (*   Proper (equ eq ==> equ eq ==> impl) (ssim L). *)
+  (* Proof. *)
+  (*   cbn; intros ? ? eq1 ? ? eq2 H. *)
+  (*   apply (ft_t equ_clos_sst); econstructor; [symmetry; eauto | | eauto]; assumption. *)
+  (* Qed. *)
 
-  #[global] Instance equ_ss_closed_goal {r} :
-    Proper (equ eq ==> equ eq ==> flip impl) (ss L r).
-  Proof.
-    intros t t' tt' u u' uu'; cbn; intros.
-    rewrite tt' in H0. apply H in H0 as (l' & ? & ? & ? & ?).
-    do 2 eexists; eauto. rewrite uu'. eauto.
-  Qed.
+  (* #[global] Instance equ_ss_closed_goal {r} : *)
+  (*   Proper (equ eq ==> equ eq ==> flip impl) (ss L r). *)
+  (* Proof. *)
+  (*   intros t t' tt' u u' uu'; cbn; intros. *)
+  (*   rewrite tt' in H0. apply H in H0 as (l' & ? & ? & ? & ?). *)
+  (*   do 2 eexists; eauto. rewrite uu'. eauto. *)
+  (* Qed. *)
 
-  #[global] Instance equ_ss_closed_ctx {r} :
-    Proper (equ eq ==> equ eq ==> impl) (ss L r).
-  Proof.
-    intros t t' tt' u u' uu'; cbn; intros.
-    rewrite <- tt' in H0. apply H in H0 as (l' & ? & ? & ? & ?).
-    do 2 eexists; eauto. rewrite <- uu'. eauto.
-  Qed.
+  (* #[global] Instance equ_ss_closed_ctx {r} : *)
+  (*   Proper (equ eq ==> equ eq ==> impl) (ss L r). *)
+  (* Proof. *)
+  (*   intros t t' tt' u u' uu'; cbn; intros. *)
+  (*   rewrite <- tt' in H0. apply H in H0 as (l' & ? & ? & ? & ?). *)
+  (*   do 2 eexists; eauto. rewrite <- uu'. eauto. *)
+  (* Qed. *)
 
 (*|
   stuck ctrees can be simulated by anything.
@@ -322,7 +327,7 @@ Section ssim_heterogenous_theory.
   Lemma is_stuck_ss (R : rel _ _) (t : ctree E C X) (t': ctree F D Y):
     is_stuck t -> ss L R t t'.
   Proof.
-    repeat intro. now apply H in H0.
+    intros ST ?? TR; now apply ST in TR.
   Qed.
 
   Lemma is_stuck_ssim (t: ctree E C X) (t': ctree F D Y):
