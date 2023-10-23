@@ -1173,8 +1173,7 @@ Section Proof_Rules.
   Proof.
     intros PROP ? EQs.
     split; apply step_ss_brS_id_gen; eauto.
-    - typeclasses eauto.
-    - cbn. eauto.
+    typeclasses eauto.
   Qed.
 
   Lemma step_sb_brS_id {X'} (c : C X')

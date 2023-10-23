@@ -801,10 +801,6 @@ Definition guard_ctx {E C X} `{HasB1: B1 -< C} (R : ctree E C X -> Prop)
   (t : ctree E C X) :=
   exists t', t ≅ Guard t' /\ R t'.
 
-Definition epsilon_ctx {E C X} `{HasB1: B1 -< C} (R : ctree E C X -> Prop)
-  (t : ctree E C X) :=
-  exists t', epsilon t t' /\ R t'.
-
 Section upto.
   Context {E F C D: Type -> Type} {X Y: Type}
           `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D}

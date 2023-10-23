@@ -1524,6 +1524,16 @@ Proof.
   now apply trans_val_invT in H0.
 Qed.
 
+Lemma wf_val_is_val_inv : forall {E} X (l : @label E),
+  is_val l ->
+  wf_val (E := E) X l ->
+  exists (x : X), l = val x.
+Proof.
+  intros.
+  destruct H. red in H0.
+  specialize (H0 X0 x eq_refl). subst. eauto.
+Qed.
+
 (*| If the LTS has events of type [L +' R] then 
   it is possible to step it as either an [L] LTS
   or [R] LTS ignoring the other.

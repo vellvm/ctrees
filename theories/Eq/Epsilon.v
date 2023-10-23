@@ -306,10 +306,9 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       - rewrite <- H1 in EQ. step in EQ. inv EQ.
     Qed.
 
-    Lemma epsilon_transitive {E C X} : forall (t u v : ctree E C X),
-      epsilon t u -> epsilon u v -> epsilon t v.
+    #[global] Instance epsilon_transitive {E C X} : Transitive (@epsilon E C X).
     Proof.
-      intros. red in H.
+      red. intros t u v ? ?. red in H.
       rewrite (ctree_eta t). rewrite (ctree_eta u) in H0.
       genobs t ot. genobs u ou. clear t Heqot u Heqou.
       revert v H0. induction H; intros.

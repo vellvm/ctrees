@@ -599,6 +599,56 @@ Section Inversion_Rules.
 
 End Inversion_Rules.
 
+Definition epsilon_ctx {E C X} `{HasB1: B1 -< C} (R : ctree E C X -> Prop)
+  (t : ctree E C X) :=
+  exists t', epsilon t t' /\ R t'.
+
+Section upto.
+
+  Context {E F C D: Type -> Type} {X Y: Type}
+          `{HasB0 : B0 -< C} `{HasB0' : B0 -< D}
+          `{HasB1 : B1 -< C} `{HasB1' : B1 -< D}
+          (L : hrel (@label E) (@label F)).
+
+  (* Up-to epsilon *)
+
+  Program Definition epsilon_ctx_r : mon (rel (ctree E C X) (ctree F D Y))
+    := {| body R t u := epsilon_ctx (fun u => R t u) u |}.
+  Next Obligation.
+    destruct H0 as (? & ? & ?). red. eauto.
+  Qed.
+
+  Lemma epsilon_ctx_r_ssim' :
+      epsilon_ctx_r <= t (@ss' E F C D X Y _ _ L).
+  Proof.
+    apply Coinduction. cbn -[ss']. intros.
+    destruct H as (? & ? & ?).
+    eapply step_ss'_epsilon_r in H0.
+    eapply (Hbody (ss' L)). 2: apply H0; auto. 2: auto.
+    intros ???. apply (id_T (ss' L)). apply H1.
+  Qed.
+
+  (* Up-to ss. *)
+  (* This principle holds because an ss step always corresponds
+     to one or more ss' steps. *)
+  Lemma ss_sst' : @ss E F C D X Y _ _ L <= t (ss' L).
+  Proof.
+    intro. apply Coinduction. cbn. intros. split; intros.
+    - apply H in H1 as (? & ? & ? & ? & ?).
+      exists x, x0. split; auto. split; auto.
+      intros. apply (b_T (ss' L)). apply H2.
+    - exists a2. split; auto.
+      apply (fTf_Tf (ss' L)). cbn. intros.
+      eapply trans_brD in H1; auto. rewrite <- H0 in H1.
+      apply H in H1 as (? & ? & ? & ? & ?).
+      exists x0, x1. split; auto. split; auto.
+      apply (b_T (ss' L)). apply H2.
+  Qed.
+
+End upto.
+
+Arguments ss_sst' {E F C D X Y HasB0 HasB0'} L.
+
 (*|
 Up-to [bind] context simulations
 ----------------------------------
