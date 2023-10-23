@@ -13,6 +13,7 @@ From CTree Require Import
   Eq
   Eq.Epsilon
   Eq.IterFacts
+  Eq.SSimAlt
   Fold.
 
 Import CTreeNotations.
@@ -54,8 +55,11 @@ Proof.
     apply equ_br_invT in H1 as ?. destruct H2 as [<- <-].
     apply equ_br_invE in H1 as [<- ?].
     destruct vis.
-    + step. apply step_ss_brS. intros. exists x0. step. apply step_ss_ret. constructor. apply H1. right; auto. 3: apply H. all: intros H2; inversion H2.
-    + step. apply step_ss_brD. intros. exists x0. apply step_ss_ret. constructor. apply H1.
+    + step. apply step_ss_brS_id. intros.
+      step. apply step_ss_ret. constructor.
+      apply H1. right; etrans. apply H.
+    + step. apply step_ss_brD_id. intros.
+      apply step_ss_ret. constructor. apply H1.
 Qed.
 
 Section FoldCTree.
@@ -803,4 +807,139 @@ Proof.
   apply interp_sbisim_gen; auto.
   red; eauto.
   rewrite !bind_ret_l, !sb_guard in H0. apply H0.
+Qed.
+
+Lemma trans_val_interp {E F B X} `{HasB0: B0 -< B} `{HasB1: B1 -< B}
+  (h : E ~> ctree F B) :
+  forall (t u : ctree E B X) (v : X),
+  trans (val v) t u ->
+  trans (val v) (interp h t) stuckD.
+Proof.
+  intros.
+  apply trans_val_epsilon in H as []. subs.
+  eapply epsilon_interp in H.
+  eapply epsilon_trans; [apply H |].
+  rewrite interp_ret. etrans.
+Qed.
+
+Lemma trans_tau_interp {E F B X} `{HasB0: B0 -< B} `{HasB1: B1 -< B}
+  (h : E ~> ctree F B) :
+  forall (t u : ctree E B X),
+  trans tau t u ->
+  trans tau (interp h t) (Guard (interp h u)).
+Proof.
+  intros.
+  apply trans_tau_epsilon in H as (? & ? & ? & ? & ? & ?). subs.
+  eapply epsilon_interp in H.
+  eapply epsilon_trans; [apply H |].
+  rewrite interp_br, bind_branch.
+  apply (trans_brS _ (fun x3 : x => Guard (interp h (x1 x3)))).
+Qed.
+
+Lemma trans_obs_interp_step {E F B X Y} `{HasB0: B0 -< B} `{HasB1: B1 -< B}
+  (h : E ~> ctree F B) :
+  forall (t u : ctree E B X) u' (e : E Y) x l,
+  trans (obs e x) t u ->
+  trans l (h _ e) u' ->
+  ~ is_val l ->
+  epsilon_det u' (Ret x) ->
+  trans l (interp h t) (u';; Guard (interp h u)).
+Proof.
+  intros.
+  apply trans_obs_epsilon in H as (? & ? & ?).
+  setoid_rewrite H3. clear H3.
+  apply epsilon_interp with (h := h) in H.
+  rewrite interp_vis in H.
+  eapply epsilon_trans. apply H.
+  epose proof (epsilon_det_bind_ret_l_equ u' (fun x => Guard (interp h (x0 x))) x H2).
+  rewrite <- H3; auto.
+  apply trans_bind_l; auto.
+Qed.
+
+Lemma trans_obs_interp_pure {E F B X Y} `{HasB0: B0 -< B} `{HasB1: B1 -< B}
+  (h : E ~> ctree F B) :
+  forall (t u : ctree E B X) (e : E Y) x,
+  trans (obs e x) t u ->
+  trans (val x) (h _ e) stuckD ->
+  epsilon (interp h t) (Guard (interp h u)).
+Proof.
+  intros t u e x TR TRh.
+  apply trans_obs_epsilon in TR as (k & EPS & ?). subs.
+  apply epsilon_interp with (h := h) in EPS.
+  rewrite interp_vis in EPS.
+  apply trans_val_epsilon in TRh as [EPSh _].
+  eapply epsilon_bind_ret in EPSh.
+  apply (epsilon_transitive _ _ _ EPS EPSh).
+Qed.
+
+(* Proof for ssim that takes advantage of ssim' *)
+
+Import SSim'Notations.
+
+#[global] Instance interp_ssim {E F B X} {HasB0: B0 -< B} {HasB1: B1 -< B}
+  (h : E ~> ctree F B) (Hh : forall X e, is_simple (h X e)) :
+  Proper (ssim eq ==> ssim eq) (interp (B := B) h (T := X)).
+Proof.
+  cbn. intros t u SIM.
+  rewrite ssim_ssim'.
+  revert t u SIM.
+  red. coinduction R CH. intros.
+  rewrite unfold_interp.
+  setoid_rewrite ctree_eta at 1 in SIM. destruct (observe t) eqn:?.
+  - (* Ret *)
+    apply ssim_ret_l_inv in SIM as (? & ? & ? & <-).
+    eapply trans_val_interp in H.
+    apply (fbt_bt (ss_sst' eq)).
+    eapply step_ss_ret_l_gen; eauto. typeclasses eauto.
+  - (* Vis *)
+    specialize (Hh _ e). destruct Hh as [Hh | Hh].
+    + (* pure handler *)
+      assert (equ eq (interp h u) (Ret tt;; interp h u)) by
+        now rewrite bind_ret_l. rewrite H. clear H.
+      eapply ssbt'_clo_bind with (R0 := (fun v _ => trans (val v) (h X0 e) stuckD)). {
+        step. cbn. fold_ssim. intros l t' TR.
+        apply Hh in TR as VAL.
+        eapply wf_val_is_val_inv in VAL; etrans. destruct VAL as [? ->].
+        apply trans_val_inv in TR as ?. exists (val tt), stuckD. subs.
+        split; etrans. split.
+        - apply is_stuck_ssim. apply stuckD_is_stuck.
+        - now apply update_Val.
+      }
+      intros ? _ TRh.
+      simple eapply ssim_vis_l_inv in SIM.
+      destruct SIM as (l & u' & TR & SIM & <-).
+      eapply (fbt_bt (epsilon_ctx_r_ssim' eq)). cbn. red.
+      eexists. split.
+      * eapply trans_obs_interp_pure; eauto.
+      * apply step_ss'_guard. apply CH. apply SIM.
+    + (* handler that takes exactly one transition *)
+      apply (fbt_bt (ss_sst' eq)). cbn. intros l t' TR.
+      apply trans_bind_inv in TR as [(VAL & th & TRh & EQ) | (x & TRh & TR)].
+      2: {
+        apply Hh in TRh as []. inversion H; subst; inv_equ.
+        step in H1. inv H1. now apply void_unit_elim in H7.
+      }
+      apply Hh in TRh as ?. destruct H as [x EPS].
+      simple eapply ssim_vis_l_inv in SIM.
+      destruct SIM as (l' & u' & TR & SIM & <-).
+      exists l, (th;; Guard (interp h u')). subs.
+      split; [| split; auto].
+      * eapply trans_obs_interp_step; eauto.
+      * rewrite epsilon_det_bind_ret_l_equ.
+        apply ssbt'_clo_bind_eq; eauto.
+        intro. apply step_ss'_guard. eauto. assumption.
+  - (* Br *)
+    unfold mbr, MonadBr_ctree. cbn. rewrite bind_branch.
+    destruct vis.
+    + (* BrS *)
+      apply step_ss'_brS_l. intros.
+      simple eapply ssim_brS_l_inv in SIM as (? & u' & TR & SIM & <-).
+      exists tau, (Guard (interp h u')). split; [| split]; auto.
+      * now apply trans_tau_interp.
+      * step. apply step_ss'_guard. apply CH. apply SIM.
+    + (* BrD *)
+      apply step_ss'_brD_l. intros.
+      eapply ssim_brD_l_inv in SIM.
+      step. apply step_ss'_guard_l.
+      apply CH. apply SIM.
 Qed.
