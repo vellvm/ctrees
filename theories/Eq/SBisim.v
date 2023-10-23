@@ -298,17 +298,15 @@ Strong bisimulation up-to [equ] is valid
     apply (ft_t equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_ss_closed_goal {r} : Proper (@equ E C X X eq ==> @equ F D Y Y eq ==> flip impl) (ss L r).
+  #[global] Instance equ_sb_closed_goal {r} : Proper (@equ E C X X eq ==> @equ F D Y Y eq ==> flip impl) (sb L r).
   Proof.
-    intros t t' tt' u u' uu'; cbn; intros.
-    rewrite tt' in H0. apply H in H0 as (? & ? & ? & ? & ?).
-    eexists; eexists; eauto. rewrite uu'. eauto.
+    intros t t' tt' u u' uu'.
+    split; subs; apply H.
   Qed.
 
-  #[global] Instance equ_ss_closed_ctx {r} : Proper (@equ E C X X eq ==> @equ F D Y Y eq ==> impl) (ss L r).
+  #[global] Instance equ_sb_closed_ctx {r} : Proper (@equ E C X X eq ==> @equ F D Y Y eq ==> impl) (sb L r).
   Proof.
-    intros t t' tt' u u' uu'; intros.
-    rewrite tt', uu'. reflexivity.
+    cbn -[sb]. intros. now subs.
   Qed.
 
 (*|

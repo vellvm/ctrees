@@ -972,10 +972,18 @@ Proof.
   rewrite <- ctree_eta.
   reflexivity.
 Qed.
-  
+
 (*|
 Map
 |*)
+#[global] Instance map_equ {E B X Y} f :
+  Proper (equ eq ==> equ eq) (@CTree.map E B X Y f).
+Proof.
+  do 2 red. intros.
+  unfold CTree.map. __upto_bind_equ eq.
+  apply H. intros. subst. reflexivity.
+Qed.
+
 Lemma map_map {E B R S T}: forall (f : R -> S) (g : S -> T) (t : ctree E B R),
     map g (map f t) ≅ map (fun x => g (f x)) t.
 Proof.
@@ -1000,6 +1008,15 @@ Proof.
   intros. unfold map.
   rewrite bind_ret_l; reflexivity.
 Qed.
+
+Lemma map_guard {E B X Y} `{B1 -< B} (f : X -> Y) :
+  forall (t : ctree E B X),
+  CTree.map f (Guard t) ≅ Guard (CTree.map f t).
+Proof.
+  intros. unfold map.
+  rewrite bind_guard. reflexivity.
+Qed.
+
 Notation "▷ e" := (subevent _ e) (at level 0).
 
 (*|
