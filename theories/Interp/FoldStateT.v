@@ -841,22 +841,21 @@ Qed.
 
 Lemma interp_lift_handler {E F B X} {Stuck: B0 -< B} {Tau: B1 -< B}
   (h : E ~> ctree F B) (t : ctree E B X) :
-  interp h t ~ CTree.map (fun '(st, x) => x) (interp_state (lift_handler h) t tt).
+  interp h t ≅ CTree.map (fun '(st, x) => x) (interp_state (lift_handler h) t tt).
 Proof.
-  apply sbisim_sbisim'.
-  revert t. unfold sbisim'. coinduction R CH. intros.
+  revert t. coinduction R CH. intros.
   setoid_rewrite (ctree_eta t). destruct (observe t) eqn:?.
   - rewrite interp_ret, interp_state_ret. rewrite map_ret. reflexivity.
   - rewrite interp_vis, interp_state_vis.
     cbn. unfold lift_handler. rewrite map_bind, bind_map.
-    apply sbt'_clo_bind_eq; [reflexivity |]. intros.
+    upto_bind_eq.
     rewrite map_guard.
-    apply step_sb'_guard. apply CH.
+    constructor. intros _. apply CH.
   - rewrite interp_br, interp_state_br.
     cbn. rewrite bind_branch, map_bind, bind_branch.
-    apply step_sb'_br_id; auto. intros.
+    constructor. intros.
     rewrite map_guard.
-    step. apply step_sb'_guard. intros.
+    step. constructor. intros.
     apply CH.
 Qed.
 
