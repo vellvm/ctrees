@@ -91,7 +91,7 @@ Fixpoint finterp {E C M : Type -> Type}
   fun R t =>
       match n with
       | 0 => ret t
-      | S m => 
+      | S m =>
           match observe t with
           | RetF x => ret (Ret x)
           | VisF e k => bind (h _ e) (fun x => finterp m h (k x))
@@ -99,7 +99,7 @@ Fixpoint finterp {E C M : Type -> Type}
           end
       end.
 
-Arguments finterp {E C M MM MMM MB} n h [T].
+Arguments finterp {E C M MM MB} n h [T].
 
 (** Useful congruences and lemmas for [interp] and [refine] *)
 #[global] Instance interp_equ {E C X} `{HasTau: B1 -< C}  h:
