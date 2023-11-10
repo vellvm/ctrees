@@ -839,8 +839,8 @@ Proof.
       * subst. step in H4. inv H4. now apply void_unit_elim in H10.
 Qed.
 
-Lemma interp_lift_handler {E F B X} {Stuck: B0 -< B} {Tau: B1 -< B}
-  (h : E ~> ctree F B) (t : ctree E B X) :
+Lemma interp_lift_handler {E F B C X} {Stuck: B0 -< B} {Tau: B1 -< C} `{HasB: B -< C}
+  (h : E ~> ctree F C) (t : ctree E B X) :
   interp h t ≅ CTree.map (fun '(st, x) => x) (interp_state (lift_handler h) t tt).
 Proof.
   revert t. coinduction R CH. intros.
@@ -859,26 +859,30 @@ Proof.
     apply CH.
 Qed.
 
-Lemma trans_val_interp_state {E F B X St} `{HasB0: B0 -< B} `{HasB1: B1 -< B}
-  (h : E ~> stateT St (ctree F B)) :
+Lemma trans_val_interp_state {E F B C X St}
+  `{HasB0: B0 -< B} `{HasB1': B1 -< C} `{HasB: B -< C}
+  (h : E ~> stateT St (ctree F C)) :
+  let HasB0' : B0 -< C := fun _ b => HasB _ (HasB0 _ b) in
   forall (t u : ctree E B X) (v : X) st,
   trans (val v) t u ->
   trans (val (st, v)) (interp_state h t st) stuckD.
 Proof.
-  intros.
+  cbn. intros.
   apply trans_val_epsilon in H as []. subs.
   eapply epsilon_interp_state in H.
   eapply epsilon_trans; [apply H |].
   rewrite interp_state_ret. etrans.
 Qed.
 
-Lemma trans_tau_interp_state {E F B X St} `{HasB0: B0 -< B} `{HasB1: B1 -< B}
-  (h : E ~> stateT St (ctree F B)) :
+Lemma trans_tau_interp_state {E F B C X St}
+  `{HasB0: B0 -< B} `{HasB1': B1 -< C} `{HasB: B -< C}
+  (h : E ~> stateT St (ctree F C)) :
+  let HasB0' : B0 -< C := fun _ b => HasB _ (HasB0 _ b) in
   forall (t u : ctree E B X) st,
   trans tau t u ->
   trans tau (interp_state h t st) (Guard (interp_state h u st)).
 Proof.
-  intros.
+  cbn. intros.
   apply trans_tau_epsilon in H as (? & ? & ? & ? & ? & ?). subs.
   eapply epsilon_interp_state in H.
   eapply epsilon_trans; [apply H |].
@@ -886,8 +890,10 @@ Proof.
   apply (trans_brS _ (fun x3 : x => Guard (interp_state h (x1 x3) st))).
 Qed.
 
-Lemma trans_obs_interp_state_step {E F B X Y St} `{HasB0: B0 -< B} `{HasB1: B1 -< B}
-  (h : E ~> stateT St (ctree F B)) :
+Lemma trans_obs_interp_state_step {E F B C X Y St}
+  `{HasB0: B0 -< B} `{HasB1': B1 -< C} `{HasB: B -< C}
+  (h : E ~> stateT St (ctree F C)) :
+  let HasB0' : B0 -< C := fun _ b => HasB _ (HasB0 _ b) in
   forall (t u : ctree E B X) st st' u' (e : E Y) x l,
   trans (obs e x) t u ->
   trans l (h _ e st) u' ->
@@ -895,7 +901,7 @@ Lemma trans_obs_interp_state_step {E F B X Y St} `{HasB0: B0 -< B} `{HasB1: B1 -
   epsilon_det u' (Ret (st', x)) ->
   trans l (interp_state h t st) (u';; Guard (interp_state h u st')).
 Proof.
-  intros.
+  cbn. intros.
   apply trans_obs_epsilon in H as (? & ? & ?).
   setoid_rewrite H3. clear H3.
   eapply epsilon_interp_state with (h := h) in H.
@@ -906,14 +912,16 @@ Proof.
   apply trans_bind_l; auto.
 Qed.
 
-Lemma trans_obs_interp_state_pure {E F B X Y St} `{HasB0: B0 -< B} `{HasB1: B1 -< B}
-  (h : E ~> stateT St (ctree F B)) :
+Lemma trans_obs_interp_state_pure {E F B C X Y St}
+  `{HasB0: B0 -< B} `{HasB1': B1 -< C} `{HasB: B -< C}
+  (h : E ~> stateT St (ctree F C)) :
+  let HasB0' : B0 -< C := fun _ b => HasB _ (HasB0 _ b) in
   forall (t u : ctree E B X) st st' (e : E Y) x,
   trans (obs e x) t u ->
   trans (val (st', x)) (h _ e st) stuckD ->
   epsilon (interp_state h t st) (Guard (interp_state h u st')).
 Proof.
-  intros t u st st' e x TR TRh.
+  cbn. intros t u st st' e x TR TRh.
   apply trans_obs_epsilon in TR as (k & EPS & ?). subs.
   eapply epsilon_interp_state with (h := h) in EPS.
   rewrite interp_state_vis in EPS.
@@ -926,11 +934,13 @@ Qed.
 
 Import SSim'Notations.
 
-#[global] Instance interp_state_ssim {E F B X St} {HasB0: B0 -< B} {HasB1: B1 -< B}
-  (h : E ~> stateT St (ctree F B)) (Hh : forall X e st, is_simple (h X e st)) :
+Lemma interp_state_ssim_aux {E F B C X St}
+  `{HasB0: B0 -< B} `{HasB1': B1 -< C} `{HasB: B -< C} :
+  let HasB0' : B0 -< C := fun _ b => HasB _ (HasB0 _ b) in
+  forall (h : E ~> stateT St (ctree F C)) (Hh : forall X e st, is_simple (h X e st)),
   Proper (ssim eq ==> eq ==> ssim eq) (interp_state (C := B) h (T := X)).
 Proof.
-  cbn. intros t u SIM st st' <-.
+  intro. cbn. intros h Hh t u SIM st st' <-.
   rewrite ssim_ssim'.
   revert t u st SIM.
   red. coinduction R CH. intros.
@@ -974,7 +984,7 @@ Proof.
       destruct SIM as (l' & u' & TR & SIM & <-).
       exists l, (th;; Guard (interp_state h u' st')). subs.
       split; [| split; auto].
-      * eapply trans_obs_interp_state_step; eauto.
+      * cbn. apply (trans_obs_interp_state_step h st TR); eauto.
       * rewrite epsilon_det_bind_ret_l_equ with (x := (st', x)).
         apply ssbt'_clo_bind_eq; eauto.
         intros []. apply step_ss'_guard. eauto. assumption.
@@ -985,7 +995,7 @@ Proof.
       apply step_ss'_brS_l. intros.
       simple eapply ssim_brS_l_inv in SIM as (? & u' & TR & SIM & <-).
       exists tau, (Guard (interp_state h u' st)). split; [| split]; auto.
-      * now apply trans_tau_interp_state.
+      * now apply (trans_tau_interp_state h st TR).
       * step. rewrite bind_ret_l. apply step_ss'_guard. apply CH. apply SIM.
     + (* BrD *)
       apply step_ss'_brD_l. intros.
@@ -994,17 +1004,47 @@ Proof.
       apply CH. apply SIM.
 Qed.
 
+#[global] Instance interp_state_ssim {E F B C X St} `{HasB: B -< C} :
+  forall (h : E ~> stateT St (ctree F (B01 +' C))) (Hh : forall X e st, is_simple (h X e st)),
+  Proper (ssim eq ==> eq ==> ssim eq) (interp_state (C := B01 +' B) h (T := X)).
+Proof.
+  cbn. intros. subst.
+  epose proof (interp_state_ssim_aux (B := B01 +' B) (C := B01 +' C)).
+  cbn in H0. apply H0; auto.
+Qed.
+
+#[global] Instance interp_state_ssim' {E F B X St} :
+  forall (h : E ~> stateT St (ctree F (B01 +' B))) (Hh : forall X e st, is_simple (h X e st)),
+  Proper (ssim eq ==> eq ==> ssim eq) (interp_state (C := B01 +' B) h (T := X)).
+Proof.
+  cbn. intros. subst.
+  epose proof (interp_state_ssim_aux (B := B01 +' B) (C := B01 +' B)).
+  cbn in H0. apply H0; auto.
+Qed.
+
 (* The proof that interp preserves ssim reuses the interp_state proof. *)
 
-#[global] Instance interp_ssim {E F B R} {Stuck: B0 -< B} {Tau: B1 -< B}
-  (h : E ~> ctree F B) (Hh : forall X e, is_simple (h X e)) :
+Lemma interp_ssim_aux {E F B C R}
+  `{HasB0: B0 -< B} `{HasB1: B1 -< C} `{HasB: B -< C} :
+  let HasB0' : B0 -< C := fun _ b => HasB _ (HasB0 _ b) in
+  forall (h : E ~> ctree F C) (Hh : forall X e, is_simple (h X e)),
   Proper (ssim eq ==> ssim eq) (interp (B := B) h (T := R)).
 Proof.
-  cbn. intros.
+  intros. cbn. intros.
   rewrite !interp_lift_handler.
   unfold CTree.map. apply ssim_clo_bind_eq.
-  apply interp_state_ssim; auto. 1: { intros. now apply is_simple_lift_handler. }
+  refine (interp_state_ssim_aux _ _ _ _); auto.
+  1: { intros. now apply is_simple_lift_handler. }
   reflexivity.
+Qed.
+
+#[global] Instance interp_ssim {E F B C X} `{HasB: B -< C} :
+  forall (h : E ~> ctree F (B01 +' C)) (Hh : forall X e, is_simple (h X e)),
+  Proper (ssim eq ==> ssim eq) (interp (B := B01 +' B) h (T := X)).
+Proof.
+  cbn. intros.
+  epose proof (interp_ssim_aux (B := B01 +' B) (C := B01 +' C)).
+  cbn in H0. apply H0; auto.
 Qed.
 
 Arguments get {S E C _}.

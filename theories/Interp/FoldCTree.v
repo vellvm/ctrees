@@ -362,8 +362,8 @@ A computation is [simple] all its transitions are either:
 - directly returning
 - or reducing in one step to something of the shape [Guard* (Ret r)]
 |*)
-  Definition is_simple {E C X} `{B0 -< C} `{B1 -< C} (t : ctree E C X) :=
-    (forall l t', trans l t t' -> is_val l) \/
+  Class is_simple {E C X} `{B0 -< C} `{B1 -< C} (t : ctree E C X) :=
+    is_simple' : (forall l t', trans l t t' -> is_val l) \/
     (forall l t', trans l t t' -> exists r, epsilon_det t' (Ret r)).
 
 (*|
@@ -376,32 +376,69 @@ A computation is [vsimple] if it is syntactically:
 
   Section is_simple_theory.
 
-    #[global] Instance is_simple_equ : forall {E C X} `{Stuck: B0 -< C} `{Tau: B1 -< C},
+    Context {E C : Type -> Type} {X : Type} `{HasB0: B0 -< C} `{HasB1: B1 -< C}.
+
+    #[global] Instance is_simple_equ :
       Proper (equ eq ==> iff) (@is_simple E C X _ _).
     Proof.
       cbn. intros. unfold is_simple. setoid_rewrite H. reflexivity.
     Qed.
 
-    Lemma is_simple_ret : forall {E C X} `{B0 -< C} `{B1 -< C} r, is_simple (Ret r : ctree E C X).
+    #[global] Instance is_simple_ret : forall r, is_simple (Ret r : ctree E C X).
     Proof.
       cbn. red. intros. left. intros. inv_trans. subst. constructor.
     Qed.
 
-    Lemma is_simple_guard_ret : forall {E C X} `{B0 -< C}`{B1 -< C}r,
+    #[global] Instance is_simple_guard_ret : forall r,
         is_simple (Guard (Ret r) : ctree E C X).
     Proof.
       cbn. red. intros. left. intros. inv_trans. subst. constructor.
     Qed.
 
-    Lemma is_simple_br : forall {E C X} `{Stuck: B0 -< C} `{Tau: B1 -< C} (n: C X),
-        is_simple (mbr false n : ctree E C X).
+    #[global] Instance is_simple_br : forall (c: C X),
+        is_simple (mbr false c : ctree E C X).
     Proof.
       cbn. unfold mbr, MonadBr_ctree, CTree.branch. red. intros.
       left. intros. apply trans_brD_inv in H as []. inv_trans. subst. constructor.
     Qed.
 
-    Lemma is_simple_brD : forall {E C X Y} `{Stuck: B0 -< C} `{Tau: B1 -< C} (n: C X) (k : X -> ctree E C Y) x,
-        is_simple (BrD n k) -> is_simple (k x).
+    #[global] Instance is_simple_map :
+      forall {Y} (t : ctree E C X) (f : X -> Y),
+      is_simple t -> is_simple (CTree.map f t).
+    Proof.
+      intros. destruct H.
+      - left. intros.
+        unfold CTree.map in H0. apply trans_bind_inv in H0 as ?.
+        destruct H1 as [(? & ? & ? & ?) | (? & ? & ?)].
+        + now apply H in H2.
+        + apply trans_ret_inv in H2 as []. now subst.
+      - right. intros.
+        apply trans_bind_inv in H0 as ?.
+        destruct H1 as [(? & ? & ? & ?) | (? & ? & ?)].
+        + apply H in H2 as []. exists (f x0). subs.
+          eapply Epsilon.epsilon_det_bind_ret_l. apply H2. reflexivity.
+        + apply H in H1 as []. inversion H1; inv_equ.
+          subst. step in H4. inversion H4. now apply void_unit_elim in H10.
+    Qed.
+
+    #[global] Instance is_simple_liftState {St} :
+      forall (t : ctree E C X) (s : St),
+      is_simple t -> is_simple (Monads.liftState t s).
+    Proof.
+      intros. cbn. typeclasses eauto.
+    Qed.
+
+    #[global] Instance is_simple_trigger :
+      forall (e : E X),
+      is_simple (CTree.trigger e : ctree E C X).
+    Proof.
+      right. intros.
+      unfold CTree.trigger in H. inv_trans. subst.
+      exists x. now left.
+    Qed.
+
+    Lemma is_simple_brD : forall {Y} (c: C X) (k : X -> ctree E C Y) x,
+        is_simple (BrD c k) -> is_simple (k x).
     Proof.
       intros. destruct H.
       - left. intros. eapply H. etrans.
