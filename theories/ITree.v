@@ -1,7 +1,5 @@
 From CTree Require Export
-  Classes
-  CTree.Core
-  CTree.Interp.Core
-  CTree.Equ
+  ITree.Core
+  ITree.Equ
   Events.Core
   Utils.Utils.

@@ -10,13 +10,14 @@ authors: [
   "Ludovic Henrio"
   "Yannick Zakowski"
   "Steve Zdancewic"
+  "Lef Ioannidis"
 ]
 license: "MIT"
 homepage: "https://github.com/vellvm/ctrees"
 bug-reports: "https://github.com/vellvm/ctrees/issues"
 depends: [
   "dune" {>= "2.9"}
-  "coq" {>= "8.15"}
+  "coq" {>= "8.17"}
   "coq-ext-lib" {>= "0.11.3"}
   "coq-coinduction" {>= "1.3"}
   "coq-relation-algebra" {>= "1.7"}

@@ -1,5 +1,1 @@
--Q _build/default/theories CTree
--Q _build/default/examples/ImpBr CTreeImp
--Q _build/default/examples/CCS CTreeCCS
--Q _build/default/examples/Yield CTreeYield
--Q _build/default/examples/Coffee CTreeCoffee
+-Q _build/default/theories KTree

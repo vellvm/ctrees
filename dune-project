@@ -3,7 +3,7 @@
 (name coq-ctree)
 
 (license "MIT")
-(authors "Nicolas Chappe" "Paul He" "Ludovic Henrio" "Yannick Zakowski" "Steve Zdancewic")
+(authors "Nicolas Chappe" "Paul He" "Ludovic Henrio" "Yannick Zakowski" "Steve Zdancewic" "Lef Ioannidis")
 (maintainers "Yannick Zakowski")
 (source (github vellvm/ctrees))
 (bug_reports "https://github.com/vellvm/ctrees/issues")
@@ -15,7 +15,7 @@
  (synopsis "Library for representing recursive, non-deterministic and impure programs with equational reasoning")
  (version 0.1)
  (depends
-  (coq (>= 8.15))
+  (coq (>= 8.17))
   (coq-ext-lib (>= 0.11.3))
   (coq-coinduction (>= 1.3))
   (coq-relation-algebra (>= 1.7))
