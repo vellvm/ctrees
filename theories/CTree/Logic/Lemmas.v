@@ -76,9 +76,8 @@ Section CtlCTrees.
   (* I shouldn't have to reprove this, because
      [equ eq] is a subrelation of [sbisim eq]
      and I already proved this for [sbisim] *)
-  Global Add Parametric Morphism{X}: (entailsF (X:=X))
-         with signature
-         (equiv_ctl (X:=X) ==> equ eq * eq ==> iff)
+  Global Add Parametric Morphism{X}: (entailsF (X:=X)) with signature
+         (equiv_ctl (M:=ctree E) (X:=X) ==> equ eq * eq ==> iff)
            as proper_ctree_entailsF.
   Proof.
     intros x y Hy t u EQt.
@@ -88,17 +87,14 @@ Section CtlCTrees.
     destruct EQt as (EQ & ->).
     red in EQ.
     unfold equiv_ctl in Hy.
-    apply proper_entailsF.
-    Print entailsF.
-    
-    eauto.    
+    apply proper_entailsF; eauto.
     split; cbn.
     - rewrite EQ. (* equ ≤ sbisim *)
       reflexivity.
     - reflexivity.
   Qed.
   
-  Global Add Parametric Morphism{X}: (can_step (X:=X))
+  Global Add Parametric Morphism{X}: (can_step (M:=ctree E) (X:=X))
          with signature (equ eq * eq ==> iff)
            as proper_ctree_can_step.
   Proof.
@@ -146,7 +142,7 @@ Section CtlCTrees.
       ~ is_stuck t -> forall w, can_step (t, w) \/  exists x, only_ret t x
       ~ can_step (t, w) -> is_stuck t \/ exists x, only_ret t x
       ~ ~ (exists x, only_ret t x) -> is_stuck t \/ can_step (t, w)
-   |*)  
+   |*)
   Lemma t_trinity{X}(t: ctree E X):
     {is_stuck t} + {forall w, can_step (t,w)} + {exists x, only_ret t x}.
   Proof.    
@@ -169,7 +165,7 @@ Section CtlCTrees.
         admit.
   Admitted.
 
-  Lemma onlyret_ktrans_r{X}: forall (t t': ctree E X) (w w': opt E) x,
+  Lemma only_ret_ktrans_r{X}: forall (t t': ctree E X) (w w': opt E) x,
       only_ret t' x ->
       (t, w) ↦ (t', w') ->         
       (t, w) ↦ (Ret x, w').
@@ -222,7 +218,7 @@ Section CtlCTrees.
       destruct H0, H1; clear H1.
       destruct H0 as (m' & w' & TR).
       apply ktrans_bind_inv in TR as [(t' & TR & Heq) | (x & Hx & TR)].
-      + apply ktrans_trans_ind in TR as (l & TR & Hl).
+      + apply ktrans_trans in TR as (l & TR & Hl).
         now (exists l, t').
       + now (exists (val x), Ctree.stuck).
     - right; left. 
@@ -237,7 +233,7 @@ Section CtlCTrees.
       destruct H3 as [(HInd & Hw) | [(Hs & Haf) | (x & Hx & Haf)]].  
       + now apply ctl_af_match.
       + now apply Haf.
-      + apply (onlyret_ktrans_r Hx) in TR.
+      + apply (only_ret_ktrans_r Hx) in TR.
         apply ctl_af_match.
       (* Hm what happened *)
         admit.
@@ -267,12 +263,12 @@ Section CtlCTrees.
       exists i; eauto.
   Qed.
 
-  Lemma can_step_ret_inv{X}: forall (x: X) w,
+  Lemma can_step_ret_inv{X}: forall (x: X) (w: option (Bar E)),
       can_step (Ret x, w) -> False.
   Proof.
     intros.
     destruct H as (? & ? & ?).
-    apply ktrans_trans_ind in H as (l & ? & [(-> & ->) | (e & x' & -> & ->)]);
+    apply ktrans_trans in H as (l & ? & [(-> & ?) | (e & x' & -> & ?)]);
       inversion H.
   Qed.
   Hint Resolve can_step_ret_inv: core.
@@ -331,12 +327,13 @@ Section CtlCTrees.
   Admitted.
 
   Lemma ctl_done_af{X}: forall (t: ctree E X) (w: opt E) φ,
-      <( {(t, w)} |= AF (done φ) )> -> <( {(t, w)} |= AF (now φ) )>.
+      <( {(t, w)} |= AF (done {fun _ _ => φ}) )> -> <( {(t, w)} |= AF (now φ) )>.
   Proof.
     intros.
     unfold entailsF in H.
     induction H.
-    - now apply ctl_af_match.
+    - destruct H as (x & Heq & Hφ).
+      now apply ctl_af_match.
     - destruct H1, H0.
       clear H1.
       next; right.
@@ -359,7 +356,7 @@ Section CtlCTrees.
 
   
   Lemma ctl_forever_af{X}: forall (t: X -> ctree E X) (σ: opt E) (x : X) (φ: opt E -> Prop),
-      <( {(t x, σ)} |= AF done φ )> ->
+      <( {(t x, σ)} |= AF done {fun _ _ => φ} )> ->
       <( {(forever t x, σ)} |= AF now φ )>.
   Proof.    
     intros.
@@ -369,13 +366,8 @@ Section CtlCTrees.
     revert x σ.
     induction H; intros; subst.
     - unfold is_stuck in H; cbn in H.
-      destruct H.
-      rewrite sb_unfold_forever.
-      apply not_can_step in H as [(r & H) | H].
-      + apply ctl_bind_af_r with r; auto.
-      + rewrite H.
-        apply ctl_af_ax; left.
-        auto.
+      destruct H as (y & Heq & Hφ).
+      now apply ctl_af_match.
     - destruct H1, H0.
       clear H1.
       rewrite sb_unfold_forever.
@@ -384,7 +376,7 @@ Section CtlCTrees.
       next; split; auto.
       intros [t' w'] TR'.
       specialize (H3 _ TR').
-      assert(H3': <( {(t', w')} |= AF done φ )>) by apply H3; clear H3.
+      assert(H3': <( {(t', w')} |= AF done {fun _ _ => φ} )>) by apply H3; clear H3.
       now apply ctl_done_af.
   Qed.
 
@@ -431,20 +423,20 @@ Section CtlCTrees.
 
   
   Lemma ctl_iter_ag_af{X}: forall (t: X -> ctree E X) (σ: opt E) (i : X) (φ: opt E -> Prop),
-      <( {(t i, σ)} |= AF done φ )> ->
+      <( {(t i, σ)} |= AF done {fun _ _ => φ} )> ->
       <( {(forever t i, σ)} |= AG AF now φ )>.
   Proof.
     coinduction R CIH; intros.
     - apply RStepA.
       + admit. (* now apply ctl_iter_af. *)
-      + assert(HH: entailsF (CAU (CNow (fun _ => True)) (CDone φ)) (t i, σ)) by (exact H); clear H.
+      + assert(HH: entailsF (CAU (CNow (fun _ => True)) (CDone (fun _ _=> φ))) (t i, σ))
+          by (exact H); clear H.
         apply ctl_af_ax in HH as [HH | HH].
         * split.
           apply can_step_forever_r with i; eauto.
           destruct HH.
           admit.
   Abort.
-
 
   Lemma ctl_forever_ag{X}: forall (k: X -> ctree E X) w x φ,
       (forall x, <( {(k x, w)} |= AG now φ )>) ->
@@ -478,6 +470,7 @@ Section CtlCTrees.
         specialize (H1 _ H2).
         rename H1 into Himportant.
         unfold entailsF in Himportant.
+        (* Up-to-bind lemma for [cart] *)
         admit.
   Admitted.
 

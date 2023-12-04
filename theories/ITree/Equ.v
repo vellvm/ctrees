@@ -35,25 +35,25 @@ Ltac observe_equ_all :=
   | _ => idtac
   end.
 
-Inductive is_ret_{E X} `{Encode E}: X -> itree' E X -> Prop :=
+Inductive may_ret_{E X} `{Encode E}: X -> itree' E X -> Prop :=
 | RetRet: forall x,
-    is_ret_ x (RetF x)
+    may_ret_ x (RetF x)
 | RetTau: 
   forall t t' x,
-    is_ret_ x (observe t') ->
+    may_ret_ x (observe t') ->
     t ≅ Tau t' ->
-    is_ret_ x (observe t).
-Global Hint Constructors is_ret_: core.
+    may_ret_ x (observe t).
+Global Hint Constructors may_ret_: core.
 
-Definition is_ret{E X} `{Encode E} (x: X)(t: itree E X): Prop := is_ret_ x (observe t).
-Global Hint Unfold is_ret: core.
+Definition may_ret{E X} `{Encode E} (x: X)(t: itree E X): Prop := may_ret_ x (observe t).
+Global Hint Unfold may_ret: core.
 
-Global Instance proper_is_ret{X}:
-  Proper (eq ==> equ eq ==> iff) (is_ret (X:=X)).
+Global Instance proper_may_ret{X}:
+  Proper (eq ==> equ eq ==> iff) (may_ret (X:=X)).
 Proof.
   unfold Proper, respectful; split; intros; subst.
   - generalize dependent y0.
-    unfold is_ret in *.
+    unfold may_ret in *.
     remember (observe x0) as Hx0.
     induction H1; intros. 
     step in H0; cbn in H0; inv H0; rewrite <- HeqHx0 in H; inv H.
@@ -62,7 +62,7 @@ Proof.
       eapply RetTau; eauto.
       now rewrite <- H0, <- Eqt.
   - generalize dependent x0.
-    unfold is_ret in *.
+    unfold may_ret in *.
     remember (observe y0) as Hy0.
     induction H1; intros. 
     step in H0; cbn in H0; inv H0; rewrite <- HeqHy0 in H1; inv H1.
@@ -72,13 +72,13 @@ Proof.
       now rewrite H0, <- Eqt.
 Qed.
 
-Global Instance proper_is_ret_{X}:
-  Proper (eq ==> going (equ eq) ==> iff) (is_ret_ (X:=X)).
+Global Instance proper_may_ret_{X}:
+  Proper (eq ==> going (equ eq) ==> iff) (may_ret_ (X:=X)).
 Proof.
   unfold Proper, respectful; intros.
   inv H0.
-  eapply proper_is_ret in H1.
-  unfold is_ret in H1; cbn in H1.
+  eapply proper_may_ret in H1.
+  unfold may_ret in H1; cbn in H1.
   apply H1.
   reflexivity.
 Qed.

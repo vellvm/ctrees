@@ -4,11 +4,15 @@ From Coq Require Import
   Classes.Morphisms
   Classes.RelationPairs.
 
+From ExtLib Require Import Structures.Monad.
 From CTree Require Import Utils.Utils.
 Generalizable All Variables.
 
 (*| Polymorphic Kripke model over family M |*)
 Class Kripke (M: Type -> Type)(W: Type) := {
+    (* - [M] is a monad *)
+    MM :: Monad M;
+    
     (* - [ktrans] the transition relation over [M X * W] *)
     ktrans {X}: rel (M X * W) (M X * W);
 
@@ -17,7 +21,7 @@ Class Kripke (M: Type -> Type)(W: Type) := {
 
     (* - Equivalence [equ] *)
     equivalence_mequ {X} :: Equivalence (mequ X);
-    
+
     (* - [ktrans] does not allow rewriting, but there does
        exist a [t'] for which the rewriting makes sense. *)
     ktrans_semiproper {X} : forall (t s s': M X) w w',
@@ -35,6 +39,8 @@ Ltac destruct2 Heq :=
   cbn in Heq; destruct Heq as (Ht & Hs);
   unfold fst, snd, RelCompFun in Ht, Hs; cbn in Ht, Hs.
 
+Ltac split2 := unfold RelCompFun, fst, snd; cbn; split.
+
 Declare Custom Entry ctl.
 Declare Scope ctl_scope.
 
@@ -42,16 +48,15 @@ Declare Scope ctl_scope.
 Notation "p ↦ p'" := (ktrans p p') (at level 78,
                          right associativity): ctl_scope.
 
-Inductive trc{A}(R: relation A): relation A :=
-| TrcRefl: forall (a: A), trc R a a
-| TrcTrans: forall (a b c: A),
-  R a b ->
-  trc R b c ->
-  trc R a c.
-Global Hint Constructors trc: core.
+(*| Compose relation [R] n-times with itself |*)
+Fixpoint rel_iter {A}(eqA: relation A)`{Equivalence A eqA}(n: nat) (R: relation A): relation A :=
+  match n with
+  | 0%nat => eqA
+  | (S n)%nat => fun a c => exists b, R a b /\ rel_iter eqA n R b c
+  end.
 
 (* TRC relation *)
-Notation "p ↦* p'" := (trc ktrans p p') (at level 78,
+Notation "p ↦* p'" := (exists n, rel_iter (mequ _ * eq)%signature n ktrans p p') (at level 78,
                          right associativity): ctl_scope.
 
 Definition can_step `{Kripke M W} {X} (m: M X * W): Prop :=

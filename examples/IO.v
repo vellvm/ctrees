@@ -22,17 +22,6 @@ Local Open Scope bool_scope.
 
 Notation fd := nat (only parsing).
 
-
-#[refine] Local Instance ctree_kripke_option`{Encode E}: Kripke (ctree E) (Bar E) :=
-  {|
-    ktrans X '(t, w) '(t', w') :=
-      ctree_kripke.(ktrans) (X:=X) (t, Some w) (t', Some w');
-    mequ X := @sbisim E E _ _ X X eq
-  |}.
-Proof.
-  intros; now apply ctree_kripke.(ktrans_semiproper) with (t:=t) (s:=s).
-Defined.
-
 Section Ex1Proof.
   Context {S: Type}.
 

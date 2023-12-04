@@ -27,9 +27,9 @@ Local Open Scope itree_scope.
 (*| CTL logic lemmas on c/itrees |*)
 Section CtlITrees.
   Context {W X: Type}.
-  Notation itreeW X := (itree (writerE W) X).
+  Notation itreeW W X := (itree (writerE W) X).
 
-  Lemma ctl_af_star: forall (t: itreeW X * W) φ,
+  Lemma ctl_af_star: forall (t: itreeW W X * option W) φ,
       <( t |= AF φ )> <-> ( exists t', t ↦* t' /\ <( t' |= φ )>).
   Proof.
     cbn; split; intros.

@@ -1,5 +1,4 @@
 From CTree Require Import
-  CTree.Equ
   CTree.Core
   Logic.Ctl
   CTree.SBisim
@@ -24,6 +23,7 @@ Local Open Scope list_scope.
 Variant queueE (S: Type): Type :=
   | Push (s: S)
   | Pop.
+
 Arguments Push {S} s.
 Arguments Pop {S}.
 
@@ -43,9 +43,8 @@ Section QueueEx.
   Context {S: Type}.
   Notation queueE := (queueE S).
 
-  (* Push [P] then drain queue until we pop it eventually *)
-  Definition drain1(s: S): ctree queueE unit :=
-    push s ;;
+  (* Drain a queue *)
+  Definition drain(s: S): ctree queueE unit :=
     iter (fun _ =>
             x <- pop ;;
             match x with

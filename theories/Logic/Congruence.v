@@ -82,13 +82,13 @@ Section MequCongruences.
         with signature mequ X * eq ==> iff as now_proper_equ.
   Proof. unfold entailsF; intros; eapply fun_proper_equ; eauto. Qed.
   
-  Global Add Parametric Morphism (p: W -> Prop): <( |- done p )>
+  Global Add Parametric Morphism p: <( |- done p )>
         with signature mequ X * eq ==> iff as done_proper_equ.
   Proof.
     unfold entailsF; intros; eapply fun_proper_equ.
     - apply H.
-    - destruct x, y; destruct2 H; subst; cbn.
-      split; intros [HS H']; split; auto.
+    - destruct x, y; destruct2 H; subst; cbn;
+      split; intros (x & [Heq Hp]); exists x; split; auto.
       + now rewrite <- Heqt.
       + now rewrite Heqt.
   Qed.

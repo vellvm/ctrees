@@ -1,4 +1,4 @@
-From ExtLib Require Import
+From ExtLib Require Export
   Structures.MonadState
   Data.Monads.StateMonad
   Structures.Monad.
@@ -23,30 +23,32 @@ Local Open Scope ctree_scope.
 Set Implicit Arguments.
 Generalizable All Variables.
 
-(*| Observe 1-to-1 interpretation event-to-state -- [state S] to [stateT S (ctree void)] handler morphism |*)
+(*| Observe 1-to-1 interpretation event-to-state -- [state S] to [stateT S (ctree void)] |*)
 Global Instance h_state_stateT {E Σ} (h:E ~> state Σ): E ~> stateT Σ (ctree void) := {
     handler e :=
       mkStateT (fun s => Ret (runState (h.(handler) e) s))
   }.
 
-(*| Observe states. The [stateT S (ctree void)] to [stateT S (ctree (writerE S))] handler morphism |*)
-Global Instance h_stateT_writerΣ {E Σ} (h:E ~> stateT Σ (ctree void)):
-  E ~> stateT Σ (ctree (writerE Σ)) := {
+(*| Intrument any [W] by an observation function [obs] and evaluation [E ~> stateT Σ ctree] |*)
+Global Instance h_stateT_writerA {E W Σ}(h:E ~> stateT Σ (ctree void))(obs: Bar E * Σ -> W):
+  E ~> stateT Σ (ctree (writerE W)) := {
     handler e :=
       mkStateT (fun s =>
                   '(x, σ) <- resumCtree (runStateT (h.(handler) e) s) ;;
-                  Ctree.trigger (Log σ) ;;
+                  Ctree.trigger (Log (obs (Obs e x, σ))) ;;
                   Ret (x, σ))
   }.
 
-(*| Observe events. The [stateT S (ctree void)] to [stateT S (ctree (Bar E))] handler morphism |*)
+(*| Observe states. The [stateT S (ctree void)] to [stateT S (ctree (writerE S))] |*)
+Global Instance h_stateT_writerΣ {E Σ} (h:E ~> stateT Σ (ctree void)):
+  E ~> stateT Σ (ctree (writerE Σ)) := {
+    handler := @handler _ _ (h_stateT_writerA h snd)
+  }.
+
+(*| Observe events. The [stateT S (ctree void)] to [stateT S (ctree (Bar E))] |*)
 Global Instance h_stateT_writerE {E Σ} (h:E ~> stateT Σ (ctree void)):
   E ~> stateT Σ (ctree (writerE (Bar E))) := {
-    handler e :=
-      mkStateT (fun s =>
-                  '(x, σ) <- resumCtree (runStateT (h.(handler) e) s) ;;
-                  Ctree.trigger (Log (Obs e x)) ;;
-                  Ret (x, σ))
+    handler := @handler _ _ (h_stateT_writerA h fst)
   }.
 
 (*| Lemmas about state |*)

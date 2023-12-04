@@ -48,23 +48,8 @@ Section CTreeTrans.
       trans tau t t' ->
       ktrans_ (t, ts) (t', ts).
 
-  (*| DELETE ME, replace with [ktrans_trans_ind] that is amenable to induction |*)
-  Lemma ktrans_trans: forall t t' w w',
-      ktrans_ (t, w) (t', w') <->
-      (trans tau t t' /\ w = w')
-      \/ (exists e (x: encode e), trans (obs e x) t t' /\ w' = Some (Obs e x)).
-  Proof.
-    intros; split; intro H.
-    inv H.    
-    - right; exists e, x; auto.
-    - left; auto.
-    - destruct H as [(? & ->) | (? & ? & ? & ->)].
-      + now apply KtransTau.
-      + now apply KtransObs.
-  Qed.
-
   (*| This version is more amenable to induction |*)
-  Lemma ktrans_trans_ind: forall t t' w w',
+  Lemma ktrans_trans: forall t t' w w',
       ktrans_ (t, w) (t', w') <->
         (exists l, trans_ l (observe t) (observe t') /\
                 ((l = tau /\ w' = w)
@@ -101,7 +86,11 @@ Ltac ktrans_inv H :=
   let Heqw := fresh "Heqw" in
   let e := fresh "e" in
   let x := fresh "x" in
-  simpl ktrans in H; apply ktrans_trans in H as [(H & Heqw) | (e & x & H & Heqw)]; subst.
+  let l := fresh "l" in
+  let TR := fresh "TR" in
+  simpl ktrans in H;
+  apply ktrans_trans in H as
+      (l & H & [(Hl & Hw) | (e & x & Hl & Hw)]); subst.
 
 Ltac ktrans_goal :=
   simpl ktrans; apply ktrans_trans.
@@ -136,11 +125,15 @@ Section CTreeTrans.
   Proof.
     split; intro H.
     - ktrans_inv H; apply trans_brD_inv in H as (n' & ?); exists n'; ktrans_goal.
-      + left; auto.
-      + right; exists e, x; auto.
+      + exists tau; split; [assumption|]; left; auto.
+      + exists (obs e x); split; [assumption|]; right; eauto. 
     - destruct H as (n' & H); ktrans_inv H; ktrans_goal.
-      + left; split; [econstructor | reflexivity]; apply H. 
-      + right; exists e, x; esplit; [econstructor | reflexivity]; apply H. 
+      + exists tau; split.
+        * econstructor; eassumption.
+        * left; split; reflexivity. 
+      + exists (obs e x); split.
+        * econstructor; eassumption.
+        * right; exists e, x; split; reflexivity. 
   Qed.
 
   Lemma ktrans_brS {X}: forall n (t: ctree E X)
@@ -153,8 +146,7 @@ Section CTreeTrans.
         exists n'; subst; inv H0; auto.
     - destruct H as (n' & H & ->).
       ktrans_goal.
-      left; split; auto.
-      econstructor.
+      exists tau; split; econstructor; [|auto].      
       (* HACK *)
       Set Typeclasses Filtered Unification.
       symmetry.
@@ -192,7 +184,7 @@ Section CTreeTrans.
         * reflexivity.
     - destruct TR as (? & ? & ->).
       ktrans_goal.
-      right; exists e, x; split; [econstructor|]; auto.
+      exists (obs e x); split; [econstructor|right]; eauto.
   Qed.
 
   Lemma ktrans_bind_inv_strong: forall {X Y} (w w': opt E)
@@ -202,11 +194,11 @@ Section CTreeTrans.
         (exists x, only_ret t x /\ (k x, w) ↦ (u, w')).
   Proof.
     intros * TR.
-    apply ktrans_trans_ind in TR as (l & TR & [(-> & ->) | ?]);
-    destruct (trans_bind_inv _ _ TR) as
-      [(Hv & t' & TR' & Heq) | (x' & TRv & TR')].
-    - left; exists t'; split; cbn; auto.
-    - 
+    apply ktrans_trans in TR as (l & TR & [(-> & ->) | ?]).
+    - destruct (trans_bind_inv _ _ TR) as
+        [(Hv & t' & TR' & Heq) | (x' & TRv & TR')].
+      + left; exists t'; split; cbn; auto.
+      + admit.
   Admitted.
   
   Lemma ktrans_bind_inv: forall {X Y} (w w': opt E)
@@ -230,7 +222,7 @@ Section CTreeTrans.
       (x <- t ;; k x, w) ↦ (x <- t' ;; k x, w').
   Proof.
     intros.
-    ktrans_inv H; apply ktrans_trans_ind.    
+    ktrans_inv H; apply ktrans_trans.    
     - exists tau; split. (* BrS *)
       + apply trans_bind_l.
         * intro Hcontra.
@@ -252,7 +244,7 @@ Section CTreeTrans.
       (x <- t ;; k x, w) ↦ (u, w').
   Proof.
     intros.
-    ktrans_inv H0; apply ktrans_trans_ind.
+    ktrans_inv H0; apply ktrans_trans.
     - exists tau; split.
       + apply trans_bind_r with x; eauto.
       + left; auto.
@@ -368,7 +360,7 @@ Section CTreeTrans.
   Proof.
     intros * (? & ? & ?) (? & Hcontra).
     unfold only_ret in Hcontra.
-    apply ktrans_trans_ind in H as (l & TR & ?).
+    apply ktrans_trans in H as (l & TR & ?).
     remember (observe t) as T.
     generalize dependent t.
     generalize dependent H.
@@ -391,7 +383,7 @@ Section CTreeTrans.
     intros.
     unfold only_ret in H.
     unfold can_step.
-    setoid_rewrite ktrans_trans_ind.
+    setoid_rewrite ktrans_trans.
     dependent induction H; rewrite <- x.
     - (* OnlyBrD *)
       intros (e & t' & e' & l & TR & Hl).
@@ -448,10 +440,10 @@ Section CTreeTrans.
       (x <- t;; k x, w) ↦ (u, w').
   Proof.
     intros.
-    apply ktrans_trans_ind in H as (l & ? & ?).
+    apply ktrans_trans in H as (l & ? & ?).
     pose proof (trans_onlyret _ _ H0).
     unfold only_ret in H0.
-    dependent induction H0; apply ktrans_trans_ind.
+    dependent induction H0; apply ktrans_trans.
     - exists l; split.
       now apply trans_bind_r with x0.
       apply H1.
@@ -514,13 +506,16 @@ Section CTreeTrans.
   
 End CTreeTrans.
 
-From CTree Require Import Logic.Semantics.
-Check ctl_contramap.
-Notation "m |=e φ " :=
-  (entailsF
-     (ctl_contramap (fun '(Obs (Log e) _) => e)
-        (ctl_option φ))
-     m)
-    (in custom ctl at level 81,
-        φ custom ctl,
-        right associativity): ctl_scope.
+(*| The base instance is [ctree_kripke] but depending on what we observe,
+    some more convenient thin wrappers work better |*)
+#[refine] Global Instance ctreeW_kripke{W}: Kripke (ctreeW W) (option W) | 80 :=
+  {|
+    MM := Monad_ctree;
+    ktrans X '(t, w) '(t', w') :=
+      let opt_proj := option_map (fun w => Obs (Log w) tt) in  
+      ctree_kripke.(ktrans) (X:=X) (t, opt_proj w) (t', opt_proj w');
+    mequ X := @sbisim (writerE W) (writerE W) _ _ X X eq
+  |}.
+Proof.
+  intros; now apply ctree_kripke.(ktrans_semiproper) with (t:=t) (s:=s).
+Defined.

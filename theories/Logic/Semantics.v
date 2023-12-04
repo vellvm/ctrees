@@ -11,7 +11,8 @@ From Coinduction Require Import
   coinduction lattice.
 
 From ExtLib Require Import
-     Data.Monads.StateMonad.
+  Structures.Monad
+  Data.Monads.StateMonad.
 
 From CTree Require Import
   Utils.Utils.
@@ -140,7 +141,7 @@ Section Ctl.
   
   Inductive CtlFormula: Type :=
   | CNow (p : W -> Prop): CtlFormula
-  | CDone(p : W -> Prop): CtlFormula
+  | CDone (p: forall {X: Type}, X -> W -> Prop): CtlFormula
   | CAnd    : CtlFormula -> CtlFormula -> CtlFormula
   | COr     : CtlFormula -> CtlFormula -> CtlFormula
   | CImpl   : CtlFormula -> CtlFormula -> CtlFormula
@@ -155,7 +156,8 @@ Section Ctl.
   Fixpoint entailsF (φ: CtlFormula)(m: M X * W): Prop :=
     match φ with
     | CNow   p  => p (snd m)
-    | CDone  p  => ~ can_step m /\ p (snd m)
+    | CDone  p  => exists (x: X), mequ X (fst m) (ret x) /\
+                              p X x (snd m)
     | CAnd  φ ψ => (entailsF φ m) /\ (entailsF ψ m)
     | COr   φ ψ => (entailsF φ m) \/ (entailsF ψ m)
     | CImpl φ ψ => (entailsF φ m) -> (entailsF ψ m)
@@ -366,7 +368,7 @@ Qed.
 Fixpoint ctl_contramap{X Y}(f: X -> Y) (φ: CtlFormula Y): CtlFormula X :=
   match φ with
   | CNow  p  => CNow (fun x => p (f x))
-  | CDone p  => CDone (fun x => p (f x))
+  | CDone p  => CDone (fun X z x => p X z (f x))
   | CAnd  φ ψ => CAnd (ctl_contramap f φ) (ctl_contramap f ψ)
   | COr   φ ψ => COr (ctl_contramap f φ) (ctl_contramap f ψ)
   | CImpl φ ψ => CImpl (ctl_contramap f φ) (ctl_contramap f ψ)
@@ -382,7 +384,7 @@ Fixpoint ctl_contramap{X Y}(f: X -> Y) (φ: CtlFormula Y): CtlFormula X :=
 Fixpoint ctl_option{W}(φ: CtlFormula W): CtlFormula (option W) :=
   match φ with
   | CNow  p  => CNow (fun o => exists x, o = Some x /\ p x)
-  | CDone p  => CDone (fun o => exists x, o = Some x /\ p x)
+  | CDone p  => CDone (fun X z o => exists x, o = Some x /\ p X z x)
   | CAnd  φ ψ => CAnd (ctl_option φ) (ctl_option ψ)
   | COr   φ ψ => COr (ctl_option φ) (ctl_option ψ)
   | CImpl φ ψ => CImpl (ctl_option φ) (ctl_option ψ)
