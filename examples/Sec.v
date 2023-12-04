@@ -1,3 +1,5 @@
+From Coq Require Import Arith.PeanoNat.
+
 From CTree Require Import
   CTree.Equ
   CTree.Core
@@ -9,8 +11,6 @@ From CTree Require Import
   CTree.Interp.Core
   CTree.Interp.State
   CTree.Events.State.
-
-From Coq Require Import Arith.PeanoNat.
 
 From ExtLib Require Import
   Structures.MonadState
@@ -40,8 +40,7 @@ Proof. red; intros [] [] [] *; auto. Qed.
 
 Lemma sec_preord_dec(l r: Sec): { l ≤ r } + { r ≤ l }.
 Proof.
-  revert r.
-  induction l; destruct r.
+  revert r; induction l; destruct r.
   - left; reflexivity. 
   - right; auto. 
   - left; auto.

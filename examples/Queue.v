@@ -10,6 +10,11 @@ From CTree Require Import
   CTree.Events.State
   CTree.Events.Writer.
 
+From ExtLib Require Export
+  Structures.MonadState
+  Data.Monads.StateMonad
+  Structures.Monad.
+
 From Coq Require Import
   List.
 
@@ -32,7 +37,7 @@ Global Instance encode_queueE{S}: Encode (queueE S) :=
           | Push s => unit
           | Pop => option S
           end.
-  
+
 Definition push {S}: S -> ctree (queueE S) unit :=
   fun (s: S) => @Ctree.trigger (queueE S) (queueE S) _ _ (ReSum_refl) (ReSumRet_refl) (Push s).
 
@@ -44,7 +49,7 @@ Section QueueEx.
   Notation queueE := (queueE S).
 
   (* Drain a queue *)
-  Definition drain(s: S): ctree queueE unit :=
+  Definition drain: ctree queueE unit :=
     iter (fun _ =>
             x <- pop ;;
             match x with
@@ -64,12 +69,15 @@ Section QueueEx.
                    end)
     }.
 
-  Definition handlerT_queueE :
-    queueE ~> stateT (list S) (ctree (writerE (list S))).
-    typeclasses eauto.
-  Defined.
+  Definition instr_queueE: queueE ~> stateT (list S) (ctree (writerE (Bar queueE))) :=
+    h_stateT_writerE _.
 
-  Definition p s := interp_state handlerT_queueE (drain1 s) [].
+  Locate "|==".
+  Check interp_state.
+  Definition entailsF_writer `{h: E ~> stateT Σ (ctree (writerE W))}{X: Type}
+    (t: ctree E X) (σ: Σ) (φ: CtlFormula W): Prop :=
+    entailsF (ctl_option φ) (interp_state h t σ, None).
+  Definition p s := interp_state handlerT_queueE (drain s) [].
 
   (*| Eventually we get [s] |*)
   Theorem ctl_queue_eventually: forall s q,
