@@ -3,17 +3,17 @@ From ExtLib Require Import
      Structures.MonadState
      Data.Monads.StateMonad.
 
+
 From Coq Require Import
-  List
+  Relations.Relation_Definitions
   Basics
   Classes.SetoidClass
   Classes.RelationPairs.
 
-From Coinduction Require Import lattice.
-
 From CTree Require Import
   Logic.Kripke
-  Events.WriterE
+  Events.Core
+  ITree.Events.Writer
   ITree.Equ
   ITree.Interp
   ITree.Core.
@@ -23,13 +23,6 @@ Generalizable All Variables.
 Import Itree ITreeNotations.
 Local Open Scope itree_scope.
 Local Open Scope ctl_scope.
-
-(*| [Bar E] is the dependent product of an event
-  [e: E] and its response (x: encode e) |*)
-Variant Bar (E: Type) `{Encode E} :=
-  | Obs (e: E) (x: encode e).
-
-Arguments Obs {E} {_} e x.
 
 Notation itreeW W := (itree (writerE W)).
 Notation itreeEW E := (itree (writerE (Bar E))).
@@ -147,24 +140,35 @@ Ltac ktrans_inv H :=
 
 Section KripkeLemmas.
   Context {E: Type} {HE: Encode E}.
+  Notation equ := (fun (X: Type) => @equ E HE X X eq).
 
   (*| ITree is a kripke automaton |*)
-  Global Program Instance itree_kripke:
-    Kripke (itree E) (option (Bar E)) :=
-    {|
-      mequ X := @equ E _ X _ eq;
-      ktrans X := trans (X:=X)
-    |}.
-  Next Obligation.
-    exists s'; split; auto.
-    now rewrite <- H.
+  #[refine] Global Instance itree_kripke: Kripke (itree E) equ (Bar E) :=
+    {| ktrans X := trans (X:=X) |}.
+  Proof.
+    - intros.
+      exists s'; split; auto.
+      now rewrite <- H.
+    - intros.
+      unfold trans in H.
+      remember (observe t, Some w).
+      remember (observe t', w').
+      generalize dependent t.
+      generalize dependent t'.
+      revert w'.
+      induction H; intros; subst; inv Heqp.
+      + now eapply IHtrans_ with (t:=t) (t':=t'0).
+      + inv Heqp0; eexists; reflexivity.
   Qed.
   Arguments ktrans /.
-
-  Lemma ktrans_ret{X}: forall x (t': itree E X) s s',
-      ~ ((Ret x, s) ↦ (t', s')).
+  Typeclasses eauto := 1.
+  Lemma ktrans_ret{X}: forall (x: X) (t': itree E X) (s s': option (Bar E)),
+      (Ret x, s) ↦ (t', s') -> False.
   Proof.
     intros * Hcontra.
+
+
+    dependent destruction Hcontra.
     ktrans_inv Hcontra.
   Qed.
 

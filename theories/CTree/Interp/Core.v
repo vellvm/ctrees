@@ -7,7 +7,7 @@ From CTree Require Import
   Classes
   CTree.Core
   Events.Core
-  Events.Writer
+  CTree.Events.Writer
   CTree.Events.State
   CTree.Equ.
 

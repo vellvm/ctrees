@@ -17,20 +17,14 @@ From CTree Require Import
   CTree.Pred
   CTree.Equ
   CTree.Trans
-  Events.Writer
-  Logic.Kripke
-  Events.Writer.
+  CTree.Events.Writer
+  Events.Core
+  Logic.Kripke.
 
 Generalizable All Variables.
 
 Import Ctree CTreeNotations.
 Local Open Scope ctree_scope.
-
-(*| [Bar E] is the dependent product of an event [e: E] and its response (x: encode e) |*)
-Variant Bar (E: Type) `{Encode E} :=
-  | Obs (e: E) (x: encode e).
-
-Arguments Obs {E} {_} e x.
 
 Notation ctreeW W := (ctree (writerE W)).
 Notation ctreeEW E := (ctree (writerE (Bar E))).
@@ -100,23 +94,23 @@ Global Hint Constructors ktrans_: core.
 Section CTreeTrans.
   Context {E: Type} `{HE: Encode E}.
   Local Open Scope ctl_scope.
-  Notation opt E := (option (Bar E)).
+  Notation sbisim := (fun (X: Type) => @sbisim E E HE HE X X eq).
   
   (*| CTree is a kripke automaton with [Sb] equivalence |*)
-  Global Program Instance ctree_kripke : Kripke (ctree E) (opt E) :=
-    {|
-      ktrans X := ktrans_ (X:=X);
-      mequ X := @sbisim E E HE HE X X eq
-    |}.
-  Next Obligation.
-    ktrans_inv H0.
-    - destruct (SBisim.sbisim_trans (X:=X) _ _ _ tau eq H H0)
-        as (l & c1' & ? & <- & ?).
-      exists c1'; split; [econstructor|]; auto.      
-    - destruct (SBisim.sbisim_trans (X:=X) _ _ _ (obs e x) eq H H0)
-        as (l & c1' & ? & <- & ?).
-      exists c1'; split; [econstructor|]; auto.
-  Qed.
+  #[refine] Global Instance ctree_kripke : Kripke (ctree E) sbisim (Bar E) :=
+    {| ktrans X := ktrans_ (X:=X) |}.
+  Proof.
+    - intros.
+      ktrans_inv H0.
+      + destruct (SBisim.sbisim_trans (X:=X) _ _ _ tau eq H H0)
+          as (l & c1' & ? & <- & ?).
+        exists c1'; split; [econstructor|]; auto.      
+      + destruct (SBisim.sbisim_trans (X:=X) _ _ _ (obs e x) eq H H0)
+          as (l & c1' & ? & <- & ?).
+        exists c1'; split; [econstructor|]; auto.
+    - intros.
+      ktrans_inv H; eexists; reflexivity.      
+  Defined.
 
   (*| Lemmas that depend on structure of [ctrees] |*)
   Lemma ktrans_brD {X}: forall n (t': ctree E X) (k: fin' n -> ctree E X) w w',
@@ -187,8 +181,7 @@ Section CTreeTrans.
       exists (obs e x); split; [econstructor|right]; eauto.
   Qed.
 
-  Lemma ktrans_bind_inv_strong: forall {X Y} (w w': opt E)
-                           (t: ctree E Y) (u: ctree E X) (k: Y -> ctree E X),
+  Lemma ktrans_bind_inv_strong: forall {X Y} w w' (t: ctree E Y) (u: ctree E X) (k: Y -> ctree E X),
       (x <- t ;; k x, w) ↦ (u, w') ->
       (exists t', (t, w) ↦ (t', w') /\ u ≅ x <- t' ;; k x) \/
         (exists x, only_ret t x /\ (k x, w) ↦ (u, w')).
@@ -201,8 +194,7 @@ Section CTreeTrans.
       + admit.
   Admitted.
   
-  Lemma ktrans_bind_inv: forall {X Y} (w w': opt E)
-                           (t: ctree E Y) (u: ctree E X) (k: Y -> ctree E X),
+  Lemma ktrans_bind_inv: forall {X Y} w w' (t: ctree E Y) (u: ctree E X) (k: Y -> ctree E X),
       (x <- t ;; k x, w) ↦ (u, w') ->
       (exists t', (t, w) ↦ (t', w') /\ u ≅ x <- t' ;; k x) \/
         (exists x, may_ret t x /\ (k x, w) ↦ (u, w')).
@@ -216,8 +208,7 @@ Section CTreeTrans.
     + right; exists x'; split; cbn; auto.
   Qed.
 
-  Lemma ktrans_bind_l:forall {X Y} (w w': opt E)
-                           (t t': ctree E Y) (k: Y -> ctree E X),
+  Lemma ktrans_bind_l: forall {X Y} w w' (t t': ctree E Y) (k: Y -> ctree E X),
       (t, w) ↦ (t', w') ->
       (x <- t ;; k x, w) ↦ (x <- t' ;; k x, w').
   Proof.
@@ -237,8 +228,7 @@ Section CTreeTrans.
       + right; eauto.
   Qed.
 
-  Lemma ktrans_bind_r: forall {X Y} (w w': opt E)
-                         (t: ctree E Y) (u: ctree E X) (k: Y -> ctree E X) (x: Y),
+  Lemma ktrans_bind_r: forall {X Y} w w' (t: ctree E Y) (u: ctree E X) (k: Y -> ctree E X) (x: Y),
       may_ret t x ->
       (k x, w) ↦ (u, w') ->
       (x <- t ;; k x, w) ↦ (u, w').
@@ -253,8 +243,7 @@ Section CTreeTrans.
       + right; eauto.
   Qed.
 
-  Lemma ktrans_bind_inv_l: forall {X Y} (w w': opt E)
-                             (t: ctree E Y) (u: ctree E X) (k: Y -> ctree E X),
+  Lemma ktrans_bind_inv_l: forall {X Y} w w' (t: ctree E Y) (u: ctree E X) (k: Y -> ctree E X),
       (x <- t ;; k x, w) ↦ (u, w') ->
       ~ (exists (x: Y), may_ret t x) ->
       (exists t', (t, w) ↦ (t', w') /\ u ≅ x <- t' ;; k x).
@@ -267,8 +256,7 @@ Section CTreeTrans.
     now exists x0.
   Qed.
 
-  Lemma ktrans_bind_inv_noret{X Y}: forall (w w': opt E)
-     (t: ctree E X) (u: ctree E Y) (u': ctree E Y),
+  Lemma ktrans_bind_inv_noret{X Y}: forall w w' (t: ctree E X) (u u': ctree E Y),
       (t ;; u, w) ↦ (u', w') ->
       (exists t', (t, w) ↦ (t', w') /\ u' ≅ t' ;; u) \/
         (exists (x: X), may_ret t x /\ (u, w) ↦ (u', w')).
@@ -277,11 +265,6 @@ Section CTreeTrans.
     apply ktrans_bind_inv in H.
     destruct H as [(? & ?) | (x0 & Hret & Hcont)]; eauto.
   Qed.
-
-  Hint Extern 2 =>
-         match goal with
-         | [ H: ?m ↦ ?m' |- can_step ?m ] => exists (fst m'), (snd m'); apply H
-  end: core.
 
   Lemma can_step_bind_inv_l{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) w,
       can_step (x <- t ;; k x, w) ->
@@ -337,7 +320,7 @@ Section CTreeTrans.
     exists (x <- t';; k x), w'.
     now apply ktrans_bind_l.
   Qed.
-  Hint Resolve can_step_bind_l: core.
+  Hint Resolve can_step_bind_l: ctree.
   
   (*| If there exists a [t -(val x)-> t'] transition,
       and [k x] can step then [t >>= k] can step |*)
@@ -351,8 +334,7 @@ Section CTreeTrans.
     exists t', w'.
     apply ktrans_bind_r with x; auto.
   Qed.
-  Hint Resolve can_step_bind_r: core.
-
+  Hint Resolve can_step_bind_r: ctree.
   
     (*| [can_step] and [only_ret] are mutually exclusive |*)
   Lemma can_step_only_ret{X}: forall (t: ctree E X) w,
@@ -375,7 +357,7 @@ Section CTreeTrans.
       destruct H as [(? & ?) | (? & ? & ? & ? )];
         inversion H.
   Qed.
-  Hint Resolve can_step_only_ret: core.
+  Hint Resolve can_step_only_ret: ctree.
   
   Lemma only_ret_can_step{X}: forall (t: ctree E X) x,
       only_ret t x -> ~ (exists w, can_step (t, w)).
@@ -397,10 +379,10 @@ Section CTreeTrans.
       destruct Hl as [(Hcontra & ->)|(? & ? & Hcontra & ?)];
         inversion Hcontra.
   Qed.
-  Hint Resolve only_ret_can_step: core.
+  Hint Resolve only_ret_can_step: ctree.
   
   (*| [ktrans] with [bind] of [only_ret] means [k x] must step |*)
-  Lemma ktrans_bind_inv_r_strong{X Y}: forall (w w': opt E) (t: ctree E Y)
+  Lemma ktrans_bind_inv_r_strong{X Y}: forall w w' (t: ctree E Y)
                                 (u: ctree E X) (k: Y -> ctree E X) r,
     (x <- t;; k x, w) ↦ (u, w') ->
     only_ret t r ->
@@ -415,9 +397,9 @@ Section CTreeTrans.
     - pose proof (only_ret_det _ _ _ H H0); subst.
       apply H'.
   Qed.
-  Hint Resolve ktrans_bind_inv_r_strong: core.
+  Hint Resolve ktrans_bind_inv_r_strong: ctree.
 
-  Lemma ktrans_bind_inv_l_strong{X Y}: forall (w w' : opt E) (t : ctree E Y)
+  Lemma ktrans_bind_inv_l_strong{X Y}: forall w w' (t : ctree E Y)
                                   (u : ctree E X) (k : Y -> ctree E X),
       (x <- t;; k x, w) ↦ (u, w') ->
       can_step (t, w) ->
@@ -431,10 +413,10 @@ Section CTreeTrans.
       apply H.
       now (exists w).
   Qed.
-  Hint Resolve ktrans_bind_inv_l_strong: core.
+  Hint Resolve ktrans_bind_inv_l_strong: ctree.
   
-  Lemma ktrans_bind_r_strong{X Y}: forall (w w': opt E) (t: ctree E Y)
-                                       (u: ctree E X) (k: Y -> ctree E X) r,
+  Lemma ktrans_bind_r_strong{X Y}: forall w w' (t: ctree E Y)
+                                     (u: ctree E X) (k: Y -> ctree E X) r,
       (k r, w) ↦ (u, w') ->
       only_ret t r ->
       (x <- t;; k x, w) ↦ (u, w').
@@ -451,7 +433,7 @@ Section CTreeTrans.
       now apply trans_bind_r with x0.
       apply H1.
   Qed.
-  Hint Resolve ktrans_bind_r_strong: core.
+  Hint Resolve ktrans_bind_r_strong: ctree.
 
   Lemma can_step_bind_r_strong{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) w x,
       only_ret t x ->
@@ -463,7 +445,7 @@ Section CTreeTrans.
     exists t', w'.
     apply ktrans_bind_r_strong with x; auto.
   Qed.
-  Hint Resolve can_step_bind_r: core.
+  Hint Resolve can_step_bind_r: ctree.
   
   (*
   Lemma ktrans_trigger_inv_noret: forall {X} (w w': opt E) (e: E)
@@ -496,26 +478,5 @@ Section CTreeTrans.
       Unset Typeclasses Filtered Unification.
       - inv Hret.
   Qed. *)
-
-  (*| [Some e] always transitions to [Some e'] |*)
-  Lemma ktrans_some_inv {X}:
-    forall (e : Bar E) (t: ctree E X) (m: ctree E X * opt E),
-      (t, Some e) ↦ m ->
-      exists e', snd m = Some e'.  
-  Proof. intros; inv H; eauto. Qed.
   
 End CTreeTrans.
-
-(*| The base instance is [ctree_kripke] but depending on what we observe,
-    some more convenient thin wrappers work better |*)
-#[refine] Global Instance ctreeW_kripke{W}: Kripke (ctreeW W) (option W) | 80 :=
-  {|
-    MM := Monad_ctree;
-    ktrans X '(t, w) '(t', w') :=
-      let opt_proj := option_map (fun w => Obs (Log w) tt) in  
-      ctree_kripke.(ktrans) (X:=X) (t, opt_proj w) (t', opt_proj w');
-    mequ X := @sbisim (writerE W) (writerE W) _ _ X X eq
-  |}.
-Proof.
-  intros; now apply ctree_kripke.(ktrans_semiproper) with (t:=t) (s:=s).
-Defined.

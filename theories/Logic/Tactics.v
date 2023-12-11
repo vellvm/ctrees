@@ -26,12 +26,12 @@ Ltac cleft :=
 
 Ltac cdestruct H0 :=
   match type of H0 with
-  | @entailsF ?M ?S ?equ ?KMS ?X (CAnd ?φ ?ψ) ?m =>
-      replace (@entailsF M S KMS (CAnd φ ψ) m)
+  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (CAnd ?φ ?ψ) ?m =>
+      replace (@entailsF W M MM meq EqM KMS X (CAnd φ ψ) m)
       with (<( m |= φ)> /\ <( m |= ψ )>) in H0 by reflexivity;
       destruct H0
-  | @entailsF ?M ?S ?equ ?KMS ?X (COr ?φ ?ψ) ?m =>
-      replace (@entailsF M S KMS (COr φ ψ) m)
+  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (COr ?φ ?ψ) ?m =>
+      replace (@entailsF W M MM meq EqM KMS X (COr φ ψ) m)
       with (<( m |= φ)> \/ <( m |= ψ )>) in H0 by reflexivity;
       destruct H0              
   end.
@@ -43,7 +43,7 @@ Ltac cdestruct H0 :=
 
 Ltac cinduction H :=
   match type of H with
-  | @entailsF ?M ?S ?equ ?KMS ?X (CAU ?ψ ?φ) ?ms =>
+  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (CAU ?ψ ?φ) ?ms =>
       let m' := fresh "m" in
       let Heqt := fresh "Heqm" in
       remember ms as m' eqn: Heqm;
@@ -51,8 +51,8 @@ Ltac cinduction H :=
       induction H as [m' H' | m' Hbase IH HH];
       rewrite !Heqm in *;
       clear Heqm;
-      fold (@entailsF M S KMS) in *
-  | @entailsF ?M ?S ?equ ?KMS ?X (CEU ?ψ ?φ) ?ms =>
+      fold (@entailsF W M MM meq EqM KMS X) in *
+  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (CAU ?ψ ?φ) ?ms =>
       let m' := fresh "m" in
       let Heqt := fresh "Heqm" in
       remember ms as m' eqn: Heqm;
@@ -60,7 +60,16 @@ Ltac cinduction H :=
       induction H as [m' H' | m' Hbase IH HH];
       rewrite !Heqm in *;
       clear Heqm;
-      fold (@entailsF M S KMS) in *
+      fold (@entailsF W M MM meq EqM KMS X) in *
+  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (CEU ?ψ ?φ) ?ms =>
+      let m' := fresh "m" in
+      let Heqt := fresh "Heqm" in
+      remember ms as m' eqn: Heqm;
+      unfold entailsF in H;
+      induction H as [m' H' | m' Hbase IH HH];
+      rewrite !Heqm in *;
+      clear Heqm;
+      fold (@entailsF W M MM meq EqM KMS X) in *
   end.
 
 #[local] Tactic Notation "induction" ident(H) := (cinduction H || induction H).

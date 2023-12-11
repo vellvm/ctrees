@@ -49,6 +49,13 @@ Class ReSumRet E1 E2 `{Encode E1} `{Encode E2} `{ReSum E1 E2} : Type :=
 #[global] Instance ReSumRet_refl {E} `{Encode E}: ReSumRet E E :=
   fun _ e => e.
 
+(*| [Bar E] is the dependent product of an event
+  [e: E] and its response (x: encode e) |*)
+Variant Bar (E: Type) `{Encode E} :=
+  | Obs (e: E) (x: encode e).
+
+Arguments Obs {E} {_} e x.
+
 (*| Defines a monad homomorphism from free monad with [E] to [M] |*)
 Class Handler(E: Type) (M: Type -> Type): Type := {
     #[global] Handler_Encode :: Encode E;

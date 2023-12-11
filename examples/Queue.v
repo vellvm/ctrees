@@ -72,8 +72,6 @@ Section QueueEx.
   Definition instr_queueE: queueE ~> stateT (list S) (ctree (writerE (Bar queueE))) :=
     h_stateT_writerE _.
 
-  Locate "|==".
-  Check interp_state.
   Definition entailsF_writer `{h: E ~> stateT Σ (ctree (writerE W))}{X: Type}
     (t: ctree E X) (σ: Σ) (φ: CtlFormula W): Prop :=
     entailsF (ctl_option φ) (interp_state h t σ, None).

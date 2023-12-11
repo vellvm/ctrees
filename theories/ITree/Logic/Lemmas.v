@@ -13,7 +13,7 @@ From CTree Require Import
   ITree.Core
   ITree.Equ
   ITree.Logic.Trans
-  Events.Writer
+  ITree.Events.Writer
   Logic.Ctl
   Logic.Kripke.
 

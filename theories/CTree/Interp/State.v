@@ -8,7 +8,7 @@ From CTree Require Import
   CTree.Core
   CTree.Interp.Core
   Events.Core
-  Events.Writer
+  CTree.Events.Writer
   CTree.Logic.Trans
   CTree.Events.State
   CTree.Equ.
@@ -29,8 +29,8 @@ Global Instance h_state_stateT {E Σ} (h:E ~> state Σ): E ~> stateT Σ (ctree v
       mkStateT (fun s => Ret (runState (h.(handler) e) s))
   }.
 
-(*| Intrument any [W] by an observation function [obs] and evaluation [E ~> stateT Σ ctree] |*)
-Global Instance h_stateT_writerA {E W Σ}(h:E ~> stateT Σ (ctree void))(obs: Bar E * Σ -> W):
+(*| Intrument by an evaluation [E ~> stateT Σ ctree] and observation function [obs] |*)
+Global Instance h_stateT_writerA {E W Σ} (h:E ~> stateT Σ (ctree void))(obs: Bar E * Σ -> W):
   E ~> stateT Σ (ctree (writerE W)) := {
     handler e :=
       mkStateT (fun s =>
@@ -39,16 +39,16 @@ Global Instance h_stateT_writerA {E W Σ}(h:E ~> stateT Σ (ctree void))(obs: Ba
                   Ret (x, σ))
   }.
 
-(*| Observe states. The [stateT S (ctree void)] to [stateT S (ctree (writerE S))] |*)
-Global Instance h_stateT_writerΣ {E Σ} (h:E ~> stateT Σ (ctree void)):
-  E ~> stateT Σ (ctree (writerE Σ)) := {
-    handler := @handler _ _ (h_stateT_writerA h snd)
-  }.
-
 (*| Observe events. The [stateT S (ctree void)] to [stateT S (ctree (Bar E))] |*)
 Global Instance h_stateT_writerE {E Σ} (h:E ~> stateT Σ (ctree void)):
   E ~> stateT Σ (ctree (writerE (Bar E))) := {
     handler := @handler _ _ (h_stateT_writerA h fst)
+  }.
+
+(*| Observe states. The [stateT S (ctree void)] to [stateT S (ctree (writerE S))] |*)
+Global Instance h_stateT_writerΣ {E Σ} (h:E ~> stateT Σ (ctree void)):
+  E ~> stateT Σ (ctree (writerE Σ)) := {
+    handler := @handler _ _ (h_stateT_writerA h snd)
   }.
 
 (*| Lemmas about state |*)
