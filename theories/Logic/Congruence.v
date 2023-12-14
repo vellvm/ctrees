@@ -75,7 +75,7 @@ Section MequCongruences.
       with signature mequ (X:=X) * eq ==> iff as fun_proper_equ.
   Proof.
     intros; split; intros;
-      destruct x, y; now destruct2 H1; subst.
+      destruct x, y; now destruct2 H; subst.
   Qed.
 
   Global Add Parametric Morphism (p: option W -> Prop): <( |- {CNow p} )>
@@ -86,8 +86,8 @@ Section MequCongruences.
         with signature mequ (X:=X) * eq ==> iff as done_proper_equ.
   Proof.
     unfold entailsF; intros; eapply fun_proper_equ.
-    - apply H1.
-    - destruct x, y; destruct2 H1; subst; cbn;
+    - apply H.
+    - destruct x, y; destruct2 H; subst; cbn;
       split; intros (x & [Heq Hp]); exists x; split; auto.
       + now rewrite <- Heqt.
       + now rewrite Heqt.
@@ -138,36 +138,36 @@ Section MequCongruences.
     (* -> *)
     - generalize dependent y.
       induction au; intros y EQ.
-      + rewrite EQ in H1; now apply MatchA.
+      + rewrite EQ in H; now apply MatchA.
       + destruct strong; eapply StepA; try now rewrite <- EQ.
-        * destruct H2, H3; split; [ now rewrite <- EQ|].
+        * destruct H0, H1; split; [ now rewrite <- EQ|].
           intros y' TR.
           destruct m, y, y'; destruct2 EQ; subst.
           ktrans_equ TR.
-          eapply H5; [apply TR0|].
+          eapply H3; [apply TR0|].
           now symmetry.
-        * destruct H2, H3; split; trivial.
+        * destruct H0, H1; split; trivial.
           intros y' TR.
           destruct m, y, y'; destruct2 EQ; subst.
           ktrans_equ TR.
-          eapply H5; [apply TR0|].
+          eapply H3; [apply TR0|].
           now symmetry.
     (* -> *)
     - generalize dependent x.
       induction au; intros x EQ.
-      + rewrite <- EQ in H1; now apply MatchA.
+      + rewrite <- EQ in H; now apply MatchA.
       + destruct strong; eapply StepA; try now rewrite EQ.
-        * destruct H2, H3; split; [now rewrite EQ|].
+        * destruct H0, H1; split; [now rewrite EQ|].
           intros x' TR.
           destruct m, x, x'; destruct2 EQ; subst.
           ktrans_equ TR.
-          eapply H5; [apply TR0|].
+          eapply H3; [apply TR0|].
           now symmetry.
-        * destruct H2, H3; split; trivial.
+        * destruct H0, H1; split; trivial.
           intros y' TR.
           destruct m, x, y'; destruct2 EQ; subst.
           ktrans_equ TR.
-          eapply H5; [apply TR0|].
+          eapply H3; [apply TR0|].
           now symmetry.
   Qed.
 
@@ -178,21 +178,21 @@ Section MequCongruences.
     (* -> *)
     - generalize dependent y.
       induction eu; intros.    
-      + rewrite EQ in H1; now apply MatchE.
+      + rewrite EQ in H; now apply MatchE.
       + eapply StepE.
         * now rewrite <- EQ.
-        * destruct H3 as (m1 & TR1 & EQ1).
-          destruct H2 as (m0 & TR0 & ?).
+        * destruct H1 as (m1 & TR1 & EQ1).
+          destruct H0 as (m0 & TR0 & ?).
           destruct m1, m, y; destruct2 EQ; subst.          
           ktrans_equ TR1.
           exists (z, o); auto.
     - generalize dependent x.
       induction eu; intros.
-      + rewrite <- EQ in H1; now apply MatchE.
+      + rewrite <- EQ in H; now apply MatchE.
       + eapply StepE.
         * now rewrite EQ.
-        * destruct H3 as (m1 & TR1 & EQ1).
-          destruct H2 as (m0 & TR0 & ?).
+        * destruct H1 as (m1 & TR1 & EQ1).
+          destruct H0 as (m0 & TR0 & ?).
           destruct m1, m, x; destruct2 EQ; subst.
           ktrans_equ TR1.
           exists (z, o); split; eauto; apply EQ1; symmetry; auto.
@@ -210,7 +210,7 @@ Section MequCongruences.
   Arguments impl /.
   Program Definition mequ_clos: mon (MP -> MP -> MP) :=
     {| body := mequ_clos_body |}.
-  Next Obligation. repeat red; intros; destruct H2; subst; eauto. Qed.
+  Next Obligation. repeat red; intros; destruct H0; subst; eauto. Qed.
 
   Lemma mequ_clos_car:
     mequ_clos <= cart.
@@ -220,7 +220,7 @@ Section MequCongruences.
     - apply RMatchA; now rewrite Heq.
     - apply RStepA; intros.
       + now rewrite Heq. 
-      + unfold cax; destruct H2 as [Hsm2 TR2]; split; cbn; cbn in Hsm2.
+      + unfold cax; destruct H0 as [Hsm2 TR2]; split; cbn; cbn in Hsm2.
         * now rewrite Heq. 
         * intros [t' w'] TR.
           eapply (f_Tf (car_ true)).
@@ -236,7 +236,7 @@ Section MequCongruences.
     - apply RMatchA; now rewrite Heq.
     - apply RStepA; intros.
       + now rewrite Heq. 
-      + unfold cax; destruct H2 as [Hsm2 TR2]; split; cbn; cbn in Hsm2.
+      + unfold cax; destruct H0 as [Hsm2 TR2]; split; cbn; cbn in Hsm2.
         * trivial.
         * intros [t' w'] TR.
           eapply (f_Tf (car_ false)).
@@ -250,7 +250,7 @@ Section MequCongruences.
     apply Coinduction; cbn.
     intros R p q [t0 w0] [t1 w1 t2 w2 Heq ? ?]; subst; inv HR. 
     - apply RMatchE; now rewrite Heq. 
-    - destruct H2 as ([t' w'] & TR2 & ?).
+    - destruct H0 as ([t' w'] & TR2 & ?).
       apply RStepE.
       + now rewrite Heq.
       + ktrans_equ TR2.
@@ -372,23 +372,23 @@ Proof.
       apply (IHφ1 _ _ Heq) in HI;
       apply (IHφ2 _ _ Heq); auto.
   - (* ax *)
-    apply (@proper_ax_equ _ _ mequ _ _ K X (entailsF φ) IHφ _ _ _ Heq).
+    apply (@proper_ax_equ _ mequ _ K X (entailsF φ) IHφ _ _ _ Heq).
   - (* wx *)
-    apply (@proper_ax_equ _ _ mequ _ _ K X (entailsF φ) IHφ _ _ _ Heq).
+    apply (@proper_ax_equ _ mequ _ K X (entailsF φ) IHφ _ _ _ Heq).
   - (* ex *)
-    apply (@proper_ex_equ _ _ mequ _ _ K X (entailsF φ) IHφ _ _ Heq).
+    apply (@proper_ex_equ _ mequ _ K X (entailsF φ) IHφ _ _ Heq).
   - (* au *)
-    apply (@proper_au_equ _ _ mequ _ _ K X (entailsF φ1) IHφ1 _ (entailsF φ2) IHφ2 _ _ Heq). 
+    apply (@proper_au_equ _ mequ _ K X (entailsF φ1) IHφ1 _ (entailsF φ2) IHφ2 _ _ Heq). 
   - (* wu *)
-    apply (@proper_au_equ _ _ mequ _ _ K X (entailsF φ1) IHφ1 _ (entailsF φ2) IHφ2 _ _ Heq).
+    apply (@proper_au_equ _ mequ _ K X (entailsF φ1) IHφ1 _ (entailsF φ2) IHφ2 _ _ Heq).
   - (* eu *)
-    apply (@proper_eu_equ _ _ mequ _ _ K X (entailsF φ1) IHφ1 (entailsF φ2) IHφ2 _ _ Heq). 
+    apply (@proper_eu_equ _ mequ _ K X (entailsF φ1) IHφ1 (entailsF φ2) IHφ2 _ _ Heq). 
   - (* ar *)
-    apply (@proper_ar_equ _ _ mequ _ _ K X (entailsF φ1) IHφ1 (entailsF φ2) IHφ2 _ _ Heq).
+    apply (@proper_ar_equ _ mequ _ K X (entailsF φ1) IHφ1 (entailsF φ2) IHφ2 _ _ Heq).
   - (* wr *)
-    apply (@proper_wr_equ _ _ mequ _ _ K X (entailsF φ1) IHφ1 (entailsF φ2) IHφ2 _ _ Heq).
+    apply (@proper_wr_equ _ mequ _ K X (entailsF φ1) IHφ1 (entailsF φ2) IHφ2 _ _ Heq).
   - (* er *)
-    apply (@proper_er_equ _ _ mequ _ _ K X (entailsF φ1) IHφ1 (entailsF φ2) IHφ2 _ _ Heq). 
+    apply (@proper_er_equ _ mequ _ K X (entailsF φ1) IHφ1 (entailsF φ2) IHφ2 _ _ Heq). 
 Qed.
 
 (*| Combined Properness lemma by induction on formulas |*)
@@ -416,7 +416,7 @@ Section EquivCtlFormulas.
   Arguments impl /.
   Program Definition equiv_ctl_clos X: mon (MP X -> MP X -> MP X) :=
     {| body := equiv_ctl_clos_body |}.
-  Next Obligation. repeat red; intros; destruct H2; eauto. Qed.
+  Next Obligation. repeat red; intros; destruct H0; eauto. Qed.
 
   Lemma equiv_ctl_clos_car {X}:
     equiv_ctl_clos X <= cart.
@@ -428,7 +428,7 @@ Section EquivCtlFormulas.
       + now rewrite Heqp.
     - apply RStepA; intros.
       + now rewrite Heqp.
-      + unfold cax; destruct H2 as [Hsm2 TR2]; split; cbn; cbn in Hsm2; auto.
+      + unfold cax; destruct H0 as [Hsm2 TR2]; split; cbn; cbn in Hsm2; auto.
         intros [t' w'] TR.
         eapply (f_Tf (car_ true)).        
         eapply equiv_ctl_clos_ctor; eauto. 
@@ -444,7 +444,7 @@ Section EquivCtlFormulas.
       + now rewrite Heqp.
     - apply RStepA; intros.
       + now rewrite Heqp.
-      + unfold cax; destruct H2 as [Hsm2 TR2]; split; cbn; cbn in Hsm2; auto.
+      + unfold cax; destruct H0 as [Hsm2 TR2]; split; cbn; cbn in Hsm2; auto.
         intros [t' w'] TR.
         eapply (f_Tf (car_ false)).        
         eapply equiv_ctl_clos_ctor; eauto. 
@@ -458,7 +458,7 @@ Section EquivCtlFormulas.
     - apply RMatchE.
       + now rewrite Heqq.
       + now rewrite Heqp.
-    - destruct H2 as ([t' w'] & TR2 & ?).
+    - destruct H0 as ([t' w'] & TR2 & ?).
       apply RStepE.
       + now rewrite Heqp.
       + exists (t', w'); split; auto. 
@@ -474,8 +474,8 @@ Section EquivCtlFormulas.
       intros EQpp'; split; destruct EQpp'.
     + now apply EQpq.
     + now apply EQpq'.
-    + now apply EQpq in H1.
-    + now apply EQpq' in H2.
+    + now apply EQpq in H.
+    + now apply EQpq' in H0.
   Qed.
 
   Global Add Parametric Morphism : COr
@@ -485,8 +485,8 @@ Section EquivCtlFormulas.
       intros EQpp'; destruct EQpp'.
     + left; now apply EQpq.
     + right; now apply EQpq'.
-    + left; now apply EQpq in H1.
-    + right; now apply EQpq' in H1.
+    + left; now apply EQpq in H.
+    + right; now apply EQpq' in H.
   Qed.
 
   Global Add Parametric Morphism : CImpl
@@ -531,13 +531,13 @@ Section EquivCtlFormulas.
     intros p q EQpq p' q' EQpq'.
     split; intros Heu; induction Heu.
     - apply MatchE; now rewrite <- EQpq'.
-    - apply StepE; destruct H2 as (m' & TR & Heu).
+    - apply StepE; destruct H0 as (m' & TR & Heu).
       + now rewrite <- EQpq.
-      + exact H3. 
+      + exact H1. 
     - apply MatchE; now rewrite EQpq'.
-    - apply StepE; destruct H2 as (m' & TR & Heu).
+    - apply StepE; destruct H0 as (m' & TR & Heu).
       + now rewrite EQpq.
-      + exact H3.
+      + exact H1.
   Qed.
 
   Global Add Parametric Morphism {X} (t: M X) w RR:
@@ -651,14 +651,14 @@ Section CtlEquations.
     intros p q; split; intro Hind; destruct m.
     - unfold entailsF in Hind; induction Hind.
       + now left.
-      + destruct H3 as ([? ?] & ?).
+      + destruct H1 as ([? ?] & ?).
         right; split; auto.
     - destruct Hind.
       + now apply MatchA.
-      + destruct H1.
-        rewrite ctl_ax in H2.
-        destruct H2 as (? & ?).
-        destruct H2 as (? & ? & ?).
+      + destruct H.
+        rewrite ctl_ax in H0.
+        destruct H0 as (? & ?).
+        destruct H0 as (? & ? & ?).
         apply StepA; auto.
         split; eauto with ctree.
   Qed.
@@ -669,12 +669,12 @@ Section CtlEquations.
     intros p q; split; intro Hind; destruct m.
     - unfold entailsF in Hind; induction Hind.
       + now left.
-      + destruct H3 as ([] & ?).
+      + destruct H1 as ([] & ?).
         right; split; auto.
     - destruct Hind.
       + now apply MatchA.
-      + destruct H1.
-        rewrite ctl_wx in H2.
+      + destruct H.
+        rewrite ctl_wx in H0.
         apply StepA; auto.
         split; auto.
   Qed.
@@ -685,11 +685,11 @@ Section CtlEquations.
     intros p q; split; intro Hind.
     - unfold entailsF in Hind; induction Hind.
       + now left.
-      + destruct H3 as (? & [? ?]).
+      + destruct H1 as (? & [? ?]).
         right; split; auto.
     - destruct Hind.
       + now apply MatchE.
-      + destruct H1 as (? & ? & [? ?]). 
+      + destruct H as (? & ? & [? ?]). 
         apply StepE; auto.
         exists x; auto.
   Qed.
@@ -763,7 +763,7 @@ Section CtlEquations.
        + now left. 
        + now right.
      - destruct Hp.
-       destruct H2; step; now constructor.
+       destruct H0; step; now constructor.
    Qed.
 
    Lemma ctl_wr_wx: forall (p q: CtlFormula W),
@@ -776,7 +776,7 @@ Section CtlEquations.
        + now left. 
        + now right.
      - destruct Hp.
-       destruct H2; step; now constructor.
+       destruct H0; step; now constructor.
    Qed.
    
    Lemma ctl_er_ex: forall (p q: CtlFormula W),
@@ -789,7 +789,7 @@ Section CtlEquations.
        + now left.
        + now right.
      - destruct Hp.
-       destruct H2; step; now constructor.
+       destruct H0; step; now constructor.
    Qed.
 
    Lemma ctl_ag_ax: forall (p: CtlFormula W),
@@ -820,50 +820,50 @@ Section CtlEquations.
        <( AG p )> ⩸ <( AG (AG p) )>.
    Proof.
      split; intros;
-       revert H1; revert m; coinduction R CIH;
+       revert H; revert m; coinduction R CIH;
        intros m' Hag.     
      - apply RStepA; auto;
          apply ctl_ag_ax in Hag as (? & ?).
-       inv H2; split; auto. 
+       inv H0; split; auto. 
        intros.
        apply CIH.
-       now apply H4.
+       now apply H2.
      - assert(Hag': <( m' |= AG AG p )>) by apply Hag.
        clear Hag.
        rewrite ctl_ag_ax in Hag'.       
        destruct Hag'.
-       inv H2.
-       rewrite ctl_ag_ax in H1.
-       destruct H1.
+       inv H0.
+       rewrite ctl_ag_ax in H.
+       destruct H.
        apply RStepA; auto.
        split; auto; intros.       
        apply CIH.
-       now apply H4.
+       now apply H2.
    Qed.
 
    Lemma ctl_wg_involutive: forall (p: CtlFormula W),
        <( WG p )> ⩸ <( WG (WG p) )>.
    Proof.
      split; intros;
-       revert H1; revert m; coinduction R CIH;
+       revert H; revert m; coinduction R CIH;
        intros m' Hag.     
      - apply RStepA; auto.
        apply ctl_wg_wx in Hag as (? & ?).
-       inv H2; split; auto. 
+       inv H0; split; auto. 
        intros.
        apply CIH.
-       now apply H4.
+       now apply H2.
      - assert(Hag': <( m' |= WG WG p )>) by apply Hag.
        clear Hag.
        rewrite ctl_wg_wx in Hag'.       
        destruct Hag'.
-       inv H2.
-       rewrite ctl_wg_wx in H1.
-       destruct H1.
+       inv H0.
+       rewrite ctl_wg_wx in H.
+       destruct H.
        apply RStepA; auto.
        split; auto; intros.       
        apply CIH.
-       now apply H4.
+       now apply H2.
    Qed.
    
 End CtlEquations.
@@ -872,82 +872,82 @@ End CtlEquations.
     to a disjunction/conjucntion with ax, ex respectively |*)
 #[global] Tactic Notation "next" :=
   lazymatch goal with
-  | |- context[@entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X ?φ ?m] =>
+  | |- context[@entailsF ?W ?M ?meq ?KMS ?X ?φ ?m] =>
       lazymatch φ with
-      | CAX ?p => apply (@ctl_ax M MM meq EqM W KMS X)
-      | CWX ?p => apply (@ctl_wx M MM meq EqM W KMS X)                       
-      | CEX ?p => apply (@ctl_ex M MM meq EqM W KMS X)
+      | CAX ?p => apply (@ctl_ax M meq W KMS X)
+      | CWX ?p => apply (@ctl_wx M meq W KMS X)                       
+      | CEX ?p => apply (@ctl_ex M meq W KMS X)
       | CAU ?p ?q => lazymatch eval cbv in p with
-                    | CNow (fun _ => True) => apply (@ctl_af_ax M MM meq EqM W KMS)
-                    | _ => apply (@ctl_au_ax M MM meq EqM W KMS)
+                    | CNow (fun _ => True) => apply (@ctl_af_ax M meq W KMS)
+                    | _ => apply (@ctl_au_ax M meq W KMS)
                     end
       | CWU ?p ?q => lazymatch eval cbv in p with
-                    | CNow (fun _ => True) => apply (@ctl_wf_wx M MM meq EqM W KMS)
-                    | _ => apply (@ctl_wu_wx M MM meq EqM W KMS)
+                    | CNow (fun _ => True) => apply (@ctl_wf_wx M meq W KMS)
+                    | _ => apply (@ctl_wu_wx M meq W KMS)
                     end                                            
       | CEU ?p ?q => lazymatch eval cbv in p with
-                    | CNow (fun _ => True) => apply (@ctl_ef_ex M MM meq EqM W KMS)
-                    | _ => apply (@ctl_eu_ex M MM meq EqM W KMS)
+                    | CNow (fun _ => True) => apply (@ctl_ef_ex M meq W KMS)
+                    | _ => apply (@ctl_eu_ex M meq W KMS)
                     end
       | CAR ?p ?q => lazymatch eval cbv in q with
                     | CNow (fun _ => False) =>
-                        apply (@ctl_ag_ax M MM meq EqM W KMS)
-                    | _ => apply (@ctl_ar_ax M MM meq EqM W KMS)
+                        apply (@ctl_ag_ax M meq W KMS)
+                    | _ => apply (@ctl_ar_ax M meq W KMS)
                     end
       | CWR ?p ?q => lazymatch eval cbv in q with
                     | CNow (fun _ => False) =>
-                        apply (@ctl_wg_wx M MM meq EqM W KMS)
-                    | _ => apply (@ctl_wr_wx M MM meq EqM W KMS)
+                        apply (@ctl_wg_wx M meq W KMS)
+                    | _ => apply (@ctl_wr_wx M meq W KMS)
                     end                      
       | CER ?p ?q => lazymatch eval cbv in q with
-                    | CNow (fun _ => False) => apply (@ctl_eg_ex M MM meq EqM W KMS)
-                    | _ => apply (@ctl_er_ex M MM meq EqM W KMS)
+                    | CNow (fun _ => False) => apply (@ctl_eg_ex M meq W KMS)
+                    | _ => apply (@ctl_er_ex M meq W KMS)
                     end
       | CER ?p ?q => lazymatch eval cbv in q with
-                    | CNow (fun _ => False) => apply (@ctl_eg_ex M MM meq EqM W KMS)
-                    | _ => apply (@ctl_er_ex M MM meq EqM W KMS)
+                    | CNow (fun _ => False) => apply (@ctl_eg_ex M meq W KMS)
+                    | _ => apply (@ctl_er_ex M meq W KMS)
                     end
-      | CNow ?f => apply (@ctl_now M MM meq EqM W KMS X)
-      | CDone ?f => apply (@ctl_done M MM meq EqM W KMS X)                      
+      | CNow ?f => apply (@ctl_now M meq W KMS X)
+      | CDone ?f => apply (@ctl_done M meq W KMS X)                      
       | ?ptrivial => fail "Cannot step formula " ptrivial
       end
   end.
 
 #[global] Tactic Notation "next" "in" ident(H) :=
   lazymatch type of H with
-  | context[@entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X ?φ ?m] =>
+  | context[@entailsF ?W ?M ?meq ?KMS ?X ?φ ?m] =>
       lazymatch φ with
-      | CAX ?p => rewrite (@ctl_ax M MM meq EqM W KMS X) in H
-      | CWX ?p => rewrite (@ctl_wx M MM meq EqM W KMS X) in H
-      | CEX ?p => rewrite (@ctl_ex M MM meq EqM W KMS X) in H
+      | CAX ?p => rewrite (@ctl_ax M meq W KMS X) in H
+      | CWX ?p => rewrite (@ctl_wx M meq W KMS X) in H
+      | CEX ?p => rewrite (@ctl_ex M meq W KMS X) in H
       | context[CAU ?p ?q] => lazymatch eval cbv in p with
                              | CNow (fun _ => True) =>
-                                 rewrite (@ctl_af_ax M MM meq EqM W KMS q) in H
-                             | _ => rewrite (@ctl_au_ax M MM meq EqM W KMS q) in H
+                                 rewrite (@ctl_af_ax M meq W KMS q) in H
+                             | _ => rewrite (@ctl_au_ax M meq W KMS q) in H
                              end
       | context[CWU ?p ?q] => lazymatch eval cbv in p with
                              | CNow (fun _ => True) =>
-                                 rewrite (@ctl_wf_wx M MM meq EqM W KMS q) in H
-                             | _ => rewrite (@ctl_wu_wx M MM meq EqM W KMS q) in H
+                                 rewrite (@ctl_wf_wx M meq W KMS q) in H
+                             | _ => rewrite (@ctl_wu_wx M meq W KMS q) in H
                              end                               
       | context[CEU ?p ?q] => lazymatch eval cbv in p with
-                             | CNow (fun _ => True) => rewrite (@ctl_ef_ex M MM meq EqM W KMS q) in H
-                             | _ => rewrite (@ctl_eu_ex M MM meq EqM W KMS q) in H
+                             | CNow (fun _ => True) => rewrite (@ctl_ef_ex M meq W KMS q) in H
+                             | _ => rewrite (@ctl_eu_ex M meq W KMS q) in H
                              end
       | context[CAR ?p ?q] => lazymatch eval cbv in q with
-                             | CNow (fun _ => False) => rewrite (@ctl_ag_ax M MM meq EqM W KMS p) in H
-                             | _ => rewrite (@ctl_ar_ax M MM meq EqM W KMS p) in H
+                             | CNow (fun _ => False) => rewrite (@ctl_ag_ax M meq W KMS p) in H
+                             | _ => rewrite (@ctl_ar_ax M meq W KMS p) in H
                              end
       | context[CWR ?p ?q] => lazymatch eval cbv in q with
-                             | CNow (fun _ => False) => rewrite (@ctl_wg_wx M MM meq EqM W KMS p) in H
-                             | _ => rewrite (@ctl_wr_wx M MM meq EqM W KMS p) in H
+                             | CNow (fun _ => False) => rewrite (@ctl_wg_wx M meq W KMS p) in H
+                             | _ => rewrite (@ctl_wr_wx M meq W KMS p) in H
                              end                               
       | context[CER ?p ?q] => lazymatch eval cbv in q with
-                             | CNow (fun _ => False) => rewrite (@ctl_eg_ex M MM meq EqM W KMS p) in H
-                             | _ => rewrite (@ctl_er_ex M MM meq EqM W KMS p) in H
+                             | CNow (fun _ => False) => rewrite (@ctl_eg_ex M meq W KMS p) in H
+                             | _ => rewrite (@ctl_er_ex M meq W KMS p) in H
                              end
-      | CNow ?f => rewrite (@ctl_now M MM meq EqM W KMS X) in H
-      | CDone ?f => rewrite (@ctl_now M MM meq EqM W KMS X) in H                               
+      | CNow ?f => rewrite (@ctl_now M meq W KMS X) in H
+      | CDone ?f => rewrite (@ctl_now M meq W KMS X) in H                               
       | ?ptrivial => fail "Cannot step formula " ptrivial " in " H
       end
   end.

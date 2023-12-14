@@ -1,7 +1,8 @@
 From CTree Require Import
   CTree.Core
   Logic.Ctl
-  CTree.SBisim
+  CTree.Equ
+  CTree.Pred
   CTree.Logic.Trans
   Logic.Kripke
   CTree.Interp.Core
@@ -45,11 +46,8 @@ Definition pop {S}: ctree (queueE S) (option S) :=
   Ctree.trigger Pop.
 
 Section QueueEx.
-  Context {S: Type}.
-  Notation queueE := (queueE S).
-
   (* Drain a queue *)
-  Definition drain: ctree queueE unit :=
+  Definition drain{S}: ctree (queueE S) unit :=
     iter (fun _ =>
             x <- pop ;;
             match x with
@@ -57,7 +55,7 @@ Section QueueEx.
             | None => Ret (inr tt)   (* done *)
             end) tt.
 
-  Global Instance handler_queueE: queueE ~> state (list S) := {
+  Global Instance handler_queueE{S}: queueE S ~> state (list S) := {
       handler e :=
         mkState (fun q =>
                    match e return encode e * list S with
@@ -69,36 +67,102 @@ Section QueueEx.
                    end)
     }.
 
-  Definition instr_queueE: queueE ~> stateT (list S) (ctree (writerE (Bar queueE))) :=
+  Definition instr_queueE{S}: queueE S ~> stateT (list S) (ctree (writerE (Bar (queueE S)))) :=
     h_stateT_writerE _.
-
-  Definition entailsF_writer `{h: E ~> stateT Σ (ctree (writerE W))}{X: Type}
-    (t: ctree E X) (σ: Σ) (φ: CtlFormula W): Prop :=
-    entailsF (ctl_option φ) (interp_state h t σ, None).
-  Definition p s := interp_state handlerT_queueE (drain s) [].
+  
+  Definition pops_s{S}(e: Bar (queueE S))(s: S) :=
+    match e with
+    | Obs e x =>
+        match e return encode e -> Prop with
+        | Pop => fun x: option S => x = Some s
+        | _ => fun _ => False
+        end x
+    end.
 
   (*| Eventually we get [s] |*)
-  Theorem ctl_queue_eventually: forall s q,
-      <( {(p s, q)} |==
-            AF now {fun q => exists ts, q = s :: ts})>.
+  Theorem ctl_queue_eventually{S}: forall (s: S) q x,
+      <( {(interp_state instr_queueE drain (q ++ [s]), x)} |=
+         AF now {fun '(Obs (Log e) _) => pops_s e s} )>.
   Proof.
     intros.
     Opaque entailsF.
-    unfold entailsF_lift; simpl fst; simpl snd.
-    induction q; simpl ctl_contramap.
-    - unfold p, drain1.
+    unfold drain.
+    revert s x.
+    induction q; intros. 
+    - setoid_rewrite interp_state_unfold_iter.
+      apply ctl_bind_af_l.
+      setoid_rewrite interp_state_bind.
+      apply ctl_bind_af_l.
+      unfold pop, trigger.
+      rewrite interp_state_vis.      
+      cbn.
+      setoid_rewrite bind_bind.
+      eapply ctl_bind_af_r; [cbn; econstructor|].
+      cbn.
+      setoid_rewrite bind_trigger.
+      eapply ctl_bind_af_l.
       next; right.
-      split.
-      + apply ctl_now.
-        eexists; cbn; eauto.
-      + next; split.
-        * simpl fst. admit.
-        * intros.
-          unfold push, trigger in H.
-          (* need interp_state_bind *)
-          rewrite interp_state_vis in H.
-          Search interp_state.
+      next; split.
+      + econstructor. setoid_rewrite ktrans_vis; eauto.
+      + intros [t' w'] TR.
+        apply ktrans_vis in TR as (? & ? & ?).
+        rewrite <- H, H0.
+        apply ctl_af_ax; left.
+        apply ctl_now; cbn.
+        eauto.
+    - setoid_rewrite interp_state_unfold_iter.
+      setoid_rewrite interp_state_bind.
+      setoid_rewrite bind_bind.
+      unfold pop, trigger.
+      setoid_rewrite interp_state_vis.
+      cbn.
+      rewrite !bind_bind.
+      eapply ctl_bind_af_r; [cbn; econstructor|].
+      cbn.
+      setoid_rewrite bind_trigger.
+      setoid_rewrite bind_vis.
+      next; right.
+      next; split.
+      + cbn; econstructor.
+        eexists.
+        apply ktrans_vis; eauto.
+      + intros [t' w'] TR.
+        apply ktrans_vis in TR as (? & ? & ?).
+        rewrite <- H, H0; clear H H0.
+        rewrite bind_ret_l, bind_guard.
+        rewrite <- ctl_guard_af.
+        setoid_rewrite interp_state_ret.
+        unfold resum_ret, ReSumRet_refl; cbn.
+        rewrite bind_ret_l.
+        setoid_rewrite interp_state_ret.
+        rewrite bind_ret_l.
+        rewrite <- !ctl_guard_af.
+        apply IHq.
+        Unshelve.
+        exact tt.
+        exact tt.
+  Qed.
+
+  (* Rotate a queue of bools (pop/push) *)
+  Definition rotate: ctree (queueE bool) unit :=
+    forever (fun _ =>
+               x <- pop ;;
+               if x then
+                 push true
+               else
+                 push false
+      ) tt.
+
+  (*| Always eventually we get [true] |*)
+  Theorem ctl_rotate_always_eventually: forall (s: bool) q x,
+      <( {(interp_state instr_queueE rotate (q ++ [true]), x)} |=
+         AG AF now {fun '(Obs (Log e) _) => pops_s e true} )>.
+  Proof.
+    intros.
+    revert s x.
+    induction q; intros.
+    - unfold rotate.
+      setoid_rewrite app_nil_l.
   Admitted.
-                
 End QueueEx.
   

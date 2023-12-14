@@ -100,6 +100,7 @@ Section CTreeTrans.
   #[refine] Global Instance ctree_kripke : Kripke (ctree E) sbisim (Bar E) :=
     {| ktrans X := ktrans_ (X:=X) |}.
   Proof.
+    - apply Monad_ctree.
     - intros.
       ktrans_inv H0.
       + destruct (SBisim.sbisim_trans (X:=X) _ _ _ tau eq H H0)

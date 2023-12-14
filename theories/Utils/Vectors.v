@@ -136,11 +136,14 @@ Fixpoint list_last{A}(l: list A): option A :=
   | List.cons h ts => list_last ts
   end.
 
-Fixpoint list_init{A}(l: list A): list A :=
+Fixpoint list_unsnoc{A}(l: list A): option (A * list A) :=
   match l with
-  | List.nil => List.nil
-  | List.cons h List.nil => List.nil
-  | List.cons h ts => List.cons h (list_init ts)
+  | List.nil => None
+  | List.cons h ts =>
+      match list_unsnoc ts with
+      | Some (h', ts') => Some (h', List.cons h ts')
+      | None => Some (h, List.nil)
+      end
   end.
 
 (*| Non-empty vector |*)

@@ -1269,6 +1269,23 @@ Section Sb_Proof_System.
     __upto_bind_eq_sbisim.
     apply sb_guard.
   Qed.
+
+  Lemma sb_unfold_iter{I}: forall (step: I -> ctree E (I + X))(i: I),
+      iter step i ~
+        (lr <- step i;;
+         match lr with
+         | inl l => iter step l
+         | inr r => Ret r
+         end).
+  Proof.
+    intros step i.
+    rewrite unfold_iter.
+    __upto_bind_eq_sbisim.
+    destruct x.
+    - apply sb_guard.
+    - reflexivity.
+  Qed.
+  
 End Sb_Proof_System.
 
 (* TODO: tactics!

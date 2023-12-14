@@ -128,7 +128,7 @@ Section Ctl.
     {| body := fun R p q m => carF (R p q) p q m |}.
   Next Obligation.
     repeat red; unfold impl; intros.
-    destruct H2; auto; cbn in H2.
+    destruct H0; auto; cbn in H0.
     apply RStepA; unfold cax in *; intuition.
   Qed.
   
@@ -137,9 +137,9 @@ Section Ctl.
   Next Obligation.
     repeat red; unfold impl.
     intros.
-    destruct H2.
+    destruct H0.
     - now apply RMatchE.
-    - destruct H3 as (m' & TR' & H').
+    - destruct H1 as (m' & TR' & H').
       apply RStepE; eauto.
   Qed.      
 
@@ -187,7 +187,7 @@ End Formulas.
 Arguments CtlFormula: clear implicits.
 
 (*| Lots of implicit arguments |*)
-Arguments entailsF {W} {M} {_} {meq} {_} {_} {X} φ m.
+Arguments entailsF {W} {M} {meq} {KMS} {X} φ m.
 
 Module CtlNotations.
 
@@ -290,14 +290,14 @@ Lemma ctl_wx `{KMS: Kripke M meq W} X: forall (m: M X * option W) p,
     <( m |= WX p )> <-> forall m', m ↦ m' -> <( m' |= p )>.
 Proof.
   intros; split; intro H'; repeat destruct H'.
-  - apply H2. 
+  - apply H0. 
   - unfold entailsF, cax; split; auto.
 Qed.
 
 Lemma ctl_ex `{KMS: Kripke M meq W} X: forall (m: M X * option W) p,
     <( m |= EX p )> <-> exists m', m ↦ m' /\ <( m' |= p )>.
 Proof.
-  intros; split; intro H1; repeat destruct H1.
+  intros; split; intro H; repeat destruct H.
   - now exists x.
   - unfold entailsF, cex; exists x; split; auto.
 Qed.
@@ -307,10 +307,10 @@ Global Hint Resolve ctl_ax ctl_ex ctl_wx: ctree.
 Lemma ctl_ax_ex `{KMS: Kripke M meq W} X: forall (m: M X * option W) p,
     <( m |= AX p )> -> <( m |= EX p )>.
 Proof.
-  unfold cex, cax; intros * H1.
-  rewrite ctl_ax in H1.
-  destruct m, H1.
-  destruct H1 as (m' & w' & TR).
+  unfold cex, cax; intros * H.
+  rewrite ctl_ax in H.
+  destruct m, H.
+  destruct H as (m' & w' & TR).
   exists (m', w'); auto.
 Qed.
 
@@ -319,14 +319,14 @@ Lemma ctl_af_ef `{KMS: Kripke M meq W} X: forall (m: M X * option W) p,
     <( m |= AF p )> -> <( m |= EF p )>.
 Proof.
   intros. 
-  unfold entailsF in H1; induction H1.
+  unfold entailsF in H; induction H.
   - now apply MatchE. 
   - destruct m.
-    destruct H2 as ((m' & ? & ?) & ?).
-    destruct H3 as ((? & ? & ?) & ?).
+    destruct H0 as ((m' & ? & ?) & ?).
+    destruct H1 as ((? & ? & ?) & ?).
     apply StepE; auto.
     exists (x0, x1); split; auto.
-    now apply H5.
+    now apply H3.
 Qed.
 
 (* [AF φ] is stronger than [WF φ] *)
@@ -334,11 +334,11 @@ Lemma ctl_af_wf `{KMS: Kripke M meq W} X: forall (m: M X * option W) p,
     <( m |= AF p )> -> <( m |= WF p )>.
 Proof.
   intros. 
-  unfold entailsF in H1; induction H1.
+  unfold entailsF in H; induction H.
   - now apply MatchA.
   - destruct m.
-    destruct H2 as ((m' & ? & ?) & ?).
-    destruct H3 as ((? & ? & ?) & ?).
+    destruct H0 as ((m' & ? & ?) & ?).
+    destruct H1 as ((? & ? & ?) & ?).
     apply StepA; trivial.
     unfold cax; split; auto.
 Qed.
@@ -353,7 +353,7 @@ Lemma ctl_au_ind `{KMS: Kripke M meq W} X:
         cax true P m ->
         P m) ->
     forall m, <( m |= p AU q )> -> P m.
-Proof. intros; induction H3; auto. Qed.
+Proof. intros; induction H1; auto. Qed.
 
 Lemma ctl_wu_ind `{KMS: Kripke M meq W} X: 
   forall [p q: CtlFormula W] (P : M X * option W -> Prop),
@@ -364,7 +364,7 @@ Lemma ctl_wu_ind `{KMS: Kripke M meq W} X:
         cax false P m ->
         P m) ->
     forall m, <( m |= p WU q )> -> P m.
-Proof. intros; induction H3; auto. Qed.
+Proof. intros; induction H1; auto. Qed.
 
 Lemma ctl_eu_ind `{KMS: Kripke M meq W} X: 
   forall [p q: CtlFormula W] (P : M X * option W -> Prop),
@@ -375,7 +375,7 @@ Lemma ctl_eu_ind `{KMS: Kripke M meq W} X:
         cex P m ->
         P m) ->
     forall m, <( m |= p EU q )> -> P m.
-Proof. intros; induction H3; auto. Qed.
+Proof. intros; induction H1; auto. Qed.
   
 (*| Bot is false |*)
 Lemma ctl_sound `{KMS: Kripke M meq W} X: forall (m: M X * option W),
@@ -403,7 +403,7 @@ Proof.
   unfold entailsF in Contra.
   induction Contra.
   - contradiction.
-  - destruct H3 as (? & ? & ?).
+  - destruct H1 as (? & ? & ?).
     contradiction.
 Qed.
 

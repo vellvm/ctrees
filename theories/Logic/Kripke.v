@@ -9,7 +9,12 @@ From CTree Require Import Utils.Utils.
 Generalizable All Variables.
 
 (*| Polymorphic Kripke model over family M |*)
-Class Kripke M `{Monad M} (mequ: forall X, relation (M X)) `{forall X, Equivalence (mequ X)} (W: Type) := {
+Class Kripke M (mequ: forall X, relation (M X)) (W: Type) := {
+
+    MM :: Monad M;
+
+    EquM :: forall X, Equivalence (mequ X);
+    
     (* - [ktrans] the transition relation over [M X * W] *)
     ktrans {X}: rel (M X * option W) (M X * option W);
 
@@ -25,6 +30,8 @@ Class Kripke M `{Monad M} (mequ: forall X, relation (M X)) `{forall X, Equivalen
       ktrans (t, Some w) (t', w') ->
       exists x, w' = Some x
   }.
+
+Global Hint Mode Kripke ! - +: typeclass instances.
 
 (*| Tactic to work with Eq TS product of equivalences |*)
 Ltac destruct2 Heq :=
@@ -64,11 +71,11 @@ Global Instance can_step_proper `{Kripke M meq W} {X}:
   Proper (meq X * eq ==> iff) can_step.
 Proof.
   unfold Proper, respectful, can_step, impl; intros [t w] [t' w']; split; intros;
-    destruct2 H2; subst; destruct H3 as (x & w & ?); subst.
-  - destruct (ktrans_semiproper t' t _ _ w Heqt H2) as (y' & TR' & EQ').
+    destruct2 H0; subst; destruct H1 as (x & w & ?); subst.
+  - destruct (ktrans_semiproper t' t _ _ w Heqt H0) as (y' & TR' & EQ').
     now (exists y', w).
   - symmetry in Heqt.
-    destruct (ktrans_semiproper _ _ _ _ w Heqt H2) as (y' & TR' & EQ').
+    destruct (ktrans_semiproper _ _ _ _ w Heqt H0) as (y' & TR' & EQ').
     now (exists y', w).
 Qed.
 
@@ -89,7 +96,7 @@ Global Hint Extern 2 =>
 
 Ltac ktrans_equ TR :=
   match type of TR with
-  | @ktrans _ _ ?mequ _ _ _ _ (?y,?s) (?z,?w) => 
+  | @ktrans ?M ?mequ _ ?KMS _ (?y,?s) (?z,?w) => 
       match goal with
       | [H: @mequ ?X ?x ?y |- _] =>
           symmetry in H;

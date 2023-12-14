@@ -121,9 +121,84 @@ Proof.
   rewrite unfold_interp_state; reflexivity.
 Qed.
 
+Lemma interp_state_trigger `{Encode F} `(h: E ~> stateT W (ctree F))
+  (e : E) (w : W) :
+  interp_state h (Ctree.trigger e) w ≅ runStateT (h.(handler) (resum e)) w >>= fun x => guard (Ret x).
+Proof.
+  unfold Ctree.trigger.
+  rewrite interp_state_vis.
+  upto_bind_equ.
+  destruct x1.
+  setoid_rewrite interp_state_ret.
+  reflexivity.
+Qed.  
+
 Lemma interp_state_br `{Encode F} `(h: E ~> stateT W (ctree F)) {X}
   (n : nat) (k : fin' n -> ctree E X) (w : W) b :
   interp_state h (Br b n k) w ≅ Br b n (fun x => guard (interp_state h (k x) w)).
 Proof.
   rewrite !unfold_interp_state; reflexivity.
 Qed.
+
+Lemma interp_state_ret_inv `{Encode F} `(h: E ~> stateT W (ctree F)) {X}:
+  forall s (t : ctree E X) r,
+    interp_state h t s ≅ Ret r -> t ≅ Ret (fst r) /\ s = snd r.
+Proof.
+  intros.
+  setoid_rewrite (ctree_eta t) in H0.
+  setoid_rewrite (ctree_eta t).
+  destruct (observe t) eqn:?.
+  - rewrite interp_state_ret in H0. step in H0. inv H0. split; reflexivity.
+  - rewrite interp_state_br in H0. step in H0. inv H0.
+  - rewrite interp_state_vis in H0. apply ret_equ_bind in H0 as (? & ? & ?).
+    destruct x.
+    step in H1.
+    inv H1.
+Qed.
+
+Arguments interp_state: simpl never.
+
+Lemma interp_state_bind `{Encode F} `(h : E ~> stateT W (ctree F)) {A B}
+  (t : ctree E A) (k : A -> ctree E B) (s : W) :
+  interp_state h (t >>= k) s ≅ interp_state h t s >>= fun '(x, s) => interp_state h (k x) s.
+Proof.
+  revert s t.
+  coinduction ? IH; intros.
+  rewrite (ctree_eta t).
+  rewrite unfold_bind, unfold_interp_state.
+  destruct (observe t) eqn:Hobs; cbn.
+  - rewrite interp_state_ret, bind_ret_l.
+    cbn.
+    rewrite unfold_interp_state.
+    reflexivity.
+  - rewrite interp_state_br.
+    rewrite bind_br.
+    setoid_rewrite bind_guard.
+    constructor; intro i.
+    step; econstructor; intros.
+    apply IH.
+  - rewrite interp_state_vis, bind_bind.
+    upto_bind_equ; destruct x.
+    rewrite bind_guard.
+    constructor; intros ?; apply IH.
+Qed.
+
+Lemma interp_state_unfold_iter `{Encode F} `(h : E ~> stateT W (ctree F)) {I R}
+  (k : I -> ctree E (I + R)) (i: I) (s: W) :
+  interp_state h (iter k i) s ≅ interp_state h (k i) s >>= fun '(x, s) =>
+      match x with
+      | inl l => guard (guard (interp_state h (iter k l) s))
+      | inr r => Ret (r, s)
+      end.
+Proof.
+  Opaque interp_state.
+  setoid_rewrite unfold_iter.
+  rewrite interp_state_bind.
+  upto_bind_equ.
+  destruct x1 as [[l | r] s'].
+  - rewrite interp_state_br.
+    reflexivity.
+  - rewrite interp_state_ret.
+    reflexivity.
+Qed.
+

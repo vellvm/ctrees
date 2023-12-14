@@ -260,6 +260,15 @@ Section CtlCTrees.
         apply H2; eauto.
   Qed.
 
+  Theorem ctl_guard_af{X}: forall (w: opt E) (t: ctree E X) φ,
+      <( {(t, w)} |= AF φ )> <->
+      <( {(guard t, w)} |= AF φ )>.
+  Proof.
+    intros.
+    rewrite sb_guard.
+    reflexivity.
+  Qed.
+
   Lemma not_can_step{X}: forall (t: ctree E X) (σ: opt E),
       ~ can_step (t, σ) -> ((exists x, only_ret t x) \/ (sbisim (Y:=X) eq t Ctree.stuck)).
   Proof.
