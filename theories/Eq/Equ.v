@@ -247,46 +247,14 @@ Proof. apply Equivalence_et. typeclasses eauto. Qed.
 #[global] Hint Constructors equb : core.
 Arguments equb_ {E B R1 R2} RR eq t1 t2/.
 
-
-#[global] Instance equb_eq_equ' {E B X Y} {R : rel X Y} :
-  Proper (equ eq ==> equ eq ==> flip impl) (@equ E B X Y R).
-Proof.
-  unfold Proper, respectful, flip, impl; cbn.
-  unfold equ; coinduction ? IH.
-  intros t t' EQt u u' EQu EQ.
-  step in EQt.
-  step in EQu.
-  step in EQ.
-  cbn*; inv EQt; rewrite <- H in EQ.
-  - inv EQ.
-    rewrite <- H3 in EQu.
-    inv EQu; auto.
-  - dependent destruction EQ.
-    cbn.
-    rewrite <- x in EQu.
-    dependent destruction EQu.
-    rewrite <- x.
-    eauto.
-  - dependent destruction EQ.
-    cbn.
-    rewrite <- x in EQu.
-    dependent destruction EQu.
-    rewrite <- x.
-    eauto.
-Qed.
-
-#[global] Instance equb_eq_equ {E B X} {Q : rel X X} :
-  Proper (equ eq ==> equ eq ==> flip impl) (@equ E B X X Q).
-Proof. apply equb_eq_equ'. Qed.
-
 (*|
 Dependent inversion of [equ] and [equb] equations
 -------------------------------------------------
 We assume [JMeq_eq] to invert easily bisimilarity of dependently typed constructors
 |*)
-Lemma equ_ret_inv {E B X} (r1 r2 : X) :
-  Ret r1 ≅ (Ret r2 : ctree E B X) ->
-  r1 = r2.
+Lemma equ_ret_inv {E B X R} (r1 r2 : X) :
+  Ret r1 (≅R) (Ret r2 : ctree E B X) ->
+  R r1 r2.
 Proof.
   intros EQ. step in EQ.
   dependent induction EQ; auto.
@@ -366,15 +334,14 @@ Qed.
 (*|
 Proper Instances
 ----------------
-TODO: step back and think a bit better about those
-
 equ eq       ==> going (equ eq)  observe
 ∀(equ eq)    ==> going (equ eq)  BrF
 ∀(equ eq)    ==> going (equ eq)  VisF
 observing eq --> equ eq
 going(equ)   ==> eq ==> fimpl    equb eq (t_equ eq r)
 eq ==> going(equ)   ==> fimpl    equb eq (t_equ eq r)
-equ ==> equ ==> flip impl)       bt_equ eq r
+leq ==> leq                      equ
+weq ==> weq                      equ
 |*)
 
 #[global] Instance equ_observe {E B R} :
@@ -443,39 +410,63 @@ Proof.
   auto.
 Qed.
 
-Ltac _apply f :=
-  match goal with
-    |- context [@body ?x ?l ?y] => apply (f _ l)
-  end.
-(* Tactic Notation "Lapply" ident(f) := _apply f. *)
-(* Tactic Notation "Lapply'" uconstr(f) := _apply @f. *)
-
-#[global] Instance gfp_bt_equ {E B R r} :
-  Proper (gfp (@fequ E B R R eq) ==> equ eq ==> flip impl)
-	 (ebt eq r).
+#[global] Instance equ_leq {E B X Y} : Proper (leq ==> leq) (@equ E B X Y).
 Proof.
-  unfold Proper, respectful, flip, impl.
-  intros.
-  etransitivity; [|etransitivity]; [|apply H1 |].
-  _apply @gfp_bt; assumption.
-  _apply @gfp_bt; symmetry; assumption.
+  unfold Proper, respectful, flip, impl. cbn. unfold impl.
+  intros R R'. coinduction RR CH. intros.
+  do 3 red. cbn. step in H0.
+  destruct (observe a), (observe a0); try now inv H0.
+  - dependent destruction H0. constructor. now apply H.
+  - dependent destruction H0. constructor.
+    intros. apply CH; auto.
+  - dependent destruction H0. constructor.
+    intros. apply CH; auto.
 Qed.
 
-#[global] Instance Equivalence_bt_equb_gen {E B X R S} `{Equivalence _ R}:
-  Proper ((gfp (@fequ E B X _ eq)) ==> (gfp (@fequ E B X _ eq)) ==> flip impl) (ebt R S).
-Proof.
-  unfold Proper, respectful, flip, impl.
-  intros.
-  etransitivity; [|etransitivity]; [| eassumption |].
-  _apply @gfp_bt; rewrite H0; reflexivity.
-  _apply @gfp_bt; rewrite H1; reflexivity.
-Qed.
+#[global] Instance equ_weq {E B X Y} : Proper (weq ==> weq) (@equ E B X Y) := op_leq_weq_1.
 
 Lemma observe_equ_eq: forall E C X (t u: ctree E C X),
     observe t = observe u -> t ≅ u.
 Proof.
   intros.
   step. rewrite H. reflexivity.
+Qed.
+
+(* Transitivity for equ with arbitrary relation *)
+
+Definition hsquare {X Y Z} (R : rel X Y) (R' : rel Y Z) :=
+  fun x x'' => exists x', R x x' /\ R' x' x''.
+
+Lemma hsquare_eq_l : forall {X Y} (R : rel X Y) x y,
+  R x y <-> hsquare eq R x y.
+Proof.
+  split; intros.
+  - exists x. auto.
+  - now destruct H as (? & -> & ?).
+Qed.
+
+Lemma hsquare_eq_r : forall {X Y} (R : rel X Y) x y,
+  R x y <-> hsquare R eq x y.
+Proof.
+  split; intros.
+  - exists y. auto.
+  - now destruct H as (? & ? & ->).
+Qed.
+
+Lemma equ_trans {E B X Y Z R R'} :
+  forall (t : ctree E B X) (u : ctree E B Y) (v : ctree E B Z),
+  equ R t u -> equ R' u v -> equ (hsquare R R') t v.
+Proof.
+  coinduction RR CH. intros.
+  step in H. step in H0.
+  do 3 red. cbn.
+  destruct (observe t), (observe u); (try now inv H); destruct (observe v); try now inv H0.
+  - dependent destruction H. dependent destruction H0.
+    constructor. now exists r0.
+  - dependent destruction H. dependent destruction H0.
+    constructor. intros. apply CH with (u := k0 x); auto.
+  - dependent destruction H. dependent destruction H0.
+    constructor. intros. apply CH with (u := k0 x); auto.
 Qed.
 
 (*|
@@ -748,6 +739,7 @@ Up-to [equ eq] bisimulations
 The transitivity of the [et R] gives us "equ bisimulation up-to equ". Looking forward,
 in order to establish "up-to equ" principles for other bisimulations, we define here the
 associated enhancing function.
+This also serves to prove the validity of "equ R up-to equ eq".
 |*)
 
 (*|
@@ -775,6 +767,59 @@ Lemma equ_clos_sym {E C X} : compat converse (@equ_clos E E C C X X).
 Proof.
   intros R t u EQ; inv EQ.
   apply Equ_clos with u' t'; intuition.
+Qed.
+
+
+(* equ up-to (equ eq) principle *)
+
+Lemma equ_clos_et {E B X Y R} : @equ_clos E E B B X Y <= et R.
+Proof.
+  apply Coinduction. cbn. red.
+  intros RR t u [].
+  red.
+  red in HR.
+  step in Equt. step in Equu.
+  destruct (observe t'), (observe u'); try now inv HR.
+  - inv Equt. inv Equu.
+    constructor. now dependent destruction HR.
+  - dependent induction HR.
+    dependent induction Equt. rewrite <- x.
+    dependent induction Equu. rewrite <- x.
+    constructor. intros. apply (fTf_Tf (fequ R)).
+    cbn. econstructor; [apply REL0 | | apply REL1].
+    apply (id_T (fequ R)). apply REL.
+  - dependent induction HR.
+    dependent induction Equt. rewrite <- x.
+    dependent induction Equu. rewrite <- x.
+    constructor. intros. apply (fTf_Tf (fequ R)).
+    cbn. econstructor; [apply REL0 | | apply REL1].
+    apply (id_T (fequ R)). apply REL.
+Qed.
+
+#[global] Instance equ_eq_et_goal {E B X Y Q R} :
+  Proper (@equ E B X _ eq ==> @equ E B Y _ eq ==> flip impl) (et Q R).
+Proof.
+  unfold Proper, respectful, flip, impl.
+  intros.
+  apply (ft_t equ_clos_et).
+  apply Equ_clos with (t' := y) (u' := y0); auto.
+  now symmetry.
+Qed.
+
+#[global] Instance equ_eq_ebt_goal {E B X Y Q R} :
+  Proper (@equ E B X _ eq ==> @equ E B Y _ eq ==> flip impl) (ebt Q R).
+Proof.
+  unfold Proper, respectful, flip, impl.
+  intros.
+  apply (fbt_bt equ_clos_et).
+  apply Equ_clos with (t' := y) (u' := y0); auto.
+  now symmetry.
+Qed.
+
+#[global] Instance equ_eq_equ_goal {E B X Y R} :
+  Proper (@equ E B X _ eq ==> @equ E B Y _ eq ==> flip impl) (equ R).
+Proof.
+  typeclasses eauto.
 Qed.
 
 (*|
