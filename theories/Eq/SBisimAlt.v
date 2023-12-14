@@ -871,6 +871,27 @@ Section upto.
     + intros ???. apply (id_T (sb' L)). apply H2.
   Qed.
 
+  Program Definition ss_ctx3_l : mon (bool -> rel (ctree E C X) (ctree F D Y))
+    := {| body R b t u := b = true /\ ss L (fun t u => forall side, R side t u) t u |}.
+  Next Obligation.
+    split; auto. intros. apply H1 in H0 as (? & ? & ? & ? & ?). eauto 6.
+  Qed.
+
+  Lemma ss_st'_l : ss_ctx3_l <= t (@sb' E F C D X Y _ _ L).
+  Proof.
+    intro. apply Coinduction. cbn -[ss sb']. intros. destruct H as [-> ?].
+    apply sb'_true_ss'. split; intros.
+    - apply H in H1 as (? & ? & ? & ? & ?).
+      exists x, x0. split; auto. split; auto.
+      intros. apply (b_T (sb' L)). apply H2.
+    - exists a3. split; auto.
+      apply (fTf_Tf (sb' L)). cbn -[sb']. split; auto. intros.
+      eapply trans_brD in H1; auto. rewrite <- H0 in H1.
+      apply H in H1 as (? & ? & ? & ? & ?).
+      exists x0, x1. split; auto. split; auto. intros.
+      apply (b_T (sb' L)). apply H2.
+  Qed.
+
 End upto.
 
 Section bind.

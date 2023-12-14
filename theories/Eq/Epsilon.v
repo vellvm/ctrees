@@ -350,6 +350,18 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
     Qed.
 
     Lemma ss_epsilon_l {E F C D X Y L R} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+        (t t0 : ctree E C X) (u : ctree F D Y) :
+      epsilon t0 t ->
+      ss L R t0 u ->
+      ss L R t u.
+    Proof.
+      intros. cbn. intros.
+      eapply epsilon_trans in H1; [| eassumption].
+      apply H0 in H1 as (? & ? & ? & ? & ?). eauto 6.
+    Qed.
+
+    (* Is this one really useful? *)
+    Lemma ss_epsilon_l' {E F C D X Y L R} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
         (t : ctree E C X) (u : ctree F D Y) :
       (forall t0, epsilon t t0 -> productive t0 -> ss L R t0 u) ->
       ss L R t u.
@@ -375,11 +387,21 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
     Qed.
 
     Lemma ssim_epsilon_l {E F C D X Y L} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
+        (t0 t : ctree E C X) (u : ctree F D Y) :
+      epsilon t0 t ->
+      ssim L t0 u ->
+      ssim L t u.
+    Proof.
+      intros. cbn. intros.
+      step in H0. step. eapply ss_epsilon_l in H0; eauto.
+    Qed.
+
+    Lemma ssim_epsilon_l' {E F C D X Y L} `{Stuck: B0 -< C} `{Stuck': B0 -< D}
         (t : ctree E C X) (u : ctree F D Y) :
       (forall t0, epsilon t t0 -> productive t0 -> ssim L t0 u) ->
       ssim L t u.
     Proof.
-      intros. step. apply ss_epsilon_l.
+      intros. step. apply ss_epsilon_l'.
       intros. apply H in H1. now step in H1. assumption.
     Qed.
 

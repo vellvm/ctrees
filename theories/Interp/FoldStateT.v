@@ -377,7 +377,7 @@ Section FoldBind.
     {A B}
     (t : ctree E C A) (k : A -> ctree E C B)
     (s : S) :
-    interp_state h (t >>= k) s ≅ interp_state h t s >>= fun xs => interp_state h (k (snd xs)) (fst xs).
+    interp_state h (CTree.bind t k) s ≅ CTree.bind (interp_state h t s) (fun xs => interp_state h (k (snd xs)) (fst xs)).
   Proof.
     eapply fold_state_bind.
   Qed.
@@ -387,7 +387,7 @@ Section FoldBind.
     {A B}
     (t : ctree E C A) (k : A -> ctree E C B)
     (s : S) :
-    refine_state g (t >>= k) s ≅ refine_state g t s >>= fun xs => refine_state g (k (snd xs)) (fst xs).
+    refine_state g (CTree.bind t k) s ≅ CTree.bind (refine_state g t s) (fun xs => refine_state g (k (snd xs)) (fst xs)).
   Proof.
     eapply fold_state_bind.
   Qed.

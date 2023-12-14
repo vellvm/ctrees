@@ -86,12 +86,12 @@ Module SSimNotations.
 
   Notation "t (≲ L ) u" := (ssim L t u) (at level 70).
   Notation "t ≲ u" := (ssim eq t u) (at level 70). (* FIXME we should ensure that return types are the same. *)
-  Notation "t [≲ L ] u" := (ss L _ t u) (at level 79).
-  Notation "t [≲] u" := (ss eq _ t u) (at level 79).
-  Notation "t {≲ L } u" := (sst L _ t u) (at level 79).
-  Notation "t {≲} u" := (sst eq _ t u) (at level 79).
-  Notation "t {{≲ L }} u" := (ssbt L _ t u) (at level 79).
-  Notation "t {{≲}} u" := (ssbt eq _ t u) (at level 79).
+  Notation "t [≲ L ] u" := (sst L _ t u) (at level 79).
+  Notation "t [≲] u" := (sst eq _ t u) (at level 79).
+  Notation "t {≲ L } u" := (ssbt L _ t u) (at level 79).
+  Notation "t {≲} u" := (ssbt eq _ t u) (at level 79).
+  Notation "t {{≲ L }} u" := (ss L _ t u) (at level 79).
+  Notation "t {{≲}} u" := (ss eq _ t u) (at level 79).
 
 End SSimNotations.
 
@@ -181,6 +181,9 @@ Section ssim_homogenous_theory.
 
   #[global] Instance Reflexive_ssT f R `{Reflexive _ L}: Reflexive (ssT L f R).
   Proof. apply build_reflexive; apply fT_T; apply refl_sst. Qed.
+
+  #[global] Instance Reflexive_ss R `{Reflexive _ L} `{Reflexive _ R} : Reflexive (ss L R).
+  Proof. cbn. eauto. Qed.
 
   (*| Transitivity |*)
   #[global] Instance Transitive_sst R `{Transitive _ L}: Transitive (sst L R).
@@ -534,6 +537,8 @@ Proof.
       constructor; auto.
 Qed.
 
+Definition lift_val_rel {E X Y} := @update_val_rel E E X Y eq.
+
 (*|
 Expliciting the reasoning rule provided by the up-to principles.
 |*)
@@ -667,10 +672,16 @@ Qed.
 (*|
 And in particular, we can justify rewriting [≲] to the left of a [bind].
 |*)
-#[global] Instance bind_ssim_cong_gen {E C X X'} (RR: relation (ctree E C X')) `{HasStuck: B0 -< C}:
+#[global] Instance bind_sst_cong_gen {E C X X'} (RR: relation (ctree E C X')) `{HasStuck: B0 -< C}:
   Proper (ssim eq ==> pointwise_relation X (sst eq RR) ==> sst eq RR) (@bind E C X X').
 Proof.
   repeat red; intros. now apply sst_clo_bind_eq.
+Qed.
+
+#[global] Instance bind_ssim_cong_gen {E C X X'} `{HasStuck: B0 -< C}:
+  Proper (ssim eq ==> pointwise_relation X (ssim eq) ==> ssim eq) (@CTree.bind E C X X').
+Proof.
+  cbn. intros. now apply ssim_clo_bind_eq.
 Qed.
 
 (*Lemma bind_ssim_cong_gen {E C X X'} RR {HasStuck: B0 -< C}
