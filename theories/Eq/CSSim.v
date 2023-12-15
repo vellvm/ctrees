@@ -215,7 +215,7 @@ Strong simulation up-to [equ] is valid
       + eapply (f_Tf (css L)).
         econstructor; auto; auto.
     - rewrite <- Equu in TR;
-        apply HR in TR as (? & ? & ?); subst;
+        eapply HR in TR as (? & ? & ?); subst;
         exists x, x0; intuition; rewrite Equt; auto.
   Qed.
 
@@ -693,7 +693,7 @@ execution cannot act as going under the guard.
       intros ? ? TR; inv_trans; subst.
     - apply EQs in TR as (u' & ? & TR' & EQ' & ?); eauto.
     - pose proof (proj1_sig X0) as z.
-      destruct (EQs z) as (tt & ? & ? & ?); eauto.
+      edestruct (EQs z) as (tt & ? & ? & ?); eauto.
       do 2 eexists; intuition.
       eapply trans_brD; eauto.
   Qed.
