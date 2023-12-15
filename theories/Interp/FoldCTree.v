@@ -152,14 +152,15 @@ Section FoldCTree.
       interp h (Br b c k) ≅ x <- branch b c;; Guard (interp h (k x)).
     Proof. now rewrite unfold_interp. Qed.
 
-    #[global] Instance interp_equ `{C -< D} :
-      Proper (equ eq ==> equ eq) (interp (B := C) (M := ctree F D) h (T := X)).
+    #[global] Instance interp_equ `{C -< D} {R} :
+      Proper (equ R ==> equ R) (interp (B := C) (M := ctree F D) h (T := X)).
     Proof.
       cbn.
       coinduction ? CIH.
       intros * EQ; step in EQ.
       rewrite 2 unfold_interp.
-      inv EQ; auto.
+      inv EQ.
+      - constructor; auto.
       - cbn -[ebt].
         upto_bind_eq.
         constructor; intros ?; auto.

@@ -61,6 +61,14 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       now left.
     Qed.
 
+    #[global] Instance Transitive_epsilon_det {E C X} `{HasB1: B1 -< C} :
+      Transitive (@epsilon_det E C X _).
+    Proof.
+      cbn. intros. induction H.
+      - now subs.
+      - subs. eright. now apply IHepsilon_det. reflexivity.
+    Qed.
+
     Lemma epsilon_det_bind {E C X Y} `{Tau: B1 -< C}: forall (t t' : ctree E C X) (k : X -> ctree E C Y),
         epsilon_det t t' ->
         epsilon_det (t >>= k) (t' >>= k).

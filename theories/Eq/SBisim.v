@@ -567,7 +567,6 @@ Hence [equ eq] is a included in [sbisim]
 
 End sbisim_homogenous_theory.
 
-
 (*|
 Up-to [bind] context bisimulations
 ----------------------------------

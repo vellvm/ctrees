@@ -207,18 +207,32 @@ Section State.
       now cbn; rewrite ?bind_ret_l.
   Qed.
 
-  #[global] Instance equ_interp_state `{C-<D}:
-    Proper (equ eq ==> eq ==> equ eq)
+  Definition lift_state_rel {X Y} (R : relation Y) (xy xy' : X * Y) :=
+    fst xy = fst xy' /\ R (snd xy) (snd xy').
+
+  Lemma equ_interp_state `{C-<D} {Q}:
+    Proper (equ Q ==> eq ==> equ (lift_state_rel Q))
            (interp_state (C := C) h (T := R)).
   Proof.
     unfold Proper, respectful.
     coinduction ? IH; intros * EQ1 * <-.
     rewrite !unfold_interp_state.
-    step in EQ1; inv EQ1; auto.
+    step in EQ1; inv EQ1.
+    - constructor. split; auto.
     - cbn. upto_bind_eq.
       constructor; intros; auto.
     - simpl bind. upto_bind_eq.
       constructor; auto.
+  Qed.
+
+  #[global] Instance equ_eq_interp_state `{C-<D}:
+    Proper (equ eq ==> eq ==> equ eq)
+           (interp_state (C := C) h (T := R)).
+  Proof.
+    cbn. intros. subst.
+    eapply (equ_leq (lift_state_rel eq)).
+    { intros [] [] []. now f_equal. }
+    now apply equ_interp_state.
   Qed.
 
   Lemma interp_state_ret `{C-<D}
@@ -333,6 +347,29 @@ Section State.
   Qed.
 
 End State.
+
+Lemma interp_state_guard' {E F B C X St}
+  `{B -< C} (h : E ~> stateT St (ctree F (B01 +' C)))
+  (t : ctree E (B01 +' B) X) (s : St) :
+  interp_state h (Guard t) s ≅
+  Guard (Guard (interp_state h t s)).
+Proof.
+  pose proof (interp_state_guard h t). apply H0.
+Qed.
+
+#[global] Instance epsilon_det_interp_state {E F B C X St}
+  `{HasB: B -< C} (h : E ~> stateT St (ctree F (B01 +' C))) :
+  Proper (@epsilon_det E (B01 +' B) X _ ==> eq ==> epsilon_det)
+         (interp_state h (T := X)).
+Proof.
+  cbn. intros. subst.
+  induction H.
+  - now subs.
+  - subs. rewrite interp_state_guard'.
+    eapply epsilon_det_tau; [| reflexivity].
+    eapply epsilon_det_tau; [| reflexivity].
+    assumption.
+Qed.
 
 Section FoldBind.
   Variable (S : Type).

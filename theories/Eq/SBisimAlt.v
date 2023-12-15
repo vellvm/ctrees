@@ -107,17 +107,17 @@ Lemma sb'_flip {E F C D X Y L} `{HasB0: B0 -< C} `{HasB0': B0 -< D}
 Proof.
   split; intros; subst; destruct H; cbn in H.
   - specialize (H0 eq_refl).
-    split; intros.
-    + apply H0 in H2 as (? & ? & ? & ? & ?); auto. eexists _, _.
-      split; eauto. split; auto. intros. specialize (H3 (negb side)).
-      now rewrite Bool.negb_involutive in H3.
-    + eapply (proj2 H0) in H1 as (? & ? & ?). eauto.
+    cbn -[ss'_gen] in H0. unfold flip in H0.
+    eapply (ss'_gen_mon (x := fun t u => forall side, R (negb side) t u)).
+    { cbn. intros. specialize (H1 (negb side)). rewrite Bool.negb_involutive in H1. apply H1. }
+    { cbn. intros. apply H1. }
+    apply H0.
   - specialize (H eq_refl).
-    split; intros.
-    + apply H in H2 as (? & ? & ? & ? & ?); auto. eexists _, _.
-      split; eauto. split; auto. intros. specialize (H3 (negb side)).
-      now rewrite Bool.negb_involutive in H3.
-    + eapply (proj2 H) in H1 as (? & ? & ?). eauto.
+    cbn -[ss'_gen] in H.
+    eapply (ss'_gen_mon (x := fun t u => forall side, R (negb side) u t)).
+      { cbn. intros. specialize (H1 (negb side)). rewrite Bool.negb_involutive in H1. apply H1. }
+      { cbn. intros. apply H1. }
+      apply H.
 Qed.
 
 Definition sbisim' {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D} L t u :=
@@ -304,7 +304,52 @@ Section sbisim'_homogenous_theory.
     pose proof (fT_T refl_st'). cbn in H1. auto.
   Qed.
 
+  Lemma converse_st' `{SL: Symmetric _ L}: converse_neg <= st' L.
+  Proof.
+    apply leq_t. cbn -[sb']. intros.
+    split; intros; subst.
+    - destruct H as [_ ?]. specialize (H eq_refl).
+      eapply (weq_ss'_gen (x := L)) in H. 2: { split; apply SL. }
+      eapply ss'_gen_mon with (x := fun t u => forall side, a side u t).
+      { cbn. intros. apply H0. }
+      { cbn. intros. apply H0. }
+      apply H.
+    - destruct H as [? _]. specialize (H eq_refl).
+      eapply (weq_ss'_gen (x := L)). { split; apply SL. }
+      eapply ss'_gen_mon with (x := fun t u => forall side, a side t u).
+      { cbn. intros. apply H0. }
+      { cbn. intros. apply H0. }
+      apply H.
+  Qed.
+
+  Lemma st'_flip `{SL: Symmetric _ L} R :
+    forall b t u,
+    st' L R b t u <-> st' L R (negb b) u t.
+  Proof.
+    split; intro; apply (ft_t converse_st'); auto.
+    cbn. now rewrite Bool.negb_involutive.
+  Qed.
+
+  Lemma sbt'_flip `{SL: Symmetric _ L} R :
+    forall b t u,
+    sbt' L R b t u <-> sbt' L R (negb b) u t.
+  Proof.
+    split; intro; apply (fbt_bt converse_st'); auto.
+    cbn. now rewrite Bool.negb_involutive.
+  Qed.
+
 End sbisim'_homogenous_theory.
+
+Lemma split_sbt'_eq : forall {E B X R} `{HasB0: B0 -< B} (t u : ctree E B X),
+  (forall side, sbt' eq R side t u) <->
+  sbt' eq R true t u /\ sbt' eq R true u t.
+Proof.
+  intros. split; intros.
+  - split; auto.
+    apply sbt'_flip. apply H.
+  - destruct side; [apply H |].
+    now apply sbt'_flip.
+Qed.
 
 Section sbisim'_heterogenous_theory.
   Arguments label: clear implicits.
@@ -850,7 +895,27 @@ Section upto.
   Qed.
 
   (* Up-to epsilon *)
-  (* TODO write the 4 variants *)
+
+  Program Definition epsilon_det_ctx3_l : mon (bool -> rel (ctree E C X) (ctree F D Y))
+    := {| body R b t u := b = true /\ epsilon_det_ctx (fun t => R b t u) t |}.
+  Next Obligation.
+    destruct H1 as (? & ? & ?). split; auto. red. eauto.
+  Qed.
+
+  Lemma epsilon_det_ctx3_l_sbisim' :
+    epsilon_det_ctx3_l <= t (@sb' E F C D X Y _ _ L).
+  Proof.
+    apply Coinduction. repeat red. intros.
+    destruct H as (? & ? & ? & ?). subst.
+    split; intros; try discriminate.
+    induction H0.
+    - apply sb'_true_ss' in H1. subs.
+      eapply ss'_gen_mon. 3: apply H1.
+      + cbn. intros. apply (id_T (sb' L)). apply H0.
+      + apply (id_T (sb' L)).
+    - subs. apply step_ss'_guard_l.
+      step. do 3 red. apply sb'_true_ss'. now apply IHepsilon_det.
+  Qed.
 
   Program Definition epsilon_ctx3_r : mon (bool -> rel (ctree E C X) (ctree F D Y))
     := {| body R b t u := b = true /\ epsilon_ctx (fun u => R b t u) u |}.
@@ -869,6 +934,26 @@ Section upto.
     eapply ss'_gen_mon. 3: apply H1; auto.
     + intros ????. apply (id_T (sb' L)). apply H2.
     + intros ???. apply (id_T (sb' L)). apply H2.
+  Qed.
+
+  #[global] Instance epsilon_det_st' : forall (R : bool -> rel (ctree E C X) (ctree F D Y)),
+    Proper (epsilon_det ==> epsilon_det ==> flip impl) (st' L R true).
+  Proof.
+    cbn. intros. subst.
+    apply (ft_t (epsilon_det_ctx3_l_sbisim')). cbn.
+    split; auto. exists y. split; auto.
+    apply (ft_t (epsilon_ctx3_r_sbisim')). cbn.
+    split; auto. exists y0. split; auto. now apply epsilon_det_epsilon.
+  Qed.
+
+  #[global] Instance epsilon_det_sbt' : forall (R : bool -> rel (ctree E C X) (ctree F D Y)),
+    Proper (epsilon_det ==> epsilon_det ==> flip impl) (sbt' L R true).
+  Proof.
+    cbn. intros. subst.
+    apply (fbt_bt (epsilon_det_ctx3_l_sbisim')). cbn.
+    split; auto. exists y. split; auto.
+    apply (fbt_bt (epsilon_ctx3_r_sbisim')). cbn.
+    split; auto. exists y0. split; auto. now apply epsilon_det_epsilon.
   Qed.
 
   Program Definition ss_ctx3_l : mon (bool -> rel (ctree E C X) (ctree F D Y))

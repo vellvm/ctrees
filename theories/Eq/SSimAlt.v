@@ -199,12 +199,18 @@ Section ssim'_homogenous_theory.
   (*|
     Various results on reflexivity and transitivity.
   |*)
+  #[global] Instance Reflexive_ss' R Reps
+    `{Reflexive _ R} `{Reflexive _ Reps} `{Reflexive _ L}:
+    Reflexive (@ss'_gen E E C C X X _ _ L R Reps).
+  Proof.
+    split; intros; eauto.
+    exists (k x0). subs. split; auto. now eapply epsilon_br.
+  Qed.
+
   Lemma refl_sst' `{Reflexive _ L}: const seq <= (sst' L).
   Proof.
     apply leq_t. cbn.
-    intros. unfold seq in H0. subst. split; intros.
-    - eexists _, _. eauto.
-    - eexists. split; [| auto]. subs. eright. now left.
+    intros. unfold seq in H0. subst. reflexivity.
   Qed.
 
   (*| Reflexivity |*)
@@ -602,6 +608,10 @@ End Inversion_Rules.
 Definition epsilon_ctx {E C X} `{HasB1: B1 -< C} (R : ctree E C X -> Prop)
   (t : ctree E C X) :=
   exists t', epsilon t t' /\ R t'.
+
+Definition epsilon_det_ctx {E C X} `{HasB1: B1 -< C} (R : ctree E C X -> Prop)
+  (t : ctree E C X) :=
+  exists t', epsilon_det t t' /\ R t'.
 
 Section upto.
 
