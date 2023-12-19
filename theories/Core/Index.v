@@ -32,3 +32,6 @@ Variant BN : Type -> Type := | branchN : BN nat.
 
 Notation B01 := (B0 +' B1).
 Notation B02 := (B0 +' B1 +' B2).
+
+Polymorphic Class MonadBr (B : Type -> Type) (M : Type -> Type) : Type :=
+  mbr : forall (b : bool) {X} (b: (B01 +' B) X), M X.

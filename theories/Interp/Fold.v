@@ -28,8 +28,8 @@ Open Scope ctree_scope.
     for any monad [M] with a loop operator. *)
 Definition fold {E B M : Type -> Type}
            {FM : Functor M} {MM : Monad M} {IM : MonadIter M}
-           (h : E ~> M) (g : bool -> B ~> M) :
-  ctree E B ~> M :=
+           (h : E ~> M) (g : bool -> (B01 +' B) ~> M) :
+  ctree E (B01 +' B) ~> M :=
   fun R =>
     iter (fun t =>
 	    match observe t with
@@ -57,7 +57,7 @@ Arguments interp {E B M FM MM IM BM} h [T].
 
 Definition refine {E B M : Type -> Type}
            {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {TM : MonadTrigger E M}
-           (g : bool -> B ~> M) := fold (fun _ e => mtrigger e) g.
+           (g : bool -> B01 +' B ~> M) := fold (fun _ e => mtrigger e) g.
 
 Arguments refine {E B M FM MM IM TM} g [T].
 
@@ -77,8 +77,8 @@ Definition translate {E F C} (h : E ~> F) : ctree E C ~> ctree F C
 Arguments translate {E F C} h [T].
 
 (** Useful congruences and lemmas for [interp] and [refine] *)
-#[global] Instance interp_equ {E C X} `{HasTau: B1 -< C}  h:
-  Proper (equ eq ==> @equ E C X X eq) (@interp E C _ _ _ _ _ h X).
+#[global] Instance interp_equ {E F B C X} `{HasB: B -< C} h:
+  Proper (equ eq ==> @equ F (B01 +' C) X X eq) (@interp E B _ _ _ _ _ h X).
 Proof.
   cbn.
   coinduction R CH.
@@ -96,8 +96,8 @@ Proof.
     apply CH. apply REL.
 Qed.
 
-#[global] Instance refine_equ {E C X} `{HasTau: B1 -< C} h:
-  Proper (equ eq ==> @equ E C X X eq) (@refine E C _ _ _ _ _ h X).
+#[global] Instance refine_equ {E C X} h:
+  Proper (equ eq ==> @equ E (B01 +' C) X X eq) (@refine E C _ _ _ _ _ h X).
 Proof.
   cbn.
   coinduction R CH.

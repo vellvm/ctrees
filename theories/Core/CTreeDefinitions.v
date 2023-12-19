@@ -429,7 +429,7 @@ Instances
 (* #[global] Instance MonadBr_ctree {E B} : MonadBr B (ctree E B) | 1 := *)
 (*   @CTree.branch _ _. *)
 
-#[global] Instance MonadBr_ctree {E C D} `{C -< D} : MonadBr C (ctree E D) :=
+#[global] Instance MonadBr_ctree {E C D} `{C -< D} : MonadBr C (ctree E (B01 +' D)) :=
   fun b _ c => branch b c.
 
 (*|
