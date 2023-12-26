@@ -1,16 +1,20 @@
 (*| Predicates on ctrees |*)
+From Coq Require Import
+  Basics
+  Morphisms
+  Classes.RelationClasses
+  Program.Equality.
 
-(* begin hide *)
 From CTree Require Import
   Utils.Utils
   CTree.Core
   CTree.Trans
   CTree.Interp.Core
   Events.Core
+  CTree.SBisim
   CTree.Equ.
 
 From Coinduction Require Import coinduction.
-From Coq Require Import Morphisms Basics Program.Equality.
 
 Import Ctree.
 Import CTreeNotations.
@@ -152,97 +156,489 @@ Proof.
 Qed.
 Global Hint Resolve ALeaf_Vis_inv: ctree.
 
-(*| WEAK (exists) |*)
-Definition may_ret `{Encode E} {X} (t: ctree E X)(x: X) := trans (val x) t stuck.
-Arguments may_ret /.
+(*| Helper inductive: [epsilon_det t t'] judges that [t' ≡ Guard* t] |*)
+Inductive epsilon_det `{Encode E} {X}: relation (ctree E X) :=
+| epsilon_det_id : forall t t', t ≅ t' -> epsilon_det t t'
+| epsilon_det_tau : forall t t' t'',
+    epsilon_det t t' -> t'' ≅ guard t -> epsilon_det t'' t'.
 
-(*| CTree can only take [val x] steps, inductively |*)
-Inductive only_ret_`{Encode E} {X}: ctree' E X -> X -> Prop :=
-| IsBrD: forall n k x,
-    (forall (i: fin' n), only_ret_ (observe (k i)) x) ->
-    only_ret_ (BrF false n k) x
-| IsRet: forall x,
-    only_ret_ (RetF x) x.
-Global Hint Constructors only_ret_: ctree.
+(*| Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by all paths made of [BrD] branches. |*)
+Inductive epsilon_ `{Encode E} {X} : ctree' E X -> ctree' E X -> Prop :=
+| EpsilonId : forall t t', t ≅ t' -> epsilon_ (observe t) (observe t')
+| EpsilonBr : forall n k x t, epsilon_ (observe (k x)) t -> epsilon_ (BrF false n k) t.
 
-Definition only_ret `{Encode E} {X}(t: ctree E X)(x: X) := only_ret_ (observe t) x.
-Arguments only_ret /.
-Global Hint Unfold only_ret: ctree.
+Definition epsilon `{Encode E} {X} (t t' : ctree E X) :=
+  epsilon_ (observe t) (observe t').
 
-(*| [only_ret] is deterministic |*)
-Lemma only_ret_det`{Encode E} {X}: forall (t: ctree E X) (x y: X),
-    only_ret t x ->
-    only_ret t y ->
-    x = y.
-Proof.
-  unfold only_ret.
-  intros.
-  generalize dependent y.
-  induction H0; intros.
-  - dependent destruction H2.
-    apply H1 with Fin.F1.
-    apply H2.
-  - dependent destruction H1.
+(*| Helper inductive: [productive t] judges that [t]'s head constructor is not a [BrD] |*)
+Inductive productive `{Encode E} {X} : ctree E X -> Prop :=
+| prod_ret {r t} (EQ: t ≅ Ret r) : productive t
+| prod_vis {e : E} {k t} (EQ: t ≅ Vis e k) : productive t
+| prod_tau {n} {k t} (EQ: t ≅ BrS n k) : productive t.
+
+Section epsilon_det_theory.
+  #[global] Instance epsilon_det_equ `{Encode E} {X}:
+  Proper (equ eq ==> equ eq (X2:=X) ==> flip impl) (@epsilon_det E _ X).
+  Proof.
+    repeat red; intros.
+    revert x H0. induction H2; intros.
+    - econstructor. now rewrite H1, H2.
+    - eapply epsilon_det_tau.
+      apply IHepsilon_det; auto.
+      now rewrite H3. 
+  Qed.
+
+  #[global] Instance epsilon_det_equ' `{Encode E} {X}:
+    Proper (equ eq ==> equ eq ==> impl) (@epsilon_det E _ X).
+  Proof.
+    repeat red; intros.
+    now rewrite <- H1, <- H0. 
+  Qed.
+
+  #[global] Instance epsilon_det_refl `{Encode E} {X}:
+    Reflexive (@epsilon_det E _ X).
+  Proof. now left. Qed.
+
+  Local Typeclasses Transparent equ.
+  Lemma epsilon_det_bind `{Encode E} {X Y}: forall (t t' : ctree E X) (k : X -> ctree E Y),
+      epsilon_det t t' ->
+      epsilon_det (t >>= k) (t' >>= k).
+  Proof.
+    intros. induction H0.
+    - rewrite H0. constructor. reflexivity.
+    - rewrite H1. setoid_rewrite bind_guard. eapply epsilon_det_tau.
+      apply IHepsilon_det. reflexivity.
+  Qed.
+
+  Lemma epsilon_det_bind_ret_l `{Encode E} {X Y}: forall (t : ctree E X) t' (k : X -> ctree E Y) x,
+      epsilon_det t (Ret x) ->
+      epsilon_det (k x) t' ->
+      epsilon_det (t >>= k) t'.
+  Proof.
+    intros.
+    remember (Ret x) as R. revert t' k x HeqR H1.
+    induction H0; intros; subst.
+    - subst. now rewrite H0, bind_ret_l. 
+    - rewrite H1. setoid_rewrite bind_guard.
+      eapply epsilon_det_tau.
+      2: reflexivity.
+      now eapply IHepsilon_det. 
+  Qed.
+
+  Lemma epsilon_det_bind_ret_l_equ `{Encode E} {X Y}:
+    forall (t : ctree E X) (k : X -> ctree E Y) x,
+      epsilon_det t (Ret x) ->
+      x <- t;; k x ≅ t;; k x.
+  Proof.
+    intros. remember (Ret x) as R. induction H0; subst.
+    - rewrite H0. rewrite !bind_ret_l. reflexivity.
+    - rewrite H1. rewrite !bind_guard. apply br_equ. intro.
+      apply IHepsilon_det.
+      reflexivity.
+  Qed.
+
+  Lemma epsilon_det_trans `{Encode E} {X}:
+    forall l (t t' t'' : ctree E X),
+      epsilon_det t t' -> trans l t' t'' -> trans l t t''.
+  Proof.
+    intros; induction H0.
+    - now rewrite H0.
+    - apply IHepsilon_det in H1.
+      apply trans_guard in H1.
+      now rewrite <- H2 in H1.
+  Qed.
+
+  Lemma sbisim_epsilon_det `{Encode E} {X}:
+    forall (t t' : ctree E X), epsilon_det t t' -> t ~ t'.
+  Proof.
+    intros. induction H0.
+    - rewrite H0; reflexivity.
+    - rewrite H1. rewrite sb_guard. apply IHepsilon_det.
+  Qed.
+
+End epsilon_det_theory.
+
+Section productive_theory.
+  
+  #[global] Instance productive_equ `{HE: Encode E}{X}:
+    Proper (equ eq ==> impl) (@productive E _ X).
+  Proof.
+    repeat red.
+    intros. inv H0; rewrite H in *.
+    - eapply prod_ret; eauto.
+    - eapply prod_vis; eauto.
+    - eapply prod_tau; eauto.
+  Qed.
+
+  #[global] Instance productive_equ' `{HE: Encode E}{X}:
+    Proper (equ eq ==> flip impl) (@productive E _ X).
+  Proof.
+    repeat red.
+    intros. rewrite <- H in H0. apply H0.
+  Qed.
+
+  #[local] Hint Constructors productive : trans.
+
+  Lemma ctree_case_productive `{Encode E} {X} : forall (t: ctree E X),
+      productive t \/ exists n k, t ≅ BrD n k.
+  Proof.
+    intros. setoid_rewrite (ctree_eta t). desobs t; etrans.
+    destruct b.
+    - left; now eapply prod_tau.
+    - right. eauto.
+  Qed.
+
+  Lemma productive_br `{HE: Encode E} {X} : forall vis n (k : fin' n -> ctree E X),
+      productive (Br vis n k) -> vis = true.
+  Proof.
+    intros. inv H; step in EQ; cbn in EQ; dependent destruction EQ.
     reflexivity.
-Qed.
-Global Hint Resolve only_ret_det: ctree.
+  Qed.
 
-(*| The LTS can not take a step [tau, vis, ret] |*)
-Definition is_stuck `{Encode E} {X} (t: ctree E X) := (~ exists l u, trans l t u).
-Arguments is_stuck /.
+  Lemma productive_brD `{HE: Encode E} {X}: forall n (k : fin' n -> ctree E X),
+      ~ productive (BrD n k).
+  Proof.
+    intros ** ?. inversion H; inv_equ.
+  Qed.
 
-#[global] Instance is_stuck_equ `{HE: Encode E} {X}: Proper (@equ E HE X X eq ==> iff) is_stuck.
-Proof.
-  unfold Proper, respectful, is_stuck.
-  intros t u EQ; split; intros Hn Ht; destruct Ht as (x & t' & TR);
-    apply Hn.
-  - exists x, t'; now rewrite EQ.
-  - exists x, t'; now rewrite <- EQ.
-Qed.
+  Lemma productive_bind `{HE: Encode E} {X n}: forall t (k : fin' n -> ctree E X),
+      productive (t >>= k) -> productive t.
+  Proof.
+    intros. inversion H; inv_equ; subst.
+    - apply ret_equ_bind in EQ as (? & ? & ?).
+      rewrite H0; now eapply prod_ret.
+    - apply vis_equ_bind in EQ as [(? & ?) | (? & ? & ?)]; rewrite H0.
+      + now eapply prod_ret.
+      + now eapply prod_vis.
+    - apply br_equ_bind in EQ as [(? & ?) | (? & ? & ?)]; rewrite H0.
+      + now eapply prod_ret.
+      + now eapply prod_tau.
+  Qed.
+  
+End productive_theory.
 
-Lemma stuck_is_stuck `{HE: Encode E} {X}: @is_stuck E HE X stuck.
-Proof.
-  red; intros * abs; inv abs.
-  destruct H as (s' & TR).
-  ind_trans TR.
-  eapply IHTR; reflexivity.
-Qed.
-Global Hint Resolve stuck_is_stuck: ctree.
+Section epsilon_theory.
+  #[global] Instance epsilon_equ_ `{HE: Encode E} {X} :
+    Proper (going (equ eq) ==> going (equ eq) ==> impl) (@epsilon_ E _ X).
+  Proof.
+    repeat red.
+    intros.
+    revert y y0 H H0. induction H1; intros.
+    - pose (EpsilonId (go y) (go y0)). cbn in e. apply e.
+      rewrite <- H0, <- H1, H. reflexivity.
+    - destruct H. step in H. inv H. invert.
+      cbn in H3; subst.
+      econstructor; auto.
+      apply IHepsilon_.
+      + constructor.
+        now rewrite <- !ctree_eta. 
+      + apply H0.
+  Qed.
 
-Lemma trans_onlyret `{HE: Encode E} {X}: forall (t: ctree E X) r,
-    only_ret t r ->
-    trans (val r) t stuck.
-Proof.
-  intros.
-  unfold only_ret in H.
-  dependent induction H; unfold trans; rewrite <- x.
-  - eapply trans_brD.
-    eapply H0 with (i:= Fin.F1).
-    reflexivity.
-    reflexivity.
-  - apply trans_ret.
-Qed.
+  #[global] Instance epsilon_equ_' `{HE: Encode E} {X} :
+    Proper (going (equ eq) ==> going (equ eq) ==> flip impl) (@epsilon_ E _ X).
+  Proof.
+    repeat red; intros. now rewrite <- H, <- H0 in H1.
+  Qed.
 
-Lemma stuck_is_not_onlyret`{HE: Encode E} {X}:
-  ~ (exists (x: X), only_ret (E:=E) stuck x).
-Proof.
-  intros (? & Hcontra).
-  cbn in Hcontra.
-  dependent induction Hcontra.
-  apply H0.
-  exact Fin.F1.
-  reflexivity.
-Qed.
-Global Hint Resolve stuck_is_not_onlyret: ctree.
+  #[global] Instance epsilon_equ `{HE: Encode E} {X}:
+    Proper (equ eq ==> equ eq ==> iff) (@epsilon E _ X).
+  Proof.
+    unfold epsilon. split; intros.
+    - now rewrite <- H, <- H0.
+    - now rewrite H, H0.
+  Qed.
 
-Lemma spin_is_not_onlyret`{HE: Encode E} {X}:
-  ~ (exists (x: X), only_ret (E:=E) spin x).
-Proof.
-  intros (? & Hcontra).
-  cbn in Hcontra.
-  dependent induction Hcontra.
-Qed.
-Global Hint Resolve spin_is_not_onlyret: ctree.
+  #[global] Instance epsilon_refl `{Encode E} {X} :
+    Reflexive (@epsilon E _ X).
+  Proof. now left. Qed.
+
+  Lemma epsilon_br `{Encode E} {X} : forall (t' : ctree E X) n k (c : fin' n) x,
+      epsilon (k x) t' -> epsilon (BrD n k) t'.
+  Proof. intros. eright; eauto. Qed.
+
+  Lemma epsilon_case `{HE: Encode E} {X} : forall (t t' : ctree E X),
+      epsilon t t' ->
+      t ≅ t' \/ exists n (c : fin' n) k x, t ≅ BrD n k /\ epsilon (k x) t'.
+  Proof.
+    intros * EPS.
+    inversion EPS; [left | right].
+    - setoid_rewrite ctree_eta. now rewrite <- H, H1, H0.
+    - subst. exists n, x, k, x. split; auto. now rewrite H, <- ctree_eta.
+  Qed.
+
+  Lemma epsilon_trans `{HE: Encode E} {X} : forall (t t' : ctree E X),
+      epsilon t t' -> forall l t'', trans l t' t'' -> trans l t t''.
+  Proof.
+    intros. red in H. rewrite ctree_eta. rewrite ctree_eta in H0.
+    remember (observe t) as ot.
+    remember (observe t') as ot'.
+    clear t Heqot t' Heqot'.
+    induction H.
+    - rewrite H. apply H0.
+    - apply IHepsilon_ in H0. eapply trans_brD in H0. apply H0.
+      rewrite <- ctree_eta. reflexivity.
+  Qed.
+
+  Lemma epsilon_fwd `{HE: Encode E} {X} : forall (t : ctree E X) n k x (c : fin' n),
+      epsilon t (BrD n k) -> epsilon t (k x).
+  Proof.
+    intros. red in H. red.
+    remember (observe t) as ot.
+    clear t Heqot.
+    remember (observe (BrD n k)) as oc.
+    revert c k x Heqoc.
+    induction H; intros.
+    - rewrite H, Heqoc. cbn. eapply EpsilonBr; auto.
+      now left.
+    - subst. eapply EpsilonBr; auto. 
+  Qed.
+
+  Lemma trans_epsilon `{HE: Encode E} {X} l (t t'' : ctree E X):
+    trans l t t'' -> exists t',
+        epsilon t t' /\ productive t' /\ trans l t' t''.
+  Proof.
+    unfold trans. 
+    setoid_rewrite (ctree_eta t).
+    setoid_rewrite (ctree_eta t'').
+    remember (observe t) as ot.
+    remember (observe t'') as ot''.
+    clear t Heqot t'' Heqot''.
+    cbn; induction 1; intros.
+    - destruct IHtrans_ as (? & ? & ? & ?).
+      exists x0; split; auto.
+      eapply epsilon_br with x; auto. 
+    - eexists. split; [| split ].
+      + left. reflexivity.
+      + eapply prod_tau. reflexivity.
+      + rewrite <- H; cbn; now econstructor. 
+    - eexists. split; [| split ].
+      + left. reflexivity.
+      + eapply prod_vis. reflexivity.
+      + rewrite <- H; cbn; now econstructor. 
+    - eexists. split; [| split ].
+      + left. reflexivity.
+      + eapply prod_ret. reflexivity.
+      + now econstructor.
+  Qed.
+
+  Lemma trans_val_epsilon `{HE: Encode E} {X}: forall x (t t' : ctree E X),
+      trans (val x) t t' -> epsilon t (Ret x) /\ t' ≅ stuck.
+  Proof.
+    intros. apply trans_epsilon in H as (? & ? & ? & ?).
+    inv H0.
+    - rewrite EQ in H, H1.
+      trans in H1.
+      now dependent destruction Eql. 
+    - rewrite EQ in H1. inv H1.
+    - rewrite EQ in H1. inv H1.
+  Qed.
+
+  Lemma trans_tau_epsilon `{HE: Encode E} {X}: forall (t t' : ctree E X),
+      trans tau t t' -> exists n (c: fin' n) k x, epsilon t (BrS n k) /\ t' ≅ k x.
+  Proof.
+    intros. apply trans_epsilon in H as (? & ? & ? & ?).
+    inv H0.
+    - rewrite EQ in H1. inv H1. 
+    - rewrite EQ in H1. inv H1. 
+    - rewrite EQ in H, H1. trans in H1.
+      exists n, n0, k, n0; split; auto.
+  Qed.
+
+  Lemma trans_obs_epsilon `{HE: Encode E} {X}:
+    forall (t t' : ctree E X) e (x : encode e),
+      trans (obs e x) t t' -> exists k, epsilon t (Vis e k) /\ t' ≅ k x.
+  Proof.
+    intros. apply trans_epsilon in H as (? & ? & ? & ?).
+    inv H0; rewrite EQ in H1.
+    - inv H1. 
+    - rewrite EQ in H.
+      trans in H1; dependent destruction Eql.
+      exists k; eauto. 
+    - inv H1.
+  Qed.
+
+  Lemma productive_epsilon `{HE: Encode E} {X} : forall (t t' : ctree E X),
+      productive t -> epsilon t t' -> t ≅ t'.
+  Proof.
+    intros. setoid_rewrite ctree_eta.
+    inversion H; subst; rewrite (ctree_eta t) in EQ; inversion H0; subst.
+    - now rewrite H3.
+    - rewrite <- H1 in EQ. step in EQ. inv EQ.
+    - now rewrite H3.
+    - rewrite <- H1 in EQ. step in EQ. inv EQ.
+    - now rewrite H3.
+    - rewrite <- H1 in EQ. step in EQ. inv EQ.
+  Qed.
+
+  Lemma epsilon_transitive `{HE: Encode E} {X} : forall (t u v : ctree E X),
+      epsilon t u -> epsilon u v -> epsilon t v.
+  Proof.
+    intros t u v.
+    rewrite (ctree_eta t), (ctree_eta u).
+    remember (observe t) as ot.
+    remember (observe u) as ou.      
+    clear t Heqot u Heqou.
+    intro H; unfold epsilon in H; cbn in H; revert v.
+    induction H; intros.
+    - now rewrite H.
+    - eright; auto.
+      now apply IHepsilon_.
+    Qed.
+
+  Local Typeclasses Transparent equ.
+  Lemma epsilon_bind_l `{HE: Encode E} {X Y} : forall t t' (k : Y -> ctree E X),
+      epsilon t t' -> epsilon (t >>= k) (t' >>= k).
+  Proof.
+    intros. setoid_rewrite (ctree_eta t). setoid_rewrite (ctree_eta t').
+    red in H.
+    remember (observe t) as ot.
+    remember (observe t') as ot'.      
+    clear t Heqot t' Heqot'.
+    induction H. 
+    - rewrite H. reflexivity.
+    - rewrite bind_br. eright; auto.
+      rewrite (ctree_eta (k0 x)). apply IHepsilon_.
+  Qed.
+
+  Lemma epsilon_bind_ret `{HE: Encode E} {X Y} : forall t (k : Y -> ctree E X) v,
+      epsilon t (Ret v) -> epsilon (t >>= k) (k v).
+  Proof.
+    intros. rewrite <- (bind_ret_l v k).
+    now apply epsilon_bind_l.
+  Qed.
+
+  Lemma epsilon_bind `{HE: Encode E} {X Y} : forall t u (k : Y -> ctree E X) v,
+      epsilon t (Ret v) -> epsilon (k v) u -> epsilon (t >>= k) u.
+  Proof.
+    intros. eapply epsilon_bind_ret in H.
+    eapply epsilon_transitive; eassumption.
+  Qed.
+
+  Lemma epsilon_det_epsilon `{HE: Encode E} {X}: forall (t t' : ctree E X),
+      epsilon_det t t' -> epsilon t t'.
+  Proof.
+    intros. induction H.
+    - now left.
+    - rewrite H0. right; auto; exact Fin.F1.
+  Qed.
+
+  Lemma ss_epsilon_l `{HE: Encode E} `{HF: Encode F} {X Y L R} (t : ctree E X) (u : ctree F Y) :
+    (forall t0, epsilon t t0 -> productive t0 -> ss L R t0 u) ->
+    ss L R t u.
+  Proof.
+    intros. cbn. intros. apply trans_epsilon in H0 as (? & ? & ? & ?).
+    red in H0.
+    setoid_rewrite (ctree_eta t) in H.
+    rewrite (ctree_eta x) in H1, H2.
+    remember (observe t) as ot.
+    remember (observe x) as ox.
+    clear t x Heqot Heqox.
+    induction H0.
+    - apply H in H1 as ?.
+      2: { rewrite H0. now left. }
+      apply H3 in H2. apply H2.
+    - apply IHepsilon_; auto. intros. apply H; auto. eright; auto. apply H3.
+  Qed.
+  
+  Lemma ss_epsilon_r `{HE: Encode E} `{HF: Encode F} {X Y L R}
+        (t : ctree E X) (u u0 : ctree F Y) :
+      epsilon u u0 ->
+      ss L R t u0 ->
+      ss L R t u.
+  Proof.
+    intros. cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?).
+    eapply epsilon_trans in H1; eauto.
+  Qed.
+  
+  Lemma ssim_epsilon_l `{HE: Encode E} `{HF: Encode F} {X Y L}
+    (t : ctree E X) (u : ctree F Y) :
+    (forall t0, epsilon t t0 -> productive t0 -> ssim L t0 u) ->
+    ssim L t u.
+  Proof.
+    intros. step. apply ss_epsilon_l.
+    intros. apply H in H1. now step in H1. assumption.
+  Qed.
+  
+  Lemma ssim_epsilon_r `{HE: Encode E} `{HF: Encode F} {X Y L}
+    (t : ctree E X) (u u0 : ctree F Y) :
+    epsilon u u0 ->
+    ssim L t u0 ->
+    ssim L t u.
+  Proof.
+    intros. cbn. intros.
+    step in H0. step. eapply ss_epsilon_r in H0; eauto.
+  Qed.
+  
+  Lemma ssim_ret_epsilon `{HE: Encode E} `{HF: Encode F} {X Y L} :
+    forall r (u : ctree F Y),
+      respects_val L ->
+      (Ret r : ctree E X) (≲L) u ->
+      exists r', epsilon u (Ret r') /\ L (val r) (val r').
+  Proof.
+    intros * RV SIM *.
+    step in SIM. specialize (SIM (val r) stuck (trans_ret _)).
+    destruct SIM as (l' & u' & TR & _ & EQ).
+    apply RV in EQ as ?. destruct H as [? _]. specialize (H (Is_val _)). inv H.
+    apply trans_val_invT in TR as ?. subst.
+    apply trans_val_epsilon in TR as []. eauto.
+  Qed.
+
+  Lemma ssim_vis_epsilon `{HE: Encode E} `{HF: Encode F} {X Y L}: 
+    forall e (k : encode e -> ctree E X) (u : ctree F Y),
+      respects_val L ->
+      respects_tau L ->
+      Vis e k (≲L) u ->
+      forall x, exists (e' : F) k' y, epsilon u (Vis e' k') /\ k x (≲L) k' y /\ L (obs e x) (obs e' y).
+  Proof.
+    intros * RV RT SIM *.
+    step in SIM. cbn in SIM. specialize (SIM (obs e x) (k x) (trans_vis _ _ _)).
+    destruct SIM as (l' & u'' & TR & SIM & EQ).
+    apply trans_epsilon in TR. destruct TR as (u' & EPS & PROD & TR).
+    destruct PROD.
+    1: {
+      rewrite EQ0 in *. trans in TR. subst.
+      apply RV in EQ. destruct EQ as [_ ?]. specialize (H (Is_val _)). inv H.
+    }
+    2: {
+      rewrite EQ0 in *. trans in TR. subst.
+      apply RT in EQ. destruct EQ as [_ ?]. specialize (H eq_refl). inv H.
+    }
+    rewrite EQ0 in *. trans in TR. subst.
+    exists e0, k0, x0; split; [eauto|split]; auto.
+    now rewrite Eqt in SIM.
+  Qed.
+
+  Lemma ssim_brS_epsilon `{HE: Encode E} `{HF: Encode F} {X Y L}:
+    forall n (k : fin' n -> ctree E X) (u : ctree F Y),
+      respects_tau L ->
+      L tau tau ->
+      BrS n k (≲L) u ->
+      forall x, exists n' k' y, epsilon u (BrS n' k') /\ k x (≲L) k' y.
+  Proof.
+    intros * RT HL SIM *.
+    step in SIM. cbn in SIM.
+    pose proof ((@trans_brS _ _ _ _ k (k x) x (@reflexivity _ (equ eq) _ (k x)))) as HbrS.
+    specialize (SIM tau (k x) HbrS). 
+    destruct SIM as (l' & u'' & TR & SIM & EQ).
+    apply trans_epsilon in TR. destruct TR as (u' & EPS & PROD & TR).
+    destruct PROD.
+    1: {
+      rewrite EQ0 in *; trans in TR; subst.
+      apply RT in EQ. destruct EQ as [? _]. specialize (H eq_refl). inv H.
+    }
+    1: {
+      rewrite EQ0 in *; trans in TR; subst.
+      apply RT in EQ. destruct EQ as [? _]. specialize (H eq_refl). inv H.
+    }
+    rewrite EQ0 in *; trans in TR; subst.
+    exists n0, k0, n1; split; auto.
+    now rewrite Eqt in SIM.
+  Qed.
+
+End epsilon_theory.
+
+#[global] Hint Resolve epsilon_trans : trans.
 
 (*
 (** Closure under [eutt]

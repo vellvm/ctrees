@@ -10,11 +10,12 @@ Local Open Scope monad_scope.
 Generalizable All Variables.
 
 Open Scope type_scope.
-
 (*| Reified effects that have an encoding into the Coq type system |*)
 Universe eff.
+
 Class Encode E : Type :=
   encode: E -> Type@{eff}.
+
 
 #[global] Instance Encode_Sum (E1 E2 : Type@{eff}) `{Encode E1} `{Encode E2} : Encode (E1 + E2) :=
   fun e12 => match e12 with 

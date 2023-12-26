@@ -53,7 +53,6 @@ From ITree Require Import Core.Subevent.
 
 From CTree Require Import
   CTree.Core
-  CTree.Pred
   CTree.Equ
   CTree.Trans
   CTree.Eq.SSim.
@@ -310,6 +309,7 @@ Section sbisim_heterogenous_theory.
     {| body := @sbisim_clos_body LE LF |}.
   Next Obligation. destruct H0; econstructor; eauto. Qed.
 
+  
   (*| stuck ctrees can be simulated by anything. |*)
   Lemma is_stuck_sb (R : rel _ _) (t : ctree E X) (t': ctree F Y):
     is_stuck t -> is_stuck t' -> sb L R t t'.
@@ -345,6 +345,27 @@ Section sbisim_heterogenous_theory.
   Qed.
 
 End sbisim_heterogenous_theory.
+
+Definition respects_val `{Encode E} `{Encode F} (L : rel (label E) (label F)) :=
+  forall l l', L l l' -> is_val l <-> is_val l'.
+
+Definition respects_tau `{Encode E} `{Encode F} (L : rel (label E) (label F)) :=
+  forall l l', L l l' -> l = tau <-> l' = tau.
+
+Definition eq_obs `{Encode E} (L : relation (label E)) : Prop :=
+  forall e e' (x : encode e) (x' : encode e'),
+    L (obs e x) (obs e' x') -> obs e x = obs e' x'.
+
+Lemma respects_val_eq `{Encode E}: respects_val (@eq (label E)).
+Proof.
+  split; intros; subst; auto. 
+Defined.
+
+Lemma respects_tau_eq `{Encode E}: respects_tau (@eq (label E)).
+Proof.
+  split; intros; subst; auto. 
+Defined.
+Global Hint Resolve respects_val_eq respects_tau_eq: ctree.
 
 Section sbisim_homogenous_theory.
   Context {E: Type} {HE: Encode E} {X: Type} {L: relation (label E)}.
@@ -412,7 +433,7 @@ Reflexivity
   #[global] Instance Reflexive_st R `{Reflexive _ L}: Reflexive (st L R).
   Proof. apply build_reflexive; apply ft_t; apply refl_st. Qed.
 
-  Corollary Reflexive_sbisim `{Reflexive _ L}: Reflexive (sbisim L).
+  #[global] Instance Reflexive_sbisim `{Reflexive _ L}: Reflexive (sbisim L).
   Proof. now apply Reflexive_st. Qed.
 
   #[global] Instance Reflexive_sbt R `{Reflexive _ L}: Reflexive (sbt L R).
@@ -427,7 +448,7 @@ Transitivity
   #[global] Instance Transitive_st R `{Transitive _ L}: Transitive (st L R).
   Proof. apply build_transitive; apply ft_t; apply (square_st). Qed.
 
-  Corollary Transitive_sbisim `{Transitive _ L}: Transitive (sbisim L).
+  #[global] Instance Transitive_sbisim `{Transitive _ L}: Transitive (sbisim L).
   Proof. now apply Transitive_st. Qed.
 
   #[global] Instance Transitive_sbt R `{Transitive _ L}: Transitive (sbt L R).
@@ -442,7 +463,7 @@ Symmetry
   #[global] Instance Symmetric_st R `{Symmetric _ L}: Symmetric (st L R).
   Proof. apply build_symmetric; apply ft_t; apply (converse_st). Qed.
 
-  Corollary Symmetric_sbisim `{Symmetric _ L}: Symmetric (sbisim L).
+  #[global] Instance Symmetric_sbisim `{Symmetric _ L}: Symmetric (sbisim L).
   Proof. now apply Symmetric_st. Qed.
 
   #[global] Instance Symmetric_sbt R `{Symmetric _ L}: Symmetric (sbt L R).
@@ -457,7 +478,7 @@ Thus bisimilarity and [t R] are always equivalence relations.
   #[global] Instance Equivalence_st `{Equivalence _ L} R: Equivalence (st L R).
   Proof. split; typeclasses eauto. Qed.
 
-  Corollary Equivalence_bisim `{Equivalence _ L}: Equivalence (sbisim L).
+  #[global] Instance Equivalence_bisim `{Equivalence _ L}: Equivalence (sbisim L).
   Proof. split; typeclasses eauto. Qed.
 
   #[global] Instance Equivalence_sbt `{Equivalence _ L} R: Equivalence (sbt L R).
@@ -967,7 +988,7 @@ Section Proof_Rules.
     split; apply step_ss_ret_gen; eauto.
     typeclasses eauto.
   Qed.
-
+  
   Lemma step_sb_ret (x: X) (y: Y) (R : rel (ctree E X) (ctree F Y)) :
     L (val x) (val y) ->
     sbt L R (Ret x) (Ret y).
@@ -1285,7 +1306,7 @@ Section Sb_Proof_System.
     - apply sb_guard.
     - reflexivity.
   Qed.
-  
+
 End Sb_Proof_System.
 
 (* TODO: tactics!

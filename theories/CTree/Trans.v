@@ -383,7 +383,16 @@ Section Trans.
     rewrite (ctree_eta u), TR.
     reflexivity.
   Qed.
-
+  
+  Lemma trans_val_inv' {Y} :
+    forall (t u : ctree E X) (x : Y),
+      trans (val x) t u ->
+      trans (val x) t stuck.
+  Proof.   
+    intros * TR.
+    pose proof trans_val_inv TR.
+    now rewrite <- H in TR.
+  Qed.
 
 End Trans.
 
@@ -490,6 +499,8 @@ Proof.
   destruct TR as [(? & ? & ? & ?) | (? & ? & ?)]; eauto.
 Qed.
 
+(* Why this is needed? *)
+Local Typeclasses Transparent equ.
 Lemma trans_bind_l {X Y} `{HE: Encode E} (t : ctree E X)
   (k : X -> ctree E Y) (u : ctree E X) (l: label E) :
   ~ (is_val l) ->

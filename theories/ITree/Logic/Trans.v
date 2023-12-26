@@ -105,32 +105,6 @@ Section KripkeTrans.
     - now rewrite Heqt0, Heqt.
   Qed.
 
-  Global Instance iter_trans_proper n:
-    Proper (equ eq * eq ==> equ eq * eq ==> iff)
-      (rel_iter (equ eq * eq)%signature n trans).
-  Proof.
-  induction n; unfold Proper, respectful, RelProd, RelCompFun, fst, snd; cbn;
-    intros [t s] [u w] [Ht ->] [t' s'] [u' w'] [Ht' ->]; split2; intros; subst.
-  - destruct H as (? & ->).
-    split2; [|reflexivity].
-    symmetry in Ht.
-    transitivity t; auto.
-    transitivity t'; auto.
-  - destruct H as (? & ->).
-    split2; [|reflexivity].
-    transitivity u; auto.
-    transitivity u'; auto.
-    now symmetry.
-  - destruct H as ([t_ w_] & TR & TRi).
-    exists (t_, w_).
-    rewrite <- Ht; split; [assumption|].
-    eapply IHn with (x:=(t_, w_)) in TRi; eauto.
-    split2; red; cbn; [symmetry|]; auto.
-  - destruct H as ([t_ w_] & TR & TRi).
-    exists (t_, w_).
-    rewrite Ht; split; [assumption|].
-    eapply IHn with (x:=(t_, w_)) in TRi; eauto.
-  Qed.
 End KripkeTrans.
 
 Ltac ktrans_inv H :=
@@ -143,32 +117,31 @@ Section KripkeLemmas.
   Notation equ := (fun (X: Type) => @equ E HE X X eq).
 
   (*| ITree is a kripke automaton |*)
-  #[refine] Global Instance itree_kripke: Kripke (itree E) equ (Bar E) :=
+  Global Program Instance itree_kripke: Kripke (itree E) equ (Bar E) :=
     {| ktrans X := trans (X:=X) |}.
-  Proof.
-    - intros.
-      exists s'; split; auto.
-      now rewrite <- H.
-    - intros.
-      unfold trans in H.
-      remember (observe t, Some w).
-      remember (observe t', w').
-      generalize dependent t.
-      generalize dependent t'.
-      revert w'.
-      induction H; intros; subst; inv Heqp.
-      + now eapply IHtrans_ with (t:=t) (t':=t'0).
-      + inv Heqp0; eexists; reflexivity.
-  Qed.
+  Next Obligation.
+    intros.
+    exists s'; split; auto.
+    now rewrite <- H.
+  Defined.
+  Next Obligation.
+    intros.
+    unfold trans in H.
+    remember (observe t, Some w).
+    remember (observe t', w').
+    generalize dependent t.
+    generalize dependent t'.
+    revert w'.
+    induction H; intros; subst; inv Heqp.
+    + now eapply IHtrans_ with (t:=t) (t':=t'0).
+    + inv Heqp0; eexists; reflexivity.
+  Defined.
   Arguments ktrans /.
-  Typeclasses eauto := 1.
+
   Lemma ktrans_ret{X}: forall (x: X) (t': itree E X) (s s': option (Bar E)),
       (Ret x, s) ↦ (t', s') -> False.
   Proof.
     intros * Hcontra.
-
-
-    dependent destruction Hcontra.
     ktrans_inv Hcontra.
   Qed.
 
@@ -276,7 +249,7 @@ Section FixpointTransW.
 
   (*| The base instance is [ctree_kripke] but depending on what we observe,
     some more convenient thin wrappers work better |*)
-  #[refine] Global Instance itreeW_kripke{W}: Kripke (itreeW W) (option W) | 80 :=
+  #[refine] Global Instance itreeW_kripke{W}: Kripke (itreeW W) W | 80 :=
     {|
       MM := Monad_itree;
       ktrans X '(t, w) '(t', w') :=

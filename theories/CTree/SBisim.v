@@ -18,6 +18,9 @@ From Coq Require Import
 Local Open Scope ctree_scope.
 Generalizable All Variables.
 
+Global Typeclasses Opaque sbisim.
+Global Typeclasses Opaque ssim.
+
 (*| Re-export tactics from Equ/SBisim/SSim |*)
 #[global] Tactic Notation "step" :=
   __step_equ || __step_sbisim || __step_ssim || step.

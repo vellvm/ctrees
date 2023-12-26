@@ -11,6 +11,8 @@ From Coq Require Import
 Import CTreeNotations.
 Local Open Scope ctree_scope.
 
+Global Typeclasses Opaque equ.
+
 Ltac observe_equ H :=
   lazymatch type of H with
   | observe ?t = RetF ?x =>
@@ -38,4 +40,3 @@ Ltac observe_equ_all :=
       observe_equ_all
   | _ => idtac
   end.
-

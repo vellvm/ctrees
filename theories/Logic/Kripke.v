@@ -5,33 +5,71 @@ From Coq Require Import
   Classes.RelationPairs.
 
 From ExtLib Require Import Structures.Monad.
-From CTree Require Import Utils.Utils.
+From CTree Require Import
+  Utils.Utils
+  Events.Core
+  Utils.Trc.
+
 Generalizable All Variables.
 
+Variant World (E:Type@{eff}) `{Encode E} :=
+  | NotStarted
+  | Obs (e : E) (v : encode e)
+  | Done {X : Type} (v : X).
+Global Hint Constructors World: ctl.
+Arguments NotStarted {E} {_}.
+Arguments Obs {E} {_} e v.
+Arguments Done {E} {_} {X} v.
+
+Variant has_started `{Encode E}: World E -> Prop :=
+| HasStartedObs: forall (e: E) (v: encode e),
+    has_started (Obs e v)
+| HasStatedDone: forall {X: Type} (v: X),
+    has_started (Done v).
+Global Hint Constructors has_started: ctl.
+
+Variant is_done `{Encode E}: World E -> Prop :=
+  | IsDone: forall {X: Type} (v: X), is_done (Done v).
+Global Hint Constructors is_done: ctl.
+
+Lemma not_done_not_started `{Encode E}:
+    ~ is_done NotStarted.
+Proof. intros * Hcontra; inv Hcontra. Qed.
+Global Hint Resolve not_done_not_started: ctl.
+
+Lemma not_done_obs `{Encode E}: forall (e: E) (y: encode e),
+    ~ is_done (Obs e y).
+Proof. intros * Hcontra; inv Hcontra. Qed.
+Global Hint Resolve not_done_obs: ctl.
+
 (*| Polymorphic Kripke model over family M |*)
-Class Kripke M (mequ: forall X, relation (M X)) (W: Type) := {
+Class Kripke (M: Type -> Type) (meq: forall X, relation (M X)) E := {
 
-    MM :: Monad M;
+    EncodeE :: Encode E;
 
-    EquM :: forall X, Equivalence (mequ X);
+    EquM :: forall X, Equivalence (meq X);
     
     (* - [ktrans] the transition relation over [M X * W] *)
-    ktrans {X}: rel (M X * option W) (M X * option W);
+    ktrans {X}: rel (M X * World E) (M X * World E);
 
-    (* - [ktrans] does not allow rewriting, but there does
-       exist a [t'] equivalent to [s'] *)
+    (* - [ktrans] does not allow rewriting with bisimulation,
+       but there does exist a [t'] equivalent to [s'] *)
     ktrans_semiproper {X} : forall (t s s': M X) w w',
-      mequ X s t ->
+      meq X s t ->
       ktrans (s,w) (s',w') ->
-      exists t', ktrans (t,w) (t',w') /\ mequ X s' t';
+      exists t', ktrans (t,w) (t',w') /\ meq X s' t';
 
     (* - we always step from [Some w] to [Some w'] |*)
-    ktrans_option_some {X} : forall (t t': M X) w w',
-      ktrans (t, Some w) (t', w') ->
-      exists x, w' = Some x
-  }.
+    ktrans_started {X} : forall (t t': M X) w w',
+      ktrans (t, w) (t', w') ->
+      has_started w ->
+      has_started w';
 
-Global Hint Mode Kripke ! - +: typeclass instances.
+    (* - [Done] does not step *)
+    ktrans_done {X}: forall w (t: M X),
+      is_done w ->
+      ~ exists t' w', ktrans (t,w) (t',w') 
+  }.
 
 (*| Tactic to work with Eq TS product of equivalences |*)
 Ltac destruct2 Heq :=
@@ -49,22 +87,97 @@ Declare Scope ctl_scope.
 (* Transition relation *)
 Notation "p ↦ p'" := (ktrans p p') (at level 78,
                          right associativity): ctl_scope.
+Local Open Scope ctl_scope.
 
-(*| Compose relation [R] n-times with itself |*)
-Fixpoint rel_iter {A}(eqA: relation A)`{Equivalence A eqA}(n: nat) (R: relation A): relation A :=
-  match n with
-  | 0%nat => eqA
-  | (S n)%nat => fun a c => exists b, R a b /\ rel_iter eqA n R b c
-  end.
-
-Definition ktrans_trc `{Kripke M meq W} {X} (p p': M X * option W) :=
-  exists n, rel_iter (meq _ * eq)%signature n ktrans p p'.
+Definition ktrans_trc `{Kripke M meq W} {X} p p' :=
+  trc (meq X * eq)%signature ktrans p p'.
+Arguments ktrans_trc /.
+Global Hint Unfold ktrans_trc: ctl.
 
 (* TRC relation *)
 Notation "p ↦* p'" := (ktrans_trc p p') (at level 78,
-                         right associativity): ctl_scope.
+                          right associativity): ctl_scope.
 
-Definition can_step `{Kripke M meq W} {X} (m: M X * option W): Prop :=
+Lemma ktrans_iter_semiproper `{Kripke M meq W} {X} :
+  forall (t s s': M X) w w' n,
+    meq X s t ->
+    rel_iter (meq X * eq)%signature n ktrans (s, w) (s', w') ->
+    exists t', rel_iter (meq X * eq)%signature n ktrans (t, w) (t', w') /\ meq X s' t'.
+Proof.
+  intros * EQ TR.           
+  revert TR EQ.
+  revert t s w w' s'.
+  induction n; intros.
+  - destruct2 TR; subst.
+    exists t; split; auto.
+    symmetry; symmetry in EQ.
+    transitivity s; auto.
+  - destruct TR as ([s_ w_] & TR & TRi).
+    destruct (ktrans_semiproper _ _ _ _ _ EQ TR) as (z_ & TR_ & EQ_).
+    destruct (IHn _ _ _ _ _ TRi EQ_) as (zf & TRf & EQf).
+    exists zf; cbn; split; eauto.
+Qed.
+
+Lemma ktrans_trc_semiproper `{Kripke M meq W} {X} : forall (t s s': M X) w w',
+    meq X s t ->
+    (s,w) ↦* (s',w') ->    
+    exists t', (t,w) ↦* (t',w') /\ meq X s' t'.
+Proof.
+  intros.
+  destruct H1 as (n & TR).
+  destruct (ktrans_iter_semiproper _ _ _ _ _ _ H0 TR) as (? & ? & ?).
+  exists x; split; auto.
+  now (exists n).
+Qed.  
+
+Lemma ktrans_ktrans_trc `{Kripke M meq W} {X} : forall (m m' m_: M X * World W),
+    m ↦ m' ->
+    m' ↦* m_ ->
+    m ↦* m_.
+Proof.
+  intros.
+  destruct H1.
+  exists (S x); cbn.
+  exists m'; split; auto.
+Qed.
+
+Lemma ktrans_trc_ktrans `{Kripke M meq W} {X} : forall (m m' m_: M X * World W),
+    m ↦* m' ->
+    m' ↦ m_ ->
+    m ↦* m_.
+Proof.
+  intros.
+  destruct H0.
+  revert H1 H0.
+  revert m m' m_.
+  induction x; intros.
+  - destruct m, m', m_; destruct2 H0; subst.
+    symmetry in Heqt.
+    destruct (ktrans_semiproper _ _ _ _ _ Heqt H1) as (z_ & TR_ & EQ_).
+    exists 1, (z_, w1); split; auto.
+    split2; red; cbn; symmetry; auto.
+  - destruct m, m', m_; destruct H0 as ([m' o'] & TR & TRi).
+    eapply ktrans_ktrans_trc; eauto.
+Qed.
+
+Global Instance Transitive_ktrans_trc `{Kripke M meq W} {X}:
+  Transitive (@ktrans_trc M meq W _ X).
+Proof.
+  red; intros.
+  destruct H0 as (n0 & TR0).
+  destruct H1 as (n1 & TR1).
+  exists (n0 + n1)%nat.
+  revert TR0 TR1.
+  revert x y z n1.
+  induction n0; intros; destruct x, y, z.
+  - destruct2 TR0; subst.
+    symmetry in Heqt.    
+    destruct (ktrans_iter_semiproper _ _ _ _ _ _ Heqt TR1) as (t' & TR' & EQ').
+    replace (0 + n1)%nat with n1 by reflexivity.
+    (* Why can I not prove this? *)
+Abort.
+    
+Definition can_step `{Kripke M meq W} {X} (m: M X * World W): Prop :=
   exists m' w', ktrans m (m', w').
 
 Global Instance can_step_proper `{Kripke M meq W} {X}:
@@ -79,20 +192,10 @@ Proof.
     now (exists y', w).
 Qed.
 
-Local Open Scope ctl_scope.
 Global Hint Extern 2 =>
          match goal with
          | [ H: ?m ↦ ?m' |- can_step ?m ] => exists (fst m'), (snd m'); apply H
-end: core.
-
-Global Hint Extern 2 =>
-         match goal with
-         | [ H: (?t, Some ?w) ↦ (?t', Some _) |- _ ] => fail
-         | [ H: (?t, Some ?w) ↦ (?t', ?w') |- _ ] =>
-               let w_ := fresh "w" in
-               let H_ := fresh "H" in
-               destruct (ktrans_option_some t t' w w' H) as (w_ & H_); inv H
-             end: core.
+end: ctl.
 
 Ltac ktrans_equ TR :=
   match type of TR with

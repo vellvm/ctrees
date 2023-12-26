@@ -42,6 +42,7 @@ Notation _interp h t :=
    | VisF e k => h.(handler) e >>= (fun x => guard (interp h (k x)))
   end).
 
+Local Typeclasses Transparent equ.
 Lemma unfold_interp `{Encode F} {E R} `{f : E ~> ctree F} (t : ctree E R) :
   interp f t ≅ _interp f t.
 Proof.

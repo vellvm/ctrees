@@ -27,8 +27,8 @@ Generalizable All Variables.
 (*| Equations of CTL |*)
 Section MequCongruences.
   Context `{K: Kripke M mequ W} {X: Type}.
-  Notation MP := (M X * option W -> Prop).
-  Notation equiv_ctl := (equiv_ctl (K:=K)).
+  Notation MP := (M X * World W -> Prop).
+  Notation equiv_ctl := (equiv_ctl (K:=K) (X:=X)).
 
   Global Instance Equivalence_equiv_ctl: Equivalence equiv_ctl.
   Proof.
@@ -71,27 +71,16 @@ Section MequCongruences.
       with signature mequ (X:=X) * @eq W ==> iff as fun_proper_true.
   Proof. intros; split; auto. Qed.
 
-  Global Add Parametric Morphism {φ: option W -> Prop}: (fun (m: M X * option W) => φ (snd m))
+  Global Add Parametric Morphism {φ: World W -> Prop}: (fun (m: M X * World W) => φ (snd m))
       with signature mequ (X:=X) * eq ==> iff as fun_proper_equ.
   Proof.
     intros; split; intros;
       destruct x, y; now destruct2 H; subst.
   Qed.
 
-  Global Add Parametric Morphism (p: option W -> Prop): <( |- {CNow p} )>
+  Global Add Parametric Morphism (p: World W -> Prop): <( |- {CBase p} )>
         with signature mequ (X:=X) * eq ==> iff as now_proper_equ.
   Proof. unfold entailsF; intros; eapply fun_proper_equ; eauto. Qed.
-
-  Global Add Parametric Morphism p: <( |- {CDone p} )>
-        with signature mequ (X:=X) * eq ==> iff as done_proper_equ.
-  Proof.
-    unfold entailsF; intros; eapply fun_proper_equ.
-    - apply H.
-    - destruct x, y; destruct2 H; subst; cbn;
-      split; intros (x & [Heq Hp]); exists x; split; auto.
-      + now rewrite <- Heqt.
-      + now rewrite Heqt.
-  Qed.
 
   Context {P: MP} {HP: Proper (mequ (X:=X) * eq ==> iff) P} {strong: bool}.
   Global Add Parametric Morphism: (cax strong P)
@@ -185,7 +174,7 @@ Section MequCongruences.
           destruct H0 as (m0 & TR0 & ?).
           destruct m1, m, y; destruct2 EQ; subst.          
           ktrans_equ TR1.
-          exists (z, o); auto.
+          exists (z, w); auto.
     - generalize dependent x.
       induction eu; intros.
       + rewrite <- EQ in H; now apply MatchE.
@@ -195,7 +184,7 @@ Section MequCongruences.
           destruct H0 as (m0 & TR0 & ?).
           destruct m1, m, x; destruct2 EQ; subst.
           ktrans_equ TR1.
-          exists (z, o); split; eauto; apply EQ1; symmetry; auto.
+          exists (z, w); split; eauto; apply EQ1; symmetry; auto.
   Qed.
     
   (*| [mequ (X:=X) * eq] closure enchancing function |*)
@@ -356,7 +345,6 @@ Global Add Parametric Morphism `{K: Kripke M mequ W} {X: Type} φ : <( |- φ )>
 Proof.
   induction φ; intros * Heq. 
   - (* Now *) rewrite Heq; reflexivity.
-  - (* Done *) rewrite Heq; reflexivity.
   - (* /\ *) split; intros [Ha Hb]; split.
     + now rewrite <- (IHφ1 _ _ Heq).
     + now rewrite <- (IHφ2 _ _ Heq).
@@ -393,7 +381,7 @@ Qed.
 
 (*| Combined Properness lemma by induction on formulas |*)
 Global Add Parametric Morphism `{K: Kripke M mequ W} {X: Type}: entailsF
-       with signature (equiv_ctl ==> mequ X * eq ==> iff)
+       with signature (equiv_ctl (X:=X) ==> mequ X * eq ==> iff)
          as proper_entailsF.
 Proof.
   intro x; induction x; intros y Hy t u EQt;
@@ -402,7 +390,7 @@ Qed.
 
 Section EquivCtlFormulas.
   Context `{K: Kripke M mequ W}.
-  Notation MP X := (M X * option W -> Prop).
+  Notation MP X := (M X * World W -> Prop).
 
   (*| Now we start proving congruence on formulas (2nd argument) |*)
   Variant equiv_ctl_clos_body {X} (R : MP X -> MP X -> MP X) : MP X -> MP X -> MP X :=
@@ -466,9 +454,11 @@ Section EquivCtlFormulas.
         eapply equiv_ctl_clos_ctor; eauto. 
   Qed.
 
+  Arguments CAnd {W} {HW}.
   (*| Congruences over equiv_ctl |*)
-  Global Add Parametric Morphism : CAnd
-      with signature equiv_ctl ==> equiv_ctl ==> equiv_ctl as equiv_ctl_equiv_and.
+  Global Add Parametric Morphism {X}: CAnd
+         with signature equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> equiv_ctl (X:=X)
+           as equiv_ctl_equiv_and.
   Proof.
     intros p q EQpq p' q' EQpq'; split;
       intros EQpp'; split; destruct EQpp'.
@@ -478,8 +468,10 @@ Section EquivCtlFormulas.
     + now apply EQpq' in H0.
   Qed.
 
-  Global Add Parametric Morphism : COr
-      with signature equiv_ctl ==> equiv_ctl ==> equiv_ctl as equiv_ctl_equiv_or.
+  Arguments COr {W} {HW}.
+  Global Add Parametric Morphism {X}: COr
+         with signature equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> equiv_ctl (X:=X)
+           as equiv_ctl_equiv_or.
   Proof.
     intros p q EQpq p' q' EQpq'; split;
       intros EQpp'; destruct EQpp'.
@@ -489,33 +481,39 @@ Section EquivCtlFormulas.
     + right; now apply EQpq' in H.
   Qed.
 
-  Global Add Parametric Morphism : CImpl
-      with signature equiv_ctl ==> equiv_ctl ==> equiv_ctl as equiv_ctl_equiv_impl.
+  Arguments CImpl {W} {HW}.
+  Global Add Parametric Morphism {X}: CImpl
+         with signature equiv_ctl  (X:=X) ==> equiv_ctl (X:=X) ==> equiv_ctl (X:=X)
+           as equiv_ctl_equiv_impl.
   Proof.
     intros p q EQpq p' q' EQpq'; split;
       intros EQpp'; intro HH; apply EQpq'; apply EQpq in HH;
       now apply EQpp'.
   Qed.
 
-  Global Add Parametric Morphism : CAX
-      with signature equiv_ctl ==> equiv_ctl as equiv_ctl_equiv_ax.
+  Arguments CAX {W} {HW}.
+  Global Add Parametric Morphism {X}: CAX
+      with signature equiv_ctl (X:=X) ==> equiv_ctl (X:=X) as equiv_ctl_equiv_ax.
   Proof.
     intros p q EQpq; split; intros [Hdone TR]; split; auto; intros.
     - rewrite <- EQpq; auto.
     - rewrite EQpq; auto.
   Qed.
 
-  Global Add Parametric Morphism : CEX
-      with signature equiv_ctl ==> equiv_ctl as equiv_ctl_equiv_ex.
+  Arguments CEX {W} {HW}.
+  Global Add Parametric Morphism {X}: CEX
+      with signature equiv_ctl (X:=X) ==> equiv_ctl (X:=X) as equiv_ctl_equiv_ex.
   Proof.
     intros p q EQpq; split; intros [m' [TR Hdone] ];
       cbn; exists m'; split; auto.
     - rewrite <- EQpq; auto.
     - rewrite EQpq; auto.
   Qed.
-  
-  Global Add Parametric Morphism : CAU
-      with signature equiv_ctl ==> equiv_ctl ==> equiv_ctl as equiv_ctl_equiv_au.
+
+  Arguments CAU {W} {HW}.
+  Global Add Parametric Morphism {X}: CAU
+         with signature equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> equiv_ctl (X:=X)
+           as equiv_ctl_equiv_au.
   Proof.
     intros p q EQpq p' q' EQpq'.
     split; intros Hau; induction Hau.
@@ -525,8 +523,10 @@ Section EquivCtlFormulas.
     - apply StepA; auto; now rewrite EQpq.
   Qed.
 
-  Global Add Parametric Morphism : CEU
-      with signature equiv_ctl ==> equiv_ctl ==> equiv_ctl as equiv_ctl_equiv_eu.
+  Arguments CEU {W} {HW}.
+  Global Add Parametric Morphism {X}: CEU
+         with signature equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> equiv_ctl (X:=X)
+           as equiv_ctl_equiv_eu.
   Proof.
     intros p q EQpq p' q' EQpq'.
     split; intros Heu; induction Heu.
@@ -542,7 +542,7 @@ Section EquivCtlFormulas.
 
   Global Add Parametric Morphism {X} (t: M X) w RR:
     (fun p q => cart RR (entailsF p) (entailsF q) (t, w)) with signature
-         (equiv_ctl ==> equiv_ctl ==> iff) as proper_equivctl_art.
+         (equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> iff) as proper_equivctl_art.
   Proof.
     intros p q Hpq p' q' Hpq'; split; intro G;
     eapply (ft_t equiv_ctl_clos_car). 
@@ -554,7 +554,7 @@ Section EquivCtlFormulas.
 
   Global Add Parametric Morphism {X} (t: M X) w:
     (fun p q => car (entailsF p) (entailsF q) (t, w)) with signature
-         (equiv_ctl ==> equiv_ctl ==> iff) as proper_equivctl_ar.
+         (equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> iff) as proper_equivctl_ar.
   Proof.
     intros p q Hpq p' q' Hpq'; split; intro G;
     eapply (ft_t equiv_ctl_clos_car). 
@@ -566,7 +566,7 @@ Section EquivCtlFormulas.
   
   Global Add Parametric Morphism {X} (t: M X) w RR f:
      (fun p q => carT f RR (entailsF p) (entailsF q) (t, w)) with signature
-         (equiv_ctl ==> equiv_ctl ==> iff) as proper_equivctl_arT.
+         (equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> iff) as proper_equivctl_arT.
   Proof.
     intros p q Hpq p' q' Hpq'; split; intro G;
     eapply (fT_T equiv_ctl_clos_car). 
@@ -576,18 +576,19 @@ Section EquivCtlFormulas.
         auto; now symmetry.
   Qed.
 
-  Global Add Parametric Morphism: CAR with signature
-         (equiv_ctl ==> equiv_ctl ==> equiv_ctl) as proper_equivctl_AR.
+  Arguments CAR {W} {HW}.
+  Global Add Parametric Morphism {X}: CAR with signature
+         (equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> equiv_ctl (X:=X)) as proper_equivctl_AR.
   Proof.
     intros.
     unfold equiv_ctl, entailsF.
-    intros X [t w].
+    intros [t w].
     apply proper_equivctl_ar; auto.
   Qed.
   
   Global Add Parametric Morphism {X} (t: M X) w RR:
     (fun p q => cert RR (entailsF p) (entailsF q) (t, w)) with signature
-         (equiv_ctl ==> equiv_ctl ==> iff) as proper_equivctl_ert.
+         (equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> iff) as proper_equivctl_ert.
   Proof.
     intros p q Hpq p' q' Hpq'; split; intro G;
     eapply (ft_t equiv_ctl_clos_cer). 
@@ -599,7 +600,7 @@ Section EquivCtlFormulas.
 
   Global Add Parametric Morphism {X} (t: M X) w:
     (fun p q => cer (entailsF p) (entailsF q) (t, w)) with signature
-         (equiv_ctl ==> equiv_ctl ==> iff) as proper_equivctl_er.
+         (equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> iff) as proper_equivctl_er.
   Proof.
     intros p q Hpq p' q' Hpq'; split; intro G;
     eapply (ft_t equiv_ctl_clos_cer). 
@@ -611,7 +612,7 @@ Section EquivCtlFormulas.
 
   Global Add Parametric Morphism {X} (t: M X) w RR f:
      (fun p q => cerT f RR (entailsF p) (entailsF q) (t, w)) with signature
-         (equiv_ctl ==> equiv_ctl ==> iff) as proper_equivctl_erT.
+         (equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> iff) as proper_equivctl_erT.
   Proof.
     intros p q Hpq p' q' Hpq'; split; intro G;
     eapply (fT_T equiv_ctl_clos_cer). 
@@ -620,13 +621,15 @@ Section EquivCtlFormulas.
     - eapply equiv_ctl_clos_ctor with (p1:=entailsF q) (q1:=entailsF q');
         auto; now symmetry.
   Qed.
-  
-  Global Add Parametric Morphism: CER with signature
-         (equiv_ctl ==> equiv_ctl ==> equiv_ctl) as proper_equivctl_ER.
+
+  Arguments CER {W} {HW}.
+  Global Add Parametric Morphism{X}: CER with signature
+         (equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> equiv_ctl (X:=X))
+           as proper_equivctl_ER.
   Proof.
     intros.
     unfold equiv_ctl, entailsF.
-    intros X [t w].
+    intros [t w].
     apply proper_equivctl_er; auto.
   Qed.
 End EquivCtlFormulas.
@@ -634,17 +637,10 @@ End EquivCtlFormulas.
 (*| Equations of CTL |*)
 Section CtlEquations.
   Context `{KMS: Kripke M mequ W} {X: Type}.
-  Notation MP := (M X * W -> Prop).
+  Notation MP := (M X * World W -> Prop).
   
-  Infix "⩸" := equiv_ctl (at level 58, left associativity).
-  (* Lemmas [iff] for CTL formulas *)
-  Lemma ctl_not_now: forall p,
-      <( ¬ {CNow p} )> ⩸ <( {CNow (fun x => ~ p x)} )>.
-  Proof.
-    intros.
-    split; intros; unfold entailsF in *; auto.
-  Qed.
-  
+  Infix "⩸" := (equiv_ctl (K:=KMS) (X:=X)) (at level 58, left associativity).
+
   Lemma ctl_au_ax: forall p q,
       <( p AU q )> ⩸ <( q \/ (p /\ AX (p AU q)) )>.
   Proof.
@@ -660,7 +656,7 @@ Section CtlEquations.
         destruct H0 as (? & ?).
         destruct H0 as (? & ? & ?).
         apply StepA; auto.
-        split; eauto with ctree.
+        split; eauto with ctl.
   Qed.
 
   Lemma ctl_wu_wx: forall p q,
@@ -872,43 +868,41 @@ End CtlEquations.
     to a disjunction/conjucntion with ax, ex respectively |*)
 #[global] Tactic Notation "next" :=
   lazymatch goal with
-  | |- context[@entailsF ?W ?M ?meq ?KMS ?X ?φ ?m] =>
+  | |- context[@entailsF ?M ?meq ?W ?KMS ?X ?φ ?m] =>
       lazymatch φ with
       | CAX ?p => apply (@ctl_ax M meq W KMS X)
       | CWX ?p => apply (@ctl_wx M meq W KMS X)                       
       | CEX ?p => apply (@ctl_ex M meq W KMS X)
       | CAU ?p ?q => lazymatch eval cbv in p with
-                    | CNow (fun _ => True) => apply (@ctl_af_ax M meq W KMS)
+                    | CBase (fun _ => True) => apply (@ctl_af_ax M meq W KMS)
                     | _ => apply (@ctl_au_ax M meq W KMS)
                     end
       | CWU ?p ?q => lazymatch eval cbv in p with
-                    | CNow (fun _ => True) => apply (@ctl_wf_wx M meq W KMS)
+                    | CBase (fun _ => True) => apply (@ctl_wf_wx M meq W KMS)
                     | _ => apply (@ctl_wu_wx M meq W KMS)
                     end                                            
       | CEU ?p ?q => lazymatch eval cbv in p with
-                    | CNow (fun _ => True) => apply (@ctl_ef_ex M meq W KMS)
+                    | CBase (fun _ => True) => apply (@ctl_ef_ex M meq W KMS)
                     | _ => apply (@ctl_eu_ex M meq W KMS)
                     end
       | CAR ?p ?q => lazymatch eval cbv in q with
-                    | CNow (fun _ => False) =>
+                    | CBase (fun _ => False) =>
                         apply (@ctl_ag_ax M meq W KMS)
                     | _ => apply (@ctl_ar_ax M meq W KMS)
                     end
       | CWR ?p ?q => lazymatch eval cbv in q with
-                    | CNow (fun _ => False) =>
+                    | CBase (fun _ => False) =>
                         apply (@ctl_wg_wx M meq W KMS)
                     | _ => apply (@ctl_wr_wx M meq W KMS)
                     end                      
       | CER ?p ?q => lazymatch eval cbv in q with
-                    | CNow (fun _ => False) => apply (@ctl_eg_ex M meq W KMS)
+                    | CBase (fun _ => False) => apply (@ctl_eg_ex M meq W KMS)
                     | _ => apply (@ctl_er_ex M meq W KMS)
                     end
       | CER ?p ?q => lazymatch eval cbv in q with
-                    | CNow (fun _ => False) => apply (@ctl_eg_ex M meq W KMS)
+                    | CBase (fun _ => False) => apply (@ctl_eg_ex M meq W KMS)
                     | _ => apply (@ctl_er_ex M meq W KMS)
                     end
-      | CNow ?f => apply (@ctl_now M meq W KMS X)
-      | CDone ?f => apply (@ctl_done M meq W KMS X)                      
       | ?ptrivial => fail "Cannot step formula " ptrivial
       end
   end.
@@ -921,33 +915,31 @@ End CtlEquations.
       | CWX ?p => rewrite (@ctl_wx M meq W KMS X) in H
       | CEX ?p => rewrite (@ctl_ex M meq W KMS X) in H
       | context[CAU ?p ?q] => lazymatch eval cbv in p with
-                             | CNow (fun _ => True) =>
+                             | CBase (fun _ => True) =>
                                  rewrite (@ctl_af_ax M meq W KMS q) in H
                              | _ => rewrite (@ctl_au_ax M meq W KMS q) in H
                              end
       | context[CWU ?p ?q] => lazymatch eval cbv in p with
-                             | CNow (fun _ => True) =>
+                             | CBase (fun _ => True) =>
                                  rewrite (@ctl_wf_wx M meq W KMS q) in H
                              | _ => rewrite (@ctl_wu_wx M meq W KMS q) in H
                              end                               
       | context[CEU ?p ?q] => lazymatch eval cbv in p with
-                             | CNow (fun _ => True) => rewrite (@ctl_ef_ex M meq W KMS q) in H
+                             | CBase (fun _ => True) => rewrite (@ctl_ef_ex M meq W KMS q) in H
                              | _ => rewrite (@ctl_eu_ex M meq W KMS q) in H
                              end
       | context[CAR ?p ?q] => lazymatch eval cbv in q with
-                             | CNow (fun _ => False) => rewrite (@ctl_ag_ax M meq W KMS p) in H
+                             | CBase (fun _ => False) => rewrite (@ctl_ag_ax M meq W KMS p) in H
                              | _ => rewrite (@ctl_ar_ax M meq W KMS p) in H
                              end
       | context[CWR ?p ?q] => lazymatch eval cbv in q with
-                             | CNow (fun _ => False) => rewrite (@ctl_wg_wx M meq W KMS p) in H
+                             | CBase (fun _ => False) => rewrite (@ctl_wg_wx M meq W KMS p) in H
                              | _ => rewrite (@ctl_wr_wx M meq W KMS p) in H
                              end                               
       | context[CER ?p ?q] => lazymatch eval cbv in q with
-                             | CNow (fun _ => False) => rewrite (@ctl_eg_ex M meq W KMS p) in H
+                             | CBase (fun _ => False) => rewrite (@ctl_eg_ex M meq W KMS p) in H
                              | _ => rewrite (@ctl_er_ex M meq W KMS p) in H
                              end
-      | CNow ?f => rewrite (@ctl_now M meq W KMS X) in H
-      | CDone ?f => rewrite (@ctl_now M meq W KMS X) in H                               
       | ?ptrivial => fail "Cannot step formula " ptrivial " in " H
       end
   end.

@@ -4,8 +4,9 @@ Modal logics over kripke semantics
 =========================================
 |*)
 From Coq Require Import
-  Basics
-  Classes.RelationPairs.
+         Basics
+         FunctionalExtensionality
+         Classes.RelationPairs.
 
 From Coinduction Require Import
   coinduction lattice.
@@ -15,6 +16,7 @@ From ExtLib Require Import
   Data.Monads.StateMonad.
 
 From CTree Require Import
+  Events.Core
   Utils.Utils.
 
 From CTree Require Export
@@ -23,18 +25,22 @@ From CTree Require Export
 Set Implicit Arguments.
 Generalizable All Variables.
 
+Variant Quant: Set :=
+  | Weak
+  | Forall
+  | Exists.
+  
 (*| CTL logic based on kripke semantics |*)
 Section Ctl.
-  Context `{KMS: Kripke M mequ W} {X: Type} (strong: bool).
+  Context `{KMS: Kripke M mequ W} {X: Type} (strong: bool).  
+  Notation MP := (M X * World W -> Prop).
 
-  Notation MP := (M X * option W -> Prop).
-
-  (*| Shallow, strong? forall next |*)
-  Definition cax (p: MP) : MP :=    
-    fun m => (if strong then
-             can_step m 
-           else True) /\ forall m', ktrans m m' -> p m'.
-
+  (*| Shallow strong/weak forall [next] modality |*)
+  Definition cax (p: MP) (m: M X * World W): Prop :=    
+    (if strong then
+       can_step m 
+     else True) /\ forall m', ktrans m m' -> p m'.
+  
   Definition cex(p: MP) : MP :=
     fun m => exists m', ktrans m m' /\ p m'.
   
@@ -72,7 +78,7 @@ Section Ctl.
          P m) ->
       forall m, cau p q m -> P m :=
     fun p q P Hbase Hstep =>
-      fix F (t : M X * option W) (c : cau p q t) {struct c}: P t :=
+      fix F (t : M X * World W) (c : cau p q t) {struct c}: P t :=
       match c with
       | MatchA _ _ (t,w) y => Hbase (t,w) y
       | @StepA _ _ (t,w) Hp (conj Hs HtrP) =>
@@ -91,7 +97,7 @@ Section Ctl.
          P m) ->
       forall m, ceu p q m -> P m :=
     fun p q P Hbase Hstep =>
-      fix F (t : M X * option W) (c : ceu p q t) {struct c}: P t :=
+      fix F (t : M X * World W) (c : ceu p q t) {struct c}: P t :=
       match c with
       | MatchE _ _ m y => Hbase m y
       | @StepE _ _ m y (ex_intro _ m' (conj tr h)) =>
@@ -145,16 +151,13 @@ Section Ctl.
 
 End Ctl.
 
-Section Formulas.
-  Context {W: Type} `{KMS: Kripke M meq W} {X: Type}.
-  Inductive CtlFormula: Type :=
-  | CNow (p : option W -> Prop): CtlFormula
-  | CDone (p: forall {X: Type}, X -> option W -> Prop): CtlFormula
+Inductive CtlFormula (W: Type) `{HW: Encode W}: Type :=
+  | CBase (p : World W -> Prop): CtlFormula
   | CAnd    : CtlFormula -> CtlFormula -> CtlFormula
   | COr     : CtlFormula -> CtlFormula -> CtlFormula
   | CImpl   : CtlFormula -> CtlFormula -> CtlFormula
   | CAX     : CtlFormula -> CtlFormula
-  | CWX     : CtlFormula -> CtlFormula                             
+  | CWX     : CtlFormula -> CtlFormula     
   | CEX     : CtlFormula -> CtlFormula
   | CAU     : CtlFormula -> CtlFormula -> CtlFormula
   | CWU     : CtlFormula -> CtlFormula -> CtlFormula
@@ -163,11 +166,13 @@ Section Formulas.
   | CWR     : CtlFormula -> CtlFormula -> CtlFormula
   | CER     : CtlFormula -> CtlFormula -> CtlFormula.
 
-  (* Entailment inductively on formulas *)
-  Fixpoint entailsF (φ: CtlFormula)(m: M X * option W): Prop :=
+Arguments CtlFormula W {HW}.
+
+(* Entailment inductively on formulas *)
+Fixpoint entailsF `{KMS: Kripke M meq W} {X}
+  (φ: CtlFormula W)(m: M X * World W): Prop :=
     match φ with
-    | CNow   p  => p (snd m)
-    | CDone  p  => exists (x: X), meq (fst m) (ret x) /\ p X x (snd m)
+    | CBase  p  => p (snd m)
     | CAnd  φ ψ => (entailsF φ m) /\ (entailsF ψ m)
     | COr   φ ψ => (entailsF φ m) \/ (entailsF ψ m)
     | CImpl φ ψ => (entailsF φ m) -> (entailsF ψ m)
@@ -181,13 +186,6 @@ Section Formulas.
     | CWR   φ ψ => gfp (car_ false) (entailsF φ) (entailsF ψ) m                      
     | CER   φ ψ => gfp cer_ (entailsF φ) (entailsF ψ) m
     end.
-End Formulas.
-
-(*| Formula is parametric on state |*)
-Arguments CtlFormula: clear implicits.
-
-(*| Lots of implicit arguments |*)
-Arguments entailsF {W} {M} {meq} {KMS} {X} φ m.
 
 Module CtlNotations.
 
@@ -206,10 +204,10 @@ Module CtlNotations.
                                        φ custom ctl, only parsing): ctl_scope.
 
   (* Temporal syntax *)
-  Notation "'nothing'" := (CNow (fun x => x = None)) (in custom ctl at level 79): ctl_scope.
-  Notation "'now' p" := (CNow (fun o => exists w, o = Some w /\ p w))
+  Notation "'not_started'" := (CBase (fun x => x = NotStarted)) (in custom ctl at level 79): ctl_scope.
+  Notation "'now' p" := (CBase (fun o => exists e x, o = Obs e x /\ p e x))
                           (in custom ctl at level 79): ctl_scope.
-  Notation "'done' p" := (CDone (fun X x o => exists w, o = Some w /\ p X x w))
+  Notation "'done' p" := (CBase (fun w => exists (X: Type) (x: X), w = Done x /\ p X x))
                            (in custom ctl at level 79): ctl_scope.
   Notation "'EX' p" := (CEX p) (in custom ctl at level 75): ctl_scope.
   Notation "'AX' p" := (CAX p) (in custom ctl at level 75): ctl_scope.
@@ -222,21 +220,21 @@ Module CtlNotations.
   Notation "p 'ER' q" := (CER p q) (in custom ctl at level 75): ctl_scope.
   Notation "p 'AR' q" := (CAR p q) (in custom ctl at level 75): ctl_scope.
   Notation "p 'WR' q" := (CWR p q) (in custom ctl at level 75): ctl_scope.
-  Notation "'EF' p" := (CEU (CNow (fun _=> True)) p) (in custom ctl at level 74): ctl_scope.
-  Notation "'AF' p" := (CAU (CNow (fun _=> True)) p) (in custom ctl at level 74): ctl_scope.
-  Notation "'WF' p" := (CWU (CNow (fun _=> True)) p) (in custom ctl at level 74): ctl_scope.
-  Notation "'EG' p" := (CER p (CNow (fun _=>False))) (in custom ctl at level 74): ctl_scope.
-  Notation "'AG' p" := (CAR p (CNow (fun _=>False))) (in custom ctl at level 74): ctl_scope.
-  Notation "'WG' p" := (CWR p (CNow (fun _=>False))) (in custom ctl at level 74): ctl_scope.
+  Notation "'EF' p" := (CEU (CBase (fun _=> True)) p) (in custom ctl at level 74): ctl_scope.
+  Notation "'AF' p" := (CAU (CBase (fun _=> True)) p) (in custom ctl at level 74): ctl_scope.
+  Notation "'WF' p" := (CWU (CBase (fun _=> True)) p) (in custom ctl at level 74): ctl_scope.
+  Notation "'EG' p" := (CER p (CBase (fun _=>False))) (in custom ctl at level 74): ctl_scope.
+  Notation "'AG' p" := (CAR p (CBase (fun _=>False))) (in custom ctl at level 74): ctl_scope.
+  Notation "'WG' p" := (CWR p (CBase (fun _=>False))) (in custom ctl at level 74): ctl_scope.
   
   (* Propositional syntax *)
   Notation "p '/\' q" := (CAnd p q) (in custom ctl at level 77, left associativity): ctl_scope.
   Notation "p '\/' q" := (COr p q) (in custom ctl at level 77, left associativity): ctl_scope.
   Notation "p '->' q" := (CImpl p q) (in custom ctl at level 78, right associativity): ctl_scope.
-  Notation " ¬ p" := (CImpl p (CNow (fun _ => False))) (in custom ctl at level 76): ctl_scope.
+  Notation " ¬ p" := (CImpl p (CBase (fun _ => False))) (in custom ctl at level 76): ctl_scope.
   Notation "p '<->' q" := (CAnd (CImpl p q) (CImpl q p)) (in custom ctl at level 77): ctl_scope.
-  Notation "⊤" := (CNow (fun _ => True)) (in custom ctl at level 76): ctl_scope.
-  Notation "⊥" := (CNow (fun _ => False)) (in custom ctl at level 76): ctl_scope.
+  Notation "⊤" := (CBase (fun _ => True)) (in custom ctl at level 76): ctl_scope.
+  Notation "⊥" := (CBase (fun _ => False)) (in custom ctl at level 76): ctl_scope.
 
   (* Companion notations *)
   Notation car := (gfp (car_ true)).
@@ -260,33 +258,32 @@ End CtlNotations.
 Import CtlNotations.
 Local Open Scope ctl_scope.
 
-Lemma ctl_now `{KMS: Kripke M meq W} X: forall (m: M X * option W) φ,
-    <( m |= now φ )> <-> exists x, snd m = Some x /\ φ x.
+Lemma ctl_now `{KMS: Kripke M meq W} X: forall (m: M X * World W) φ,
+    <( m |= now φ )> <-> exists (e: W) (x: encode e), snd m = Obs e x /\ φ e x.
 Proof. unfold entailsF; now cbn. Qed.
-Global Hint Resolve ctl_now: ctree.
+Global Hint Resolve ctl_now: ctl.
 
-Lemma ctl_nothing `{KMS: Kripke M meq W} X: forall (m: M X * option W),
-    <( m |= nothing )> <-> snd m = None.
+Lemma ctl_not_started `{KMS: Kripke M meq W} X: forall (m: M X * World W),
+    <( m |= not_started )> <-> snd m = NotStarted.
 Proof. unfold entailsF; now cbn. Qed.
-Global Hint Resolve ctl_nothing: ctree.
+Global Hint Resolve ctl_not_started: ctl.
 
-Lemma ctl_done `{KMS: Kripke M meq W} X: forall (m: M X * option W) φ,
-    <( m |= done φ )> <->
-      exists w x, meq X (fst m) (ret x) /\ snd m = Some w /\ φ X x w.
+Lemma ctl_done `{KMS: Kripke M meq W} X: forall (m: M X * World W) φ,
+    <( m |= done φ )> <-> exists (X: Type) (x: X), snd m = Done x /\ φ X x.
 Proof. unfold entailsF; firstorder. Qed.
-Global Hint Resolve ctl_done: ctree.
+Global Hint Resolve ctl_done: ctl.
 
 (*| AX, WX, EX unfold |*)
-Lemma ctl_ax `{KMS: Kripke M meq W} X: forall (m: M X * option W) p,
+Lemma ctl_ax `{KMS: Kripke M meq W} X: forall (m: M X * World W) p,
     <( m |= AX p )> <-> can_step m /\ forall m', m ↦ m' -> <( m' |= p )>.
 Proof.
   intros; split; intro H'; repeat destruct H'.
-  - split; eauto with ctree.
+  - split; eauto with ctl.
   - destruct m.
-    unfold entailsF, cax; split; eauto with ctree.
+    unfold entailsF, cax; split; eauto with ctl.
 Qed.
 
-Lemma ctl_wx `{KMS: Kripke M meq W} X: forall (m: M X * option W) p,
+Lemma ctl_wx `{KMS: Kripke M meq W} X: forall (m: M X * World W) p,
     <( m |= WX p )> <-> forall m', m ↦ m' -> <( m' |= p )>.
 Proof.
   intros; split; intro H'; repeat destruct H'.
@@ -294,17 +291,17 @@ Proof.
   - unfold entailsF, cax; split; auto.
 Qed.
 
-Lemma ctl_ex `{KMS: Kripke M meq W} X: forall (m: M X * option W) p,
+Lemma ctl_ex `{KMS: Kripke M meq W} X: forall (m: M X * World W) p,
     <( m |= EX p )> <-> exists m', m ↦ m' /\ <( m' |= p )>.
 Proof.
   intros; split; intro H; repeat destruct H.
   - now exists x.
   - unfold entailsF, cex; exists x; split; auto.
 Qed.
-Global Hint Resolve ctl_ax ctl_ex ctl_wx: ctree.
+Global Hint Resolve ctl_ax ctl_ex ctl_wx: ctl.
 
 (* [AX φ] is stronger than [EX φ] *)
-Lemma ctl_ax_ex `{KMS: Kripke M meq W} X: forall (m: M X * option W) p,
+Lemma ctl_ax_ex `{KMS: Kripke M meq W} X: forall (m: M X * World W) p,
     <( m |= AX p )> -> <( m |= EX p )>.
 Proof.
   unfold cex, cax; intros * H.
@@ -315,7 +312,7 @@ Proof.
 Qed.
 
 (* [AF φ] is stronger than [EF φ] *)
-Lemma ctl_af_ef `{KMS: Kripke M meq W} X: forall (m: M X * option W) p,
+Lemma ctl_af_ef `{KMS: Kripke M meq W} X: forall (m: M X * World W) p,
     <( m |= AF p )> -> <( m |= EF p )>.
 Proof.
   intros. 
@@ -330,7 +327,7 @@ Proof.
 Qed.
 
 (* [AF φ] is stronger than [WF φ] *)
-Lemma ctl_af_wf `{KMS: Kripke M meq W} X: forall (m: M X * option W) p,
+Lemma ctl_af_wf `{KMS: Kripke M meq W} X: forall (m: M X * World W) p,
     <( m |= AF p )> -> <( m |= WF p )>.
 Proof.
   intros. 
@@ -345,7 +342,7 @@ Qed.
 
 (*| Induction lemmas |*)
 Lemma ctl_au_ind `{KMS: Kripke M meq W} X: 
-  forall [p q: CtlFormula W] (P : M X * option W -> Prop),
+  forall [p q: CtlFormula W] (P : M X * World W -> Prop),
     (forall m, <( m |= q )> -> P m) -> (* base *)
     (forall m,
         <( m |= p )> ->          (* [p] now*)
@@ -356,7 +353,7 @@ Lemma ctl_au_ind `{KMS: Kripke M meq W} X:
 Proof. intros; induction H1; auto. Qed.
 
 Lemma ctl_wu_ind `{KMS: Kripke M meq W} X: 
-  forall [p q: CtlFormula W] (P : M X * option W -> Prop),
+  forall [p q: CtlFormula W] (P : M X * World W -> Prop),
     (forall m, <( m |= q )> -> P m) -> (* base *)
     (forall m,
         <( m |= p )> ->          (* [p] now*)
@@ -367,7 +364,7 @@ Lemma ctl_wu_ind `{KMS: Kripke M meq W} X:
 Proof. intros; induction H1; auto. Qed.
 
 Lemma ctl_eu_ind `{KMS: Kripke M meq W} X: 
-  forall [p q: CtlFormula W] (P : M X * option W -> Prop),
+  forall [p q: CtlFormula W] (P : M X * World W -> Prop),
     (forall m, <( m |= q )> -> P m) -> (* base *)
     (forall m,
         <( m |= p )> ->          (* [p] now*)
@@ -378,24 +375,24 @@ Lemma ctl_eu_ind `{KMS: Kripke M meq W} X:
 Proof. intros; induction H1; auto. Qed.
   
 (*| Bot is false |*)
-Lemma ctl_sound `{KMS: Kripke M meq W} X: forall (m: M X * option W),
+Lemma ctl_sound `{KMS: Kripke M meq W} X: forall (m: M X * World W),
     ~ <( m |= ⊥ )>.
 Proof. intros _ []. Qed.
 
 (*| Ex-falso |*)
-Lemma ctl_ex_falso `{KMS: Kripke M meq W} X: forall (m: M X * option W) p,
+Lemma ctl_ex_falso `{KMS: Kripke M meq W} X: forall (m: M X * World W) p,
     <( m |= ⊥ -> p )>.
 Proof.
   intros; unfold entailsF; intro CONTRA; contradiction.
 Qed. 
 
 (*| Top is True |*)
-Lemma ctl_top `{KMS: Kripke M meq W} X: forall (m: M X * option W),
+Lemma ctl_top `{KMS: Kripke M meq W} X: forall (m: M X * World W),
     <( m |= ⊤ )>.
 Proof. reflexivity. Qed. 
 
 (*| Cannot exist path such that eventually Bot |*)
-Lemma ctl_sound_ef `{KMS: Kripke M meq W} X: forall (m: M X * option W),
+Lemma ctl_sound_ef `{KMS: Kripke M meq W} X: forall (m: M X * World W),
     ~ <( m |= EF ⊥ )>.
 Proof.
   intros m.
@@ -408,7 +405,7 @@ Proof.
 Qed.
 
 (*| Cannot have all paths such that eventually always Bot |*)
-Lemma ctl_sound_af `{KMS: Kripke M mequ W} X: forall (m: M X * option W),
+Lemma ctl_sound_af `{KMS: Kripke M mequ W} X: forall (m: M X * World W),
     ~ <( m |= AF ⊥ )>.
 Proof.
   intros m.
@@ -418,80 +415,8 @@ Proof.
   contradiction.
 Qed.
 
-(*| [CtlFormula] is a contravariant functor |*)
-Fixpoint ctl_contramap{X Y}(f: X -> Y) (φ: CtlFormula Y): CtlFormula X :=
-  match φ with
-  | CNow  p  => CNow (fun x => p (option_map f x))
-  | CDone p  => CDone (fun X z x => p X z (option_map f x))
-  | CAnd  φ ψ => CAnd (ctl_contramap f φ) (ctl_contramap f ψ)
-  | COr   φ ψ => COr (ctl_contramap f φ) (ctl_contramap f ψ)
-  | CImpl φ ψ => CImpl (ctl_contramap f φ) (ctl_contramap f ψ)
-  | CAX   φ   => CAX (ctl_contramap f φ)
-  | CWX   φ   => CWX (ctl_contramap f φ)                    
-  | CEX   φ   => CEX (ctl_contramap f φ)
-  | CAU   φ ψ => CAU (ctl_contramap f φ) (ctl_contramap f ψ)
-  | CWU   φ ψ => CWU (ctl_contramap f φ) (ctl_contramap f ψ)                    
-  | CEU   φ ψ => CEU (ctl_contramap f φ) (ctl_contramap f ψ)
-  | CAR   φ ψ => CAR (ctl_contramap f φ) (ctl_contramap f ψ)
-  | CWR   φ ψ => CWR (ctl_contramap f φ) (ctl_contramap f ψ)                    
-  | CER   φ ψ => CER (ctl_contramap f φ) (ctl_contramap f ψ)
-  end.
-
-Lemma option_map_id{X}: forall (m: option X),
-    option_map (fun x => x) m = m.
-Proof. destruct m; reflexivity. Qed.
-Global Hint Resolve option_map_id: core.
-
-Lemma option_map_compose{X Y Z}: forall (m: option X) (f: X -> Y) (g: Y -> Z),
-    option_map g (option_map f m) = option_map (fun x => g (f x)) m.
-Proof. destruct m; cbn; reflexivity. Qed.
-Global Hint Resolve option_map_compose: core.
-
-From Coq Require Import FunctionalExtensionality.
-(*| Contravariant functor laws: Identity |*)
-Lemma ctl_contramap_id{X}: forall (p: CtlFormula X),
-    ctl_contramap (fun x => x) p = p.
-Proof.
-  intros; induction p; cbn;
-    rewrite ?IHp1, ?IHp2, ?IHp; auto.
-  replace (fun x : option X => p (option_map (fun x0 : X => x0) x)) with p. reflexivity.
-  apply functional_extensionality; intros.
-  now rewrite option_map_id.
-  replace (fun (X0 : Type) (z : X0) (x : option X) => p X0 z (option_map (fun x0 : X => x0) x))
-    with p. reflexivity.
-  apply functional_extensionality_dep; intros.
-  apply functional_extensionality; intros.
-  apply functional_extensionality; intros.
-  now rewrite option_map_id.
-Qed.
-
-(*| Contravariant functor laws: composition |*)
-Lemma ctl_contramap_compose{X Y Z}: forall (p: CtlFormula X) (f: Z -> Y) (g: Y -> X),
-    ctl_contramap f (ctl_contramap g p) = ctl_contramap (fun x => g (f x)) p.
-Proof.
-  intros; induction p; cbn in *; try reflexivity;
-    rewrite ?IHp1, ?IHp2, ?IHp; auto.
-  replace (fun x : option Z => p (option_map g (option_map f x)))
-    with (fun x : option Z => p (option_map (fun x0 : Z => g (f x0)) x)). reflexivity.
-  apply functional_extensionality; intros.
-  now rewrite option_map_compose.
-  replace (fun (X0 : Type) (z : X0) (x : option Z) => p X0 z (option_map g (option_map f x)))
-    with (fun (X0 : Type) (z : X0) (x : option Z) => p X0 z (option_map (fun x0 : Z => g (f x0)) x)).
-  reflexivity.
-  apply functional_extensionality_dep; intros.
-  apply functional_extensionality; intros.
-  apply functional_extensionality; intros.
-  now rewrite option_map_compose.
-Qed.  
-
 (*| Semantic equivalence of formulas |*)
-Definition equiv_ctl `{K: Kripke M meq W}: relation (CtlFormula W) :=
-  fun p q => forall (X: Type) (m: M X * option W), entailsF p m <-> entailsF q m.
+Definition equiv_ctl `{K: Kripke M meq W}{X}: relation (CtlFormula W) :=
+  fun p q => forall (m: M X * World W), entailsF p m <-> entailsF q m.
 
 Infix "⩸" := equiv_ctl (at level 58, left associativity): ctl_scope.
-
-Global Instance Proper_ctl_contramap{W Y}(f: Y -> W) `{K:Kripke M meq W} `{Kripke M meq Y}:
-  Proper (equiv_ctl (K:=K) ==> equiv_ctl) (ctl_contramap f).
-Proof.
-  unfold Proper, respectful.
-Admitted.

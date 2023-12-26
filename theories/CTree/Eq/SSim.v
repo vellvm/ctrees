@@ -12,7 +12,6 @@ From Coinduction Require Import
 From CTree Require Import
   Events.Core
   CTree.Core
-  CTree.Pred
   CTree.Equ
   CTree.Trans.
 
@@ -189,6 +188,20 @@ Section ssim_homogenous_theory.
   Proof. split; typeclasses eauto. Qed.
 
 End ssim_homogenous_theory.
+
+(*| The LTS can not take a step [tau, vis, ret] |*)
+Definition is_stuck `{Encode E} {X} (t: ctree E X) := ( ~ exists l u, trans l t u).
+Arguments is_stuck /.
+
+Lemma stuck_is_stuck `{HE: Encode E} {X}:
+  @is_stuck E HE X stuck.
+Proof.
+  red; intros * abs; inv abs.
+  destruct H as (s' & TR).
+  ind_trans TR.
+  eapply IHTR; auto. 
+Qed.
+Global Hint Resolve stuck_is_stuck: ctree.
 
 (*| Parametric theory of [ss] with heterogenous relation on labels [L] |*)
 Section ssim_heterogenous_theory.
@@ -395,8 +408,8 @@ Section ssim_heterogenous_bind.
     red. reflexivity.
   Qed.
 
-(*| Specialization of [bind_ctx] to a function acting with [ssim] on the bound value,
-  and with the argument (pointwise) on the continuation. |*)
+  (*| Specialization of [bind_ctx] to a function acting with [ssim] on the bound value,
+    and with the argument (pointwise) on the continuation. |*)
   Program Definition bind_ctx_ssim L0 : mon (rel (ctree E X') (ctree F Y')) :=
     {|body := fun R => @bind_ctx E F HE HF X Y X' Y' (ssim L0) (pointwise RR R) |}.
   Next Obligation.
@@ -406,7 +419,7 @@ Section ssim_heterogenous_bind.
     apply in_bind_ctx. apply H'. intros t t' HS. apply H, H'', HS.
   Qed.
 
-(*| The resulting enhancing function gives a valid up-to technique |*)
+  (*| The resulting enhancing function gives a valid up-to technique |*)
   Lemma bind_ctx_ssim_t L0: 
     is_update_val_rel L0 -> bind_ctx_ssim L0 <= (sst L).
   Proof.
@@ -668,7 +681,8 @@ Section Proof_Rules.
     intros.
     apply step_ss_ret_gen.
     - step. intros.
-      apply is_stuck_ss; apply stuck_is_stuck.
+      apply is_stuck_ss.
+      eapply stuck_is_stuck. 
     - typeclasses eauto.
     - apply H.
   Qed.

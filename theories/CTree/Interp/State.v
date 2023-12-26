@@ -157,7 +157,7 @@ Proof.
 Qed.
 
 Arguments interp_state: simpl never.
-
+Local Typeclasses Transparent equ.
 Lemma interp_state_bind `{Encode F} `(h : E ~> stateT W (ctree F)) {A B}
   (t : ctree E A) (k : A -> ctree E B) (s : W) :
   interp_state h (t >>= k) s ≅ interp_state h t s >>= fun '(x, s) => interp_state h (k x) s.

@@ -153,6 +153,12 @@ Section QueueEx.
                  push false
       ) tt.
 
+  (*
+  forever p x |= AF now φ
+  ----------------------
+  forever p x |= WG WF now φ
+   *)
+  
   (*| Always eventually we get [true] |*)
   Theorem ctl_rotate_always_eventually: forall (s: bool) q x,
       <( {(interp_state instr_queueE rotate (q ++ [true]), x)} |=
