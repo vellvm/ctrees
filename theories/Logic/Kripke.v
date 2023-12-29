@@ -15,7 +15,7 @@ Generalizable All Variables.
 Variant World (E:Type@{eff}) `{Encode E} :=
   | NotStarted
   | Obs (e : E) (v : encode e)
-  | Done {X : Type} (v : X).
+  | Done {X}(v : X).
 Global Hint Constructors World: ctl.
 Arguments NotStarted {E} {_}.
 Arguments Obs {E} {_} e v.
@@ -24,12 +24,12 @@ Arguments Done {E} {_} {X} v.
 Variant has_started `{Encode E}: World E -> Prop :=
 | HasStartedObs: forall (e: E) (v: encode e),
     has_started (Obs e v)
-| HasStatedDone: forall {X: Type} (v: X),
+| HasStatedDone: forall X (v: X),
     has_started (Done v).
 Global Hint Constructors has_started: ctl.
 
 Variant is_done `{Encode E}: World E -> Prop :=
-  | IsDone: forall {X: Type} (v: X), is_done (Done v).
+  | IsDone: forall {X} (v: X), is_done (Done v).
 Global Hint Constructors is_done: ctl.
 
 Lemma not_done_not_started `{Encode E}:
@@ -66,10 +66,12 @@ Class Kripke (M: Type -> Type) (meq: forall X, relation (M X)) E := {
       has_started w';
 
     (* - [Done] does not step *)
-    ktrans_done {X}: forall w (t: M X),
-      is_done w ->
-      ~ exists t' w', ktrans (t,w) (t',w') 
+    ktrans_done {X}: forall (x: X) (t: M X),
+      ~ exists t' w', ktrans (t, Done x) (t',w') 
   }.
+
+Arguments EncodeE /.
+Arguments EquM /.
 
 (*| Tactic to work with Eq TS product of equivalences |*)
 Ltac destruct2 Heq :=
@@ -177,14 +179,14 @@ Proof.
     (* Why can I not prove this? *)
 Abort.
     
-Definition can_step `{Kripke M meq W} {X} (m: M X * World W): Prop :=
-  exists m' w', ktrans m (m', w').
+Definition can_step `{Kripke M meq W} {X} (m: M X * World W): Prop := exists m' w', ktrans m (m', w') /\ ~ is_done w'.
 
 Global Instance can_step_proper `{Kripke M meq W} {X}:
   Proper (meq X * eq ==> iff) can_step.
 Proof.
-  unfold Proper, respectful, can_step, impl; intros [t w] [t' w']; split; intros;
-    destruct2 H0; subst; destruct H1 as (x & w & ?); subst.
+  unfold Proper, respectful, can_step, impl; intros [t w] [t' w'];
+    split; intros; destruct2 H0; subst; destruct H1 as (x & w & ?);
+    destruct H0; subst.
   - destruct (ktrans_semiproper t' t _ _ w Heqt H0) as (y' & TR' & EQ').
     now (exists y', w).
   - symmetry in Heqt.
@@ -194,8 +196,27 @@ Qed.
 
 Global Hint Extern 2 =>
          match goal with
-         | [ H: ?m ↦ ?m' |- can_step ?m ] => exists (fst m'), (snd m'); apply H
+         | [ H: ?m ↦ ?m' |- can_step ?m ] =>
+             exists (fst m'), (snd m'); split; [apply H|intros Hcontra; inv Hcontra]
 end: ctl.
+
+Ltac world_inv :=
+  match goal with
+  | [H: @Obs ?E ?HE ?e ?x = ?w |- _] =>
+      dependent destruction H
+  | [H: @NotStarted ?E ?HE = ?w |- _] =>
+      dependent destruction H
+  | [H: @Done ?E ?HE ?X ?x = ?w |- _ ] =>
+      dependent destruction H                
+  | [H: ?w = @Done ?E' ?HE' ?X' ?x' |- _] =>
+      dependent destruction H
+  | [H: ?w = @Obs ?E' ?HE' ?e ?x |- _]
+    => dependent destruction H
+  | [H: ?w = @NotStarted ?E' ?HE' |- _ ] =>
+      dependent destruction H                
+  end.
+
+Global Hint Extern 2 => world_inv: ctl.
 
 Ltac ktrans_equ TR :=
   match type of TR with

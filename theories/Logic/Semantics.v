@@ -25,11 +25,6 @@ From CTree Require Export
 Set Implicit Arguments.
 Generalizable All Variables.
 
-Variant Quant: Set :=
-  | Weak
-  | Forall
-  | Exists.
-  
 (*| CTL logic based on kripke semantics |*)
 Section Ctl.
   Context `{KMS: Kripke M mequ W} {X: Type} (strong: bool).  
@@ -151,26 +146,26 @@ Section Ctl.
 
 End Ctl.
 
-Inductive CtlFormula (W: Type) `{HW: Encode W}: Type :=
-  | CBase (p : World W -> Prop): CtlFormula
-  | CAnd    : CtlFormula -> CtlFormula -> CtlFormula
-  | COr     : CtlFormula -> CtlFormula -> CtlFormula
-  | CImpl   : CtlFormula -> CtlFormula -> CtlFormula
-  | CAX     : CtlFormula -> CtlFormula
-  | CWX     : CtlFormula -> CtlFormula     
-  | CEX     : CtlFormula -> CtlFormula
-  | CAU     : CtlFormula -> CtlFormula -> CtlFormula
-  | CWU     : CtlFormula -> CtlFormula -> CtlFormula
-  | CEU     : CtlFormula -> CtlFormula -> CtlFormula
-  | CAR     : CtlFormula -> CtlFormula -> CtlFormula
-  | CWR     : CtlFormula -> CtlFormula -> CtlFormula
-  | CER     : CtlFormula -> CtlFormula -> CtlFormula.
+Inductive ctlf (W: Type) `{HW: Encode W} : Type :=
+  | CBase (p : World W -> Prop): ctlf
+  | CAnd    : ctlf -> ctlf -> ctlf
+  | COr     : ctlf -> ctlf -> ctlf
+  | CImpl   : ctlf -> ctlf -> ctlf
+  | CAX     : ctlf -> ctlf
+  | CWX     : ctlf -> ctlf     
+  | CEX     : ctlf -> ctlf
+  | CAU     : ctlf -> ctlf -> ctlf
+  | CWU     : ctlf -> ctlf -> ctlf
+  | CEU     : ctlf -> ctlf -> ctlf
+  | CAR     : ctlf -> ctlf -> ctlf
+  | CWR     : ctlf -> ctlf -> ctlf
+  | CER     : ctlf -> ctlf -> ctlf.
 
-Arguments CtlFormula W {HW}.
+Arguments ctlf W {HW}.
 
 (* Entailment inductively on formulas *)
 Fixpoint entailsF `{KMS: Kripke M meq W} {X}
-  (φ: CtlFormula W)(m: M X * World W): Prop :=
+  (φ: ctlf W)(m: M X * World W): Prop :=
     match φ with
     | CBase  p  => p (snd m)
     | CAnd  φ ψ => (entailsF φ m) /\ (entailsF ψ m)
@@ -207,7 +202,7 @@ Module CtlNotations.
   Notation "'not_started'" := (CBase (fun x => x = NotStarted)) (in custom ctl at level 79): ctl_scope.
   Notation "'now' p" := (CBase (fun o => exists e x, o = Obs e x /\ p e x))
                           (in custom ctl at level 79): ctl_scope.
-  Notation "'done' p" := (CBase (fun w => exists (X: Type) (x: X), w = Done x /\ p X x))
+  Notation "'done' p" := (CBase (fun w => exists x, w = Done x /\ p x))
                            (in custom ctl at level 79): ctl_scope.
   Notation "'EX' p" := (CEX p) (in custom ctl at level 75): ctl_scope.
   Notation "'AX' p" := (CAX p) (in custom ctl at level 75): ctl_scope.
@@ -252,7 +247,7 @@ Module CtlNotations.
   Notation carbT := (bT (car_ true)).
   Notation cwrbT := (bT (car_ false)).
   Notation cerbT := (bT cer_).
-  #[global] Hint Constructors ceu cau carF cerF: ctree.
+  #[global] Hint Constructors ceu cau carF cerF: ctl.
 End CtlNotations.
 
 Import CtlNotations.
@@ -269,7 +264,7 @@ Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_not_started: ctl.
 
 Lemma ctl_done `{KMS: Kripke M meq W} X: forall (m: M X * World W) φ,
-    <( m |= done φ )> <-> exists (X: Type) (x: X), snd m = Done x /\ φ X x.
+    <( m |= done φ )> <-> exists (x: X), snd m = Done x /\ φ x.
 Proof. unfold entailsF; firstorder. Qed.
 Global Hint Resolve ctl_done: ctl.
 
@@ -307,7 +302,7 @@ Proof.
   unfold cex, cax; intros * H.
   rewrite ctl_ax in H.
   destruct m, H.
-  destruct H as (m' & w' & TR).
+  destruct H as (m' & w' & TR & Hd).
   exists (m', w'); auto.
 Qed.
 
@@ -320,7 +315,8 @@ Proof.
   - now apply MatchE. 
   - destruct m.
     destruct H0 as ((m' & ? & ?) & ?).
-    destruct H1 as ((? & ? & ?) & ?).
+    destruct H1 as ((? & ? & ?) &  ?).
+    destruct H1.
     apply StepE; auto.
     exists (x0, x1); split; auto.
     now apply H3.
@@ -336,13 +332,14 @@ Proof.
   - destruct m.
     destruct H0 as ((m' & ? & ?) & ?).
     destruct H1 as ((? & ? & ?) & ?).
+    destruct H1.
     apply StepA; trivial.
     unfold cax; split; auto.
 Qed.
 
 (*| Induction lemmas |*)
 Lemma ctl_au_ind `{KMS: Kripke M meq W} X: 
-  forall [p q: CtlFormula W] (P : M X * World W -> Prop),
+  forall [p q: ctlf W] (P : M X * World W -> Prop),
     (forall m, <( m |= q )> -> P m) -> (* base *)
     (forall m,
         <( m |= p )> ->          (* [p] now*)
@@ -353,7 +350,7 @@ Lemma ctl_au_ind `{KMS: Kripke M meq W} X:
 Proof. intros; induction H1; auto. Qed.
 
 Lemma ctl_wu_ind `{KMS: Kripke M meq W} X: 
-  forall [p q: CtlFormula W] (P : M X * World W -> Prop),
+  forall [p q: ctlf W] (P : M X * World W -> Prop),
     (forall m, <( m |= q )> -> P m) -> (* base *)
     (forall m,
         <( m |= p )> ->          (* [p] now*)
@@ -364,7 +361,7 @@ Lemma ctl_wu_ind `{KMS: Kripke M meq W} X:
 Proof. intros; induction H1; auto. Qed.
 
 Lemma ctl_eu_ind `{KMS: Kripke M meq W} X: 
-  forall [p q: CtlFormula W] (P : M X * World W -> Prop),
+  forall [p q: ctlf W] (P : M X * World W -> Prop),
     (forall m, <( m |= q )> -> P m) -> (* base *)
     (forall m,
         <( m |= p )> ->          (* [p] now*)
@@ -382,9 +379,7 @@ Proof. intros _ []. Qed.
 (*| Ex-falso |*)
 Lemma ctl_ex_falso `{KMS: Kripke M meq W} X: forall (m: M X * World W) p,
     <( m |= ⊥ -> p )>.
-Proof.
-  intros; unfold entailsF; intro CONTRA; contradiction.
-Qed. 
+Proof. intros; unfold entailsF; intro CONTRA; contradiction. Qed.
 
 (*| Top is True |*)
 Lemma ctl_top `{KMS: Kripke M meq W} X: forall (m: M X * World W),
@@ -416,7 +411,7 @@ Proof.
 Qed.
 
 (*| Semantic equivalence of formulas |*)
-Definition equiv_ctl `{K: Kripke M meq W}{X}: relation (CtlFormula W) :=
+Definition equiv_ctl `{K: Kripke M meq W}{X}: relation (ctlf W) :=
   fun p q => forall (m: M X * World W), entailsF p m <-> entailsF q m.
 
 Infix "⩸" := equiv_ctl (at level 58, left associativity): ctl_scope.

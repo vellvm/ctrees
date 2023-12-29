@@ -391,7 +391,7 @@ Qed.
 Section EquivCtlFormulas.
   Context `{K: Kripke M mequ W}.
   Notation MP X := (M X * World W -> Prop).
-
+  
   (*| Now we start proving congruence on formulas (2nd argument) |*)
   Variant equiv_ctl_clos_body {X} (R : MP X -> MP X -> MP X) : MP X -> MP X -> MP X :=
     | equiv_ctl_clos_ctor : forall t0 w0 p0 p1 q0 q1
@@ -470,7 +470,7 @@ Section EquivCtlFormulas.
 
   Arguments COr {W} {HW}.
   Global Add Parametric Morphism {X}: COr
-         with signature equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> equiv_ctl (X:=X)
+         with signature equiv_ctl (X:=X)  ==> equiv_ctl (X:=X) ==> equiv_ctl (X:=X)
            as equiv_ctl_equiv_or.
   Proof.
     intros p q EQpq p' q' EQpq'; split;
@@ -483,7 +483,7 @@ Section EquivCtlFormulas.
 
   Arguments CImpl {W} {HW}.
   Global Add Parametric Morphism {X}: CImpl
-         with signature equiv_ctl  (X:=X) ==> equiv_ctl (X:=X) ==> equiv_ctl (X:=X)
+         with signature equiv_ctl (X:=X) ==> equiv_ctl (X:=X) ==> equiv_ctl (X:=X)
            as equiv_ctl_equiv_impl.
   Proof.
     intros p q EQpq p' q' EQpq'; split;
@@ -654,9 +654,10 @@ Section CtlEquations.
       + destruct H.
         rewrite ctl_ax in H0.
         destruct H0 as (? & ?).
-        destruct H0 as (? & ? & ?).
+        destruct H0 as (? & ? & ? & ?).
         apply StepA; auto.
-        split; eauto with ctl.
+        split; auto.
+        exists x, x0; split; auto.
   Qed.
 
   Lemma ctl_wu_wx: forall p q,
@@ -690,7 +691,7 @@ Section CtlEquations.
         exists x; auto.
   Qed.
   
-  Lemma ctl_and_idL: forall (p: CtlFormula W),
+  Lemma ctl_and_idL: forall (p: ctlf W),
       <( ⊤ /\ p )> ⩸ <( p )>.
   Proof.
     split; intros * Hp.
@@ -698,7 +699,7 @@ Section CtlEquations.
     - split; auto.
   Qed.
 
-  Lemma ctl_and_idR: forall (p: CtlFormula W),
+  Lemma ctl_and_idR: forall (p: ctlf W),
       <( p /\ ⊤ )> ⩸ <( p )>.
   Proof.
     split; intros * Hp.
@@ -706,7 +707,7 @@ Section CtlEquations.
     - split; auto.
   Qed.
 
-  Lemma ctl_or_idL: forall (p: CtlFormula W),
+  Lemma ctl_or_idL: forall (p: ctlf W),
       <( ⊥ \/ p )> ⩸ <( p )>.
   Proof.
     split; intros * Hp.
@@ -714,7 +715,7 @@ Section CtlEquations.
     - now right. 
   Qed.
 
-  Lemma ctl_or_idR: forall (p: CtlFormula W),
+  Lemma ctl_or_idR: forall (p: ctlf W),
       <( p \/ ⊥ )> ⩸ <( p )>.
   Proof.
     split; intros * Hp.
@@ -722,7 +723,7 @@ Section CtlEquations.
     - now left.
   Qed.
 
-  Lemma ctl_af_ax: forall (p: CtlFormula W),
+  Lemma ctl_af_ax: forall (p: ctlf W),
       <( AF p )> ⩸ <( p \/ AX (AF p) )>.
   Proof.
     intros.
@@ -731,7 +732,7 @@ Section CtlEquations.
     now rewrite ctl_and_idL.
   Qed.
 
-  Lemma ctl_wf_wx: forall (p: CtlFormula W),
+  Lemma ctl_wf_wx: forall (p: ctlf W),
       <( WF p )> ⩸ <( p \/ WX (WF p) )>.
   Proof.
     intros.
@@ -740,7 +741,7 @@ Section CtlEquations.
     now rewrite ctl_and_idL.
   Qed.
   
-  Lemma ctl_ef_ex: forall (p: CtlFormula W),
+  Lemma ctl_ef_ex: forall (p: ctlf W),
       <( EF p )> ⩸ <( p \/ EX (EF p) )>.
   Proof.
     intros.
@@ -749,7 +750,7 @@ Section CtlEquations.
     now rewrite ctl_and_idL.
   Qed.
 
-  Lemma ctl_ar_ax: forall (p q: CtlFormula W),
+  Lemma ctl_ar_ax: forall (p q: ctlf W),
       <( p AR q )> ⩸ <( p /\ (q \/ AX (p AR q)) )>.
    Proof. 
      split; intros * Hp.
@@ -762,7 +763,7 @@ Section CtlEquations.
        destruct H0; step; now constructor.
    Qed.
 
-   Lemma ctl_wr_wx: forall (p q: CtlFormula W),
+   Lemma ctl_wr_wx: forall (p q: ctlf W),
       <( p WR q )> ⩸ <( p /\ (q \/ WX (p WR q)) )>.
    Proof. 
      split; intros * Hp.
@@ -775,7 +776,7 @@ Section CtlEquations.
        destruct H0; step; now constructor.
    Qed.
    
-   Lemma ctl_er_ex: forall (p q: CtlFormula W),
+   Lemma ctl_er_ex: forall (p q: ctlf W),
       <( p ER q )> ⩸ <( p /\ (q \/ EX (p ER q)) )>.
    Proof. 
      split; intros * Hp.
@@ -788,7 +789,7 @@ Section CtlEquations.
        destruct H0; step; now constructor.
    Qed.
 
-   Lemma ctl_ag_ax: forall (p: CtlFormula W),
+   Lemma ctl_ag_ax: forall (p: ctlf W),
        <( AG p )> ⩸ <( p /\ AX (AG p) )>.
    Proof.
      etransitivity.
@@ -796,7 +797,7 @@ Section CtlEquations.
      - now rewrite ctl_or_idL.
    Qed.
 
-   Lemma ctl_wg_wx: forall (p: CtlFormula W),
+   Lemma ctl_wg_wx: forall (p: ctlf W),
        <( WG p )> ⩸ <( p /\ WX (WG p) )>.
    Proof.
      etransitivity.
@@ -804,7 +805,7 @@ Section CtlEquations.
      - now rewrite ctl_or_idL.
    Qed.
    
-   Lemma ctl_eg_ex: forall (p: CtlFormula W),
+   Lemma ctl_eg_ex: forall (p: ctlf W),
        <( EG p )> ⩸ <( p /\ EX (EG p) )>.
    Proof.
      etransitivity.
@@ -812,7 +813,7 @@ Section CtlEquations.
      - now rewrite ctl_or_idL.
    Qed.
    
-   Lemma ctl_ag_involutive: forall (p: CtlFormula W),
+   Lemma ctl_ag_involutive: forall (p: ctlf W),
        <( AG p )> ⩸ <( AG (AG p) )>.
    Proof.
      split; intros;
@@ -837,7 +838,7 @@ Section CtlEquations.
        now apply H2.
    Qed.
 
-   Lemma ctl_wg_involutive: forall (p: CtlFormula W),
+   Lemma ctl_wg_involutive: forall (p: ctlf W),
        <( WG p )> ⩸ <( WG (WG p) )>.
    Proof.
      split; intros;
@@ -874,34 +875,34 @@ End CtlEquations.
       | CWX ?p => apply (@ctl_wx M meq W KMS X)                       
       | CEX ?p => apply (@ctl_ex M meq W KMS X)
       | CAU ?p ?q => lazymatch eval cbv in p with
-                    | CBase (fun _ => True) => apply (@ctl_af_ax M meq W KMS)
-                    | _ => apply (@ctl_au_ax M meq W KMS)
+                    | CBase (fun _ => True) => apply (@ctl_af_ax M meq W KMS X)
+                    | _ => apply (@ctl_au_ax M meq W KMS X)
                     end
       | CWU ?p ?q => lazymatch eval cbv in p with
-                    | CBase (fun _ => True) => apply (@ctl_wf_wx M meq W KMS)
-                    | _ => apply (@ctl_wu_wx M meq W KMS)
+                    | CBase (fun _ => True) => apply (@ctl_wf_wx M meq W KMS X)
+                    | _ => apply (@ctl_wu_wx M meq W KMS X)
                     end                                            
       | CEU ?p ?q => lazymatch eval cbv in p with
-                    | CBase (fun _ => True) => apply (@ctl_ef_ex M meq W KMS)
-                    | _ => apply (@ctl_eu_ex M meq W KMS)
+                    | CBase (fun _ => True) => apply (@ctl_ef_ex M meq W KMS X)
+                    | _ => apply (@ctl_eu_ex M meq W KMS X)
                     end
       | CAR ?p ?q => lazymatch eval cbv in q with
                     | CBase (fun _ => False) =>
-                        apply (@ctl_ag_ax M meq W KMS)
-                    | _ => apply (@ctl_ar_ax M meq W KMS)
+                        apply (@ctl_ag_ax M meq W KMS X)
+                    | _ => apply (@ctl_ar_ax M meq W KMS X)
                     end
       | CWR ?p ?q => lazymatch eval cbv in q with
                     | CBase (fun _ => False) =>
-                        apply (@ctl_wg_wx M meq W KMS)
-                    | _ => apply (@ctl_wr_wx M meq W KMS)
+                        apply (@ctl_wg_wx M meq W KMS X)
+                    | _ => apply (@ctl_wr_wx M meq W KMS X)
                     end                      
       | CER ?p ?q => lazymatch eval cbv in q with
-                    | CBase (fun _ => False) => apply (@ctl_eg_ex M meq W KMS)
-                    | _ => apply (@ctl_er_ex M meq W KMS)
+                    | CBase (fun _ => False) => apply (@ctl_eg_ex M meq W KMS X)
+                    | _ => apply (@ctl_er_ex M meq W KMS X)
                     end
       | CER ?p ?q => lazymatch eval cbv in q with
-                    | CBase (fun _ => False) => apply (@ctl_eg_ex M meq W KMS)
-                    | _ => apply (@ctl_er_ex M meq W KMS)
+                    | CBase (fun _ => False) => apply (@ctl_eg_ex M meq W KMS X)
+                    | _ => apply (@ctl_er_ex M meq W KMS X)
                     end
       | ?ptrivial => fail "Cannot step formula " ptrivial
       end
@@ -909,36 +910,36 @@ End CtlEquations.
 
 #[global] Tactic Notation "next" "in" ident(H) :=
   lazymatch type of H with
-  | context[@entailsF ?W ?M ?meq ?KMS ?X ?φ ?m] =>
+  | context[@entailsF ?M ?meq ?W ?KMS ?X ?φ ?m] =>
       lazymatch φ with
       | CAX ?p => rewrite (@ctl_ax M meq W KMS X) in H
       | CWX ?p => rewrite (@ctl_wx M meq W KMS X) in H
       | CEX ?p => rewrite (@ctl_ex M meq W KMS X) in H
       | context[CAU ?p ?q] => lazymatch eval cbv in p with
                              | CBase (fun _ => True) =>
-                                 rewrite (@ctl_af_ax M meq W KMS q) in H
-                             | _ => rewrite (@ctl_au_ax M meq W KMS q) in H
+                                 rewrite (@ctl_af_ax M meq W KMS X q) in H
+                             | _ => rewrite (@ctl_au_ax M meq W KMS X q) in H
                              end
       | context[CWU ?p ?q] => lazymatch eval cbv in p with
                              | CBase (fun _ => True) =>
-                                 rewrite (@ctl_wf_wx M meq W KMS q) in H
-                             | _ => rewrite (@ctl_wu_wx M meq W KMS q) in H
+                                 rewrite (@ctl_wf_wx M meq W KMS X q) in H
+                             | _ => rewrite (@ctl_wu_wx M meq W KMS X q) in H
                              end                               
       | context[CEU ?p ?q] => lazymatch eval cbv in p with
-                             | CBase (fun _ => True) => rewrite (@ctl_ef_ex M meq W KMS q) in H
-                             | _ => rewrite (@ctl_eu_ex M meq W KMS q) in H
+                             | CBase (fun _ => True) => rewrite (@ctl_ef_ex M meq W KMS X q) in H
+                             | _ => rewrite (@ctl_eu_ex M meq W KMS X q) in H
                              end
       | context[CAR ?p ?q] => lazymatch eval cbv in q with
-                             | CBase (fun _ => False) => rewrite (@ctl_ag_ax M meq W KMS p) in H
-                             | _ => rewrite (@ctl_ar_ax M meq W KMS p) in H
+                             | CBase (fun _ => False) => rewrite (@ctl_ag_ax M meq W KMS X p) in H
+                             | _ => rewrite (@ctl_ar_ax M meq W KMS X p) in H
                              end
       | context[CWR ?p ?q] => lazymatch eval cbv in q with
-                             | CBase (fun _ => False) => rewrite (@ctl_wg_wx M meq W KMS p) in H
-                             | _ => rewrite (@ctl_wr_wx M meq W KMS p) in H
+                             | CBase (fun _ => False) => rewrite (@ctl_wg_wx M meq W KMS X p) in H
+                             | _ => rewrite (@ctl_wr_wx M meq W KMS X p) in H
                              end                               
       | context[CER ?p ?q] => lazymatch eval cbv in q with
-                             | CBase (fun _ => False) => rewrite (@ctl_eg_ex M meq W KMS p) in H
-                             | _ => rewrite (@ctl_er_ex M meq W KMS p) in H
+                             | CBase (fun _ => False) => rewrite (@ctl_eg_ex M meq W KMS X p) in H
+                             | _ => rewrite (@ctl_er_ex M meq W KMS X p) in H
                              end
       | ?ptrivial => fail "Cannot step formula " ptrivial " in " H
       end

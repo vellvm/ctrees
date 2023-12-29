@@ -16,7 +16,7 @@ Universe eff.
 Class Encode E : Type :=
   encode: E -> Type@{eff}.
 
-
+Arguments encode: simpl never.
 #[global] Instance Encode_Sum (E1 E2 : Type@{eff}) `{Encode E1} `{Encode E2} : Encode (E1 + E2) :=
   fun e12 => match e12 with 
           | inl e1 => encode e1
