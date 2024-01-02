@@ -15,21 +15,26 @@ Generalizable All Variables.
 Variant World (E:Type@{eff}) `{Encode E} :=
   | Pure
   | Obs (e : E) (v : encode e)
-  | Done {X} (x: X).
+  | Done {X} (x: X)
+  | Finish {X} (e: E) (v: encode e) (x: X).
+    
 Global Hint Constructors World: ctl.
 Arguments Pure {E} {_}.
 Arguments Obs {E} {_} e v.
 Arguments Done {E} {_} {X} x.
+Arguments Finish {E} {_} {X} e v x.
 
 Variant non_pure `{Encode E}: World E -> Prop :=
   | NonPureObs: forall (e: E) (v: encode e),
       non_pure (Obs e v)
-  | NonPureDone {X}: forall (x: X),
-      non_pure (Done x).
+  | NonPureDone {X}: forall (e: E) (v: encode e) (x: X),
+      non_pure (Finish e v x).
 Global Hint Constructors non_pure: ctl.
 
 Variant is_done_with `{Encode E}{X}: World E -> X -> Prop :=
-  | IsDoneCtor: forall (x: X), is_done_with (Done x) x.
+  | IsDoneCtor: forall (x: X), is_done_with (Done x) x
+  | IsDoneFinish: forall (x: X) (e: E) (v: encode e),
+      is_done_with (Finish e v x)  x.
 Global Hint Constructors is_done_with: ctl.
 
 Variant not_done `{Encode E}: World E -> Prop :=
@@ -45,13 +50,15 @@ Proof.
   - right; constructor.
   - right; econstructor.
   - left; exists X, x; constructor.
+  - left; exists X, x; constructor. 
 Qed.
 
 Definition non_pure_dec `{Encode E}: forall (w: World E),
-    {w = Pure} + {non_pure w}.
+    {w = Pure} + {exists X (x:X), w = Done x} + {non_pure w}.
 Proof.
   destruct w; try (right; constructor). 
-  left; constructor.
+  - left; left; reflexivity.
+  - left; right; eauto.  
 Qed.  
 
 Lemma not_done_done_with`{Encode E}{X}: forall (w: World E)(x:X),
@@ -84,7 +91,7 @@ Class Kripke (M: Type -> Type) (meq: forall X, relation (M X)) E := {
       non_pure w ->
       non_pure w';
 
-    (* - If steps, it is not done *)
+    (* - If [ktrans] steps, [w] is not done *)
     ktrans_done {X}: forall (t t': M X) w w',
       ktrans (t, w) (t', w') ->
       not_done w;
@@ -228,11 +235,15 @@ Ltac world_inv :=
       dependent destruction H
   | [H: @Done ?E ?HE ?X ?x = ?w |- _] =>
       dependent destruction H
+  | [H: @Finish ?E ?HE ?X ?e ?v ?x = ?w |- _] =>
+      dependent destruction H
   | [H: ?w = @Obs ?E ?HE ?e ?x |- _] =>
       dependent destruction H
   | [H: ?w = @Pure ?E ?HE |- _] =>
       dependent destruction H
   | [H: ?w = @Done ?E ?HE ?X ?x |- _] =>
+      dependent destruction H
+  | [H: ?w = @Finish ?E ?HE ?X ?e ?v ?x |- _] =>
       dependent destruction H
   end.
 
@@ -247,7 +258,8 @@ Ltac ktrans_equ TR :=
           let TR_ := fresh "TR" in
           let EQ_ := fresh "EQ" in
           let z_ := fresh "z" in
-          destruct (ktrans_semiproper _ _ _ _ _ H TR) as (z_ & TR_ & EQ_)
+          destruct (ktrans_semiproper _ _ _ _ _
+                      H TR) as (z_ & TR_ & EQ_)
       | [H: @mequ ?X ?x ?y |- _] =>
           let TR_ := fresh "TR" in
           let EQ_ := fresh "EQ" in

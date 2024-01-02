@@ -159,30 +159,40 @@ Section CtlCTrees.
       apply ktrans_brD.
       exists i; eauto.
   Qed.
-
   
   Lemma can_step_bind_iff{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) w,
       can_step (x <- t ;; k x, w) <->        
         (exists t' w', (t, w) ↦ (t', w') /\ not_done w')
-        \/ (exists x, (t, w) ↦ (Ctree.stuck, Done x)
-                /\ can_step (k x, w)).
+        \/ (exists y, (t, w) ↦ (Ctree.stuck, Done y)
+                /\ can_step (k y, w))
+        \/ (exists e (v: encode e) (y: Y), (t, w) ↦ (Ctree.stuck, Finish e v y)
+                /\ can_step (k y, w)).
   Proof.
     unfold can_step; split.
     - intros (k' & w' & TR).
       apply ktrans_bind_inv in TR
-          as [(t' & TR' & Hd & ?) | (y & TRt & TRk)].
+          as [(t' & TR' & Hd & ?) | [(y & TRt & -> & TRk) | (e & v & y & TRt & -> & ?)]].
       + left; exists t', w'; auto.
-      + right; exists y; split; eauto.
-    - intros * [(t' & w' & TR & Hd) |(? & TR & m' & w' & TRk)];
-        apply ktrans_trans in TR as (l & TR & Hd' & Hl);
-        destruct Hl
-          as [(-> & ?) | [(e_ & z & ? & ?) | (z & -> & ? & ?)]]; subst; try world_inv.        
-        * exists (x <- t' ;; k x), w; apply ktrans_bind_l; auto with ctl.
-        * exists (x <- t' ;; k x), (Obs e_ z); apply ktrans_bind_l; auto with ctl.
-        * inv Hd.
-        * inv Hd'.
-        * exists m', w'.
-          apply ktrans_bind_r with z; auto with ctl.
+      + right; left; exists y; split; eauto.
+      + right; right; exists e, v, y; split; eauto.
+    - intros * [(t' & w' & TR & Hd) | [(y & TR & k' & w' & TR') | (e & b & y & TR & k' & w' & TR')]];
+        ktrans_inv TR; try world_inv.
+      + exists (x <- t' ;; k x), w; apply ktrans_bind_l; auto with ctl.
+      + exists (x <- t' ;; k x), (Obs e x); apply ktrans_bind_l; auto with ctl.
+      + inv Hd.
+      + inv Hd.
+      + inv H0.
+      + exists k', w'; ktrans_inv TR'; try world_inv.
+        * eapply ktrans_bind_r with x (Done x); auto with ctl.
+        * eapply ktrans_bind_r with x (Done x); auto with ctl.
+        * eapply ktrans_bind_r with x (Done x); auto with ctl.
+          rewrite Heqt0 in TR'; auto with ctl.
+      + inv H0.
+      + exists k', w'; ktrans_inv TR'; try world_inv.
+        * eapply ktrans_bind_r with x (Finish e0 v x); auto with ctl.
+        * eapply ktrans_bind_r with x (Finish e0 v x); auto with ctl.
+        * eapply ktrans_bind_r with x (Finish e v0 x); auto with ctl.
+          rewrite Heqt0 in TR'; auto with ctl.
   Qed.
   Hint Resolve can_step_bind_iff: ctl.
 
@@ -195,37 +205,74 @@ Section CtlCTrees.
     eapply can_step_bind_iff; firstorder.
   Qed.
 
-  Lemma can_step_bind_r{X Y}: forall (t t': ctree E Y) (k: Y -> ctree E X) w y,
-      (t, w) ↦ (Ctree.stuck, Done y) ->
+  Lemma can_step_bind_r{X Y}: forall (t t': ctree E Y) (k: Y -> ctree E X) w w' y,
+      (t, w) ↦ (Ctree.stuck, w') ->
+      is_done_with w' y ->
       can_step (k y, w) ->
       can_step (x <- t ;; k x, w).
   Proof.
     intros.
     apply can_step_bind_iff; right.
-    inv H0.
-    - ktrans_inv H; try world_inv.
-      + inv H0.
-      + destruct H1 as (k' & TR).
-        exists x0; split; auto with ctl.
-        apply ktrans_trans; exists (val x0); split; [| split]; auto.
-        right; right; exists x0; auto.
+    inv H0; ktrans_inv H; try world_inv.
+    - inv H2.
+    - destruct H1 as (k' & w' & TR); ktrans_inv TR; try world_inv.
+      * left; exists x; split.
+        apply KtransDone; auto.
+        exists k', Pure.
+        apply KtransTau; auto with ctl.
+      * left; exists x; split.
+        apply KtransDone; auto.
+        exists k', (Obs e x0).
+        apply KtransObs; auto with ctl.
+      * left; exists x; rewrite Heqt0 in TR; split.
+        apply KtransDone; auto.
+        exists k', (Done x0).
+        apply KtransDone; auto.
+    - destruct H1 as (k' & w' & TR); ktrans_inv TR; try world_inv.
+      * inv H1.
+      * inv H1.
+    - destruct H1 as (k' & w' & TR); ktrans_inv TR; try world_inv.
+      * right; exists e0, v0, x; split.
+        apply KtransFinish; auto.
+        exists k', (Obs e0 v0).
+        apply KtransTau; auto with ctl.
+      * right; exists e0, v0, x; split. 
+        apply KtransFinish; auto.
+        exists k', (Obs e x0).
+        apply KtransObs; auto with ctl.
+      * right; exists e, v, x; rewrite Heqt0 in TR; split.
+        apply KtransFinish; auto.
+        exists k', (Finish e v x0).
+        apply KtransFinish; auto.
   Qed.
 
   Lemma ctl_stuck_done_af{X}: forall (x: X) φ,
-      ~ <( {(Ctree.stuck: ctree E X, Done x)} |= AF now φ )>.
+      ~ <( {(Ctree.stuck: ctree E X, Done x)} |= AF obs φ )>.
   Proof.
     intros * Hcontra.
     inv Hcontra.
-    - rewrite ctl_now in H.
+    - rewrite ctl_obs in H.
       destruct H as (? & ? & ? & ?).
       inv H.
     - destruct H0 as ((? & ? & ?) & ?).
       inv H0; inv H7; inv H8.
   Qed.
 
+  Lemma ctl_stuck_finish_af{X}: forall (x: X) (e: E) (v: encode e) φ,
+      ~ <( {(Ctree.stuck: ctree E X, Finish e v x)} |= AF obs φ )>.
+  Proof.
+    intros * Hcontra.
+    inv Hcontra.
+    - rewrite ctl_obs in H.
+      destruct H as (? & ? & ? & ?).
+      inv H.
+    - destruct H0 as ((? & ? & ?) & ?).
+      inv H0; inv H7; inv H8.
+  Qed.
+  
   Theorem ctl_bind_af_l{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) φ w,
-      <( {(t, w)} |= AF now φ )> ->
-      <( {(x <- t ;; k x, w)} |= AF now φ )>.
+      <( {(t, w)} |= AF obs φ )> ->
+      <( {(x <- t ;; k x, w)} |= AF obs φ )>.
   Proof.
     intros * Haf.
     remember (t, w) as m.
@@ -240,7 +287,7 @@ Section CtlCTrees.
     - (* MatchA *)
       next; left; cbn.
       destruct H as (e_ & x_ & ? & ?); subst.
-      rewrite ctl_now; eauto.
+      rewrite ctl_obs; eauto.
     - (* StepA *)
       destruct H0, H1; clear H H0.
       destruct H1 as (te & we & TR); cbn in *.
@@ -249,51 +296,72 @@ Section CtlCTrees.
         * eapply can_step_bind_l; eauto; apply KtransTau; eauto.
         * intros [k' w'] TR'.
           apply ktrans_bind_inv in TR'
-              as [(t' & TR' & Hd & ?) | (y & TRt' & TRk)].
-          -- rewrite H0.
+              as [(t' & TR' & Hd & ?) | [(y & TRt' & TRk) | (e & v & x & TRt & -> & TRk)]].
+          -- rewrite H.
              specialize (H3 (t', w') TR').
              apply H3.
           -- specialize (H2 (Ctree.stuck, Done y) TRt').
              Transparent entailsF.
              now apply ctl_stuck_done_af in H2.
+          -- specialize (H2 (Ctree.stuck, Finish e v x) TRt).
+             now apply ctl_stuck_finish_af in H2.
       + next; right; next; split. 
         * apply can_step_bind_l with te (Obs e x); [apply KtransObs|constructor]; auto. 
         * intros [k' w'] TR'.
           apply ktrans_bind_inv in TR'
-              as [(t' & TR' & Hd & ?) | (y & TRt' & TRk)].
-          -- rewrite H0.
+              as [(t' & TR' & Hd & ?) | [(y & TRt' & -> & TRk) | (e' & v' & x' & TRt & -> & TRk)]].
+          -- rewrite H.
              specialize (H3 (t', w') TR').
              apply H3.
           -- specialize (H2 (Ctree.stuck, Done y) TRt').
              Transparent entailsF.
              now apply ctl_stuck_done_af in H2.
-      + assert (TRt: (t, w) ↦ (Ctree.stuck, Done x)).
+          -- specialize (H2 (Ctree.stuck, Finish e' v' x') TRt).
+             now apply ctl_stuck_finish_af in H2.
+      + assert (TRt: (t, Pure) ↦ (Ctree.stuck, Done x)).
         { apply ktrans_trans; exists (val x); split; auto.
           now rewrite Heqt in TR.
-          split; [auto|right; right]; exists x; auto. }        
+          right; right; left; exists x; auto. }        
         specialize (H2 (Ctree.stuck, Done x) TRt).
         now apply ctl_stuck_done_af in H2.
+      + assert (TRt: (t, Obs e v) ↦ (Ctree.stuck, Finish e v x)).
+        { apply ktrans_trans; exists (val x); split; auto.
+          now rewrite Heqt in TR.
+          right; right; right; exists e, v, x; auto. }        
+        specialize (H2 (Ctree.stuck, Finish e v x) TRt).
+        now apply ctl_stuck_finish_af in H2.
   Qed.
 
+  (*
+  Lemma ctl_af_done_trc{X}: forall (t t': ctree E X) w w' (r: X),
+    <( {(t, w)} |= AF done {eq r} )> ->
+    (t, w) ↦* (t', w') ->
+    (t', w') ↦ (Ctree.stuck, Done r).
+  Proof.
+    intros.
+  Admitted. *)
+
   Theorem ctl_bind_af_r{X Y}:
-    forall (w: World E) (t: ctree E Y) (k: Y -> ctree E X) r w' φ,
-      <( {(t, w)} |= AF (done {fun (x: X) => x = y}) ->
-      <( {(k r, w')} |= AF now φ )> ->
-      <( {(x <- t ;; k x, w)} |= AF now φ )>.
+    forall (w: World E) (t: ctree E Y) (k: Y -> ctree E X) r φ,
+      <( {(t, Pure)} |= AF done {eq r} )> ->
+      <( {(k r, Pure)} |= AF obs φ )> ->
+      <( {(x <- t ;; k x, w)} |= AF obs φ )>.
   Proof.
     intros * Hret Haf.
     Transparent entailsF.
-    unfold entailsF in Hret.
+    unfold entailsF in Haf.
     Opaque entailsF.
-    remember (t, w) as m.
-    replace t with (fst m) by now subst.
-    replace w with (snd m) by now subst.    
-    clear Heqm t w.
-    revert Haf.
-    generalize dependent X.    
-    induction Hret; intros; destruct m; subst; cbn in *.
+    remember (k r, Pure) as m.
+    revert k Heqm k t w Hret.
+    revert Y r.
+    induction Haf; intros; destruct m; inv Heqm; subst; cbn in *.
     - (* MatchA *)
-      destruct H as (-> & (x_ & w_ & TR_ & Hd) & Hs).
+      destruct H as (? & ? & Hcontra & ?).
+      inv Hcontra.
+    - (* StepA *)
+      destruct H0, H1; clear H H0.
+      destruct H1 as (te & we & TR); cbn in *.
+      
       next; right; next; split.      
       + apply can_step_bind_l.
         exists x_, w_; auto.

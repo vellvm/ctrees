@@ -201,9 +201,11 @@ Module CtlNotations.
   (* Temporal syntax: base *)
   Notation "'pure'" := (CBase (fun w => w = Pure))
                          (in custom ctl at level 74): ctl_scope.
-  Notation "'now' p" := (CBase (fun o => exists e x, o = Obs e x /\ p e x))
+  Notation "'obs' p" := (CBase (fun o => exists e x, o = Obs e x /\ p e x))
                           (in custom ctl at level 74): ctl_scope.
   Notation "'done' p" := (CBase (fun w => exists x, w = Done x /\ p x))
+                             (in custom ctl at level 74): ctl_scope.
+  Notation "'finish' p" := (CBase (fun w => exists e v x, w = Finish e v x /\ p e v x))
                              (in custom ctl at level 74): ctl_scope.
 
   (* Temporal syntax: inductive *)
@@ -268,10 +270,15 @@ Lemma ctl_done `{KMS: Kripke M meq W} X: forall (m: M X * World W) (φ: X -> Pro
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_done: ctl.
 
-Lemma ctl_now `{KMS: Kripke M meq W} X: forall (m: M X * World W) (φ: forall (e: W), encode e -> Prop),
-    <( m |= now φ )> <-> exists (e: W) (x: encode e), snd m = Obs e x /\ φ e x.
+Lemma ctl_obs `{KMS: Kripke M meq W} X: forall (m: M X * World W) (φ: forall (e: W), encode e -> Prop),
+    <( m |= obs φ )> <-> exists (e: W) (x: encode e), snd m = Obs e x /\ φ e x.
 Proof. unfold entailsF; now cbn. Qed.
-Global Hint Resolve ctl_now: ctl.
+Global Hint Resolve ctl_obs: ctl.
+
+Lemma ctl_finish `{KMS: Kripke M meq W} X: forall (m: M X * World W) (φ: forall (e: W), encode e -> X -> Prop),
+    <( m |= finish φ )> <-> exists (e: W) (v: encode e) (x: X), snd m = Finish e v x /\ φ e v x.
+Proof. unfold entailsF; now cbn. Qed.
+Global Hint Resolve ctl_finish: ctl.
 
 (*| AX, WX, EX unfold |*)
 Lemma ctl_ax `{KMS: Kripke M meq W} X: forall (m: M X * World W) p,
