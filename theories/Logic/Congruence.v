@@ -654,10 +654,10 @@ Section CtlEquations.
       + destruct H.
         rewrite ctl_ax in H0.
         destruct H0 as (? & ?).
-        destruct H0 as (? & ? & ? & ?).
+        destruct H0 as (? & ? & ?).
         apply StepA; auto.
         split; auto.
-        exists x, x0; split; auto.
+        exists x, x0; auto.
   Qed.
 
   Lemma ctl_wu_wx: forall p q,

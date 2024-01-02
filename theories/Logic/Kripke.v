@@ -13,34 +13,53 @@ From CTree Require Import
 Generalizable All Variables.
 
 Variant World (E:Type@{eff}) `{Encode E} :=
-  | NotStarted
+  | Pure
   | Obs (e : E) (v : encode e)
-  | Done {X}(v : X).
+  | Done {X} (x: X).
 Global Hint Constructors World: ctl.
-Arguments NotStarted {E} {_}.
+Arguments Pure {E} {_}.
 Arguments Obs {E} {_} e v.
-Arguments Done {E} {_} {X} v.
+Arguments Done {E} {_} {X} x.
 
-Variant has_started `{Encode E}: World E -> Prop :=
-| HasStartedObs: forall (e: E) (v: encode e),
-    has_started (Obs e v)
-| HasStatedDone: forall X (v: X),
-    has_started (Done v).
-Global Hint Constructors has_started: ctl.
+Variant non_pure `{Encode E}: World E -> Prop :=
+  | NonPureObs: forall (e: E) (v: encode e),
+      non_pure (Obs e v)
+  | NonPureDone {X}: forall (x: X),
+      non_pure (Done x).
+Global Hint Constructors non_pure: ctl.
 
-Variant is_done `{Encode E}: World E -> Prop :=
-  | IsDone: forall {X} (v: X), is_done (Done v).
-Global Hint Constructors is_done: ctl.
+Variant is_done_with `{Encode E}{X}: World E -> X -> Prop :=
+  | IsDoneCtor: forall (x: X), is_done_with (Done x) x.
+Global Hint Constructors is_done_with: ctl.
 
-Lemma not_done_not_started `{Encode E}:
-    ~ is_done NotStarted.
-Proof. intros * Hcontra; inv Hcontra. Qed.
-Global Hint Resolve not_done_not_started: ctl.
+Variant not_done `{Encode E}: World E -> Prop :=
+  | NotDonePure: not_done Pure
+  | NotDoneObs: forall (e: E) (v: encode e),
+      not_done (Obs e v).
+Global Hint Constructors not_done: ctl.
 
-Lemma not_done_obs `{Encode E}: forall (e: E) (y: encode e),
-    ~ is_done (Obs e y).
-Proof. intros * Hcontra; inv Hcontra. Qed.
-Global Hint Resolve not_done_obs: ctl.
+Definition is_done_dec`{Encode E}: forall (w: World E),
+    {exists X (x: X), is_done_with w x} + {not_done w}.
+Proof.
+  destruct w.
+  - right; constructor.
+  - right; econstructor.
+  - left; exists X, x; constructor.
+Qed.
+
+Definition non_pure_dec `{Encode E}: forall (w: World E),
+    {w = Pure} + {non_pure w}.
+Proof.
+  destruct w; try (right; constructor). 
+  left; constructor.
+Qed.  
+
+Lemma not_done_done_with`{Encode E}{X}: forall (w: World E)(x:X),
+    is_done_with w x -> ~ not_done w.
+Proof.
+  intros; inv H0; intro Hcontra; inv Hcontra.
+Qed.
+Global Hint Resolve not_done_done_with: ctl.
 
 (*| Polymorphic Kripke model over family M |*)
 Class Kripke (M: Type -> Type) (meq: forall X, relation (M X)) E := {
@@ -59,15 +78,16 @@ Class Kripke (M: Type -> Type) (meq: forall X, relation (M X)) E := {
       ktrans (s,w) (s',w') ->
       exists t', ktrans (t,w) (t',w') /\ meq X s' t';
 
-    (* - we always step from [Some w] to [Some w'] |*)
+    (* - we always step from impore [w] to impure [w']  |*)
     ktrans_started {X} : forall (t t': M X) w w',
       ktrans (t, w) (t', w') ->
-      has_started w ->
-      has_started w';
+      non_pure w ->
+      non_pure w';
 
-    (* - [Done] does not step *)
-    ktrans_done {X}: forall (x: X) (t: M X),
-      ~ exists t' w', ktrans (t, Done x) (t',w') 
+    (* - If steps, it is not done *)
+    ktrans_done {X}: forall (t t': M X) w w',
+      ktrans (t, w) (t', w') ->
+      not_done w;
   }.
 
 Arguments EncodeE /.
@@ -179,14 +199,14 @@ Proof.
     (* Why can I not prove this? *)
 Abort.
     
-Definition can_step `{Kripke M meq W} {X} (m: M X * World W): Prop := exists m' w', ktrans m (m', w') /\ ~ is_done w'.
+Definition can_step `{Kripke M meq W} {X} (m: M X * World W): Prop :=
+  exists m' w', ktrans m (m', w').
 
 Global Instance can_step_proper `{Kripke M meq W} {X}:
   Proper (meq X * eq ==> iff) can_step.
 Proof.
   unfold Proper, respectful, can_step, impl; intros [t w] [t' w'];
-    split; intros; destruct2 H0; subst; destruct H1 as (x & w & ?);
-    destruct H0; subst.
+    split; intros; destruct2 H0; subst; destruct H1 as (x & w & ?).
   - destruct (ktrans_semiproper t' t _ _ w Heqt H0) as (y' & TR' & EQ').
     now (exists y', w).
   - symmetry in Heqt.
@@ -197,23 +217,23 @@ Qed.
 Global Hint Extern 2 =>
          match goal with
          | [ H: ?m ↦ ?m' |- can_step ?m ] =>
-             exists (fst m'), (snd m'); split; [apply H|intros Hcontra; inv Hcontra]
+             exists (fst m'), (snd m'); apply H
 end: ctl.
 
 Ltac world_inv :=
   match goal with
   | [H: @Obs ?E ?HE ?e ?x = ?w |- _] =>
       dependent destruction H
-  | [H: @NotStarted ?E ?HE = ?w |- _] =>
+  | [H: @Pure ?E ?HE = ?w |- _] =>
       dependent destruction H
-  | [H: @Done ?E ?HE ?X ?x = ?w |- _ ] =>
-      dependent destruction H                
-  | [H: ?w = @Done ?E' ?HE' ?X' ?x' |- _] =>
+  | [H: @Done ?E ?HE ?X ?x = ?w |- _] =>
       dependent destruction H
-  | [H: ?w = @Obs ?E' ?HE' ?e ?x |- _]
-    => dependent destruction H
-  | [H: ?w = @NotStarted ?E' ?HE' |- _ ] =>
-      dependent destruction H                
+  | [H: ?w = @Obs ?E ?HE ?e ?x |- _] =>
+      dependent destruction H
+  | [H: ?w = @Pure ?E ?HE |- _] =>
+      dependent destruction H
+  | [H: ?w = @Done ?E ?HE ?X ?x |- _] =>
+      dependent destruction H
   end.
 
 Global Hint Extern 2 => world_inv: ctl.

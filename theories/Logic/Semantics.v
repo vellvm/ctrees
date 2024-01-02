@@ -198,12 +198,15 @@ Module CtlNotations.
   Notation "|- φ " := (entailsF φ) (in custom ctl at level 80,
                                        φ custom ctl, only parsing): ctl_scope.
 
-  (* Temporal syntax *)
-  Notation "'not_started'" := (CBase (fun x => x = NotStarted)) (in custom ctl at level 79): ctl_scope.
+  (* Temporal syntax: base *)
+  Notation "'pure'" := (CBase (fun w => w = Pure))
+                         (in custom ctl at level 74): ctl_scope.
   Notation "'now' p" := (CBase (fun o => exists e x, o = Obs e x /\ p e x))
-                          (in custom ctl at level 79): ctl_scope.
+                          (in custom ctl at level 74): ctl_scope.
   Notation "'done' p" := (CBase (fun w => exists x, w = Done x /\ p x))
-                           (in custom ctl at level 79): ctl_scope.
+                             (in custom ctl at level 74): ctl_scope.
+
+  (* Temporal syntax: inductive *)
   Notation "'EX' p" := (CEX p) (in custom ctl at level 75): ctl_scope.
   Notation "'AX' p" := (CAX p) (in custom ctl at level 75): ctl_scope.
   Notation "'WX' p" := (CWX p) (in custom ctl at level 75): ctl_scope.
@@ -215,6 +218,7 @@ Module CtlNotations.
   Notation "p 'ER' q" := (CER p q) (in custom ctl at level 75): ctl_scope.
   Notation "p 'AR' q" := (CAR p q) (in custom ctl at level 75): ctl_scope.
   Notation "p 'WR' q" := (CWR p q) (in custom ctl at level 75): ctl_scope.
+  
   Notation "'EF' p" := (CEU (CBase (fun _=> True)) p) (in custom ctl at level 74): ctl_scope.
   Notation "'AF' p" := (CAU (CBase (fun _=> True)) p) (in custom ctl at level 74): ctl_scope.
   Notation "'WF' p" := (CWU (CBase (fun _=> True)) p) (in custom ctl at level 74): ctl_scope.
@@ -253,20 +257,21 @@ End CtlNotations.
 Import CtlNotations.
 Local Open Scope ctl_scope.
 
-Lemma ctl_now `{KMS: Kripke M meq W} X: forall (m: M X * World W) φ,
+(*| Base constructors of logical formulas |*)
+Lemma ctl_pure `{KMS: Kripke M meq W} X: forall (m: M X * World W),
+    <( m |= pure )> <-> snd m = Pure.
+Proof. unfold entailsF; now cbn. Qed.
+Global Hint Resolve ctl_pure: ctl.
+
+Lemma ctl_done `{KMS: Kripke M meq W} X: forall (m: M X * World W) (φ: X -> Prop),
+    <( m |= done φ )> <-> exists (x: X), snd m = Done x /\ φ x.
+Proof. unfold entailsF; now cbn. Qed.
+Global Hint Resolve ctl_done: ctl.
+
+Lemma ctl_now `{KMS: Kripke M meq W} X: forall (m: M X * World W) (φ: forall (e: W), encode e -> Prop),
     <( m |= now φ )> <-> exists (e: W) (x: encode e), snd m = Obs e x /\ φ e x.
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_now: ctl.
-
-Lemma ctl_not_started `{KMS: Kripke M meq W} X: forall (m: M X * World W),
-    <( m |= not_started )> <-> snd m = NotStarted.
-Proof. unfold entailsF; now cbn. Qed.
-Global Hint Resolve ctl_not_started: ctl.
-
-Lemma ctl_done `{KMS: Kripke M meq W} X: forall (m: M X * World W) φ,
-    <( m |= done φ )> <-> exists (x: X), snd m = Done x /\ φ x.
-Proof. unfold entailsF; firstorder. Qed.
-Global Hint Resolve ctl_done: ctl.
 
 (*| AX, WX, EX unfold |*)
 Lemma ctl_ax `{KMS: Kripke M meq W} X: forall (m: M X * World W) p,
@@ -302,7 +307,7 @@ Proof.
   unfold cex, cax; intros * H.
   rewrite ctl_ax in H.
   destruct m, H.
-  destruct H as (m' & w' & TR & Hd).
+  destruct H as (m' & w' & TR).
   exists (m', w'); auto.
 Qed.
 
@@ -316,7 +321,6 @@ Proof.
   - destruct m.
     destruct H0 as ((m' & ? & ?) & ?).
     destruct H1 as ((? & ? & ?) &  ?).
-    destruct H1.
     apply StepE; auto.
     exists (x0, x1); split; auto.
     now apply H3.
@@ -332,7 +336,6 @@ Proof.
   - destruct m.
     destruct H0 as ((m' & ? & ?) & ?).
     destruct H1 as ((? & ? & ?) & ?).
-    destruct H1.
     apply StepA; trivial.
     unfold cax; split; auto.
 Qed.
