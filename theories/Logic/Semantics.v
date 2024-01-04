@@ -199,6 +199,8 @@ Module CtlNotations.
                                        φ custom ctl, only parsing): ctl_scope.
 
   (* Temporal syntax: base *)
+  Notation "'now' p" := (CBase p)
+                           (in custom ctl at level 74): ctl_scope.
   Notation "'pure'" := (CBase (fun w => w = Pure))
                          (in custom ctl at level 74): ctl_scope.
   Notation "'obs' p" := (CBase (fun o => exists e x, o = Obs e x /\ p e x))
@@ -260,6 +262,11 @@ Import CtlNotations.
 Local Open Scope ctl_scope.
 
 (*| Base constructors of logical formulas |*)
+Lemma ctl_now `{KMS: Kripke M meq W} X: forall (m: M X * World W) (φ: World W -> Prop),
+    <( m |= now φ )> <-> φ (snd m).
+Proof. unfold entailsF; now cbn. Qed.
+Global Hint Resolve ctl_now: ctl.
+
 Lemma ctl_pure `{KMS: Kripke M meq W} X: forall (m: M X * World W),
     <( m |= pure )> <-> snd m = Pure.
 Proof. unfold entailsF; now cbn. Qed.

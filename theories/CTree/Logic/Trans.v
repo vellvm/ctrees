@@ -274,7 +274,7 @@ Section CTreeTrans.
 
   Lemma ktrans_bind_r{X Y}: forall (t: ctree E Y) (u: ctree E X) (k: Y -> ctree E X) (y: Y) w w_ w',
       ktrans_ (t, w) (stuck, w_) ->
-      is_done_with w_ y ->
+      return_with y w_ ->
       ktrans_ (k y, w) (u, w') ->
       ktrans_ (y <- t ;; k y, w) (u, w').
   Proof.

@@ -1,5 +1,6 @@
 From Coq Require Import
   Basics
+  Eqdep
   Classes.RelationPairs
   Init.Wf.
 
@@ -26,6 +27,10 @@ Generalizable All Variables.
 Import CTreeNotations CtlNotations.
 Local Open Scope ctl_scope.
 Local Open Scope ctree_scope.
+
+(*| Dependent observations require dependent equality |*)
+Definition eq_dep_obs`{Encode E} {e e':E}(v: encode e)(v': encode e'): Prop :=
+  eq_dep E encode e v e' v'.
 
 Section BindCtxUnary.
   Context {E: Type} {HE: Encode E} {X Y: Type}.
@@ -182,10 +187,8 @@ Section CtlCTrees.
       + inv Hd.
       + inv Hd.
       + inv H0.
-      + exists k', w'; ktrans_inv TR'; try world_inv.
-        * eapply ktrans_bind_r with x (Done x); auto with ctl.
-        * eapply ktrans_bind_r with x (Done x); auto with ctl.
-        * eapply ktrans_bind_r with x (Done x); auto with ctl.
+      + exists k', w'; ktrans_inv TR'; try world_inv;
+          eapply ktrans_bind_r with x (Done x); auto with ctl.
           rewrite Heqt0 in TR'; auto with ctl.
       + inv H0.
       + exists k', w'; ktrans_inv TR'; try world_inv.
@@ -204,47 +207,7 @@ Section CtlCTrees.
     intros.
     eapply can_step_bind_iff; firstorder.
   Qed.
-
-  Lemma can_step_bind_r{X Y}: forall (t t': ctree E Y) (k: Y -> ctree E X) w w' y,
-      (t, w) ↦ (Ctree.stuck, w') ->
-      is_done_with w' y ->
-      can_step (k y, w) ->
-      can_step (x <- t ;; k x, w).
-  Proof.
-    intros.
-    apply can_step_bind_iff; right.
-    inv H0; ktrans_inv H; try world_inv.
-    - inv H2.
-    - destruct H1 as (k' & w' & TR); ktrans_inv TR; try world_inv.
-      * left; exists x; split.
-        apply KtransDone; auto.
-        exists k', Pure.
-        apply KtransTau; auto with ctl.
-      * left; exists x; split.
-        apply KtransDone; auto.
-        exists k', (Obs e x0).
-        apply KtransObs; auto with ctl.
-      * left; exists x; rewrite Heqt0 in TR; split.
-        apply KtransDone; auto.
-        exists k', (Done x0).
-        apply KtransDone; auto.
-    - destruct H1 as (k' & w' & TR); ktrans_inv TR; try world_inv.
-      * inv H1.
-      * inv H1.
-    - destruct H1 as (k' & w' & TR); ktrans_inv TR; try world_inv.
-      * right; exists e0, v0, x; split.
-        apply KtransFinish; auto.
-        exists k', (Obs e0 v0).
-        apply KtransTau; auto with ctl.
-      * right; exists e0, v0, x; split. 
-        apply KtransFinish; auto.
-        exists k', (Obs e x0).
-        apply KtransObs; auto with ctl.
-      * right; exists e, v, x; rewrite Heqt0 in TR; split.
-        apply KtransFinish; auto.
-        exists k', (Finish e v x0).
-        apply KtransFinish; auto.
-  Qed.
+  Hint Resolve can_step_bind_l: ctl.
 
   Lemma ctl_stuck_done_af{X}: forall (x: X) φ,
       ~ <( {(Ctree.stuck: ctree E X, Done x)} |= AF obs φ )>.
@@ -269,16 +232,14 @@ Section CtlCTrees.
     - destruct H0 as ((? & ? & ?) & ?).
       inv H0; inv H7; inv H8.
   Qed.
-  
+
+  Opaque entailsF.
   Theorem ctl_bind_af_l{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) φ w,
       <( {(t, w)} |= AF obs φ )> ->
       <( {(x <- t ;; k x, w)} |= AF obs φ )>.
   Proof.
     intros * Haf.
     remember (t, w) as m.
-    Transparent entailsF.
-    unfold entailsF in Haf.
-    Opaque entailsF.
     replace t with (fst m) by now subst.
     replace w with (snd m) by now subst.
     clear Heqm t w.
@@ -341,81 +302,74 @@ Section CtlCTrees.
     intros.
   Admitted. *)
 
+  Lemma can_step_bind_r{X Y}:
+    forall (t: ctree E Y) (k: Y -> ctree E X) w (r: Y),      
+      <( {(t, w)} |= AF now {return_with r} )> ->
+      can_step (k r, w) ->
+      can_step (x <- t ;; k x, w).
+  Proof.    
+    intros.
+    remember (t, w) as m.    
+    replace t with (fst m) by now subst.
+    replace w with (snd m) by now subst.
+    revert t Heqm H0.
+    induction H; intros; destruct m; inv Heqm; cbn in *.
+    - inv H; destruct H0 as (te & we & TRe).
+      + inv TRe; inv H4.
+      + inv TRe; inv H4.
+    - destruct H0, H1; clear H0 H.
+      destruct H1 as (te & twe & TRte).
+      destruct H2 as (ke & kwe & TRke).
+      apply can_step_bind_iff.
+      ktrans_inv TRte.
+      + left.
+        exists te, w; split; auto with ctl.
+        apply KtransTau; auto.
+      + left.
+        exists te, (Obs e x); split; auto with ctl.
+        apply KtransObs; auto.
+      + rewrite Heqt in TRte.
+        right; left.
+        exists x; split.
+        * apply KtransDone; auto.
+        * (* Arghhh I need [k r] but have [k x] *)
+  Admitted.
+
+  Opaque entailsF.
   Theorem ctl_bind_af_r{X Y}:
-    forall (w: World E) (t: ctree E Y) (k: Y -> ctree E X) r φ,
-      <( {(t, Pure)} |= AF done {eq r} )> ->
-      <( {(k r, Pure)} |= AF obs φ )> ->
-      <( {(x <- t ;; k x, w)} |= AF obs φ )>.
+    forall (t: ctree E Y) (k: Y -> ctree E X) w (r: Y) φ,
+      <( {(t, w)} |= AF now {return_with r} )> ->
+      <( {(k r, w)} |= AF now φ )> ->
+      <( {(x <- t ;; k x, w)} |= AF now φ )>.
   Proof.
     intros * Hret Haf.
-    Transparent entailsF.
-    unfold entailsF in Haf.
-    Opaque entailsF.
-    remember (k r, Pure) as m.
-    revert k Heqm k t w Hret.
-    revert Y r.
-    induction Haf; intros; destruct m; inv Heqm; subst; cbn in *.
-    - (* MatchA *)
-      destruct H as (? & ? & Hcontra & ?).
-      inv Hcontra.
-    - (* StepA *)
-      destruct H0, H1; clear H H0.
+    remember (k r, w) as mk.
+    remember (t, w) as mt.
+    replace w with (snd mt) by now subst.
+    replace w with (snd mt) in Hret by now subst.
+    replace t with (fst mt) by now subst.
+    replace w with (snd mt) in Heqmk by now subst.
+    clear t w Heqmt.
+    revert mk Heqmk Haf.
+    induction Hret; intros; destruct mk; inv Heqmk; destruct m as (t, w); cbn in *.
+    - (* t |= now φ *)
+      inv H; next; left; next in Haf; destruct Haf; cbn in *.
+      + now rewrite ctl_now.
+      + destruct H as ((k' & w' &  TR') & TR).
+        inv TR'; inv H4.
+      + now rewrite ctl_now.
+      + destruct H as ((k' & w' &  TR') & TR).
+        inv TR'; inv H4.
+    - (* t StepA *)
+      destruct H0, H1; clear H H0.      
       destruct H1 as (te & we & TR); cbn in *.
-      
-      next; right; next; split.      
-      + apply can_step_bind_l.
-        exists x_, w_; auto.
-      + intros [t' w'] TR'.
-        clear x_ w_ TR_ Hd.
-        apply ktrans_bind_inv in TR' as [(t_ & TR_ & ->)| (y & TRt & TRk) ].
-        
+      ktrans_inv TR.
+      + (* tau *)
         next; right; next; split.
-
-
-
-        * destruct (Hs _ TR_) as (x & ? & ?); cbn in H; subst.
-          
-          apply ktrans_bind_r.
-        apply ktrans_bind_inv
-      rewrite ctl_now; cbn.
-      
-      destruct H0.
-      
-    induction Haf; intros; destruct m; subst; cbn in *.
-    - (* MatchA *)
-      next; left; cbn.
-      destruct H as (e_ & x_ & ? & ?); subst.
-      rewrite ctl_now; eauto.
-    - (* StepA *)
-      destruct H0, H1; clear H H0.
-      destruct H1 as (te & we & TR & Hd); cbn in *.
-      next; right.
-      next; split.
-      + apply can_step_bind_l; exists te, we; auto.
-      + intros [k' w'] TR'.
-        apply ktrans_bind_inv in TR' as [(t' & TR' & ->)| (y & TRt & TRk) ].
-        * apply (H3 (t', w') TR').
-        * specialize (H2 (Ctree.stuck, Done y) TRt).
-          now apply (@ctl_is_done_af _ Ctree.stuck y φ) in H2.
-  Qed.
+        apply can_step_bind_r with r.
+      next; right; next; split.      
+  Admitted.
     
-    remember ((k r, w)) as T.
-    generalize dependent k.
-    generalize dependent t.
-    revert w r.
-    dependent induction Haf; intros; subst; cbn in H.
-    - apply ctl_af_ax; left. (* MatchA *)
-      next; auto.
-    - next; right. (* StepA *)
-      destruct H0, H1.
-      clear H1.
-      next; split.
-      + apply can_step_bind_r_strong with r; auto.
-      + intros (t' & w') TR.
-        eapply ktrans_bind_inv_r_strong with (r:=r) in TR; auto.
-        apply H2; eauto.
-  Qed.
-
   Theorem ctl_guard_af{X}: forall (w: World E) (t: ctree E X) φ,
       <( {(t, w)} |= AF φ )> <->
       <( {(guard t, w)} |= AF φ )>.

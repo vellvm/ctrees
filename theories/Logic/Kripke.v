@@ -31,27 +31,18 @@ Variant non_pure `{Encode E}: World E -> Prop :=
       non_pure (Finish e v x).
 Global Hint Constructors non_pure: ctl.
 
-Variant is_done_with `{Encode E}{X}: World E -> X -> Prop :=
-  | IsDoneCtor: forall (x: X), is_done_with (Done x) x
-  | IsDoneFinish: forall (x: X) (e: E) (v: encode e),
-      is_done_with (Finish e v x)  x.
-Global Hint Constructors is_done_with: ctl.
+Variant return_with`{Encode E} {X}: X -> World E -> Prop :=
+  | ReturnDone: forall (x: X),
+      return_with x (Done x)
+  | ReturnFinish: forall (e: E) (v: encode e) (x: X),
+      return_with x (Finish e v x).
+Global Hint Constructors return_with: ctl.
 
 Variant not_done `{Encode E}: World E -> Prop :=
   | NotDonePure: not_done Pure
   | NotDoneObs: forall (e: E) (v: encode e),
       not_done (Obs e v).
 Global Hint Constructors not_done: ctl.
-
-Definition is_done_dec`{Encode E}: forall (w: World E),
-    {exists X (x: X), is_done_with w x} + {not_done w}.
-Proof.
-  destruct w.
-  - right; constructor.
-  - right; econstructor.
-  - left; exists X, x; constructor.
-  - left; exists X, x; constructor. 
-Qed.
 
 Definition non_pure_dec `{Encode E}: forall (w: World E),
     {w = Pure} + {exists X (x:X), w = Done x} + {non_pure w}.
@@ -61,12 +52,12 @@ Proof.
   - left; right; eauto.  
 Qed.  
 
-Lemma not_done_done_with`{Encode E}{X}: forall (w: World E)(x:X),
-    is_done_with w x -> ~ not_done w.
+Lemma return_with_not_done `{Encode E}{X}: forall (w: World E)(x:X),
+    return_with x w -> ~ not_done w.
 Proof.
   intros; inv H0; intro Hcontra; inv Hcontra.
 Qed.
-Global Hint Resolve not_done_done_with: ctl.
+Global Hint Resolve return_with_not_done: ctl. 
 
 (*| Polymorphic Kripke model over family M |*)
 Class Kripke (M: Type -> Type) (meq: forall X, relation (M X)) E := {
