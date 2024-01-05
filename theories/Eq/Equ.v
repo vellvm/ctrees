@@ -252,25 +252,25 @@ Dependent inversion of [equ] and [equb] equations
 -------------------------------------------------
 We assume [JMeq_eq] to invert easily bisimilarity of dependently typed constructors
 |*)
-Lemma equ_ret_inv {E B X R} (r1 r2 : X) :
-  Ret r1 (≅R) (Ret r2 : ctree E B X) ->
+Lemma equ_ret_inv {E B X Y R} (r1 : X) (r2 : Y) :
+  Ret r1 (≅R) (Ret r2 : ctree E B Y) ->
   R r1 r2.
 Proof.
   intros EQ. step in EQ.
   dependent induction EQ; auto.
 Qed.
 
-Lemma equ_vis_invT {E B X Y S} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E B S) k2 :
-  Vis e1 k1 ≅ Vis e2 k2 ->
+Lemma equ_vis_invT {E B X Y S S'} {Q : rel S S'} (e1 : E X) (e2 : E Y) (k1 : X -> ctree E B S) k2 :
+  Vis e1 k1 (≅Q) Vis e2 k2 ->
   X = Y.
 Proof.
   intros EQ. step in EQ.
   dependent induction EQ; auto.
 Qed.
 
-Lemma equ_vis_invE {E B X S} (e1 e2 : E X) (k1 k2 : X -> ctree E B S) :
-  Vis e1 k1 ≅ Vis e2 k2 ->
-  e1 = e2 /\ forall x, k1 x ≅ k2 x.
+Lemma equ_vis_invE {E B X S S'} {Q : rel S S'} (e1 e2 : E X) (k1 : X -> ctree E B S) k2 :
+  Vis e1 k1 (≅Q) Vis e2 k2 ->
+  e1 = e2 /\ forall x, k1 x (≅Q) k2 x.
 Proof.
   intros EQ. step in EQ.
   inv EQ.
@@ -279,17 +279,17 @@ Proof.
 	auto.
 Qed.
 
-Lemma equ_br_invT {E B X Y S b b'} (c1 : B X) (c2 : B Y) (k1 : X -> ctree E B S) k2 :
-  Br b c1 k1 ≅ Br b' c2 k2 ->
+Lemma equ_br_invT {E B X Y S S' b b'} {Q : rel S S'} (c1 : B X) (c2 : B Y) (k1 : X -> ctree E B S) k2 :
+  Br b c1 k1 (≅Q) Br b' c2 k2 ->
   X = Y /\ b = b'.
 Proof.
   intros EQ; step in EQ.
 	dependent destruction EQ; auto.
 Qed.
 
-Lemma equ_br_invE {E B X S b} (c1 c2 : B X) (k1 : _ -> ctree E B S) k2 :
-  Br b c1 k1 ≅ Br b c2 k2 ->
-   c1 = c2 /\ forall x,k1 x ≅ k2 x.
+Lemma equ_br_invE {E B X S S' b} {Q : rel S S'} (c1 c2 : B X) (k1 : _ -> ctree E B S) k2 :
+  Br b c1 k1 (≅Q) Br b c2 k2 ->
+   c1 = c2 /\ forall x,k1 x (≅Q) k2 x.
 Proof.
   intros EQ; step in EQ.
 	inv EQ.
@@ -1147,14 +1147,14 @@ Ltac ctree_head_in t h :=
 
 Ltac inv_equ h :=
   match type of h with
-  | ?t ≅ ?u => ctree_head_in t h; ctree_head_in u h;
+  | ?t (≅?Q) ?u => ctree_head_in t h; ctree_head_in u h;
       try solve [ step in h; inv h; (idtac || invert) ]
   end;
   match type of h with
-  | Ret _ ≅ Ret _ =>
+  | Ret _ (≅?Q) Ret _ =>
       apply equ_ret_inv in h;
       subst
-  | Vis _ _ ≅ Vis _ _ =>
+  | Vis _ _ (≅?Q) Vis _ _ =>
       let EQt := fresh "EQt" in
       let EQe := fresh "EQe" in
       let EQ := fresh "EQ" in
@@ -1162,7 +1162,7 @@ Ltac inv_equ h :=
       subst_hyp_in EQt h;
       apply equ_vis_invE in h as [EQe EQ];
       subst
-  | Br _ _ _ ≅ Br _ _ _ =>
+  | Br _ _ _ (≅?Q) Br _ _ _ =>
       let EQt := fresh "EQt" in
       let EQb := fresh "EQb" in
       let EQe := fresh "EQe" in
@@ -1177,7 +1177,7 @@ Ltac inv_equ h :=
 
 Ltac inv_equ_one :=
   multimatch goal with
-  | [ h : _ ≅ _ |- _ ] =>
+  | [ h : _ (≅?Q) _ |- _ ] =>
       inv_equ h
   end.
 
