@@ -15,9 +15,6 @@ Tactic Notation "cbn*" := next.
 Polymorphic Class MonadTrigger (E : Type -> Type) (M : Type -> Type) : Type :=
   mtrigger : forall {X}, E X -> M X.
 
-Polymorphic Class MonadBr (B : Type -> Type) (M : Type -> Type) : Type :=
-  mbr : forall (b : bool) {X} (b: B X), M X.
-
 Notation rel X Y := (X -> Y -> Prop).
 
 Lemma t_gfp_bt : forall {X} `{CompleteLattice X} (b : mon X),
