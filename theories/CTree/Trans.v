@@ -383,16 +383,17 @@ Section Trans.
     rewrite (ctree_eta u), TR.
     reflexivity.
   Qed.
-  
-  Lemma trans_val_inv' {Y} :
-    forall (t u : ctree E X) (x : Y),
-      trans (val x) t u ->
-      trans (val x) t stuck.
-  Proof.   
-    intros * TR.
-    pose proof trans_val_inv TR.
-    now rewrite <- H in TR.
+
+  Lemma trans_stuck: forall l (t: ctree E X),
+      ~ trans l stuck t.
+  Proof.
+    intros * Hcontra.
+    unfold trans in Hcontra.
+    dependent induction Hcontra.
+    dependent destruction x.
+    eapply IHHcontra; reflexivity.
   Qed.
+  Hint Resolve trans_stuck: trans.
 
 End Trans.
 

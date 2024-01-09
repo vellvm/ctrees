@@ -30,25 +30,20 @@ Global Instance h_state_stateT {E Σ} (h:E ~> state Σ): E ~> stateT Σ (ctree v
   }.
 
 (*| Intrument by an evaluation [E ~> stateT Σ ctree] and observation function [obs] |*)
-Global Instance h_stateT_writerA {E W Σ} (h:E ~> stateT Σ (ctree void))(obs: Bar E * Σ -> W):
+Global Instance h_stateT_writerA {E W Σ} (h:E ~> stateT Σ (ctree void))
+  (obs: forall (e: E), encode e -> Σ -> W):
   E ~> stateT Σ (ctree (writerE W)) := {
     handler e :=
       mkStateT (fun s =>
                   '(x, σ) <- resumCtree (runStateT (h.(handler) e) s) ;;
-                  Ctree.trigger (Log (obs (Obs e x, σ))) ;;
+                  Ctree.trigger (Log (obs e x σ)) ;;
                   Ret (x, σ))
-  }.
-
-(*| Observe events. The [stateT S (ctree void)] to [stateT S (ctree (Bar E))] |*)
-Global Instance h_stateT_writerE {E Σ} (h:E ~> stateT Σ (ctree void)):
-  E ~> stateT Σ (ctree (writerE (Bar E))) := {
-    handler := @handler _ _ (h_stateT_writerA h fst)
   }.
 
 (*| Observe states. The [stateT S (ctree void)] to [stateT S (ctree (writerE S))] |*)
 Global Instance h_stateT_writerΣ {E Σ} (h:E ~> stateT Σ (ctree void)):
   E ~> stateT Σ (ctree (writerE Σ)) := {
-    handler := @handler _ _ (h_stateT_writerA h snd)
+    handler := @handler _ _ (h_stateT_writerA h (fun _ _ s => s))
   }.
 
 (*| Lemmas about state |*)

@@ -304,8 +304,8 @@ Qed.
 Lemma itree_eta {E R} {HE: Encode E} (t : itree E R) : t ≅ go (observe t).
 Proof. step; now cbn. Qed.
 
-Lemma unfold_spin {E R} {HE: Encode E}: @spin E _ R ≅ Tau spin.
-Proof. exact (itree_eta spin). Qed.
+Lemma unfold_stuck {E R} {HE: Encode E}: @stuck E _ R ≅ Tau stuck.
+Proof. exact (itree_eta stuck). Qed.
 
 Notation bind_ t k :=
   match observe t with

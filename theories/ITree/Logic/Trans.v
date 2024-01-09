@@ -11,8 +11,8 @@ From Coq Require Import
   Classes.RelationPairs.
 
 From CTree Require Import
-  Logic.Kripke
   Events.Core
+  Logic.Kripke
   ITree.Events.Writer
   ITree.Equ
   ITree.Interp
@@ -24,37 +24,34 @@ Import Itree ITreeNotations.
 Local Open Scope itree_scope.
 Local Open Scope ctl_scope.
 
-Notation itreeW W := (itree (writerE W)).
-Notation itreeEW E := (itree (writerE (Bar E))).
-Notation itreeW' W X := (itree' (writerE W) X).
-Notation itreeEW' E X := (itree' (writerE (Bar E)) X).
 
 (*| Kripke transition system |*)
 Section KripkeTrans.
-  Context {E: Type} `{HE: Encode E} {X: Type}.
-  Notation opt E := (option (Bar E)).
+  Context {E: Type} `{HE: Encode E}.
 
   (*| Kripke transition system |*)
-  Inductive trans_: relation (itree' E X * opt E) :=
-  | kTau t t' w w':
+  Inductive trans_{X}: relation (itree' E X * World E) :=
+  | KtransObs (w: World E) (e: E) (v: encode e)
+      (k: encode e -> itree E X) (t: itree E X):
+    t ≅ k v ->
+    not_done w ->
+    trans_ (VisF e k, w) (observe t, Obs e v)
+  | KtransTau (w w': World E) (t t': itree E X):
     trans_ (observe t, w) (observe t', w') ->
     trans_ (TauF t, w) (observe t', w')
-  | kVis t w e (k: encode e -> itree E X) x:
-    t ≅ k x ->
-    trans_ (VisF e k, w) (observe t, Some (Obs e x)).
+  | KtransDone (x: X) (t: itree E X):
+    t ≅ Itree.stuck ->
+    trans_ (RetF x, Pure) (observe t, Done x)
+  | KtransFinish (x: X) (e: E) (v: encode e) (t: itree E X):
+    t ≅ Itree.stuck ->
+    trans_ (RetF x, Obs e v) (observe t, Finish e v x).
   Hint Constructors trans_ : core.
 
-  Definition trans: relation (itree E X * opt E) :=
-    fun '(t,w) '(t',w') =>
-      trans_ (observe t, w) (observe t', w').
-
-  Ltac FtoObs :=
-    match goal with
-      |- trans_ _ (?t,_) =>
-        change t with (observe {| _observe := t |})
-    end.
-
-  Global Instance trans_equ_aux1 (t: itree' E X) (w: opt E):
+  Definition trans {X}: relation (itree E X * World E) :=
+    fun '(t, w) '(t', w') => trans_ (observe t, w) (observe t', w').
+  Arguments trans /.
+  
+  Global Instance trans_equ_aux1 {X}(t: itree' E X) (w: World E):
     Proper (going (equ eq) * eq ==> flip impl) (trans_ (t,w)).
   Proof.
     unfold Proper, respectful, iff, fst, snd; cbn; unfold fst, snd;
@@ -63,18 +60,25 @@ Section KripkeTrans.
     inv equ; rename H into equ; cbn in *.
     step in equ.
     revert u equ.
-    dependent induction TR; intros; subst; eauto; FtoObs.
-    + eapply kTau.
+    dependent induction TR; intros; subst; eauto;
+      rename u into U;
+      remember ({| _observe := U |}) as u;
+      replace U with (observe u) in * by now subst.
+    - eapply KtransObs; auto.
+      transitivity t0; auto.
+      now step.
+    - eapply KtransTau; auto.
       eapply IHTR; auto.
-    + eapply kVis; auto.
-      * rewrite <- H.
-        cbn.
-        step.
-        assumption.
+    - eapply KtransDone.
+      transitivity t0; auto.
+      now step.
+    - eapply KtransFinish.
+      transitivity t0; auto.
+      now step.
   Qed.
 
-  Global Instance trans_equ_aux2:
-    Proper (going (equ eq) * eq ==> going (equ eq) * eq ==> impl) trans_.
+  Global Instance trans_equ_aux2 {X}:
+    Proper (going (equ eq) * eq ==> going (equ eq) * eq ==> impl) (trans_ (X:=X)).
   Proof.
     intros (t & s) (t' & s') (eqt & eqs) (u & su)
       (u' & su') (equ & eqsu) TR; cbn in *;
@@ -83,20 +87,21 @@ Section KripkeTrans.
     inv eqt; rename H into eqt.
     revert t' eqt.
     dependent induction TR; intros; auto.
-    + step in eqt; inv eqt; dependent induction H1.
-      cbn in x; rewrite <- x.
-      eapply kTau.
+    + step in eqt; cbn in eqt; dependent destruction eqt.
+      rewrite H.
+      apply KtransObs; auto.
+    + step in eqt; cbn in eqt; dependent destruction eqt.
+      apply KtransTau; auto.
       eapply IHTR; auto.
-      rewrite <- !itree_eta.
-      assumption.
-    + step in eqt; inv eqt; dependent induction H1.
-      cbn in x; rewrite <- x.
-      eapply kVis; eauto.
-      now rewrite <- H3.
+      now rewrite <- !itree_eta.
+    + step in eqt; cbn in eqt; dependent destruction eqt.
+      apply KtransDone; auto.
+    + step in eqt; cbn in eqt; dependent destruction eqt.
+      apply KtransFinish; auto.
   Qed.
 
-  Global Instance trans_equ_proper:
-    Proper (equ eq * eq ==> equ eq * eq ==> iff) trans.
+  Global Instance trans_equ_proper{X}:
+    Proper (equ eq * eq ==> equ eq * eq ==> iff) (trans (X:=X)).
   Proof.
     unfold Proper, respectful, RelCompFun, fst, snd; cbn; intros.
     destruct2 H0; destruct2 H; destruct x, y, x0, y0; subst.
@@ -105,122 +110,194 @@ Section KripkeTrans.
     - now rewrite Heqt0, Heqt.
   Qed.
 
+  Definition equ X := @equ E HE X X eq.
+  Arguments equ /.
+  Global Program Instance itree_kripke: Kripke (itree E) equ E := {
+      ktrans X '(t,w) '(t',w') :=
+        trans_ (X:=X) (observe t, w) (observe t', w')
+    }.
+  Next Obligation.
+    setoid_rewrite H in H0.
+    exists s'; auto.
+  Defined.
+  Arguments ktrans /.
+  
 End KripkeTrans.
 
-Ltac ktrans_inv H :=
+Ltac ktrans_ind H :=
   simpl ktrans in H;
-  simpl trans in H;
-  dependent destruction H.
+  dependent induction H; eauto with ctl.
 
 Section KripkeLemmas.
   Context {E: Type} {HE: Encode E}.
-  Notation equ := (fun (X: Type) => @equ E HE X X eq).
 
-  (*| ITree is a kripke automaton |*)
-  Global Program Instance itree_kripke: Kripke (itree E) equ (Bar E) :=
-    {| ktrans X := trans (X:=X) |}.
-  Next Obligation.
-    intros.
-    exists s'; split; auto.
-    now rewrite <- H.
-  Defined.
-  Next Obligation.
-    intros.
-    unfold trans in H.
-    remember (observe t, Some w).
-    remember (observe t', w').
-    generalize dependent t.
-    generalize dependent t'.
-    revert w'.
-    induction H; intros; subst; inv Heqp.
-    + now eapply IHtrans_ with (t:=t) (t':=t'0).
-    + inv Heqp0; eexists; reflexivity.
-  Defined.
-  Arguments ktrans /.
-
-  Lemma ktrans_ret{X}: forall (x: X) (t': itree E X) (s s': option (Bar E)),
-      (Ret x, s) ↦ (t', s') -> False.
+  (* Always step from impore [w] to impure [w']  |*)
+  Lemma ktrans_started {X} : forall (t t': itree E X) w w',
+      ktrans (t, w) (t', w') ->
+      non_pure w ->
+      non_pure w'.
   Proof.
-    intros * Hcontra.
-    ktrans_inv Hcontra.
+    intros.
+    ktrans_ind H.
+    inv H0.
+  Qed.
+  
+  (* If [ktrans] steps, [w] is not done *)
+  Lemma ktrans_not_done {X}: forall (t t': itree E X) w w',
+      ktrans (t, w) (t', w') ->
+      not_done w.
+  Proof.
+    intros; ktrans_ind H.
   Qed.
 
-  Lemma ktrans_tau{X}: forall (t t': itree E X) s s',
+  Lemma ktrans_stuck{X}: forall (t: itree E X) w w',
+      ~ ((stuck, w) ↦ (t, w')).
+  Proof.
+    intros * Hcontra.
+    ktrans_ind Hcontra.
+  Qed.
+  Hint Resolve ktrans_stuck: ctl.
+
+  Lemma ktrans_tau {X}: forall (t t': itree E X) s s',
       (Tau t, s) ↦ (t', s') <-> ktrans (t, s) (t', s').
   Proof.
     intros; split; intro H.
-    - ktrans_inv H; cbn; now rewrite x in H.
-    - cbn; apply kTau; now cbn in H.
+    - ktrans_ind H; cbn; now rewrite x in H.
+    - cbn; apply KtransTau; now cbn in H.
   Qed.
 
+  Lemma ktrans_pure {X}: forall (t: itree E X) (w': World E) x,
+      ktrans (Ret x, Pure) (t, w') <-> (w' = Done x /\ t ≅ stuck).
+  Proof.
+    intros; split; intros.
+    - ktrans_ind H; split; try reflexivity.
+      step; cbn; rewrite <- x; now step in H.
+    - cbn; destruct H as (-> & ->); now apply KtransDone.
+  Qed.
+
+  Lemma ktrans_finish {X}: forall (t: itree E X) (w': World E) (e: E) (v: encode e) x,
+      ktrans (Ret x, Obs e v) (t, w') <-> (w' = Finish e v x /\ t ≅ stuck).
+  Proof.
+    intros; split; intros.
+    - ktrans_ind H; split; try reflexivity.
+      step; cbn; rewrite <- x; now step in H.                                              
+    - cbn; destruct H as (-> & ->); now apply KtransFinish.
+  Qed.
+  
   Lemma ktrans_vis {X} {t': itree E X} s s' e (k: encode e -> itree E X):
     (Vis e k, s) ↦ (t', s') <->
-      (exists (x: encode e), t' ≅ k x /\ s' = Some (Obs e x)).
+      (exists (v: encode e), t' ≅ k v /\ s' = Obs e v /\ not_done s).
   Proof.
-    intros; split; intro TR; ktrans_inv TR.
-    - observe_equ x; exists x0.
-      split.
-      + now rewrite <- H.
-      + reflexivity.
-    - unfold ktrans; cbn.
-      destruct H as (Heq & ->).
-      now apply kVis.
+    intros; split; intro TR; ktrans_ind TR.
+    - exists v; split; auto.
+      step; cbn; rewrite <- x; now step in H.
+    - cbn; destruct H as (-> & -> & ?); apply KtransObs; auto.
   Qed.
 
-  Lemma ktrans_bind_inv_aux {X Y} (s s': option (Bar E))(T U: itree' E Y) :
-    trans_ (T, s) (U, s') ->
+  (* TODO *)
+  Lemma ktrans_bind_inv_aux {X Y} (w w': World E)(T U: itree' E Y) :
+    trans_ (T, w) (U, w') ->
     forall (t: itree E X) (k: X -> itree E Y) (u: itree E Y),
       go T ≅ t >>= k ->
       go U ≅ u ->
-      (exists t', (t, s) ↦ (t', s') /\ u ≅ x <- t' ;; k x) \/
-        (exists x, may_ret x t /\ (k x, s) ↦ (u, s')).
+      (exists t', (t, w) ↦ (t', w')
+             /\ not_done w'
+             /\ u ≅ x <- t' ;; k x) \/
+        (exists y w_, (t, w) ↦ (stuck, w_)
+                 /\ return_with y w_
+                 /\ (k y, w) ↦ (u, w')).
   Proof.
     intros TR.
     dependent induction TR; intros.
-    - rewrite unfold_bind in H.
-      unfold ktrans, trans; cbn.
-      desobs t0; observe_equ Heqt.
+    - rewrite unfold_bind in H1; unfold ktrans, trans; cbn; desobs t0; observe_equ Heqt.
+      + right.        
+        exists x; inv H0.
+        * exists (Done x).
+          replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
+          split; [|split]; auto with ctl.
+          -- now apply KtransDone.
+          -- rewrite <- H1; cbn; apply KtransObs; auto with ctl.
+             rewrite <- itree_eta in H2.
+             transitivity t; [symmetry|]; auto.             
+        * exists (Finish e0 v0 x).
+          replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
+          split; [|split]; auto with ctl.
+          -- now apply KtransFinish.
+          -- rewrite <- H1; cbn; apply KtransObs; auto with ctl.
+             rewrite <- itree_eta in H2.
+             transitivity t; [symmetry|]; auto.             
+      + step in H1; inv H1.
+      + left.
+        pose proof (equ_vis_invT H1) as (_ & <-).
+        eapply equ_vis_invE with v in H1.
+        exists (k1 v); split; [|split]; auto with ctl.
+        * now cbn; apply KtransObs.
+        * rewrite <- H1, <- H.
+          symmetry.
+          now rewrite <- itree_eta in H2.
+    - rewrite unfold_bind in H; unfold ktrans, trans; cbn; desobs t0; observe_equ Heqt.
       + right.
-        exists x; split.
-        * unfold may_ret; rewrite Heqt; apply RetRet.
-        * rewrite <- H, <- H0.
-          cbn; now apply kTau.
+        exists x.
+        pose proof (ktrans_not_done (X:=Y) t t' w w' TR) as Hw.
+        inv Hw.
+        * exists (Done x).
+          replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
+          split; [|split]; auto with ctl.
+          -- now apply KtransDone.
+          -- rewrite <- H, <- H0; cbn; now apply KtransTau.
+        * exists (Finish e v x).
+          replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
+          split; [|split]; auto with ctl.
+          -- now apply KtransFinish.
+          -- rewrite <- H, <- H0; cbn; now apply KtransTau.
       + pose proof (equ_tau_invE H).
-        setoid_rewrite ktrans_tau.
-        specialize (IHTR _ _ _ _ eq_refl eq_refl t1 k u).
-        rewrite <- itree_eta in IHTR.
-        edestruct (IHTR H1 H0)  as [(t2 & TR2 & Eq2) | (x' & Hr & TRr)].
+        rewrite itree_eta in H1.
+        destruct (IHTR _ _ _ _ eq_refl eq_refl t1 k u H1 H0) as [(t2 & TR2 & Hd & Eq2) | (x & w_ & TRr & Hr & TRk)].
         * left.
-          exists t2.
-          split; eauto.
+          exists t2; split; [|split]; auto with ctl.
+          now apply KtransTau.
         * right.
-          exists x'; split; auto.
-          unfold may_ret.
-          eapply RetTau; eauto.
+          exists x; inv Hr.
+          -- exists (Done x); split; auto with ctl.
+             replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
+             now apply KtransTau.
+          -- exists (Finish e v x); split; auto with ctl.
+             replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
+             now apply KtransTau.
       + step in H; inv H.
-    - rewrite unfold_bind in H0.
-      desobs t0; observe_equ Heqt.
+    - rewrite unfold_bind in H0; unfold ktrans, trans; cbn; desobs t0; observe_equ Heqt.
       + right.
-        exists x0; split.
-        * unfold may_ret; rewrite Heqt; apply RetRet.
-        * rewrite <- H0.
-          apply ktrans_vis; exists x.
-          split; [|reflexivity].
-          now rewrite <- H, <- H1, <- itree_eta.
+        exists x0, (Done x0).
+        split; [|split]; auto with ctl.
+        * replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
+          now apply KtransDone.
+        * rewrite <- H1, H, <- H0; cbn.
+          replace (TauF stuck) with (observe stuck (X:=Y)) by reflexivity.
+          now apply KtransDone.
       + step in H0; inv H0.
-      + pose proof (equ_vis_invT H0) as (_ & <-).
-        apply equ_vis_invE with x in H0.
-        left.
-        exists (k1 x); rewrite Eqt; split.
-        * now cbn; apply kVis.
-        * now rewrite <- H1, <- itree_eta, <- H0.
+      + step in H0; inv H0.
+    - rewrite unfold_bind in H0; unfold ktrans, trans; cbn; desobs t0; observe_equ Heqt.
+      + right.
+        exists x0, (Finish e v x0).
+        split; [|split]; auto with ctl.
+        * replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
+          now apply KtransFinish.
+        * rewrite <- H1, H, <- H0; cbn.
+          replace (TauF stuck) with (observe stuck (X:=Y)) by reflexivity.
+          now apply KtransFinish.
+      + step in H0; inv H0.
+      + step in H0; inv H0.
   Qed.
 
-  Lemma ktrans_bind_inv: forall {X Y} (s s': option (Bar E))
+  Lemma ktrans_bind_inv: forall {X Y} (w w': World E)
                            (t: itree E X) (u: itree E Y) (k: X -> itree E Y),
-      (x <- t ;; k x, s) ↦ (u, s') ->
-      (exists t', (t, s) ↦ (t', s') /\ u ≅ x <- t' ;; k x) \/
-        (exists x, may_ret x t /\ (k x, s) ↦ (u, s')).
+      (x <- t ;; k x, w) ↦ (u, w') ->
+      (exists t', (t, w) ↦ (t', w')
+             /\ not_done w'
+             /\ u ≅ x <- t' ;; k x) \/
+        (exists y w_, (t, w) ↦ (stuck, w_)
+                 /\ return_with y w_
+                 /\ (k y, w) ↦ (u, w')).
   Proof.
     intros * TR.
     eapply ktrans_bind_inv_aux.
@@ -229,210 +306,49 @@ Section KripkeLemmas.
     rewrite <- itree_eta; reflexivity.
   Qed.
 
-  Lemma ktrans_bind_inv_l: forall {X Y} (s s': option (Bar E))
-                             (t: itree E X) (u: itree E Y) (k: X -> itree E Y),
-      (x <- t ;; k x, s) ↦ (u, s') ->
-      ~ (exists x, may_ret x t) ->
-      (exists t', (t, s) ↦ (t', s') /\ u ≅ x <- t' ;; k x).
+  Lemma ktrans_bind_l{X Y}: forall (t t': itree E Y)
+                              (k: Y -> itree E X) w w',
+      (t, w) ↦ (t', w') ->
+      not_done w' ->
+      (x <- t ;; k x, w) ↦ (x <- t' ;; k x, w').
   Proof.
-    intros.
-    apply ktrans_bind_inv in H.
-    destruct H as [(? & ?) | (x0 & Hret & Hcont)]; eauto.
-    exfalso.
-    apply H0.
-    now exists x0.
-  Qed.
-End KripkeLemmas.
-
-Section FixpointTransW.
-  Context {W X: Type}.
-
-  (*| The base instance is [ctree_kripke] but depending on what we observe,
-    some more convenient thin wrappers work better |*)
-  #[refine] Global Instance itreeW_kripke{W}: Kripke (itreeW W) W | 80 :=
-    {|
-      MM := Monad_itree;
-      ktrans X '(t, w) '(t', w') :=
-        let opt_proj := option_map (fun w => Obs (Log w) tt) in  
-        itree_kripke.(ktrans) (X:=X) (t, opt_proj w) (t', opt_proj w');
-      mequ X := @equ (writerE W) _ _ X eq
-    |}.
-  Proof.
-    intros; now apply itree_kripke.(ktrans_semiproper) with (t:=t) (s:=s).
-  Defined.
-  
-  (*| Computational version of [ktrans] for |*)
-  Fixpoint transW_ {W X}(n: nat) (t: itreeW' W X) (s: W): itreeW W X * W :=
-    match t, n with
-    | RetF x, _ => (Ret x, s)
-    | VisF (Log s') k, S m =>
-        transW_ m (observe (k tt)) s'
-    | TauF t, S m => transW_ m (observe t) s
-    | VisF e k, 0 => (Vis e k, s)
-    | TauF t, 0 => (Tau t, s)
-    end.
-
-  Definition transW{W X}(n: nat)(p: itreeW W X * W) :=
-    let '(t,s) := p in transW_ n (observe t) s.
-
-  Global Instance transW_proper_equ:
-    Proper (eq ==> equ eq * eq ==> equ eq * eq) (@transW W X).
-  Proof.
-    repeat red; cbn.
-    intros ? n ->.
-    unfold fst, snd, RelCompFun.
-    intros (t & s) (t' & s') (Ht & ->).
-    destruct (transW n (t, s')) as (tn, sn') eqn:Htn.
-    destruct (transW n (t', s')) as (tn', sn'') eqn:Htn'.
-    revert Htn'  Htn.
-    revert sn'' tn' sn' tn Ht s'.
-    revert t t'.
-    induction n; cbn; intros; step in Ht; cbn in Ht.
-    - desobs t; desobs t'; cbn in Ht;
-        dependent destruction Ht; inv Htn'; inv Htn.
-      + split; reflexivity.
-      + split; [red; step; cbn; rewrite H |]; reflexivity.
-      + destruct e0.
-        dependent destruction H1.
-        dependent destruction H2.
-        split; [|reflexivity].
-        red; step; cbn; now constructor.
-    - desobs t; desobs t'; cbn in Ht;
-        dependent destruction Ht; inv Htn'; inv Htn.
-      + split; reflexivity.
-      + apply IHn with (t:=t0) (t':=t1) (s':=s'); auto.
-      + destruct e0.
-        eapply IHn with (t:=k tt) (t':=k0 tt); eauto.
-  Qed.
-
-  Infix "≅2" := ((@equ (writerE W) (encode_writerE (S:=W)) X X eq * eq)%signature)
-                  (at level 42, left associativity).
-
-  Lemma transW_ret: forall n x t s s',
-      (Ret x ≅ t /\ s = s') <->
-        transW n (Ret x, s) ≅2 (t, s').
-  Proof. induction n; split; cbn; auto. Qed.
-
-  Lemma transW_tau: forall x t t' x',
-      (t' ≅ t /\ x = x') <->
-        transW 1 (Tau t, x) ≅2 (t', x').
-  Proof.
-    split; intros (eqt & ?); subst.
-    - desobs t; observe_equ Heqt; rewrite eqt, Eqt; try reflexivity.
-      destruct e; reflexivity.
-    - unfold fst, snd, RelCompFun in *.
-      cbn in H, eqt; desobs t; subst; observe_equ_all; rewrite <- eqt, Eqt; auto.
-      + now destruct e.
-  Qed.
-
-  Lemma transW_vis: forall x k x' t' s,
-      (t' ≅ k tt /\ x' = s) <->
-        transW 1 (Vis (Log s) k, x) ≅2 (t', x').
-  Proof.
-    split; intros * (eqt & ?); subst.
-    - cbn; rewrite eqt.
-      desobs (k tt); observe_equ Heqt; rewrite Eqt; auto.
-      split2; destruct e; reflexivity.
-    - unfold fst, snd, RelCompFun in *.
-      cbn in H, eqt.
-      desobs (k tt); subst; observe_equ_all; rewrite <- eqt, Eqt; auto.
-      + now destruct e.
-  Qed.
-
-  Lemma transW_0: forall x y,
-      transW 0 x ≅2 y <-> x ≅2 y.
-  Proof.
-    intros [tx sx] [ty sy]; split; intros.
-    - cbn in H; desobs tx; destruct2 H; observe_equ_all;
-        subst; rewrite <- Heqt0, Eqt; auto.
-      now destruct e.
-    - destruct2 H; cbn; desobs tx;
-        observe_equ_all; subst.
-      + rewrite <- Heqt, <- Eqt; split2; reflexivity.
-      + rewrite <- Heqt, <- Eqt; split2; reflexivity.
-      + destruct e; rewrite <- Eqt; split; auto.
-  Qed.
-
-  (*| Deterministic [transW] |*)
-  Lemma transW_det: forall n x y z,
-      transW n x ≅2 y ->
-      transW n x ≅2 z ->
-      y ≅2 z.
-  Proof.
-    induction n; intros [tx sx] [ty sy] [tz sz]; cbn; desobs tx;
-      intros Hx Hy; split2; destruct2 Hx; destruct2 Hy; subst; try reflexivity;
-      rewrite <- Heqt0, <- Heqt1; reflexivity.
-  Qed.
-
-  (*| Deterministic [ktrans] |*)
-  Lemma ktransW_det: forall (t t' t'': itreeW W X) s s' s'',
-      (t, s) ↦ (t', s') ->
-      (t, s) ↦ (t'', s'') ->
-      t' ≅ t'' /\ s' = s''.
-  Proof.
-    cbn; intros * Hx Hy.
-    dependent induction Hx. 
-    - rewrite <- x0 in Hy; inv Hy.
-      eapply IHHx; auto.
-      + now rewrite x.
-      + now rewrite <- H2.
-    - unfold encode, encode_writerE in x0, k.
-      destruct x0.
-      rewrite <- x1 in Hy.
-      apply ktrans_vis in Hy as ([] & ? & ->).
+    intros; cbn in *.
+    ktrans_ind H; rewrite unfold_bind; cbn.
+    - desobs t; dependent destruction x0.      
+      apply ktrans_vis.
+      exists v; split; auto.
       observe_equ x.
-      rewrite <- Eqt, H0, H; split; reflexivity.
+      rewrite <- Eqt, H.
+      reflexivity.
+    - desobs t; dependent destruction x0.
+      apply ktrans_tau.
+      cbn; apply IHtrans_; auto.
+      now rewrite x.
+    - inv H0.
+    - inv H0.
   Qed.
 
-  Lemma transW_Sn_left: forall n x z,
-      transW (S n) x ≅2 z <->
-        (exists y, transW 1 x ≅2 y /\ transW n y ≅2 z).
+  Lemma ktrans_bind_r{X Y}:
+    forall (t: itree E Y) (u: itree E X) (k: Y -> itree E X)
+      (y: Y) w w_ w',
+      (t, w) ↦ (stuck, w_) ->
+      return_with y w_ ->
+      (k y, w) ↦ (u, w') ->
+      (y <- t ;; k y, w) ↦ (u, w').
   Proof.
-    induction n; intros [tx sx] [tz sz]; split; intro TR.
-    - exists (tz, sz); split; auto.
-      now apply transW_0.
-    - destruct TR as [[ty sy] [TR1 TR0]].
-      rewrite transW_0 in TR0.
-      now rewrite TR1.
-    - remember (S n) as p.
-      desobs tx.
-      + exists (tz, sz); split.
-        * cbn; destruct2 TR; rewrite Heqt in *; auto.
-        * cbn in TR; rewrite Heqt in TR; destruct2 TR; subst; rewrite <- Heqt0.
-          cbn; split2; reflexivity.
-      + exists (t, sx); split.
-        * admit.
-  Admitted.
+    intros; cbn in *.
+    replace (TauF stuck) with (observe stuck (X:=Y)) in H
+        by reflexivity.
+    ktrans_ind H; rewrite unfold_bind; cbn.
+    - inv H1.
+    - desobs t; dependent destruction x0.
+      apply ktrans_tau.
+      cbn; eapply IHtrans_; eauto.
+      now rewrite x.
+    - dependent destruction H0.
+      desobs t; dependent destruction x1; auto.
+    - dependent destruction H0.
+      desobs t; dependent destruction x1; auto.
+  Qed.      
 
-  Lemma transW_Sn_right: forall n x z,
-      transW (S n) x ≅2 z <->
-        (exists y, transW n x ≅2 y /\ transW 1 y ≅2 z).
-  Proof.
-    induction n; intros [tx sx] [tz sz]; split; intro TR.
-    - exists (tx, sx); split; auto.
-      apply transW_0; reflexivity.
-    - destruct TR as [[ty sy] [TR0 TR1]].
-      rewrite transW_0 in TR0.
-      now rewrite TR0.
-    - admit. (* <- *)
-    - admit.
-  Admitted.
-
-  Lemma transF_transitive: forall x y z n m,
-      transW n x ≅2 y -> transW m y ≅2 z -> transW (n+m) x ≅2 z.
-  Proof.
-    intros.
-    revert H H0.
-    revert m x y z.
-    induction n; intros.
-    - rewrite transW_0 in H; intros.
-      rewrite plus_O_n.
-      now rewrite H.
-    - apply transW_Sn_right in H as (x' & TR1 & TRn).
-      rewrite PeanoNat.Nat.add_succ_comm.
-      eapply IHn with x'; auto.
-      apply transW_Sn_left.
-      exists y; auto.
-  Qed.
-
-End FixpointTransW.
+End KripkeLemmas.

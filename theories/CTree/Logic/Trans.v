@@ -29,7 +29,6 @@ Import Ctree CTreeNotations.
 Local Open Scope ctree_scope.
 
 Notation ctreeW W := (ctree (writerE W)).
-Notation ctreeEW E := (ctree (writerE (Bar E))).
 
 Section CTreeTrans.
   Context {E: Type} `{HE: Encode E} {X: Type}.
@@ -133,7 +132,9 @@ Section CTreeTrans.
   Context {E: Type} `{HE: Encode E}.
   Notation encode := (@encode E HE).
   Local Open Scope ctl_scope.
-  Notation sbisim := (fun (X: Type) => @sbisim E E HE HE X X eq).
+  Definition sbisim (X: Type) := @sbisim E E HE HE X X eq.
+  Arguments sbisim /.
+  Hint Unfold sbisim: core.
 
   (*| CTree is a kripke automaton with [Sb] equivalence |*)
   Global Program Instance ctree_kripke : Kripke (ctree E) sbisim E :=
@@ -153,12 +154,25 @@ Section CTreeTrans.
       rewrite <- H3 in *.
       now apply KtransFinish.
   Defined.
-  Next Obligation.
+  
+  (* Always step from impore [w] to impure [w']  |*)
+  Lemma ktrans_started {X} : forall (t t': ctree E X) w w',
+      ktrans_ (t, w) (t', w') ->
+      non_pure w ->
+      non_pure w'.
+  Proof.
+    intros.
     ktrans_inv H; auto with ctl; inv H0.
-  Defined.
-  Next Obligation.
-    ktrans_inv H; auto with ctl. 
-  Defined.
+  Qed.
+  Hint Resolve ktrans_started: ctl.
+  
+  (* If [ktrans] steps, [w] is not done *)
+  Lemma ktrans_not_done{X}: forall (t t': ctree E X) w w',
+    ktrans_ (t, w) (t', w') -> not_done w.
+  Proof.
+    intros; inv H; auto with ctl.
+  Qed.
+  Hint Resolve ktrans_not_done: ctl.
 
   (*| Lemmas that depend on structure of [ctrees] |*)
   Lemma ktrans_brD {X}: forall n (t': ctree E X) (k: fin' n -> ctree E X) w w',
@@ -201,7 +215,7 @@ Section CTreeTrans.
     - apply ktrans_brD; now (exists (F1)).
   Qed.
 
-  Lemma ktrans_pure {X}: forall (t: ctree E X) (w': World E) x,
+  Lemma ktrans_done {X}: forall (t: ctree E X) (w': World E) x,
       ktrans_ (Ret x, Pure) (t, w') <-> (w' = Done x /\ t ≅ stuck).
   Proof.
     intros; split; intros.
@@ -245,13 +259,63 @@ Section CTreeTrans.
   Qed.
   Hint Resolve ktrans_pure_pred: ctl.
   
-  Lemma ktrans_not_done{X}: forall (t t': ctree E X) w w',
-    (t, w) ↦ (t', w') -> not_done w.
+  Lemma ktrans_stuck{X}: forall (t: ctree E X) w w',
+      ~ ktrans_ (stuck, w) (t, w').
   Proof.
-    intros; inv H; auto with ctl.
+    intros * Hcontra.
+    apply ktrans_trans in Hcontra as (l & TR & ?).
+    now apply trans_stuck in TR.
   Qed.
-  Hint Resolve ktrans_not_done: ctl.
-            
+  Hint Resolve ktrans_stuck: ctl.
+  
+  Lemma ktrans_pure_inv{X}: forall (t t': ctree E X) w,
+    ktrans_ (t, Pure) (t', w) ->
+    (w = Pure /\ trans tau t t') \/
+    (exists (e: E) (v: encode e), w = Obs e v /\ trans (obs e v) t t') \/
+    (exists (x: X), w = Done x /\ t' ≅ stuck /\ trans (val x) t Ctree.stuck).
+  Proof.
+    intros.
+    ktrans_inv H.
+    - left; auto.
+    - right; left.
+      exists e, x; auto.
+    - right; right.
+      exists x.
+      rewrite Heqt in H; auto.
+    - inv H1.
+  Qed.
+  
+  Lemma ktrans_obs_inv{X}: forall (t t': ctree E X) (e: E) (v: encode e) w,
+    ktrans_ (t, Obs e v) (t', w) ->
+    (w = Obs e v /\ trans tau t t') \/
+    (exists (e': E) (v': encode e'), w = Obs e' v' /\ trans (obs e' v') t t') \/
+    (exists (e': E) (v': encode e') (x: X), w = Finish e' v' x /\ t' ≅ stuck /\ trans (val x) t Ctree.stuck).
+  Proof.
+    intros.
+    ktrans_inv H.
+    - left; auto.
+    - right; left.
+      exists e0, x; auto.
+    - inv H1.
+    - right; right; world_inv.
+      exists e0, v0, x.
+      rewrite Heqt in H; auto.
+  Qed.
+
+  Lemma ktrans_done_inv{X}: forall (t t': ctree E X) (x: X) w,
+      ~ ktrans_ (t, Done x) (t', w).
+  Proof.
+    intros * Hcontra.
+    inv Hcontra; inv H4.
+  Qed.
+
+  Lemma ktrans_finish_inv{X}: forall (t t': ctree E X) (e: E) (v: encode e) (x: X) w,
+      ~ ktrans_ (t, Finish e v x) (t', w).
+  Proof.
+    intros * Hcontra.
+    inv Hcontra; inv H4.
+  Qed.
+
   Lemma ktrans_bind_l{X Y}: forall (t t': ctree E Y) (k: Y -> ctree E X) w w',
       ktrans_ (t, w) (t', w') ->
       not_done w' ->
@@ -266,7 +330,7 @@ Section CTreeTrans.
     - exists (obs e x); split. (* Vis *)
       + apply trans_bind_l; auto.
         intro Hcontra; inv Hcontra; world_inv.
-      + auto with ctl. (* Ret *)
+      + (* Ret *)
         right; left; eauto.      
     - inv H0.
     - inv H0.
@@ -310,32 +374,32 @@ Section CTreeTrans.
       (exists t', ktrans_ (t, w) (t', w')
              /\ not_done w'
              /\ u ≅ x <- t' ;; k x) \/
-      (exists y, ktrans_ (t, w) (stuck, Done y)
-             /\ w = Pure /\ ktrans_ (k y, w) (u, w')) \/
-      (exists (e: E) (v: encode e) y, ktrans_ (t, w) (stuck, Finish e v y)
-             /\ w = Obs e v /\ ktrans_ (k y, w) (u, w')).
+      (exists y w_, ktrans_ (t, w) (stuck, w_)
+               /\ return_with y w_
+               /\ ktrans_ (k y, w) (u, w')).
   Proof.
     intros * TR.
     ktrans_inv TR; destruct (trans_bind_inv _ _ TR) as
       [(Hv & t' & TR' & Heq) | (y & TRv & TR')].
     - left; exists t'; split; auto.
     - inv H0.
-      + right; left; exists y; split; [apply ktrans_trans|split]; auto with ctl.
+      + right; exists y, (Done y); split; [apply ktrans_trans|split]; auto with ctl.
         exists (val y); split; auto.
         right; right; left; exists y; auto.
-      + right; right; exists e, v, y; split; auto with ctl.       
+      + right; exists y, (Finish e v y); split; auto with ctl.       
     - left; exists t'; split; auto with ctl.
     - inv H0.
-      + right; left; exists y; split; [apply ktrans_trans|split]; auto with ctl.
+      + right; exists y, (Done y); split; [apply ktrans_trans|split]; auto with ctl.
         exists (val y); split; auto.
         right; right; left; exists y; auto.
-      + right; right; exists e0, v, y; split; auto with ctl.
+      + right; exists y, (Finish e0 v y); split; auto with ctl.
     - exfalso; apply Hv; constructor.
-    - right; left; exists y; split; [apply ktrans_trans|split]; auto.
+    - right; exists y, (Done y); split; [apply ktrans_trans|split]; auto with ctl.
       exists (val y); split; auto with ctl.
-      right; right; left; exists y; auto.
+      right; right; left; exists y; auto with ctl.
       rewrite (ctree_eta (k y)) in *; cbn.
-      desobs (k y). apply trans_ret_inv in TR' as (-> & ?); dependent destruction H. 
+      desobs (k y).
+      rewrite Heqt in TR', TR.
       + eauto with trans ctl.
       + destruct b.
         inv TR'.
@@ -343,17 +407,20 @@ Section CTreeTrans.
         econstructor; eauto with ctl.
       + inv TR'.
     - exfalso; apply Hv; constructor.
-    - right; right; exists e, v, y; split; [apply ktrans_trans|split]; auto.      
+    - right; exists y, (Finish e v y); split; [apply ktrans_trans|split]; auto.      
       exists (val y); split; auto with ctl.
       right; right; right; exists e, v, y; auto.
       rewrite (ctree_eta (k y)) in *; cbn.
-      desobs (k y). apply trans_ret_inv in TR' as (-> & ?); dependent destruction H. 
+      desobs (k y).
+      rewrite Heqt in TR', TR.
       + eauto with trans ctl.
       + destruct b.
         inv TR'.
         rewrite Heqt in *.
         econstructor; eauto with ctl.
-      + inv TR'.
+      + econstructor.
+      + rewrite Heqt in TR'.
+        apply KtransFinish; auto.
   Qed.
 
 End CTreeTrans.
@@ -366,13 +433,12 @@ Proof.
   intros.
   unfold trigger in H3.
   apply ktrans_bind_inv in H3 as
-      [(t' & TR & Hd & Hequ) | [(x & TR & Hequ) | (e' & v & x & TR & -> & Hequ)]].
+      [(t' & TR & Hd & Hequ) | (x & w_ & TR & ? & ?) ].
   - apply ktrans_vis in TR as (y & ? & ? & ?).
     unfold resum, ReSum_refl, resum_ret, ReSumRet_refl in *; world_inv.
     split; [auto | exists y]; split; [reflexivity|].
     now rewrite <- H4, bind_ret_l in Hequ.
-  - apply ktrans_vis in TR as (y & ? & ? & ?); world_inv.
-  - split; auto with ctl.
-    apply ktrans_vis in TR as (y & ? & ? & ?); world_inv.
+  - apply ktrans_vis in TR as (y & ? & ? & ?).
+    subst; inv H3.
 Qed.
 

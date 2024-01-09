@@ -78,7 +78,7 @@ Module Itree.
   Definition ignore `{Encode E} {R} : itree E R -> itree E unit :=
     map (fun _ => tt).
 
-  CoFixpoint spin `{Encode E} {R} : itree E R := Tau spin.
+  CoFixpoint stuck `{Encode E} {R} : itree E R := Tau stuck.
 
   (*| [iter] |*)
   Definition iter `{Encode E} {R I: Type}

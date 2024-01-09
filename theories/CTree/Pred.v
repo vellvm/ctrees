@@ -156,6 +156,23 @@ Proof.
 Qed.
 Global Hint Resolve ALeaf_Vis_inv: ctree.
 
+#[global] Instance aleaf_equ `{Encode E} {X}:
+  Proper (eq ==> going (equ eq (X2:=X)) ==> iff) (@ALeafF E _ X).
+Proof.
+  unfold Proper, respectful; intros; subst.
+  inv H1.
+    split; intro Hind; revert H0; [revert y0| revert x0]; induction Hind; intros t' Heq;
+      step in Heq; cbn in Heq; dependent destruction Heq; auto with ctree.
+  - constructor; intros.
+    apply H1 with i; rewrite <- !ctree_eta; auto.
+  - constructor; intros.
+    apply H1 with x; rewrite <- !ctree_eta; auto.
+  - constructor; intros.
+    apply H1 with i; rewrite <- !ctree_eta; auto.
+  - constructor; intros.
+    apply H1 with x; rewrite <- !ctree_eta; auto.
+Qed.
+
 (*| Helper inductive: [epsilon_det t t'] judges that [t' ≡ Guard* t] |*)
 Inductive epsilon_det `{Encode E} {X}: relation (ctree E X) :=
 | epsilon_det_id : forall t t', t ≅ t' -> epsilon_det t t'
@@ -175,7 +192,7 @@ Inductive productive `{Encode E} {X} : ctree E X -> Prop :=
 | prod_ret {r t} (EQ: t ≅ Ret r) : productive t
 | prod_vis {e : E} {k t} (EQ: t ≅ Vis e k) : productive t
 | prod_tau {n} {k t} (EQ: t ≅ BrS n k) : productive t.
-
+  
 Section epsilon_det_theory.
   #[global] Instance epsilon_det_equ `{Encode E} {X}:
   Proper (equ eq ==> equ eq (X2:=X) ==> flip impl) (@epsilon_det E _ X).

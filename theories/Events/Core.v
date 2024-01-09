@@ -4,6 +4,8 @@ From ExtLib Require Import
   Data.Monads.IdentityMonad
   Data.Monads.StateMonad.
 
+From Coq Require Import Eqdep.
+
 Import MonadNotation.
 Local Open Scope monad_scope.
 
@@ -50,13 +52,6 @@ Class ReSumRet E1 E2 `{Encode E1} `{Encode E2} `{ReSum E1 E2} : Type :=
 #[global] Instance ReSumRet_refl {E} `{Encode E}: ReSumRet E E :=
   fun _ e => e.
 
-(*| [Bar E] is the dependent product of an event
-  [e: E] and its response (x: encode e) |*)
-Variant Bar (E: Type) `{Encode E} :=
-  | Obs (e: E) (x: encode e).
-
-Arguments Obs {E} {_} e x.
-
 (*| Defines a monad homomorphism from free monad with [E] to [M] |*)
 Class Handler(E: Type) (M: Type -> Type): Type := {
     #[global] Handler_Encode :: Encode E;
@@ -76,3 +71,12 @@ Notation "E ~> M" := (Handler E M) (at level 68, right associativity).
       | inr e => handler e
       end
   }.
+
+(*| Dependent observations require dependent equality |*)
+Definition eq_dep_obs`{Encode E} {e e':E}(v: encode e)(v': encode e'): Prop :=
+  eq_dep E encode e v e' v'.
+
+Class Productive(E: Type) `{Encode E} :=  
+  prod_wit(e: E) : encode e.
+Arguments Productive E {H}.
+Arguments prod_wit {E} {H} {_} e /.

@@ -76,16 +76,6 @@ Class Kripke (M: Type -> Type) (meq: forall X, relation (M X)) E := {
       ktrans (s,w) (s',w') ->
       exists t', ktrans (t,w) (t',w') /\ meq X s' t';
 
-    (* - we always step from impore [w] to impure [w']  |*)
-    ktrans_started {X} : forall (t t': M X) w w',
-      ktrans (t, w) (t', w') ->
-      non_pure w ->
-      non_pure w';
-
-    (* - If [ktrans] steps, [w] is not done *)
-    ktrans_done {X}: forall (t t': M X) w w',
-      ktrans (t, w) (t', w') ->
-      not_done w;
   }.
 
 Arguments EncodeE /.
