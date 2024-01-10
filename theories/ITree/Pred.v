@@ -28,25 +28,37 @@ Import ITreeNotations.
     *)
 Generalizable All Variables.
 
-Inductive Leaf `{Encode E} {A: Type} (a: A) : itree E A -> Prop :=
- | LeafRet: forall t,
+Inductive ELeaf `{Encode E} {A: Type} (a: A) : itree E A -> Prop :=
+ | ELeafRet: forall t,
    observe t = RetF a ->
-   Leaf a t
- | LeafTau: forall t u,
+   ELeaf a t
+ | ELeafTau: forall t u,
    observe t = TauF u ->
-   Leaf a u ->
-   Leaf a t
- | LeafVis: forall (e: E) t k (x: encode e),
+   ELeaf a u ->
+   ELeaf a t
+ | ELeafVis: forall (e: E) t k (x: encode e),
    observe t = VisF e k ->
-   Leaf a (k x) ->
-   Leaf a t.
-#[global] Hint Constructors Leaf : itree.
+   ELeaf a (k x) ->
+   ELeaf a t.
+#[global] Hint Constructors ELeaf : itree.
 
-Module LeafNotations.
-  Notation "a ∈ t" := (Leaf a t) (at level 70): itree_scope.
-End LeafNotations.
+Notation "a ∈ t" := (ELeaf a t) (at level 70): itree_scope.
 
-Import LeafNotations.
+Inductive ALeaf `{Encode E} {A: Type} (a: A) : itree E A -> Prop :=
+ | ALeafRet: forall t,
+   observe t = RetF a ->
+   ALeaf a t
+ | ALeafTau: forall t u,
+   observe t = TauF u ->
+   ALeaf a u ->
+   ALeaf a t
+ | ALeafVis: forall (e: E) t k,
+   observe t = VisF e k ->
+   (forall (x: encode e), ALeaf a (k x)) ->
+   ALeaf a t.
+#[global] Hint Constructors ALeaf : itree.
+Notation "t ⇓ a" := (ALeaf a t) (at level 70): itree_scope.
+
 Local Open Scope itree_scope.
 
 (** Smart constructors *)
@@ -63,16 +75,16 @@ Proof.
   intros; econstructor; [reflexivity | eauto].
 Qed.
 
-Lemma Leaf_Vis : forall {X Y: Type} `{Encode E} (e : E) (k : _ -> itree E Y) b x,
+Lemma ELeaf_Vis : forall {X Y: Type} `{Encode E} (e : E) (k : _ -> itree E Y) b x,
   b ∈ (k x) ->
   b ∈ (Vis e k).
 Proof.
-  intros; eapply LeafVis; cbn; [reflexivity | eauto].
+  intros; eapply ELeafVis; cbn; [reflexivity | eauto].
 Qed.
 
 (** Inversion lemmas *)
 Lemma Leaf_Ret_inv : forall `{Encode E} R (a b : R),
-  Leaf (E := E) b (Ret a) ->
+  (Ret a: itree E R) ⇓ b ->
   b = a.
 Proof.
   intros * IN; inv IN; cbn in *; try congruence.
@@ -85,13 +97,90 @@ Proof.
   intros * IN; inv IN; cbn in *; try congruence.
 Qed.
 
-Lemma Leaf_Vis_inv : forall `{Encode E} Y (e : E) (k : encode e -> itree E Y) b,
+Lemma ELeaf_Vis_inv : forall `{Encode E} Y (e : E) (k : encode e -> itree E Y) b,
   b ∈ Vis e k ->
   exists x, b ∈ k x.
 Proof.
   intros * IN *; inv IN; cbn in *; try congruence.
   dependent destruction H0.
   now (exists x).
+Qed.
+
+(*| ALeaf forward reasoning |*)
+Lemma ALeaf_Ret : forall `{Encode E} R (a: R),
+  Ret a ⇓ a.
+Proof.
+  intros; econstructor; reflexivity.
+Qed.
+Global Hint Resolve ALeaf_Ret: itree.
+
+Lemma ALeaf_Tau : forall `{Encode E} R (t: itree E R) (a: R),
+  t ⇓ a <->
+  Tau t ⇓ a.
+Proof.
+  split; intros.
+  - eapply ALeafTau; eauto.
+  - inv H0; cbn in *; inv H1; eauto.
+Qed.
+Global Hint Resolve ALeaf_Tau: itree.
+
+Lemma ALeaf_Vis : forall {X Y: Type} `{Encode E} (e : E) (k : _ -> itree E Y) b,
+  (forall x, k x ⇓ b) ->
+  Vis e k ⇓ b.
+Proof.
+  intros; eapply ALeafVis; cbn; eauto. 
+Qed.
+Global Hint Resolve ALeaf_Vis: itree.
+
+(*| ALeaf backward reasoning |*)
+Lemma ALeaf_Ret_inv : forall `{Encode E} R (a b : R),
+  (Ret a: itree E R) ⇓ b->
+  b = a.
+Proof.
+  intros * IN; inv IN; cbn in *; congruence.
+Qed.
+Global Hint Resolve ALeaf_Ret_inv: ctree.
+
+Lemma ALeaf_Vis_inv : forall `{Encode E} Y (e : E) (k : encode e -> itree E Y) a x,
+    Vis e k ⇓ a ->
+    k x ⇓ a.
+Proof.
+  intros * IN *; dependent destruction IN; cbn in *; auto.
+Qed.
+Global Hint Resolve ALeaf_Vis_inv: ctree.
+
+#[global] Instance aleaf_equ `{Encode E} {X}:
+  Proper (eq ==> equ eq (X2:=X) ==> iff) (@ALeaf E _ X).
+Proof.
+  unfold Proper, respectful; intros; subst; 
+    split; intro Hind; [generalize dependent y0| generalize dependent x0]; induction Hind; intros t' Heq;
+    step in Heq; cbn in Heq; dependent destruction Heq; try congruence; auto with itree.
+  - apply ALeafRet; congruence.
+  - eapply ALeafTau.
+    + symmetry; apply x.
+    + apply IHHind.
+      rewrite <- H1.
+      rewrite <- x0 in H0.
+      inv H0; reflexivity.
+  - eapply ALeafVis. 
+    + symmetry; apply x.
+    + intros.
+      rewrite H0 in x0; dependent destruction x0.
+      eapply H2.
+      apply H3.
+  - apply ALeafRet; congruence.
+  - eapply ALeafTau.
+    + symmetry; apply x0.
+    + apply IHHind.
+      rewrite H1.
+      rewrite <- x in H0.
+      inv H0; reflexivity.
+  - eapply ALeafVis. 
+    + symmetry; apply x0.
+    + intros.
+      rewrite H0 in x; dependent destruction x.
+      eapply H2.
+      apply H3.
 Qed.
 
 (*

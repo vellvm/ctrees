@@ -164,7 +164,7 @@ Section CtlITrees.
              apply H3.
           -- specialize (H2 (Itree.stuck, w_) TRt').
              Transparent entailsF.
-             apply ctl_stuck_obs_af with (x:=y) in H2; intuition.             
+             apply ctl_stuck_obs_af with (x:=y) in H2; intuition.
       + observe_equ x0.
         rewrite Eqt.
         assert (TRtau: trans_ (observe t, w) (observe t', we)).
@@ -198,6 +198,24 @@ Section CtlITrees.
         apply ctl_obs_af_inv in H3; inv H3.
   Qed.
 
+  Lemma ctl_return_af_inv{X}: forall (t: itree E X) w (r: X),
+      <( {(t, w)} |= AF return r )> ->
+      return_with r w \/ t ⇓ r.
+  Proof.
+    intros.
+    remember (t, w) as T.
+    replace t with (fst T) by now subst.
+    replace w with (snd T) by now subst.
+    clear HeqT t w.
+    induction H; destruct m as (t, w).
+    - left; auto.
+    - destruct H0, H1; clear H H1.
+      destruct H0 as (t' & w' & TR'); cbn in *.
+      cut (forall t_ w_, (t, w) ↦ (t_,w_) ->
+                    return_with r w_ \/ t_ ⇓ r); intros.
+      * admit. 
+      * now apply (H3 (t_, w_)).
+  Admitted.      
   Lemma can_step_bind_r{X Y} {HP: Productive E}:
     forall (t: itree E Y) (k: Y -> itree E X) w (r: Y),      
       <( {(t, w)} |= AF return r )> ->
