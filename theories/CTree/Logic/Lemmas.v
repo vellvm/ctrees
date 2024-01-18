@@ -107,7 +107,7 @@ Section CtlCTrees.
     reflexivity.
   Qed.
 
-  Lemma ctl_star_ef{X}: forall (t: ctree E X * World E) φ t',
+  Lemma ktrans_star_ef{X}: forall (t: ctree E X * World E) φ t',
       t ↦* t' -> <( t' |= φ )> -> <( t |= EF φ )>.
   Proof.
     intros t φ t' ? Hφ.
@@ -131,7 +131,7 @@ Section CtlCTrees.
   (* This is weak, maybe I can prove I think
       [<( t |= AF φ )> -> forall t', t ↦* t' /\ <( t' |= AF φ )>]
   *)
-  Lemma ctl_star_af{X}: forall (t: ctree E X * World E) φ,
+  Lemma ktrans_star_af{X}: forall (t: ctree E X * World E) φ,
       <( t |= AF φ )> -> exists t', t ↦* t' /\ <( t' |= φ )>.
   Proof.
     intros t φ Hφ.
@@ -148,21 +148,8 @@ Section CtlCTrees.
       apply ktrans_ktrans_trc with (m', w'); auto.
   Qed.
 
-  Lemma can_step_brD{n X}: forall (k: fin' n -> ctree E X) w,
-      can_step (BrD n k, w) <->
-        (exists (i: fin' n), can_step (k i, w)).
-  Proof.
-    split.
-    - intros (t & w' & TR).
-      apply ktrans_brD in TR as (i & ?).
-      exists i, t, w'; auto.
-    - intros (i & t & w' & TR).
-      exists t, w'. 
-      apply ktrans_brD.
-      exists i; eauto.
-  Qed.
-
-  Lemma can_step_br{n X}: forall (k: fin' n -> ctree E X) w b,
+  (*| Br |*)  
+  Lemma can_step_br_iff{n X}: forall (k: fin' n -> ctree E X) w b,
       can_step (Br b n k, w) <->
         (if b then not_done w else exists (i: fin' n), can_step (k i, w)).
   Proof.
@@ -172,24 +159,157 @@ Section CtlCTrees.
         eapply ktrans_not_done; eauto.
       + exists (k Fin.F1), w.
         apply ktrans_brS; exists Fin.F1; auto.
-    - apply can_step_brD.
+    - split.
+      + intros (t & w' & TR).
+        apply ktrans_brD in TR as (i & ?).
+        exists i, t, w'; auto.
+      + intros (i & t & w' & TR).
+        exists t, w'. 
+        apply ktrans_brD.
+        exists i; eauto.
+  Qed.
+  
+  Lemma can_step_brD_iff{n X}: forall (k: fin' n -> ctree E X) w,
+      can_step (BrD n k, w) <->
+        (exists (i: fin' n), can_step (k i, w)).
+  Proof.
+    intros; now rewrite can_step_br_iff.
   Qed.
 
-  Lemma can_step_vis{X}: forall (e:E) (k: encode e -> ctree E X) (x: encode e) w,
+  Lemma can_step_brS_iff{n X}: forall (k: fin' n -> ctree E X) w,
+      can_step (BrS n k, w) <-> (not_done w).
+  Proof.
+    intros; now rewrite can_step_br_iff.
+  Qed.
+
+  Lemma ctl_done_ktrans{X}: forall (t: ctree E X) w,
+      is_done w ->
+      ~ (exists m', ktrans (t, w) m').
+  Proof.
+    intros * Hret Htr.
+    destruct Htr as ([? ?] & ?).
+    inv Hret;
+      apply ktrans_not_done in H; inv H.
+  Qed.
+  
+  Lemma ctl_done_now_af{X}: forall (t: ctree E X) φ w,
+      is_done w ->
+      <( {(t, w)} |= AF now φ )> ->
+      φ w.
+  Proof.
+    intros * Hret Hcontra.
+    inv Hcontra.
+    - now rewrite ctl_now in H.
+    - destruct H0 as ((? & ? & ?) & ?).
+      exfalso.
+      eapply ctl_done_ktrans with (t:=t); eauto.
+  Qed.
+
+  Lemma ctl_af_brD_inv{X}: forall n (k: fin' n -> ctree E X) w φ,
+      <( {(BrD n k, w)} |= AF now φ )> ->
+      exists (i: fin' n), <( {(k i, w)} |= AF now φ )>.
+  Proof.
+    intros.
+    next in H; destruct H.
+    - exists Fin.F1; next; now left.
+    - destruct H as [Hd Hφ].
+      + destruct Hd as (t' & w' & TR').
+        apply ktrans_brD in TR' as (i & TR').
+        exists i.
+        next; right; split.
+        * exists t', w'; auto.
+        * intros [t_ w_] TR_.
+          assert (TrBrD: (BrD n k, w) ↦ (t_, w_)).
+          { apply ktrans_brD; now exists i. }          
+          apply (Hφ (t_, w_) TrBrD).
+  Qed.
+
+  Lemma ctl_af_brD_goal{X}: forall n (k: fin' n -> ctree E X) w φ i,
+      <( {(k i, w)} |= AF now φ )> ->
+      <( {(BrD n k, w)} |= AF now φ )>.
+  Proof.
+    intros.
+    setoid_rewrite ctl_af_ax in H.
+    destruct H.
+    - now next; left.      
+    - destruct H as [Hd Hφ].
+      + next; right; split.
+        * apply can_step_brD_iff.
+          eexists.
+          apply Hd.
+        * intros [t' w'] TR'.
+          apply ktrans_semiproper with (t:= k i) in TR' as (t_ & TR_ & Hsm).
+          -- rewrite Hsm.
+             now apply Hφ.
+          -- unfold Trans.sbisim.
+             (** Arggg this is not true unless [BrD n k] is [guard] or deterministic *)
+             admit.
+  Admitted.             
+  
+  Lemma ctl_af_brS_iff{X}: forall n (k: fin' n -> ctree E X) w φ,
+      <( {(BrS n k, w)} |= AF now φ )> <->
+        (forall (i: fin' n), <( {(k i, w)} |= AF now φ )>).
+  Proof.
+    split; intros.
+    - next in H; destruct H.
+      + next; left.
+        now rewrite ctl_now in *.
+      + destruct H.
+        apply H0.
+        apply ktrans_brS.
+        apply can_step_not_done in H.
+        exists i; eauto.
+    - destruct (not_done_dec w).
+      + next; right.
+        next; split.
+        * now apply can_step_brS_iff.
+        * intros [t' w'] TR'.
+          apply ktrans_brS in TR' as (? & -> & -> & ?).
+          apply H.
+      + apply ctl_done_now_af with (φ:=φ) (t:= k Fin.F1) in i.
+        * next; left.
+          now apply ctl_now.
+        * apply H.
+  Qed.
+  
+  Lemma can_step_vis_iff{X}: forall (e:E) (k: encode e -> ctree E X) (_: encode e) w,
       can_step (Vis e k, w) <-> not_done w.
   Proof.
     split; intros.
     - destruct H as (t' & w' & TR).
       eapply ktrans_not_done; eauto.
-    - exists (k x), (Obs e x).
-      apply ktrans_vis; exists x; auto.
+    - exists (k X0), (Obs e X0).
+      apply ktrans_vis; exists X0; auto.
+  Qed.
+  
+  Lemma ctl_af_vis_iff{X}: forall (e: E) (k: encode e -> ctree E X) (_: encode e) w φ,
+      <( {(Vis e k, w)} |= AF now φ )> <->
+        (φ w \/ (not_done w /\ forall (x: encode e), <( {(k x, Obs e x)} |= AF now φ )>)).
+  Proof.
+    split; intros.
+    - next in H; destruct H.
+      + now left.
+      + destruct H.
+        right; split; intros.
+        * now apply can_step_not_done in H.
+        * apply H0.
+          apply ktrans_vis.
+          apply can_step_not_done in H.
+          exists x; eauto. 
+    - destruct H as [H | [Hd H]].
+      + now next; left.
+      + next; right; next; split.
+        * now apply can_step_vis_iff.
+        * intros [t' w'] TR'.
+          apply ktrans_vis in TR' as (? & -> & <- & ?).
+          apply H.
   Qed.
   
   Lemma can_step_bind_iff{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) w,
       can_step (x <- t ;; k x, w) <->        
         (exists t' w', (t, w) ↦ (t', w') /\ not_done w')
         \/ (exists y w', (t, w) ↦ (Ctree.stuck, w')
-                   /\ return_with y w'
+                   /\ return_with Y y w'
                    /\ can_step (k y, w)).
   Proof.
     unfold can_step; split.
@@ -231,7 +351,7 @@ Section CtlCTrees.
   Hint Resolve can_step_bind_l: ctl.
 
   Lemma ctl_stuck_obs_af{X}: forall (x: X) φ w,
-      return_with x w ->
+      return_with X x w ->
       ~ <( {(Ctree.stuck: ctree E X, w)} |= AF obs φ )>.
   Proof.
     intros * Hret Hcontra.
@@ -324,17 +444,26 @@ Section CtlCTrees.
       now rewrite H3.
   Qed.
 
-  Lemma aleaf_trans_fwd{X}: forall (t t': ctree E X) l (r: X),
-      trans l t t' ->
-      t' ⇓ r ->
-      t ⇓ r.
+  Lemma ktrans_aleaf{X}: forall (t t': ctree E X) w w' (r: X),
+      (t, w) ↦ (t', w') ->
+      t ⇓ r ->
+      return_with X r w' \/ t' ⇓ r.
   Proof.
     intros.
+    rewrite (ctree_eta t), (ctree_eta t') in H.    
+    apply ktrans_trans in H as (? & ? & ?).
+    remember (observe t) as T.
+    remember (observe t') as T'.
+    clear t t' HeqT HeqT'.
+    cbn in *.
+    generalize dependent r.
+    induction H; intros; dependent destruction H0.
+    - 
   Admitted.
 
   Lemma ctl_return_af_inv{X}: forall (t: ctree E X) w (r: X),
       <( {(t, w)} |= AF return r )> ->
-      return_with r w \/ t ⇓ r.
+      return_with X r w \/ t ⇓ r.
   Proof.
     intros.
     remember (t, w) as T.
@@ -345,10 +474,6 @@ Section CtlCTrees.
     - left; auto.
     - destruct H0, H1; clear H H1.
       destruct H0 as (t' & w' & TR'); cbn in *.
-      cut (forall t_ w_, (t, w) ↦ (t_,w_) ->
-                    return_with r w_ \/ t_ ⇓ r); intros.
-      * admit. 
-      * now apply (H3 (t_, w_)).
   Admitted.      
   
   Typeclasses Transparent equ.
@@ -370,62 +495,69 @@ Section CtlCTrees.
       induction H; intros; observe_equ HeqT; rewrite Eqt, ?bind_ret_l.
       + exact H0.
       + rewrite bind_br.
-        apply can_step_br; destruct b.
+        apply can_step_br_iff; destruct b.
         * destruct H1 as (? & ? & ?).
           eapply ktrans_not_done; eauto.
         * exists (Fin.F1).
           eapply H0; try reflexivity; auto.
       + rewrite bind_vis.
-        apply can_step_vis.
+        apply can_step_vis_iff.
         * (* Indeed, [x <- Vis (e: void) ;; k x]
-             does not step, ughhh *)
+             does not step and need [Productive E] here *)
           apply HP.
         * destruct H1 as (? & ? & ?).
           eapply ktrans_not_done; eauto.
   Qed.
   Hint Resolve can_step_bind_r: ctl.
 
-  Opaque entailsF.
+  Lemma can_step_not_done{X}: forall (t: ctree E X) w,
+      is_done w ->
+      ~ can_step (t, w).
+  Proof.
+    intros * Hinv; inv Hinv; intros (t' & w' & TR');    
+      inv TR'; inv H4.
+  Qed.
+  Hint Resolve can_step_not_done: ctl.
+
   Theorem ctl_bind_af_r{X Y} {HP: Productive E}:
     forall (t: ctree E Y) (k: Y -> ctree E X) w (r: Y) φ,
       <( {(t, w)} |= AF return r )> ->
       <( {(k r, w)} |= AF now φ )> ->
       <( {(x <- t ;; k x, w)} |= AF now φ )>.
   Proof.
-    intros * Hret Haf.
-    remember (k r, w) as mk.
-    remember (t, w) as mt.
-    replace w with (snd mt) by now subst.
-    replace w with (snd mt) in Hret by now subst.
-    replace t with (fst mt) by now subst.
-    replace w with (snd mt) in Heqmk by now subst.
-    clear t w Heqmt.
-    revert mk Heqmk Haf.
-    induction Hret; intros; destruct mk; inv Heqmk;
-      destruct m as (t, w); cbn in *.
-    - (* t |= now φ *)
-      inv H; next; left; next in Haf; destruct Haf; cbn in *.
-      + now rewrite ctl_now.
-      + destruct H as ((k' & w' &  TR') & TR).
-        inv TR'; inv H4.
-      + now rewrite ctl_now.
-      + destruct H as ((k' & w' &  TR') & TR).
-        inv TR'; inv H4.
-    - (* t StepA *)
-      destruct H0, H1; clear H H0.      
-      destruct H1 as (te & we & TR); cbn in *.
-      ktrans_inv TR.
-      + (* tau *)
-        next; right; next; split.
-        apply can_step_bind_r with r; auto.
-        next; right; next; split.
-        * exists te, w.
-          apply ktrans_trans.
-          exists tau; split; auto.
-        * intros [t_ w_] TR_.
-          now apply (H2 (t_, w_)).
-        * next in Haf; destruct Haf.
-          
+    intros.
+    apply ctl_return_af_inv in H as [H|H].
+    - inv H; inv H0.
+      + now next; left.
+      + destruct H1.
+        apply can_step_not_done in H0; [try contradiction | auto with ctl].
+      + now next; left.
+      + destruct H1.
+        apply can_step_not_done in H0; [try contradiction | auto with ctl].
+    - rewrite (ctree_eta t).
+      remember (observe t) as T.
+      clear HeqT t.
+      generalize dependent w.
+      revert k.
+      induction H; intros.
+      + now rewrite bind_ret_l.
+      + rewrite bind_br.
+        destruct b.
+        * rewrite ctl_af_brS_iff.
+          intro i.
+          now apply H0.
+        * Check ktrans_semiproper.
+          assert (Hsim: BrD n (fun x : fin (S n) => x0 <- k x;; k0 x0) ~ x0 <- k Fin.F1;; k0 x0).
+          { admit. }
+          rewrite Hsim.
+          now apply H0.
+          Check sb_brD.
+          rewrite ctl_af_brD_iff.
+      + rewrite bind_vis.
+        rewrite ctl_af_vis_iff.
+        right.
+        intro x.
+        apply H0.
   Admitted.
     
   Theorem ctl_guard_af{X}: forall (w: World E) (t: ctree E X) φ,

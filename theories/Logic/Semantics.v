@@ -201,7 +201,7 @@ Module CtlNotations.
   (* Temporal syntax: base *)
   Notation "'now' p" := (CBase p)
                           (in custom ctl at level 74): ctl_scope.
-  Notation "'return' r" := (CBase (return_with r))
+  Notation "'return' r" := (CBase (return_with _ r))
                              (in custom ctl at level 74): ctl_scope.
   Notation "'pure'" := (CBase (fun w => w = Pure))
                          (in custom ctl at level 74): ctl_scope.

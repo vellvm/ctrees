@@ -154,26 +154,21 @@ Section CTreeTrans.
       rewrite <- H3 in *.
       now apply KtransFinish.
   Defined.
-  
+  Next Obligation.
+    inv H; auto with ctl.
+  Defined.
+
   (* Always step from impore [w] to impure [w']  |*)
-  Lemma ktrans_started {X} : forall (t t': ctree E X) w w',
+  Lemma ktrans_not_pure {X} : forall (t t': ctree E X) w w',
       ktrans_ (t, w) (t', w') ->
-      non_pure w ->
-      non_pure w'.
+      not_pure w ->
+      not_pure w'.
   Proof.
     intros.
     ktrans_inv H; auto with ctl; inv H0.
   Qed.
-  Hint Resolve ktrans_started: ctl.
+  Hint Resolve ktrans_not_pure: ctl.
   
-  (* If [ktrans] steps, [w] is not done *)
-  Lemma ktrans_not_done{X}: forall (t t': ctree E X) w w',
-    ktrans_ (t, w) (t', w') -> not_done w.
-  Proof.
-    intros; inv H; auto with ctl.
-  Qed.
-  Hint Resolve ktrans_not_done: ctl.
-
   (*| Lemmas that depend on structure of [ctrees] |*)
   Lemma ktrans_brD {X}: forall n (t': ctree E X) (k: fin' n -> ctree E X) w w',
       ktrans_ (BrD n k, w) (t', w') <->
@@ -338,7 +333,7 @@ Section CTreeTrans.
 
   Lemma ktrans_bind_r{X Y}: forall (t: ctree E Y) (u: ctree E X) (k: Y -> ctree E X) (y: Y) w w_ w',
       ktrans_ (t, w) (stuck, w_) ->
-      return_with y w_ ->
+      return_with Y y w_ ->
       ktrans_ (k y, w) (u, w') ->
       ktrans_ (y <- t ;; k y, w) (u, w').
   Proof.
@@ -375,7 +370,7 @@ Section CTreeTrans.
              /\ not_done w'
              /\ u ≅ x <- t' ;; k x) \/
       (exists y w_, ktrans_ (t, w) (stuck, w_)
-               /\ return_with y w_
+               /\ return_with Y y w_
                /\ ktrans_ (k y, w) (u, w')).
   Proof.
     intros * TR.
@@ -417,8 +412,8 @@ Section CTreeTrans.
       + destruct b.
         inv TR'.
         rewrite Heqt in *.
-        econstructor; eauto with ctl.
-      + econstructor.
+        right; eauto with ctl.
+      + right; eauto with ctl. 
       + rewrite Heqt in TR'.
         apply KtransFinish; auto.
   Qed.

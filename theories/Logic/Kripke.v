@@ -16,26 +16,26 @@ Variant World (E:Type@{eff}) `{Encode E} :=
   | Pure
   | Obs (e : E) (v : encode e)
   | Done {X} (x: X)
-  | Finish {X} (e: E) (v: encode e) (x: X).
-    
+  | Finish {X} (e: E) (v: encode e) (x: X).    
 Global Hint Constructors World: ctl.
+
 Arguments Pure {E} {_}.
 Arguments Obs {E} {_} e v.
 Arguments Done {E} {_} {X} x.
 Arguments Finish {E} {_} {X} e v x.
 
-Variant non_pure `{Encode E}: World E -> Prop :=
-  | NonPureObs: forall (e: E) (v: encode e),
-      non_pure (Obs e v)
-  | NonPureDone {X}: forall (e: E) (v: encode e) (x: X),
-      non_pure (Finish e v x).
-Global Hint Constructors non_pure: ctl.
+Variant not_pure `{Encode E}: World E -> Prop :=
+  | NotPureObs: forall (e: E) (v: encode e),
+      not_pure (Obs e v)
+  | NotPureDone {X}: forall (e: E) (v: encode e) (x: X),
+      not_pure (Finish e v x).
+Global Hint Constructors not_pure: ctl.
 
-Variant return_with`{Encode E} {X}: X -> World E -> Prop :=
-  | ReturnDone: forall (x: X),
-      return_with x (Done x)
-  | ReturnFinish: forall (e: E) (v: encode e) (x: X),
-      return_with x (Finish e v x).
+Variant return_with `{Encode E} (X: Type): X -> World E -> Prop :=
+  | DoneWithCtor: forall (x: X),
+      return_with X x (Done x)
+  | FinishWithCtor: forall (e: E) (v: encode e) (x: X),
+      return_with X x (Finish e v x).
 Global Hint Constructors return_with: ctl.
 
 Variant not_done `{Encode E}: World E -> Prop :=
@@ -44,20 +44,45 @@ Variant not_done `{Encode E}: World E -> Prop :=
       not_done (Obs e v).
 Global Hint Constructors not_done: ctl.
 
-Definition non_pure_dec `{Encode E}: forall (w: World E),
-    {w = Pure} + {exists X (x:X), w = Done x} + {non_pure w}.
-Proof.
-  destruct w; try (right; constructor). 
-  - left; left; reflexivity.
-  - left; right; eauto.  
-Qed.  
+Variant is_done `{Encode E}: World E -> Prop :=
+  | DoneDone: forall X (x: X), is_done (Done x)
+  | DoneFinish: forall X (e: E) (v: encode e) (x: X),
+      is_done (Finish e v x).
+Global Hint Constructors is_done: ctl.
 
-Lemma return_with_not_done `{Encode E}{X}: forall (w: World E)(x:X),
-    return_with x w -> ~ not_done w.
+Definition not_done_dec `{Encode E}: forall (w: World E),
+    {not_done w} + {is_done w}.
 Proof.
-  intros; inv H0; intro Hcontra; inv Hcontra.
+  dependent destruction w; intros.
+  - left; econstructor.
+  - left; econstructor.
+  - right; econstructor. 
+  - right; econstructor.
 Qed.
-Global Hint Resolve return_with_not_done: ctl. 
+
+Definition not_done_return_with_dec `{Encode E}: forall (w: World E),
+    {not_done w} + {exists X (x: X), return_with X x w}.
+Proof.
+  dependent destruction w; intros.
+  - left; econstructor.
+  - left; econstructor.
+  - right; exists X, x; econstructor. 
+  - right; exists X, x; econstructor.
+Qed.
+
+Lemma is_done_return_with `{Encode E} : forall (w: World E),
+    is_done w -> (exists X (x: X), return_with X x w).
+Proof.
+  intros; inv H0; exists X, x; constructor.
+Qed.
+Global Hint Resolve is_done_return_with: ctl.
+
+Lemma return_with_is_done `{Encode E} : forall (w: World E) X (x: X),
+    return_with X x w -> is_done w.
+Proof.
+ intros; inv H0; constructor. 
+Qed.
+Global Hint Resolve return_with_is_done: ctl.
 
 (*| Polymorphic Kripke model over family M |*)
 Class Kripke (M: Type -> Type) (meq: forall X, relation (M X)) E := {
@@ -76,6 +101,10 @@ Class Kripke (M: Type -> Type) (meq: forall X, relation (M X)) E := {
       ktrans (s,w) (s',w') ->
       exists t', ktrans (t,w) (t',w') /\ meq X s' t';
 
+    (* - [ktrans] only if [not_done] *)
+    ktrans_not_done {X}: forall (t t': M X) (w w': World E),
+      ktrans (t, w) (t', w') ->
+      not_done w
   }.
 
 Arguments EncodeE /.
@@ -201,6 +230,16 @@ Proof.
     destruct (ktrans_semiproper _ _ _ _ w Heqt H0) as (y' & TR' & EQ').
     now (exists y', w).
 Qed.
+
+Lemma can_step_not_done `{Kripke M meq W} {X}: forall (t: M X) w,
+    can_step (t, w) ->
+    not_done w.
+Proof.
+  intros.
+  destruct H0 as (t' & w' & TR).
+  now apply ktrans_not_done in TR.
+Qed.
+Global Hint Resolve can_step_not_done: ctl.
 
 Global Hint Extern 2 =>
          match goal with

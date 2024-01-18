@@ -3,7 +3,6 @@ From ExtLib Require Import
      Structures.MonadState
      Data.Monads.StateMonad.
 
-
 From Coq Require Import
   Relations.Relation_Definitions
   Basics
@@ -120,6 +119,13 @@ Section KripkeTrans.
     setoid_rewrite H in H0.
     exists s'; auto.
   Defined.
+  Next Obligation.
+    remember (observe t, w) as m.
+    remember (observe t', w') as m'.
+    replace w with (snd m) by now subst.
+    clear Heqm Heqm' t t' w w'.
+    induction H; cbn; auto with ctl.
+  Defined.
   Arguments ktrans /.
   
 End KripkeTrans.
@@ -132,24 +138,16 @@ Section KripkeLemmas.
   Context {E: Type} {HE: Encode E}.
 
   (* Always step from impore [w] to impure [w']  |*)
-  Lemma ktrans_started {X} : forall (t t': itree E X) w w',
+  Lemma ktrans_not_pure {X} : forall (t t': itree E X) w w',
       ktrans (t, w) (t', w') ->
-      non_pure w ->
-      non_pure w'.
+      not_pure w ->
+      not_pure w'.
   Proof.
     intros.
     ktrans_ind H.
     inv H0.
   Qed.
   
-  (* If [ktrans] steps, [w] is not done *)
-  Lemma ktrans_not_done {X}: forall (t t': itree E X) w w',
-      ktrans (t, w) (t', w') ->
-      not_done w.
-  Proof.
-    intros; ktrans_ind H.
-  Qed.
-
   Lemma ktrans_stuck{X}: forall (t: itree E X) w w',
       ~ ((stuck, w) ↦ (t, w')).
   Proof.
@@ -203,9 +201,9 @@ Section KripkeLemmas.
       (exists t', (t, w) ↦ (t', w')
              /\ not_done w'
              /\ u ≅ x <- t' ;; k x) \/
-        (exists y w_, (t, w) ↦ (stuck, w_)
-                 /\ return_with y w_
-                 /\ (k y, w) ↦ (u, w')).
+        (exists x w_, (t, w) ↦ (stuck, w_)
+                 /\ return_with X x w_
+                 /\ (k x, w) ↦ (u, w')).
   Proof.
     intros TR.
     dependent induction TR; intros.
@@ -295,9 +293,9 @@ Section KripkeLemmas.
       (exists t', (t, w) ↦ (t', w')
              /\ not_done w'
              /\ u ≅ x <- t' ;; k x) \/
-        (exists y w_, (t, w) ↦ (stuck, w_)
-                 /\ return_with y w_
-                 /\ (k y, w) ↦ (u, w')).
+        (exists x w_, (t, w) ↦ (stuck, w_)
+                 /\ return_with X x w_
+                 /\ (k x, w) ↦ (u, w')).
   Proof.
     intros * TR.
     eapply ktrans_bind_inv_aux.
@@ -332,7 +330,7 @@ Section KripkeLemmas.
     forall (t: itree E Y) (u: itree E X) (k: Y -> itree E X)
       (y: Y) w w_ w',
       (t, w) ↦ (stuck, w_) ->
-      return_with y w_ ->
+      return_with Y y w_ ->
       (k y, w) ↦ (u, w') ->
       (y <- t ;; k y, w) ↦ (u, w').
   Proof.
@@ -349,6 +347,6 @@ Section KripkeLemmas.
       desobs t; dependent destruction x1; auto.
     - dependent destruction H0.
       desobs t; dependent destruction x1; auto.
-  Qed.      
+  Qed.
 
 End KripkeLemmas.

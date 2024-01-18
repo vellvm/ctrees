@@ -183,6 +183,12 @@ Proof.
       apply H3.
 Qed.
 
+Lemma ALeaf_stuck: forall `{Encode E} X r,
+    ~ (stuck: itree E X) ⇓ r.
+Proof.
+  intros * Hcontra.
+  dependent induction Hcontra; eauto.
+Qed.
 (*
 (** Closure under [eutt]
 

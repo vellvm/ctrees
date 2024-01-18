@@ -12,6 +12,7 @@ From ExtLib Require Import
 From CTree Require Import
   Events.Core
   ITree.Core
+  ITree.Pred
   ITree.Equ
   ITree.Logic.Trans
   ITree.Events.Writer
@@ -45,11 +46,81 @@ Section CtlITrees.
       exists (te, we); destruct m as (t, w); split; auto.
   Qed.
 
+  Lemma can_step_tau{X}: forall (t: itree E X) w,
+      can_step (t, w) ->
+      can_step (Tau t, w).
+  Proof.
+    intros.
+    destruct H as (t' & w' & TR); cbn in TR.
+    dependent induction TR.
+    - exists (k v), (Obs e v).
+      apply ktrans_tau; cbn.
+      rewrite <- x0; apply KtransObs; auto.
+    - exists t'0, w'.
+      apply ktrans_tau; cbn; auto.
+      rewrite <-x0.
+      apply ktrans_tau; cbn; auto.
+    - exists t0, (Done x0).
+      apply ktrans_tau; cbn; auto.
+      rewrite <- x1; apply KtransDone; auto.
+    - exists t0, (Finish e v x0).
+      apply ktrans_tau; cbn; auto.
+      rewrite <- x1; apply KtransFinish; auto.
+  Qed.
+
+  Lemma can_step_vis{X}: forall (e: E) (k: encode e -> itree E X) w (_: encode e),
+      not_done w ->
+      can_step (Vis e k, w).
+  Proof.
+    intros.
+    exists (k X0), (Obs e X0).
+    apply ktrans_vis.
+    exists X0; auto.
+  Qed.
+
+  Lemma ctl_af_tau{X}: forall (t: itree E X) w φ,
+      <( {(t, w)} |= AF now φ )> -> 
+      <( {(Tau t, w)} |= AF (now φ) )>.
+  Proof.
+    intros.
+    unfold entailsF in H.
+    remember (t, w) as m.
+    replace t with (fst m) by now subst.
+    replace w with (snd m) by now subst.
+    clear t w Heqm.
+    induction H; destruct m as [t w]; simpl fst; simpl snd.
+    - now next; left.
+    - Opaque entailsF.
+      destruct H0, H1; clear H H1.
+      destruct H0 as (t' & w' & TR).
+      specialize (H3 _ TR); cbn in H3.
+      next; right.
+      split.
+      * apply can_step_tau; auto with ctl.
+      * intros [t_ w_] TR_.
+        rewrite ktrans_tau in TR_.
+        now apply H2.
+  Qed.
+
+  Lemma ctl_af_vis{X}: forall (e: E) (k: encode e -> itree E X) (_: encode e) w φ,
+      (φ w \/ (not_done w /\ forall (x: encode e), <( {(k x, Obs e x)} |= AF now φ )>)) ->
+      <( {(Vis e k, w)} |= AF now φ )>.        
+  Proof.
+    intros.
+    destruct H as [H | [Hd H]].
+    - now next; left.
+    - next; right; next; split.
+      + now apply can_step_vis.
+      + intros [t' w'] TR'.
+        apply ktrans_vis in TR' as (? & -> & -> & ?).
+        apply H.
+  Qed.
+      
   Lemma can_step_bind_iff{X Y}: forall (t: itree E Y) (k: Y -> itree E X) w,
       can_step (x <- t ;; k x, w) <->        
         (exists t' w', (t, w) ↦ (t', w') /\ not_done w')
         \/ (exists y w', (t, w) ↦ (Itree.stuck, w')
-                   /\ return_with y w'
+                   /\ return_with Y y w'
                    /\ can_step (k y, w)).
   Proof.
     unfold can_step; split.
@@ -105,13 +176,12 @@ Section CtlITrees.
   Hint Resolve can_step_bind_l: ctl.
 
   Lemma ctl_stuck_obs_af{X}: forall (x: X) φ w,
-      return_with x w ->
+      return_with X x w ->
       ~ <( {(Itree.stuck: itree E X, w)} |= AF obs φ )>.
   Proof.
     intros * Hret Hcontra.
     inv Hcontra.
-    - rewrite ctl_obs in H.
-      destruct H as (? & ? & ? & ?); cbn in *; subst.
+    - destruct H as (? & ? & ? & ?); cbn in *; subst.
       inv Hret.
     - destruct H0 as ((? & ? & ?) & ?).
       now apply ktrans_stuck in H0.
@@ -200,7 +270,7 @@ Section CtlITrees.
 
   Lemma ctl_return_af_inv{X}: forall (t: itree E X) w (r: X),
       <( {(t, w)} |= AF return r )> ->
-      return_with r w \/ t ⇓ r.
+      return_with X r w \/ t ⇓ r.
   Proof.
     intros.
     remember (t, w) as T.
@@ -210,12 +280,56 @@ Section CtlITrees.
     induction H; destruct m as (t, w).
     - left; auto.
     - destruct H0, H1; clear H H1.
-      destruct H0 as (t' & w' & TR'); cbn in *.
-      cut (forall t_ w_, (t, w) ↦ (t_,w_) ->
-                    return_with r w_ \/ t_ ⇓ r); intros.
-      * admit. 
-      * now apply (H3 (t_, w_)).
-  Admitted.      
+      destruct H0 as (t' & w' & TR'); cbn.
+      generalize dependent r.      
+      ktrans_ind TR'; intros.
+      + right; eapply ALeafVis.
+        * now rewrite x0.
+        * intro x'.          
+          assert (TR_: (t, w) ↦ (k x', Obs e x')).
+          { cbn.
+            rewrite <- x0.
+            eapply KtransObs; auto.
+          }.
+          destruct (H3 _ TR_); cbn in H1.
+          -- inv H1.
+          -- auto.
+      + edestruct IHTR' with (t':=t'); eauto.
+          -- rewrite x; reflexivity.
+          -- intros [t_ w_] TR_.
+             apply H2; cbn.
+             rewrite <- x0; now apply KtransTau.
+          -- intros [t_ w_] TR_.
+             apply H3; cbn.
+             rewrite <- x0; now apply KtransTau.
+          -- right.
+             eapply ALeafTau.
+             ++ now rewrite x0.
+             ++ auto.
+      + right; eapply ALeafRet.
+        assert (TR_: (t, Pure) ↦ (Itree.stuck, Done x0)).
+        { cbn.
+          rewrite <- x1.
+          replace (TauF Itree.stuck) with (observe Itree.stuck (X:=X)) by reflexivity.
+          apply KtransDone; auto.
+        }
+        destruct (H3 _ TR_); cbn in H0.        
+        * dependent destruction H0.
+          now rewrite x1.
+        * now apply ALeaf_stuck in H0.
+      + right; eapply ALeafRet.
+        assert (TR_: (t, Obs e v) ↦ (Itree.stuck, Finish e v x0)).
+        { cbn.
+          rewrite <- x1.
+          replace (TauF Itree.stuck) with (observe Itree.stuck (X:=X)) by reflexivity.
+          apply KtransFinish; auto.
+        }
+        destruct (H3 _ TR_); cbn in H0.        
+        * dependent destruction H0.
+          now rewrite x1.
+        * now apply ALeaf_stuck in H0.
+  Qed.
+
   Lemma can_step_bind_r{X Y} {HP: Productive E}:
     forall (t: itree E Y) (k: Y -> itree E X) w (r: Y),      
       <( {(t, w)} |= AF return r )> ->
@@ -225,41 +339,54 @@ Section CtlITrees.
     intros.
     apply ctl_return_af_inv in H as [H|H].
     - inv H. (* (kr, w) can step, so w != done *)
-      + inv H0; destruct H; inv H; inv H5.
-      + inv H0; destruct H; inv H; inv H5.
+      + apply can_step_not_done in H0; inv H0.
+      + apply can_step_not_done in H0; inv H0. 
     - revert w k H0.
-      remember (observe t) as T.
-      generalize dependent t.
-      generalize dependent X.            
-      induction H; intros; observe_equ HeqT; rewrite Eqt, ?bind_ret_l.
+      dependent induction H; intros;
+        observe_equ H; rewrite Eqt, ?bind_ret_l.
       + exact H0.
-      + rewrite bind_br.
-        apply can_step_br; destruct b.
-        * destruct H1 as (? & ? & ?).
-          eapply ktrans_not_done; eauto.
-        * exists (Fin.F1).
-          eapply H0; try reflexivity; auto.
+      + rewrite bind_tau.
+        apply can_step_tau.
+        now apply IHALeaf.
       + rewrite bind_vis.
         apply can_step_vis.
         * (* Indeed, [x <- Vis (e: void) ;; k x]
-             does not step, ughhh *)
+             does not step, need [Productive E] *)
           apply HP.
-        * destruct H1 as (? & ? & ?).
-          eapply ktrans_not_done; eauto.
+        * now apply can_step_not_done in H2. 
   Qed.
   Hint Resolve can_step_bind_r: ctl.
+
   
-  Lemma iter_ctl_af: forall (t: X -> itreeW X) (σ: W) (i : X) (φ: W -> Prop),
-      <( {(t i, σ)} |= AF done φ )> ->
-      <( {(forever t i, σ)} |= AG AF now φ )>.
+  Theorem ctl_bind_af_r{X Y} {HP: Productive E}:
+    forall (t: itree E Y) (k: Y -> itree E X) w (r: Y) φ,
+      <( {(t, w)} |= AF return r )> ->
+      <( {(k r, w)} |= AF now φ )> ->
+      <( {(x <- t ;; k x, w)} |= AF now φ )>.
   Proof.
     intros.
-    coinduction R CIH.
-    remember (t i, σ).
-    generalize dependent i.
-    induction H; intros; subst; apply RStepA.
-    - apply MatchA.
-      now destruct H.
+    apply ctl_return_af_inv in H as [H|H].
+    - inv H; inv H0.
+      + now next; left.
+      + destruct H1.
+        apply can_step_not_done in H0; inv H0. 
+      + now next; left.
+      + destruct H1.
+        apply can_step_not_done in H0; inv H0.
+    - dependent induction H; observe_equ H.
+      + now rewrite Eqt, bind_ret_l.
+      + rewrite Eqt, bind_tau.
+        apply ctl_af_tau.
+        now apply IHALeaf.
+      + rewrite Eqt, bind_vis.
+        apply ctl_af_vis.
+        * apply HP.
+        * destruct (not_done_dec w).
+          -- right; split; auto.
+             intro x'.
+             (* Here, AF [return r] says nothing about the return value
+                of [w], need a more specific predicate like [finish ψ] (see slack) *)
+             apply H1.
   Admitted.
 
 End CtlITrees.
