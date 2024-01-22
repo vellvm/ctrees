@@ -3,6 +3,7 @@
 (* begin hide *)
 From CTree Require Import
   Utils.Utils
+  Logic.Kripke
   Events.Core
   ITree.Core
   ITree.Interp
@@ -28,566 +29,211 @@ Import ITreeNotations.
     *)
 Generalizable All Variables.
 
-Inductive ELeaf `{Encode E} {A: Type} (a: A) : itree E A -> Prop :=
- | ELeafRet: forall t,
-   observe t = RetF a ->
-   ELeaf a t
+Inductive ELeaf `{Encode E} {A: Type} (R: A -> Prop) : itree E A -> Prop :=
+ | ELeafRet: forall a t,
+     observe t = RetF a ->
+     R a ->
+     ELeaf R t
  | ELeafTau: forall t u,
    observe t = TauF u ->
-   ELeaf a u ->
-   ELeaf a t
+   ELeaf R u ->
+   ELeaf R t
  | ELeafVis: forall (e: E) t k (x: encode e),
    observe t = VisF e k ->
-   ELeaf a (k x) ->
-   ELeaf a t.
+   ELeaf R (k x) ->
+   ELeaf R t.
 #[global] Hint Constructors ELeaf : itree.
 
-Notation "a ∈ t" := (ELeaf a t) (at level 70): itree_scope.
-
-Inductive ALeaf `{Encode E} {A: Type} (a: A) : itree E A -> Prop :=
- | ALeafRet: forall t,
-   observe t = RetF a ->
-   ALeaf a t
+(* Codomain (image) is a subset of [R] *)
+Inductive ALeaf `{Encode E} {A: Type} (R: A -> Prop) : itree E A -> Prop :=
+ | ALeafRet: forall a t,
+     observe t = RetF a ->
+     R a ->
+     ALeaf R t
  | ALeafTau: forall t u,
-   observe t = TauF u ->
-   ALeaf a u ->
-   ALeaf a t
+     observe t = TauF u ->
+     ALeaf R u ->
+     ALeaf R t
  | ALeafVis: forall (e: E) t k,
-   observe t = VisF e k ->
-   (forall (x: encode e), ALeaf a (k x)) ->
-   ALeaf a t.
+     observe t = VisF e k ->
+     (forall (x: encode e), ALeaf R (k x)) ->
+     ALeaf R t.
 #[global] Hint Constructors ALeaf : itree.
-Notation "t ⇓ a" := (ALeaf a t) (at level 70): itree_scope.
 
+(* Any countable number of [tau] away from a [Ret x], such that [R x],
+   Induction lemma for [t |= EF done R] and [t |= AF done R] *)
+Inductive EpsilonRet `{Encode E} {A: Type}(R: A -> Prop): itree E A -> Prop :=
+| EpsilonRetRet: forall a t,
+    observe t = RetF a ->
+    R a ->
+    EpsilonRet R t
+| EpsilonRetTau: forall t u,
+    observe t = TauF u ->
+    EpsilonRet R u ->
+    EpsilonRet R t.
+#[global] Hint Constructors EpsilonRet: itree.
+
+(* Induction lemma for [t |= AF finish R] *)
+Inductive AFinish `{Encode E} {A: Type}(R: forall (e: E), encode e -> A -> Prop): itree E A -> Prop :=
+| AFinishVisBase: forall t e k,    
+    observe t = VisF e k ->
+    (forall (v: encode e), EpsilonRet (R e v) (k v)) ->
+    AFinish R t
+| AFinishVisStep: forall t e k,
+    observe t = VisF e k ->
+    (forall (v: encode e), AFinish R (k v)) ->
+    AFinish R t
+| AFinishTauStep: forall t u,
+    observe t = TauF u ->
+    AFinish R u ->
+    AFinish R t.
+#[global] Hint Constructors AFinish: itree.
+
+(*| [t |= AF φ] is semantic and requires double induction, on [AF] and inside it, in
+  [ktrans]. Attempt to simplify to one induction with [AFInd] |*)
+Inductive AFInd `{Encode E} {X}(φ: itree E X -> World E -> Prop): itree E X -> World E -> Prop :=
+| AFIndBase: forall (t: itree E X) (w: World E),
+    φ t w ->
+    AFInd φ t w
+| AFIndFinishBase: forall t (e: E) (v: encode e) (x: X),
+    observe t = RetF x ->
+    φ Itree.stuck (Finish e v x) ->
+    AFInd φ t (Obs e v)
+| AFIndDoneBase: forall t (x: X),
+    observe t = RetF x ->
+    φ Itree.stuck (Done x) ->
+    AFInd φ t Pure
+|AFIndVisStep: forall (t: itree E X) w e k,
+    observe t = VisF e k ->
+    (forall (v: encode e), AFInd φ (k v) (Obs e v)) ->
+    AFInd φ t w
+| AFIndTauStep: forall t u w,
+    observe t = TauF u ->
+    AFInd φ u w ->
+    AFInd φ t w.
+              
 Local Open Scope itree_scope.
 
 (** Smart constructors *)
-Lemma Leaf_Ret : forall `{Encode E} R a,
-  a ∈ (Ret a : itree E R).
+Lemma eleaf_ret : forall `{Encode E} X (R: X -> Prop) (a: X),
+    R a <->
+    ELeaf R (Ret a).
 Proof.
-  intros; econstructor; reflexivity.
+  split; intros.
+  - econstructor; eauto.
+  - inv H0; inv H1; auto.
 Qed.
 
-Lemma Leaf_Tau : forall `{Encode E} R a t,
-  a ∈ (t : itree E R) ->
-  a ∈ Tau t.
+Lemma aleaf_ret : forall `{Encode E} X (R: X -> Prop) (a: X),
+    R a <->
+    ALeaf R (Ret a).
 Proof.
-  intros; econstructor; [reflexivity | eauto].
+  split; intros.
+  - econstructor; eauto.
+  - inv H0; inv H1; auto.
 Qed.
 
-Lemma ELeaf_Vis : forall {X Y: Type} `{Encode E} (e : E) (k : _ -> itree E Y) b x,
-  b ∈ (k x) ->
-  b ∈ (Vis e k).
+Lemma epsilon_ret : forall `{Encode E} X (R: X -> Prop) (a: X),
+    R a <->
+    ALeaf R (Ret a).
+Proof.
+  split; intros.
+  - econstructor; eauto.
+  - inv H0; inv H1; auto.
+Qed.
+
+Lemma eleaf_tau : forall `{Encode E} X (R: X -> Prop) (a: X) (t: itree E X),
+  ELeaf R t <->
+  ELeaf R (Tau t).
+Proof.
+  split; intros.
+  - econstructor; [reflexivity | eauto].
+  - inv H0; inv H1; auto.
+Qed.
+
+Lemma aleaf_tau : forall `{Encode E} X (R: X -> Prop) (a: X) (t: itree E X),
+  ALeaf R t <->
+  ALeaf R (Tau t).
+Proof.
+  split; intros.
+  - econstructor; [reflexivity | eauto].
+  - inv H0; inv H1; auto.
+Qed.
+
+Lemma eleaf_vis : forall {X Y: Type} `{Encode E} (e : E) (k : _ -> itree E Y) (R: Y -> Prop) x,
+  ELeaf R (k x) ->
+  ELeaf R (Vis e k).
 Proof.
   intros; eapply ELeafVis; cbn; [reflexivity | eauto].
 Qed.
 
-(** Inversion lemmas *)
-Lemma Leaf_Ret_inv : forall `{Encode E} R (a b : R),
-  (Ret a: itree E R) ⇓ b ->
-  b = a.
+Lemma aleaf_vis : forall {X Y: Type} `{Encode E} (e : E) (k : _ -> itree E Y) (R: Y -> Prop),
+  (forall (x: encode e), ALeaf R (k x)) ->
+  ALeaf R (Vis e k).
 Proof.
-  intros * IN; inv IN; cbn in *; try congruence.
+  intros; eapply ALeafVis; cbn; [reflexivity | eauto].
 Qed.
 
-Lemma Leaf_Tau_inv : forall `{Encode E} R (u : itree E R) b,
-  b ∈ Tau u ->
-  b ∈ u.
-Proof.
-  intros * IN; inv IN; cbn in *; try congruence.
-Qed.
-
-Lemma ELeaf_Vis_inv : forall `{Encode E} Y (e : E) (k : encode e -> itree E Y) b,
-  b ∈ Vis e k ->
-  exists x, b ∈ k x.
+Lemma eleaf_vis_inv : forall `{Encode E} Y (e : E) (k : encode e -> itree E Y) (R: Y -> Prop),
+  ELeaf R (Vis e k) ->
+  exists x, ELeaf R (k x).
 Proof.
   intros * IN *; inv IN; cbn in *; try congruence.
   dependent destruction H0.
   now (exists x).
 Qed.
 
-(*| ALeaf forward reasoning |*)
-Lemma ALeaf_Ret : forall `{Encode E} R (a: R),
-  Ret a ⇓ a.
+Lemma aleaf_vis_inv : forall `{Encode E} Y (e : E) (k : encode e -> itree E Y) (R: Y -> Prop) x,
+  ALeaf R (Vis e k) ->
+  ALeaf R (k x).
 Proof.
-  intros; econstructor; reflexivity.
+  intros * IN *; inv IN; cbn in *; try congruence.
+  dependent destruction H0; eauto.  
 Qed.
-Global Hint Resolve ALeaf_Ret: itree.
-
-Lemma ALeaf_Tau : forall `{Encode E} R (t: itree E R) (a: R),
-  t ⇓ a <->
-  Tau t ⇓ a.
-Proof.
-  split; intros.
-  - eapply ALeafTau; eauto.
-  - inv H0; cbn in *; inv H1; eauto.
-Qed.
-Global Hint Resolve ALeaf_Tau: itree.
-
-Lemma ALeaf_Vis : forall {X Y: Type} `{Encode E} (e : E) (k : _ -> itree E Y) b,
-  (forall x, k x ⇓ b) ->
-  Vis e k ⇓ b.
-Proof.
-  intros; eapply ALeafVis; cbn; eauto. 
-Qed.
-Global Hint Resolve ALeaf_Vis: itree.
-
-(*| ALeaf backward reasoning |*)
-Lemma ALeaf_Ret_inv : forall `{Encode E} R (a b : R),
-  (Ret a: itree E R) ⇓ b->
-  b = a.
-Proof.
-  intros * IN; inv IN; cbn in *; congruence.
-Qed.
-Global Hint Resolve ALeaf_Ret_inv: ctree.
-
-Lemma ALeaf_Vis_inv : forall `{Encode E} Y (e : E) (k : encode e -> itree E Y) a x,
-    Vis e k ⇓ a ->
-    k x ⇓ a.
-Proof.
-  intros * IN *; dependent destruction IN; cbn in *; auto.
-Qed.
-Global Hint Resolve ALeaf_Vis_inv: ctree.
 
 #[global] Instance aleaf_equ `{Encode E} {X}:
-  Proper (eq ==> equ eq (X2:=X) ==> iff) (@ALeaf E _ X).
+  Proper (pointwise_relation X eq ==> equ eq (X2:=X) ==> iff) (@ALeaf E _ X).
 Proof.
-  unfold Proper, respectful; intros; subst; 
-    split; intro Hind; [generalize dependent y0| generalize dependent x0]; induction Hind; intros t' Heq;
-    step in Heq; cbn in Heq; dependent destruction Heq; try congruence; auto with itree.
-  - apply ALeafRet; congruence.
-  - eapply ALeafTau.
-    + symmetry; apply x.
-    + apply IHHind.
-      rewrite <- H1.
-      rewrite <- x0 in H0.
-      inv H0; reflexivity.
-  - eapply ALeafVis. 
-    + symmetry; apply x.
-    + intros.
-      rewrite H0 in x0; dependent destruction x0.
-      eapply H2.
-      apply H3.
-  - apply ALeafRet; congruence.
-  - eapply ALeafTau.
-    + symmetry; apply x0.
-    + apply IHHind.
-      rewrite H1.
-      rewrite <- x in H0.
-      inv H0; reflexivity.
-  - eapply ALeafVis. 
-    + symmetry; apply x0.
-    + intros.
-      rewrite H0 in x; dependent destruction x.
-      eapply H2.
-      apply H3.
+  unfold Proper, respectful, pointwise_relation; intros; subst.
+  split; intro Hind.
+  - generalize dependent y0.
+    generalize dependent y.
+    induction Hind; intros y Heqr t' Heqt;
+      step in Heqt; cbn in Heqt; dependent destruction Heqt; try congruence. 
+    + apply ALeafRet with y0; congruence.
+    + eapply ALeafTau.
+      * symmetry; apply x.
+      * apply IHHind; auto.
+        rewrite <- H1.
+        rewrite <- x1 in H0.
+        inv H0; reflexivity.
+    + eapply ALeafVis. 
+      * symmetry; apply x.
+      * intros.
+        rewrite H0 in x1; dependent destruction x1.
+        eapply H2; auto.
+  - generalize dependent x0.
+    generalize dependent x.
+    induction Hind; intros x Heqr t' Heqt;
+      step in Heqt; cbn in Heqt; dependent destruction Heqt; try congruence. 
+    + apply ALeafRet with y0; congruence.
+    + eapply ALeafTau.
+      * symmetry; apply x1.
+      * apply IHHind; auto.
+        rewrite H1.
+        rewrite <- x in H0.
+        inv H0; reflexivity.
+    + eapply ALeafVis. 
+      * symmetry; apply x1.
+      * intros.
+        rewrite H0 in x; dependent destruction x.
+        eapply H2; auto.
 Qed.
 
-Lemma ALeaf_stuck: forall `{Encode E} X r,
-    ~ (stuck: itree E X) ⇓ r.
+Lemma ALeaf_stuck: forall `{Encode E} X R,
+    ~ ALeaf R (stuck: itree E X).
 Proof.
   intros * Hcontra.
   dependent induction Hcontra; eauto.
 Qed.
-(*
-(** Closure under [eutt]
 
-  General asymmetric lemmas for [eutt R], where we naturally get
-  a different point related by [R], and [Proper] instances for
-  [eutt eq]. *)
-Lemma Leaf_eutt_l {E A B R}:
-  forall (t : itree E A) (u : itree E B) (a : A),
-  eutt R t u ->
-  a ∈ t ->
-  exists b, b ∈ u /\ R a b.
-Proof.
-  intros * EQ FIN;
-  revert u EQ.
-  induction FIN; intros u2 EQ.
-  - punfold EQ.
-    red in EQ; rewrite H in EQ; clear H t.
-    remember (RetF a); genobs u2 ou.
-    hinduction EQ before R; intros; try now discriminate.
-    + inv Heqi; eauto with itree.
-    + edestruct IHEQ as (b & IN & HR); eauto with itree.
-  - punfold EQ; red in EQ; rewrite H in EQ; clear H t.
-    remember (TauF u); genobs u2 ou2.
-    hinduction EQ before R; intros; try discriminate; pclearbot; inv Heqi.
-    + edestruct IHFIN as (? & ? & ?); [ .. | eexists ]; eauto with itree.
-    + eauto with itree.
-    + edestruct IHEQ as (? & ? & ?); [ .. | eexists ]; eauto with itree.
-  - punfold EQ; red in EQ; rewrite H in EQ; clear H t.
-    remember (VisF e k); genobs u2 ou2.
-    hinduction EQ before R; intros; try discriminate; pclearbot.
-    + revert x FIN IHFIN.
-      refine (match Heqi in _ = u return match u with VisF e0 k0 => _ | RetF _ | TauF _ => False end with eq_refl => _ end).
-      intros. edestruct IHFIN as (? & ? & ?); [ | eexists ]; eauto with itree.
-    + edestruct IHEQ as (? & ? & ?); [.. | exists x0 ]; eauto with itree.
-Qed.
-
-Lemma Leaf_eutt_r {E A B R}:
-  forall (t : itree E A) (u : itree E B) (b : B),
-  eutt R t u ->
-  b ∈ u ->
-  exists a, a ∈ t /\ R a b.
-Proof.
-  intros * EQ FIN.
-  apply eqit_flip in EQ.
-  revert EQ FIN.
-  apply @Leaf_eutt_l.
-Qed.
-
-#[global] Instance Leaf_eutt {E A}:
-  Proper (eq ==> eutt eq ==> iff) (@Leaf E A).
-Proof.
-  apply proper_sym_impl_iff_2; [ exact _ .. | ].
-  unfold Proper, respectful, impl. intros; subst.
-  edestruct @Leaf_eutt_l as [? []]; try eassumption; subst; assumption.
-Qed.
-
-(** Compatibility with [bind], forward and backward *)
-
-Lemma Leaf_bind : forall {E R S}
-  (t : itree E R) (k : R -> itree E S) a b,
-  b ∈ t ->
-  a ∈ k b ->
-  a ∈ t >>= k.
-Proof.
-  intros * INt INk; induction INt.
-  - rewrite (itree_eta t), H, bind_ret_l; auto.
-  - rewrite (itree_eta t), H, tau_eutt; auto.
-  - rewrite (itree_eta t), H, bind_vis.
-    apply Leaf_Vis with x; auto.
-Qed.
-
-Lemma Leaf_bind_inv : forall {E R S}
-  (t : itree E R) (k : R -> itree E S) a,
-  a ∈ t >>= k ->
-  exists b, b ∈ t /\ a ∈ k b.
-Proof.
-  intros * FIN;
-  remember (Itree.bind t k) as u.
-  revert t k Hequ.
-  induction FIN; intros t' k' ->; rename t' into t.
-  - unfold observe in H; cbn in H.
-    desobs t EQ; cbn in *; try congruence.
-    exists r; auto with itree.
-  - unfold observe in H; cbn in H.
-    desobs t EQ; cbn in *; try congruence; [ eexists; eauto with itree | ].
-    inversion H; clear H; symmetry in H1.
-    edestruct IHFIN as (? & ? & ?); [ eauto | eexists; eauto with itree ].
-  - unfold observe in H; cbn in H.
-    desobs t EQ; cbn in *; try congruence; [ eexists; eauto with itree | ].
-    revert x FIN IHFIN.
-    refine (match H in _ = u return match u with VisF e0 k0 => _ | RetF _ | TauF _ => False end with eq_refl => _ end).
-    intros.
-    edestruct IHFIN as (? & ? & ?); [ reflexivity | eexists; eauto with itree ].
-Qed.
-
-(** Leaf-aware up-to bind closure
-    This construction generalizes [eqit_bind_clo]: one can
-    indeed provide an arbitrary cut at the relational
-    redicate [RU] of one's choice, but the continuations
-    are only required to be related pointwise at the intersection
-    of [RU] with the respective leaves of the prefixes.
-  *)
-Section LeafBind.
-
-  Context {E : Type -> Type} {R S : Type}.
-
-  Local Open Scope itree.
-
-  Inductive eqit_Leaf_bind_clo b1 b2 (r : itree E R -> itree E S -> Prop) :
-    itree E R -> itree E S -> Prop :=
-  | pbc_intro_h U1 U2 (RU : U1 -> U2 -> Prop)
-                (t1 : itree E U1) (t2 : itree E U2)
-                 (k1 : U1 -> itree E R) (k2 : U2 -> itree E S)
-                (EQV: eqit RU b1 b2 t1 t2)
-                (REL: forall u1 u2,
-                      u1 ∈ t1 -> u2 ∈ t2 -> RU u1 u2 ->
-                      r (k1 u1) (k2 u2))
-      : eqit_Leaf_bind_clo b1 b2 r
-            (Itree.bind t1 k1) (Itree.bind t2 k2)
-    .
-  Hint Constructors eqit_Leaf_bind_clo : itree.
-
-  Lemma eqit_Leaf_clo_bind  (RS : R -> S -> Prop) b1 b2 vclo
-        (MON: monotone2 vclo)
-        (CMP: compose (eqitC RS b1 b2) vclo <3= compose vclo (eqitC RS b1 b2))
-        (ID: id <3= vclo):
-    eqit_Leaf_bind_clo b1 b2 <3= gupaco2 (eqit_ RS b1 b2 vclo) (eqitC RS b1 b2).
-  Proof.
-    gcofix CIH. intros. destruct PR.
-    guclo eqit_clo_trans.
-    econstructor; auto_ctrans_eq; try (rewrite (itree_eta (x <- _;; _ x)), unfold_bind; reflexivity).
-    punfold EQV. unfold_eqit.
-    genobs t1 ot1.
-    genobs t2 ot2.
-    hinduction EQV before CIH; intros; pclearbot.
-    - guclo eqit_clo_trans.
-      econstructor; auto_ctrans_eq; try (rewrite <- !itree_eta; reflexivity).
-      gbase; cbn.
-      apply REL0; auto with itree.
-    - gstep. econstructor.
-      gbase.
-      apply CIH.
-      econstructor; eauto with itree.
-    - gstep. econstructor.
-      intros; apply ID; unfold id.
-      gbase.
-      apply CIH.
-      econstructor; eauto with itree.
-    - destruct b1; try discriminate.
-      guclo eqit_clo_trans.
-      econstructor.
-      3:{ eapply IHEQV; eauto with itree. }
-      3,4:auto_ctrans_eq.
-      2: reflexivity.
-      eapply eqit_Tau_l. rewrite unfold_bind, <-itree_eta. reflexivity.
-    - destruct b2; try discriminate.
-      guclo eqit_clo_trans.
-      econstructor; auto_ctrans_eq; eauto with itree; try reflexivity.
-      eapply eqit_Tau_l. rewrite unfold_bind, <-itree_eta. reflexivity.
-  Qed.
-
-End LeafBind.
-
-(** General cut rule for [eqit]
-    This result generalizes [eqit_clo_bind].  *)
-Lemma eqit_clo_bind_gen :
-  forall {E} {R1 R2} (RR : R1 -> R2 -> Prop) {U1 U2} {UU : U1 -> U2 -> Prop}
-          b1 b2
-           (t1 : itree E U1) (t2 : itree E U2)
-          (k1 : U1 -> itree E R1) (k2 : U2 -> itree E R2),
-    eqit UU b1 b2 t1 t2 ->
-    (forall (u1 : U1) (u2 : U2),
-      u1 ∈ t1 -> u2 ∈ t2 -> UU u1 u2 ->
-      eqit RR b1 b2 (k1 u1) (k2 u2)) ->
-    eqit RR b1 b2 (x <- t1;; k1 x) (x <- t2;; k2 x).
-Proof.
-    intros.
-    ginit. guclo (@eqit_Leaf_clo_bind E R1 R2).
-    econstructor; eauto.
-    intros * IN1 IN2 HR.
-    gfinal; right.
-    apply H0; auto.
-Qed.
-
-(** Specialization of the cut rule to [eutt] *)
-Lemma eutt_clo_bind_gen :
-  forall {E} {R1 R2} (RR : R1 -> R2 -> Prop) {U1 U2} {UU : U1 -> U2 -> Prop}
-           (t1 : itree E U1) (t2 : itree E U2)
-          (k1 : U1 -> itree E R1) (k2 : U2 -> itree E R2),
-    eutt UU t1 t2 ->
-    (forall (u1 : U1) (u2 : U2),
-      u1 ∈ t1 -> u2 ∈ t2 -> UU u1 u2 ->
-      eutt RR (k1 u1) (k2 u2)) ->
-    eutt RR (x <- t1;; k1 x) (x <- t2;; k2 x).
-Proof.
-  intros *; apply eqit_clo_bind_gen.
-Qed.
-
-(** Often useful particular case of identical prefixes *)
-Lemma eutt_eq_bind_gen {E R S T} (RS : R -> S -> Prop)
-      (t: itree E T) (k1: T -> itree E R) (k2 : T -> itree E S) :
-    (forall u, u ∈ t -> eutt RS (k1 u) (k2 u)) ->
-    eutt RS (t >>= k1) (t >>= k2).
-Proof.
-  intros; eapply eutt_clo_bind_gen.
-  reflexivity.
-  intros * IN _ <-; eauto.
-Qed.
-
-Lemma eqit_bind_Leaf_inv {E} {R S T} (RS : R -> S -> Prop)
-      (t : itree E T)  (k1: T -> itree E R) (k2 : T -> itree E S) :
-  (eutt RS  (Itree.bind t k1) (Itree.bind t k2)) ->
-  (forall r, Leaf r t -> eutt RS (k1 r) (k2 r)).
-Proof.
-  intros EQIT r HRET.
-  revert k1 k2 EQIT.
-  induction HRET; intros;
-    rewrite 2 unfold_bind, H in EQIT.
-  - assumption.
-  - rewrite 2 tau_eutt in EQIT. auto.
-  - apply IHHRET. eapply eqit_inv_Vis in EQIT; eauto.
-Qed.
-
-(** Correspondence with has_post *)
-
-Lemma has_post_Leaf {E R} (t: itree E R) Q r:
-  has_post t Q -> r ∈ t -> Q r.
-Proof.
-  intros Hcond Himage.
-  rewrite has_post_post_strong in Hcond.
-  destruct (Leaf_eutt_l t t r Hcond Himage).
-  intuition; now subst.
-Qed.
-
-Lemma has_post_Leaf_equiv {E R} (t: itree E R) Q:
-  has_post t Q <-> (forall r, r ∈ t -> Q r).
-Proof.
-  intuition. eapply has_post_Leaf; eauto.
-  revert t H. pcofix CIH; intros t Hpost. pstep; red.
-  setoid_rewrite (itree_eta t) in Hpost.
-  desobs t Ht; clear t Ht.
-  - constructor. apply Hpost, Leaf_Ret.
-  - constructor. right; apply CIH. intros. apply Hpost, Leaf_Tau, H.
-  - constructor. intros. right. apply CIH. intros. eapply Hpost, Leaf_Vis, H.
-Qed.
-
-(** Leaf-based inversion principles for iter *)
-
-(* Inverts [r ∈ Itree.iter body entry] into any post-condition on r which is
-   satisfied by terminating iterations of the body. *)
-Lemma Leaf_iter_inv {E R I}:
-  forall (body: I -> itree E (I + R)) (entry: I) (Inv: I -> Prop) (Q: R -> Prop),
-  (forall i r, Inv i -> r ∈ body i -> sum_pred Inv Q r) ->
-  Inv entry ->
-  forall r, r ∈ (Itree.iter body entry) -> Q r.
-Proof.
-  intros * Hinv Hentry.
-  rewrite <- has_post_Leaf_equiv.
-  eapply has_post_iter_strong; eauto.
-  setoid_rewrite has_post_Leaf_equiv. eauto.
-Qed.
-
-Lemma Leaf_interp_iter_inv {E F R I} (h: E ~> itree F):
-  forall (body: I -> itree E (I + R)) (entry: I) (Inv: I -> Prop) (Q: R -> Prop),
-  (forall i r, Inv i -> r ∈ interp h (body i) -> sum_pred Inv Q r) ->
-  Inv entry ->
-  forall r, r ∈ interp h (Itree.iter body entry) -> Q r.
-Proof.
-  intros * Hbody Hentry r Hr.
-  apply (Leaf_iter_inv (fun i => interp h (body i)) entry Inv); auto.
-  rewrite (interp_iter'  _ _ (fun i => interp h (body i))) in Hr.
-  apply Hr. reflexivity.
-Qed.
-
-(* Inverts [sr' ∈ interp_state h (Itree.iter body i)] into a post-condition on
-   both retun value and state, like Leaf_iter_inv. *)
-Lemma Leaf_interp_state_iter_inv {E F S R I}:
-  forall (h: E ~> Monads.stateT S (itree F)) (body: I -> itree E (I + R))
-         (RS: S -> Prop) (RI: I -> Prop) (RR: R -> Prop) (s: S) (i: I),
-  (forall s i, RS s -> RI i -> (forall sx', sx' ∈ interp_state h (body i) s ->
-                    prod_pred RS (sum_pred RI RR) sx')) ->
-  RS s -> RI i ->
-  forall sr', sr' ∈ interp_state h (Itree.iter body i) s -> prod_pred RS RR sr'.
-Proof.
-  setoid_rewrite <- has_post_Leaf_equiv.
-  setoid_rewrite has_post_post_strong.
-  intros * Hinv Hentrys Hentryi.
-  set (eRI := fun (i1 i2: I) => i1 = i2 /\ RI i1).
-  set (eRR := fun (r1 r2: R) => r1 = r2 /\ RR r1).
-  set (eRS := fun (s1 s2: S) => s1 = s2 /\ RS s1).
-
-  set (R1 := (fun x y : S * R => x = y /\ prod_pred RS RR x)).
-  set (R2 := (fun a b : S * R => eRS (fst a) (fst b) /\ eRR (snd a) (snd b))).
-  assert (HR1R2: eq_rel R1 R2) by (compute; intuition; subst; now try destruct y).
-  unfold has_post_strong; fold R1; rewrite (eutt_equiv _ _ HR1R2).
-
-  unshelve eapply (eutt_interp_state_iter eRI eRR eRS h body body _ i i s s _ _);
-  [| subst eRS; intuition | subst eRI; intuition].
-  intros i1 ? s1 ? [<- Hs1] [<- Hi1].
-
-  set (R3 := (fun x y : S * (I + R) => x = y /\ prod_pred RS (sum_pred RI RR) x)).
-  set (R4 := (prod_rel eRS (sum_rel eRI eRR))).
-  assert (HR3R4: eq_rel R3 R4).
-  { split; intros [? [|]] [? [|]]; compute.
-    1-4: intros [[]]; dintuition; cbn; intuition.
-    all: intros [[[=->] ?] HZ]; inversion HZ; intuition now subst. }
-
-  rewrite <- (eutt_equiv _ _ HR3R4).
-  now apply Hinv.
-Qed.
-
-(** Inversion of Leaf through interp.
-    Since interp does not change leaves, we have [x ∈ interp h t -> x ∈ t].
-    However this is not easy to see from the Leaf predicate; we must use t. *)
-
-Module Subtree.
-
-Inductive subtree {E R}: itree E R -> itree E R -> Prop :=
-  | SubtreeRefl u t:
-      u ≅ t -> subtree u t
-  | SubtreeTau u t:
-      subtree (Tau u) t -> subtree u t
-  | SubtreeVis {T} u (e: E T) k x t:
-      u ≅ k x -> subtree (Vis e k) t -> subtree u t.
-
-#[global] Instance subtree_cong_eqitree {E R}:
-  Proper (eq_itree eq ==> eq_itree eq ==> flip impl) (@subtree E R).
-Proof.
-  intros t t' Ht u u' Hu Hsub.
-  revert t Ht u Hu; induction Hsub; intros.
-  - apply SubtreeRefl. now rewrite Ht, Hu.
-  - apply SubtreeTau, IHHsub; auto. apply eqit_Tau, Ht.
-  - eapply SubtreeVis. now rewrite Ht, H. apply IHHsub; auto. reflexivity.
-Qed.
-
-Lemma subtree_image {E R} (t u: itree E R) x:
-  subtree u t -> x ∈ u -> x ∈ t.
-Proof.
-  intros * Hsub. induction Hsub; intros.
-  - intros. rewrite <- H; auto.
-  - apply IHHsub, Leaf_Tau, H.
-  - eapply IHHsub, Leaf_Vis. rewrite H in H0; eauto.
-Qed.
-
-Lemma Leaf_interp_subtree_inv {E F R} (h: E ~> itree F) (t u: itree E R):
-  subtree u t -> has_post (interp h u) (fun x : R => x ∈ t).
-Proof.
-  revert t u. ginit. gcofix CIH; intros * Hsub.
-  rewrite (itree_eta u) in Hsub.
-  rewrite ! unfold_interp.
-  desobs u Hu; clear u Hu; cbn.
-  - gstep; red. constructor. eapply subtree_image; eauto. apply Leaf_Ret.
-  - gstep; red. constructor. gfinal; left. apply CIH. apply SubtreeTau, Hsub.
-  - guclo eqit_clo_bind; econstructor. reflexivity. intros u _ <-.
-    gstep; red. constructor. gfinal; left. apply CIH. eapply SubtreeVis, Hsub.
-    reflexivity.
-Qed.
-
-Lemma Leaf_interp_state_subtree_inv {E F S R} (h: E ~> Monads.stateT S (itree F))
-  (t u: itree E R) (s: S):
-  subtree u t -> has_post (interp_state h u s) (fun x => snd x ∈ t).
-Proof.
-  revert t u s. ginit. gcofix CIH; intros * Hsub.
-  rewrite (itree_eta u) in Hsub.
-  rewrite ! unfold_interp_state.
-  desobs u Hu; clear u Hu; cbn.
-  - gstep; red. constructor. eapply subtree_image; eauto. apply Leaf_Ret.
-  - gstep; red. constructor. gfinal; left. apply CIH. apply SubtreeTau, Hsub.
-  - guclo eqit_clo_bind; econstructor. reflexivity. intros [u1 u2] _ <-; cbn.
-    gstep; red. constructor. gfinal; left. apply CIH. eapply SubtreeVis, Hsub.
-    reflexivity.
-Qed.
-
-End Subtree.
-Import Subtree.
-
-Lemma Leaf_interp_inv {E F R} (h: E ~> itree F) (t: itree E R) x:
-  x ∈ interp h t -> x ∈ t.
-Proof.
-  intros Hleaf. apply (has_post_Leaf (interp h t) (fun x => x ∈ t)); auto.
-  apply Leaf_interp_subtree_inv. apply SubtreeRefl; reflexivity.
-Qed.
-
-Lemma Leaf_interp_state_inv {E F S R} (h: E ~> Monads.stateT S (itree F))
-  (t: itree E R) s x:
-  x ∈ interp_state h t s -> snd x ∈ t.
-Proof.
-  intros Hleaf.
-  apply (has_post_Leaf (interp_state h t s) (fun x => snd x ∈ t)); auto.
-  apply Leaf_interp_state_subtree_inv. apply SubtreeRefl; reflexivity.
-Qed.
-
-(** Inversion through translate. *)
-
-Lemma Leaf_translate_inv {E F R} `{Inj: E -< F}: forall (t: itree E R) v,
-  v ∈ translate (@subevent E F _) t -> v ∈ t.
-Proof.
-  intros. rewrite translate_to_interp in H.
-  eapply Leaf_interp_inv; eauto.
-Qed.
-
-*)

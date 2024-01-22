@@ -324,6 +324,20 @@ Proof.
   now dependent destruction EQ.
 Qed.
 
+Lemma equ_tauR_inv {E S}{HE: Encode E} {t1 t2 t2': itree E S}:
+  t1 ≅ t2' ->
+  t2 ≅ Tau t2' ->
+  Tau t1 ≅ t2.
+Proof.
+  intros EQ EQt; step in EQt; intros.
+  step; cbn in *.
+  dependent destruction EQt; intros.
+  rewrite <- x; auto.
+  apply Eq_Tau.
+  transitivity t2'; auto.
+  now symmetry.
+Qed.
+
 Lemma equF_vis_invT {E S} {HE: Encode E} {e1 e2: E} {R} {k1 k2: _ -> itree E S}:
   equF R (equ R) (VisF e1 k1) (VisF e2 k2) ->
   encode e1 = encode e2 /\ e1 = e2.

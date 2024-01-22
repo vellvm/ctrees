@@ -49,8 +49,6 @@ From Coq Require Import
 From Coinduction Require Import
      coinduction rel tactics.
 
-From ITree Require Import Core.Subevent.
-
 From CTree Require Import
   CTree.Core
   CTree.Equ
@@ -555,7 +553,7 @@ of the companion).
   Qed.
 
   (*| Hence [equ eq] is a included in [sbisim] |*)
-  #[global] Instance equ_sbisim_subrelation `{EqL: Equivalence _ L} : subrelation (equ eq) (sbisim L) | 99.
+  #[global] Instance equ_sbisim_subrelation `{EqL: Equivalence _ L} : subrelation (equ eq) (sbisim L).
   Proof.
     red; intros.
     rewrite H; reflexivity.

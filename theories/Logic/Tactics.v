@@ -12,27 +12,28 @@ Generalizable All Variables.
 
 Ltac csplit :=
   match goal with
-  | |- <( ?m |= ?φ /\ ?ψ )> => cut (<( m |= φ )> /\ <( m |= ψ )>); [auto | split]
+  | |- <( ?t, ?w |= ?φ /\ ?ψ )> => cut (<( t, w |= φ )> /\ <( t, w |= ψ )>); [auto | split]
   end.
 
 Ltac cright :=
   match goal with
-  | |- <( ?m |= ?φ \/ ?ψ )> => cut (<( m |= ψ )> ); [intros; right; auto|]
+  | |- <( ?t, ?w |= ?φ \/ ?ψ )> => cut (<( t, w |= ψ )> ); [intros; right; auto|]
   end.
+
 Ltac cleft :=
   match goal with
-  | |- <( ?m |= ?φ \/ ?ψ )> => cut (<( m |= φ )> ); [intros; left; auto|]
+  | |- <( ?t, ?w |= ?φ \/ ?ψ )> => cut (<( t, w |= φ )> ); [intros; left; auto|]
   end.
 
 Ltac cdestruct H0 :=
   match type of H0 with
-  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (CAnd ?φ ?ψ) ?m =>
-      replace (@entailsF W M MM meq EqM KMS X (CAnd φ ψ) m)
-      with (<( m |= φ)> /\ <( m |= ψ )>) in H0 by reflexivity;
+  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (CAnd ?φ ?ψ) ?t ?w =>
+      replace (@entailsF W M MM meq EqM KMS X (CAnd φ ψ) t w)
+      with (<( t, w |= φ)> /\ <( t, w |= ψ )>) in H0 by reflexivity;
       destruct H0
-  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (COr ?φ ?ψ) ?m =>
-      replace (@entailsF W M MM meq EqM KMS X (COr φ ψ) m)
-      with (<( m |= φ)> \/ <( m |= ψ )>) in H0 by reflexivity;
+  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (COr ?φ ?ψ) ?t ?w =>
+      replace (@entailsF W M MM meq EqM KMS X (COr φ ψ) t w)
+      with (<( t, w |= φ)> \/ <( t, w |= ψ )>) in H0 by reflexivity;
       destruct H0              
   end.
 
@@ -41,43 +42,10 @@ Ltac cdestruct H0 :=
 #[global] Tactic Notation "left" := (cleft || left).
 #[local] Tactic Notation "destruct" ident(H) := (cdestruct H || destruct H).
 
-Ltac cinduction H :=
-  match type of H with
-  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (CAU ?ψ ?φ) ?ms =>
-      let m' := fresh "m" in
-      let Heqt := fresh "Heqm" in
-      remember ms as m' eqn: Heqm;
-      unfold entailsF in H;
-      induction H as [m' H' | m' Hbase IH HH];
-      rewrite !Heqm in *;
-      clear Heqm;
-      fold (@entailsF W M MM meq EqM KMS X) in *
-  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (CAU ?ψ ?φ) ?ms =>
-      let m' := fresh "m" in
-      let Heqt := fresh "Heqm" in
-      remember ms as m' eqn: Heqm;
-      unfold entailsF in H;
-      induction H as [m' H' | m' Hbase IH HH];
-      rewrite !Heqm in *;
-      clear Heqm;
-      fold (@entailsF W M MM meq EqM KMS X) in *
-  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (CEU ?ψ ?φ) ?ms =>
-      let m' := fresh "m" in
-      let Heqt := fresh "Heqm" in
-      remember ms as m' eqn: Heqm;
-      unfold entailsF in H;
-      induction H as [m' H' | m' Hbase IH HH];
-      rewrite !Heqm in *;
-      clear Heqm;
-      fold (@entailsF W M MM meq EqM KMS X) in *
-  end.
-
-#[local] Tactic Notation "induction" ident(H) := (cinduction H || induction H).
-
 #[local] Ltac __coinduction_g R H :=  
   unfold entailsF; coinduction R H;
   try match goal with
-  | [KMS: Kripke ?M ?W ?equ |- context[?M ?X * ?W] ] =>
+  | [KMS: Kripke ?M ?W ?equ |- context[?M ?X] ] =>
       fold (@entailsF M W equ KMS X) in *
   end.
 

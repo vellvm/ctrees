@@ -23,40 +23,35 @@ Import Itree ITreeNotations.
 Local Open Scope itree_scope.
 Local Open Scope ctl_scope.
 
-
 (*| Kripke transition system |*)
 Section KripkeTrans.
   Context {E: Type} `{HE: Encode E}.
 
   (*| Kripke transition system |*)
-  Inductive trans_{X}: relation (itree' E X * World E) :=
+  Inductive ktrans_{X}: itree' E X -> World E -> itree' E X -> World E -> Prop :=
   | KtransObs (w: World E) (e: E) (v: encode e)
       (k: encode e -> itree E X) (t: itree E X):
     t ≅ k v ->
     not_done w ->
-    trans_ (VisF e k, w) (observe t, Obs e v)
+    ktrans_ (VisF e k) w (observe t) (Obs e v)
   | KtransTau (w w': World E) (t t': itree E X):
-    trans_ (observe t, w) (observe t', w') ->
-    trans_ (TauF t, w) (observe t', w')
+    ktrans_ (observe t) w (observe t') w' ->
+    ktrans_ (TauF t) w (observe t') w'
   | KtransDone (x: X) (t: itree E X):
     t ≅ Itree.stuck ->
-    trans_ (RetF x, Pure) (observe t, Done x)
+    ktrans_ (RetF x) Pure (observe t) (Done x)
   | KtransFinish (x: X) (e: E) (v: encode e) (t: itree E X):
     t ≅ Itree.stuck ->
-    trans_ (RetF x, Obs e v) (observe t, Finish e v x).
-  Hint Constructors trans_ : core.
-
-  Definition trans {X}: relation (itree E X * World E) :=
-    fun '(t, w) '(t', w') => trans_ (observe t, w) (observe t', w').
-  Arguments trans /.
+    ktrans_ (RetF x) (Obs e v) (observe t) (Finish e v x).
+  Hint Constructors ktrans_ : core.
   
-  Global Instance trans_equ_aux1 {X}(t: itree' E X) (w: World E):
-    Proper (going (equ eq) * eq ==> flip impl) (trans_ (t,w)).
+  Global Instance ktrans_equ_aux1 {X}(t: itree' E X) (w: World E):
+    Proper (going (equ eq) ==> eq ==> flip impl) (ktrans_ t w).
   Proof.
     unfold Proper, respectful, iff, fst, snd; cbn; unfold fst, snd;
       cbn; unfold RelCompFun; cbn.
-    intros (u & su) (u' & su') (equ & <-) TR.
-    inv equ; rename H into equ; cbn in *.
+    intros u u' Hequ s s' <-  TR.
+    inv Hequ; rename H into equ; cbn in *.
     step in equ.
     revert u equ.
     dependent induction TR; intros; subst; eauto;
@@ -64,26 +59,23 @@ Section KripkeTrans.
       remember ({| _observe := U |}) as u;
       replace U with (observe u) in * by now subst.
     - eapply KtransObs; auto.
-      transitivity t0; auto.
+      transitivity t; auto.
       now step.
     - eapply KtransTau; auto.
-      eapply IHTR; auto.
     - eapply KtransDone.
-      transitivity t0; auto.
+      transitivity t; auto.
       now step.
     - eapply KtransFinish.
-      transitivity t0; auto.
+      transitivity t; auto.
       now step.
   Qed.
 
-  Global Instance trans_equ_aux2 {X}:
-    Proper (going (equ eq) * eq ==> going (equ eq) * eq ==> impl) (trans_ (X:=X)).
+  Global Instance ktrans_equ_aux2 {X}:
+    Proper (going (equ eq) ==> eq ==> going (equ eq) ==> eq ==> impl) (ktrans_ (X:=X)).
   Proof.
-    intros (t & s) (t' & s') (eqt & eqs) (u & su)
-      (u' & su') (equ & eqsu) TR; cbn in *;
-      unfold RelCompFun in *; cbn in *; subst.
-    rewrite <- equ; clear u' equ.
-    inv eqt; rename H into eqt.
+    intros t t' Heqt x x' <- u u' Hequ y y' <- TR.
+    rewrite <- Hequ; clear u' Hequ.
+    inv Heqt; rename H into eqt.
     revert t' eqt.
     dependent induction TR; intros; auto.
     + step in eqt; cbn in eqt; dependent destruction eqt.
@@ -99,35 +91,34 @@ Section KripkeTrans.
       apply KtransFinish; auto.
   Qed.
 
-  Global Instance trans_equ_proper{X}:
-    Proper (equ eq * eq ==> equ eq * eq ==> iff) (trans (X:=X)).
-  Proof.
-    unfold Proper, respectful, RelCompFun, fst, snd; cbn; intros.
-    destruct2 H0; destruct2 H; destruct x, y, x0, y0; subst.
-    split; intros TR; unfold trans.
-    - now rewrite <- Heqt0, <- Heqt.
-    - now rewrite Heqt0, Heqt.
-  Qed.
-
   Definition equ X := @equ E HE X X eq.
   Arguments equ /.
-  Global Program Instance itree_kripke: Kripke (itree E) equ E := {
-      ktrans X '(t,w) '(t',w') :=
-        trans_ (X:=X) (observe t, w) (observe t', w')
+  Global Program Instance itree_kripke:
+    Kripke (itree E) equ E := {
+      ktrans X t w t' w' :=
+        ktrans_ (X:=X) (observe t) w (observe t') w'
     }.
   Next Obligation.
-    setoid_rewrite H in H0.
-    exists s'; auto.
+    rewrite H in H0.
+    exists s'; split; auto.
   Defined.
   Next Obligation.
-    remember (observe t, w) as m.
-    remember (observe t', w') as m'.
-    replace w with (snd m) by now subst.
-    clear Heqm Heqm' t t' w w'.
+    remember (observe t) as m.
+    remember (observe t') as m'.
+    clear Heqm Heqm' t t'.
     induction H; cbn; auto with ctl.
   Defined.
   Arguments ktrans /.
   
+  Global Instance ktrans_equ_proper{X}:
+    Proper (equ X ==> eq ==> equ X ==> eq ==> iff) (ktrans (X:=X)).
+  Proof.
+    unfold Proper, respectful, RelCompFun, fst, snd; cbn; intros; subst.
+    split; intros TR; unfold ktrans.
+    - now rewrite <- H, <- H1.
+    - now rewrite H, H1.
+  Qed.
+
 End KripkeTrans.
 
 Ltac ktrans_ind H :=
@@ -139,7 +130,7 @@ Section KripkeLemmas.
 
   (* Always step from impore [w] to impure [w']  |*)
   Lemma ktrans_not_pure {X} : forall (t t': itree E X) w w',
-      ktrans (t, w) (t', w') ->
+      [t, w] ↦ [t', w'] ->
       not_pure w ->
       not_pure w'.
   Proof.
@@ -149,7 +140,7 @@ Section KripkeLemmas.
   Qed.
   
   Lemma ktrans_stuck{X}: forall (t: itree E X) w w',
-      ~ ((stuck, w) ↦ (t, w')).
+      ~ [stuck, w] ↦ [t, w'].
   Proof.
     intros * Hcontra.
     ktrans_ind Hcontra.
@@ -157,7 +148,7 @@ Section KripkeLemmas.
   Hint Resolve ktrans_stuck: ctl.
 
   Lemma ktrans_tau {X}: forall (t t': itree E X) s s',
-      (Tau t, s) ↦ (t', s') <-> ktrans (t, s) (t', s').
+      [Tau t, s] ↦ [t', s'] <-> [t, s] ↦ [t', s'].
   Proof.
     intros; split; intro H.
     - ktrans_ind H; cbn; now rewrite x in H.
@@ -165,7 +156,7 @@ Section KripkeLemmas.
   Qed.
 
   Lemma ktrans_pure {X}: forall (t: itree E X) (w': World E) x,
-      ktrans (Ret x, Pure) (t, w') <-> (w' = Done x /\ t ≅ stuck).
+      [Ret x, Pure] ↦ [t, w'] <-> (w' = Done x /\ t ≅ stuck).
   Proof.
     intros; split; intros.
     - ktrans_ind H; split; try reflexivity.
@@ -174,7 +165,7 @@ Section KripkeLemmas.
   Qed.
 
   Lemma ktrans_finish {X}: forall (t: itree E X) (w': World E) (e: E) (v: encode e) x,
-      ktrans (Ret x, Obs e v) (t, w') <-> (w' = Finish e v x /\ t ≅ stuck).
+      [Ret x, Obs e v] ↦ [t, w'] <-> (w' = Finish e v x /\ t ≅ stuck).
   Proof.
     intros; split; intros.
     - ktrans_ind H; split; try reflexivity.
@@ -183,7 +174,7 @@ Section KripkeLemmas.
   Qed.
   
   Lemma ktrans_vis {X} {t': itree E X} s s' e (k: encode e -> itree E X):
-    (Vis e k, s) ↦ (t', s') <->
+    [Vis e k, s] ↦ [t', s'] <->
       (exists (v: encode e), t' ≅ k v /\ s' = Obs e v /\ not_done s).
   Proof.
     intros; split; intro TR; ktrans_ind TR.
@@ -192,38 +183,43 @@ Section KripkeLemmas.
     - cbn; destruct H as (-> & -> & ?); apply KtransObs; auto.
   Qed.
 
-  (* TODO *)
   Lemma ktrans_bind_inv_aux {X Y} (w w': World E)(T U: itree' E Y) :
-    trans_ (T, w) (U, w') ->
+    ktrans_ T w U w' ->
     forall (t: itree E X) (k: X -> itree E Y) (u: itree E Y),
       go T ≅ t >>= k ->
       go U ≅ u ->
-      (exists t', (t, w) ↦ (t', w')
+      (* [t] steps, [t>>=k] steps *)
+      (exists t', [t, w] ↦ [t', w']        
              /\ not_done w'
              /\ u ≅ x <- t' ;; k x) \/
-        (exists x w_, (t, w) ↦ (stuck, w_)
-                 /\ return_with X x w_
-                 /\ (k x, w) ↦ (u, w')).
-  Proof.
+        (* [t] pure return [Done x], [t>>=k] steps if [k x] steps *)
+      (exists (x: X),                      
+          [t, w] ↦ [stuck, Done x]
+          /\ w = Pure
+          /\ [k x, Pure] ↦ [u, w']) \/
+        (* [t] impure return [Finish e v x], [t>>=k] steps if [k x] steps *)
+      (exists (e: E) (v: encode e) (x: X), 
+          [t, w] ↦ [stuck, Finish e v x]
+          /\ w = Obs e v
+          /\ [k x, Obs e v] ↦ [u, w']).
+  Proof with (auto with ctl).
     intros TR.
     dependent induction TR; intros.
-    - rewrite unfold_bind in H1; unfold ktrans, trans; cbn; desobs t0; observe_equ Heqt.
-      + right.        
-        exists x; inv H0.
-        * exists (Done x).
+    - rewrite unfold_bind in H1; unfold ktrans; cbn; desobs t0; observe_equ Heqt.
+      + right; inv H0;
           replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
-          split; [|split]; auto with ctl.
+        * left; exists x.
+          split; [|split]... 
           -- now apply KtransDone.
-          -- rewrite <- H1; cbn; apply KtransObs; auto with ctl.
+          -- rewrite <- H1; cbn; apply KtransObs... 
              rewrite <- itree_eta in H2.
-             transitivity t; [symmetry|]; auto.             
-        * exists (Finish e0 v0 x).
-          replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
-          split; [|split]; auto with ctl.
+             transitivity t; [symmetry|]... 
+        * right; exists e0, v0, x. 
+          split; [|split]... 
           -- now apply KtransFinish.
-          -- rewrite <- H1; cbn; apply KtransObs; auto with ctl.
+          -- rewrite <- H1; cbn; apply KtransObs... 
              rewrite <- itree_eta in H2.
-             transitivity t; [symmetry|]; auto.             
+             transitivity t; [symmetry|]... 
       + step in H1; inv H1.
       + left.
         pose proof (equ_vis_invT H1) as (_ & <-).
@@ -233,55 +229,64 @@ Section KripkeLemmas.
         * rewrite <- H1, <- H.
           symmetry.
           now rewrite <- itree_eta in H2.
-    - rewrite unfold_bind in H; unfold ktrans, trans; cbn; desobs t0; observe_equ Heqt.
+    - rewrite unfold_bind in H; unfold ktrans; cbn;
+        desobs t0; observe_equ Heqt.
       + right.
-        exists x.
         pose proof (ktrans_not_done (X:=Y) t t' w w' TR) as Hw.
+        replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
         inv Hw.
-        * exists (Done x).
-          replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
-          split; [|split]; auto with ctl.
+        * left; exists x.
+          split; [|split]...
           -- now apply KtransDone.
           -- rewrite <- H, <- H0; cbn; now apply KtransTau.
-        * exists (Finish e v x).
-          replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
-          split; [|split]; auto with ctl.
+        * right; exists e, v, x.
+          split; [|split]... 
           -- now apply KtransFinish.
           -- rewrite <- H, <- H0; cbn; now apply KtransTau.
       + pose proof (equ_tau_invE H).
         rewrite itree_eta in H1.
-        destruct (IHTR _ _ _ _ eq_refl eq_refl t1 k u H1 H0) as [(t2 & TR2 & Hd & Eq2) | (x & w_ & TRr & Hr & TRk)].
+        destruct (IHTR _ _ _ H1 H0)
+          as [(t2 & TR2 & Hd & Eq2) |
+               [(x & TRr & -> & TRk) |
+                 (e & v & x & TRr & -> & TRk)]];
+          replace (TauF stuck) with (observe stuck (X:=X))
+          by reflexivity.
         * left.
-          exists t2; split; [|split]; auto with ctl.
+          exists t2; split; [|split]... 
           now apply KtransTau.
-        * right.
-          exists x; inv Hr.
-          -- exists (Done x); split; auto with ctl.
-             replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
-             now apply KtransTau.
-          -- exists (Finish e v x); split; auto with ctl.
-             replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
-             now apply KtransTau.
+        * right; left.
+          exists x.
+          split... 
+          now apply KtransTau.
+        * right; right.
+          exists e, v, x.
+          split...
+          now apply KtransTau.
       + step in H; inv H.
-    - rewrite unfold_bind in H0; unfold ktrans, trans; cbn; desobs t0; observe_equ Heqt.
-      + right.
-        exists x0, (Done x0).
-        split; [|split]; auto with ctl.
-        * replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
+    - rewrite unfold_bind in H0; unfold ktrans; cbn;
+        desobs t0; observe_equ Heqt.
+      + right; left.
+        exists x0.
+        split; [|split]...
+        * replace (TauF stuck) with (observe stuck (X:=X))
+            by reflexivity.
           now apply KtransDone.
         * rewrite <- H1, H, <- H0; cbn.
-          replace (TauF stuck) with (observe stuck (X:=Y)) by reflexivity.
+          replace (TauF stuck) with (observe stuck (X:=Y))
+            by reflexivity.
           now apply KtransDone.
       + step in H0; inv H0.
       + step in H0; inv H0.
-    - rewrite unfold_bind in H0; unfold ktrans, trans; cbn; desobs t0; observe_equ Heqt.
-      + right.
-        exists x0, (Finish e v x0).
-        split; [|split]; auto with ctl.
-        * replace (TauF stuck) with (observe stuck (X:=X)) by reflexivity.
+    - rewrite unfold_bind in H0; unfold ktrans; cbn; desobs t0; observe_equ Heqt.
+      + right; right.
+        exists e, v, x0.
+        split; [|split]... 
+        * replace (TauF stuck) with (observe stuck (X:=X))
+            by reflexivity.
           now apply KtransFinish.
         * rewrite <- H1, H, <- H0; cbn.
-          replace (TauF stuck) with (observe stuck (X:=Y)) by reflexivity.
+          replace (TauF stuck) with (observe stuck (X:=Y))
+            by reflexivity.
           now apply KtransFinish.
       + step in H0; inv H0.
       + step in H0; inv H0.
@@ -289,13 +294,18 @@ Section KripkeLemmas.
 
   Lemma ktrans_bind_inv: forall {X Y} (w w': World E)
                            (t: itree E X) (u: itree E Y) (k: X -> itree E Y),
-      (x <- t ;; k x, w) ↦ (u, w') ->
-      (exists t', (t, w) ↦ (t', w')
+      [x <- t ;; k x, w] ↦ [u, w'] ->
+      (exists t', [t, w] ↦ [t', w']
              /\ not_done w'
              /\ u ≅ x <- t' ;; k x) \/
-        (exists x w_, (t, w) ↦ (stuck, w_)
-                 /\ return_with X x w_
-                 /\ (k x, w) ↦ (u, w')).
+      (exists (x: X),              
+          [t, w] ↦ [stuck, Done x]
+          /\ w = Pure
+          /\ [k x, Pure] ↦ [u, w']) \/
+      (exists (e: E) (v: encode e) (x: X),
+          [t, w] ↦ [stuck, Finish e v x]
+          /\ w = Obs e v
+          /\ [k x, Obs e v] ↦ [u, w']).
   Proof.
     intros * TR.
     eapply ktrans_bind_inv_aux.
@@ -306,9 +316,9 @@ Section KripkeLemmas.
 
   Lemma ktrans_bind_l{X Y}: forall (t t': itree E Y)
                               (k: Y -> itree E X) w w',
-      (t, w) ↦ (t', w') ->
+      [t, w] ↦ [t', w'] ->
       not_done w' ->
-      (x <- t ;; k x, w) ↦ (x <- t' ;; k x, w').
+      [x <- t ;; k x, w] ↦ [x <- t' ;; k x, w'].
   Proof.
     intros; cbn in *.
     ktrans_ind H; rewrite unfold_bind; cbn.
@@ -320,8 +330,7 @@ Section KripkeLemmas.
       reflexivity.
     - desobs t; dependent destruction x0.
       apply ktrans_tau.
-      cbn; apply IHtrans_; auto.
-      now rewrite x.
+      cbn; apply IHktrans_; auto.
     - inv H0.
     - inv H0.
   Qed.
@@ -329,23 +338,22 @@ Section KripkeLemmas.
   Lemma ktrans_bind_r{X Y}:
     forall (t: itree E Y) (u: itree E X) (k: Y -> itree E X)
       (y: Y) w w_ w',
-      (t, w) ↦ (stuck, w_) ->
-      return_with Y y w_ ->
-      (k y, w) ↦ (u, w') ->
-      (y <- t ;; k y, w) ↦ (u, w').
+      [t, w] ↦ [stuck, w_] ->
+      return_eq Y y w_ ->
+      [k y, w] ↦ [u, w'] ->
+      [y <- t ;; k y, w] ↦ [u, w'].
   Proof.
     intros; cbn in *.
     replace (TauF stuck) with (observe stuck (X:=Y)) in H
         by reflexivity.
     ktrans_ind H; rewrite unfold_bind; cbn.
-    - inv H1.
+    - inv H1; inv H3.
     - desobs t; dependent destruction x0.
       apply ktrans_tau.
-      cbn; eapply IHtrans_; eauto.
-      now rewrite x.
-    - dependent destruction H0.
+      cbn; eapply IHktrans_; eauto.
+    - destruct H0; dependent destruction H0.
       desobs t; dependent destruction x1; auto.
-    - dependent destruction H0.
+    - destruct H0; dependent destruction H0.
       desobs t; dependent destruction x1; auto.
   Qed.
 

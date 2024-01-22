@@ -1,8 +1,7 @@
 From Coq Require Import
   Relations
   Program.Basics
-  Classes.Morphisms
-  Classes.RelationPairs.
+  Classes.Morphisms.
 
 From ExtLib Require Import Structures.Monad.
 From CTree Require Import
@@ -31,13 +30,25 @@ Variant not_pure `{Encode E}: World E -> Prop :=
       not_pure (Finish e v x).
 Global Hint Constructors not_pure: ctl.
 
-Variant return_with `{Encode E} (X: Type): X -> World E -> Prop :=
-  | DoneWithCtor: forall (x: X),
-      return_with X x (Done x)
-  | FinishWithCtor: forall (e: E) (v: encode e) (x: X),
-      return_with X x (Finish e v x).
-Global Hint Constructors return_with: ctl.
+Variant obs_with `{Encode E} (R: forall (e: E), encode e -> Prop): World E -> Prop :=
+  | ObsWithCtor: forall (e: E) (v: encode e),
+      R e v -> obs_with R (Obs e v).
+Global Hint Constructors obs_with: ctl.
 
+Variant finish_with `{Encode E} {X} (R: forall (e: E), encode e -> X -> Prop): World E -> Prop :=
+  | FinishWithCtor: forall (e: E) (v: encode e) (x: X),
+      R e v x -> finish_with R (Finish e v x).
+Global Hint Constructors finish_with: ctl.
+
+Variant done_with `{Encode E} {X} (R: X -> Prop): World E -> Prop :=
+  |DoneWithCtor: forall (x: X),
+      R x -> done_with R (Done x).
+Global Hint Constructors done_with: ctl.
+
+Definition return_eq `{Encode E} X (x: X)(w: World E): Prop :=
+  done_with (eq x) w \/ finish_with (fun _ _ => eq x) w.
+Global Hint Unfold return_eq: ctl.
+  
 Variant not_done `{Encode E}: World E -> Prop :=
   | NotDonePure: not_done Pure
   | NotDoneObs: forall (e: E) (v: encode e),
@@ -60,30 +71,6 @@ Proof.
   - right; econstructor.
 Qed.
 
-Definition not_done_return_with_dec `{Encode E}: forall (w: World E),
-    {not_done w} + {exists X (x: X), return_with X x w}.
-Proof.
-  dependent destruction w; intros.
-  - left; econstructor.
-  - left; econstructor.
-  - right; exists X, x; econstructor. 
-  - right; exists X, x; econstructor.
-Qed.
-
-Lemma is_done_return_with `{Encode E} : forall (w: World E),
-    is_done w -> (exists X (x: X), return_with X x w).
-Proof.
-  intros; inv H0; exists X, x; constructor.
-Qed.
-Global Hint Resolve is_done_return_with: ctl.
-
-Lemma return_with_is_done `{Encode E} : forall (w: World E) X (x: X),
-    return_with X x w -> is_done w.
-Proof.
- intros; inv H0; constructor. 
-Qed.
-Global Hint Resolve return_with_is_done: ctl.
-
 (*| Polymorphic Kripke model over family M |*)
 Class Kripke (M: Type -> Type) (meq: forall X, relation (M X)) E := {
 
@@ -92,147 +79,50 @@ Class Kripke (M: Type -> Type) (meq: forall X, relation (M X)) E := {
     EquM :: forall X, Equivalence (meq X);
     
     (* - [ktrans] the transition relation over [M X * W] *)
-    ktrans {X}: rel (M X * World E) (M X * World E);
+    ktrans {X}: M X -> World E -> M X -> World E -> Prop;
 
     (* - [ktrans] does not allow rewriting with bisimulation,
        but there does exist a [t'] equivalent to [s'] *)
     ktrans_semiproper {X} : forall (t s s': M X) w w',
       meq X s t ->
-      ktrans (s,w) (s',w') ->
-      exists t', ktrans (t,w) (t',w') /\ meq X s' t';
+      ktrans s w s' w' ->
+      exists t', ktrans t w t' w' /\ meq X s' t';
 
     (* - [ktrans] only if [not_done] *)
     ktrans_not_done {X}: forall (t t': M X) (w w': World E),
-      ktrans (t, w) (t', w') ->
+      ktrans t w t' w' ->
       not_done w
   }.
 
 Arguments EncodeE /.
 Arguments EquM /.
 
-(*| Tactic to work with Eq TS product of equivalences |*)
-Ltac destruct2 Heq :=
-  let Ht := fresh "Heqt" in
-  let Hs := fresh "Heqσ" in
-  unfold fst, snd, RelCompFun in Heq;
-  cbn in Heq; destruct Heq as (Ht & Hs);
-  unfold fst, snd, RelCompFun in Ht, Hs; cbn in Ht, Hs.
-
-Ltac split2 := unfold RelCompFun, fst, snd; cbn; split.
-
 Declare Custom Entry ctl.
 Declare Scope ctl_scope.
 
 (* Transition relation *)
-Notation "p ↦ p'" := (ktrans p p') (at level 78,
-                         right associativity): ctl_scope.
+Notation "[ t , w ]  ↦ [ t' , w' ]" := (ktrans t w t' w')
+                                        (at level 78,
+                                          right associativity): ctl_scope.
 Local Open Scope ctl_scope.
 
-Definition ktrans_trc `{Kripke M meq W} {X} p p' :=
-  trc (meq X * eq)%signature ktrans p p'.
-Arguments ktrans_trc /.
-Global Hint Unfold ktrans_trc: ctl.
-
-(* TRC relation *)
-Notation "p ↦* p'" := (ktrans_trc p p') (at level 78,
-                          right associativity): ctl_scope.
-
-Lemma ktrans_iter_semiproper `{Kripke M meq W} {X} :
-  forall (t s s': M X) w w' n,
-    meq X s t ->
-    rel_iter (meq X * eq)%signature n ktrans (s, w) (s', w') ->
-    exists t', rel_iter (meq X * eq)%signature n ktrans (t, w) (t', w') /\ meq X s' t'.
-Proof.
-  intros * EQ TR.           
-  revert TR EQ.
-  revert t s w w' s'.
-  induction n; intros.
-  - destruct2 TR; subst.
-    exists t; split; auto.
-    symmetry; symmetry in EQ.
-    transitivity s; auto.
-  - destruct TR as ([s_ w_] & TR & TRi).
-    destruct (ktrans_semiproper _ _ _ _ _ EQ TR) as (z_ & TR_ & EQ_).
-    destruct (IHn _ _ _ _ _ TRi EQ_) as (zf & TRf & EQf).
-    exists zf; cbn; split; eauto.
-Qed.
-
-Lemma ktrans_trc_semiproper `{Kripke M meq W} {X} : forall (t s s': M X) w w',
-    meq X s t ->
-    (s,w) ↦* (s',w') ->    
-    exists t', (t,w) ↦* (t',w') /\ meq X s' t'.
-Proof.
-  intros.
-  destruct H1 as (n & TR).
-  destruct (ktrans_iter_semiproper _ _ _ _ _ _ H0 TR) as (? & ? & ?).
-  exists x; split; auto.
-  now (exists n).
-Qed.  
-
-Lemma ktrans_ktrans_trc `{Kripke M meq W} {X} : forall (m m' m_: M X * World W),
-    m ↦ m' ->
-    m' ↦* m_ ->
-    m ↦* m_.
-Proof.
-  intros.
-  destruct H1.
-  exists (S x); cbn.
-  exists m'; split; auto.
-Qed.
-
-Lemma ktrans_trc_ktrans `{Kripke M meq W} {X} : forall (m m' m_: M X * World W),
-    m ↦* m' ->
-    m' ↦ m_ ->
-    m ↦* m_.
-Proof.
-  intros.
-  destruct H0.
-  revert H1 H0.
-  revert m m' m_.
-  induction x; intros.
-  - destruct m, m', m_; destruct2 H0; subst.
-    symmetry in Heqt.
-    destruct (ktrans_semiproper _ _ _ _ _ Heqt H1) as (z_ & TR_ & EQ_).
-    exists 1, (z_, w1); split; auto.
-    split2; red; cbn; symmetry; auto.
-  - destruct m, m', m_; destruct H0 as ([m' o'] & TR & TRi).
-    eapply ktrans_ktrans_trc; eauto.
-Qed.
-
-Global Instance Transitive_ktrans_trc `{Kripke M meq W} {X}:
-  Transitive (@ktrans_trc M meq W _ X).
-Proof.
-  red; intros.
-  destruct H0 as (n0 & TR0).
-  destruct H1 as (n1 & TR1).
-  exists (n0 + n1)%nat.
-  revert TR0 TR1.
-  revert x y z n1.
-  induction n0; intros; destruct x, y, z.
-  - destruct2 TR0; subst.
-    symmetry in Heqt.    
-    destruct (ktrans_iter_semiproper _ _ _ _ _ _ Heqt TR1) as (t' & TR' & EQ').
-    replace (0 + n1)%nat with n1 by reflexivity.
-    (* Why can I not prove this? *)
-Abort.
-    
-Definition can_step `{Kripke M meq W} {X} (m: M X * World W): Prop :=
-  exists m' w', ktrans m (m', w').
+Definition can_step `{Kripke M meq W} {X} (m: M X) (w: World W): Prop :=
+  exists m' w', [m,w] ↦ [m',w'].
 
 Global Instance can_step_proper `{Kripke M meq W} {X}:
-  Proper (meq X * eq ==> iff) can_step.
+  Proper (meq X ==> eq ==> iff) can_step.
 Proof.
-  unfold Proper, respectful, can_step, impl; intros [t w] [t' w'];
-    split; intros; destruct2 H0; subst; destruct H1 as (x & w & ?).
-  - destruct (ktrans_semiproper t' t _ _ w Heqt H0) as (y' & TR' & EQ').
-    now (exists y', w).
+  unfold Proper, respectful, can_step, impl; intros t t' Heqt w w' Heqw;
+    split; intros; subst; destruct H0 as (t_ & w_ & ?).
+  - destruct (ktrans_semiproper t' t _ _ w_ Heqt H0) as (y' & TR' & EQ').
+    now (exists y', w_).
   - symmetry in Heqt.
-    destruct (ktrans_semiproper _ _ _ _ w Heqt H0) as (y' & TR' & EQ').
-    now (exists y', w).
+    destruct (ktrans_semiproper _ _ _ _ w_ Heqt H0) as (y' & TR' & EQ').
+    now (exists y', w_).
 Qed.
 
 Lemma can_step_not_done `{Kripke M meq W} {X}: forall (t: M X) w,
-    can_step (t, w) ->
+    can_step t w ->
     not_done w.
 Proof.
   intros.
@@ -240,12 +130,6 @@ Proof.
   now apply ktrans_not_done in TR.
 Qed.
 Global Hint Resolve can_step_not_done: ctl.
-
-Global Hint Extern 2 =>
-         match goal with
-         | [ H: ?m ↦ ?m' |- can_step ?m ] =>
-             exists (fst m'), (snd m'); apply H
-end: ctl.
 
 Ltac world_inv :=
   match goal with
@@ -271,7 +155,7 @@ Global Hint Extern 2 => world_inv: ctl.
 
 Ltac ktrans_equ TR :=
   match type of TR with
-  | @ktrans ?M ?mequ _ ?KMS _ (?y,?s) (?z,?w) => 
+  | @ktrans ?M ?mequ _ ?KMS _ ?y ?s ?z ?w => 
       match goal with
       | [H: @mequ ?X ?x ?y |- _] =>
           symmetry in H;

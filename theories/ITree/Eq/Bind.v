@@ -289,7 +289,7 @@ Next Obligation.
   repeat red; unfold impl; intros.
   inv H0; econstructor; eauto.
 Qed.
-
+  
 (*|
 Sufficient condition to prove compatibility only over the simulation
 |*)
