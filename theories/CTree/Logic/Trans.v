@@ -328,7 +328,7 @@ Section CTreeTrans.
 
   Lemma ktrans_bind_r{X Y}: forall (t: ctree E Y) (u: ctree E X) (k: Y -> ctree E X) (y: Y) w w_ w',
       [t, w] ↦ [stuck, w_] ->
-      return_eq Y y w_ ->
+      return_val Y y w_ ->
       [k y, w] ↦ [u, w'] ->
       [y <- t ;; k y, w] ↦ [u, w'].
   Proof.
@@ -366,7 +366,7 @@ Section CTreeTrans.
              /\ not_done w'
              /\ u ≅ x <- t' ;; k x) \/
       (exists y w_, [t, w] ↦ [stuck, w_]
-               /\ return_eq Y y w_
+               /\ return_val Y y w_
                /\ [k y, w] ↦ [u, w']).
   Proof with (auto with ctl).
     intros * TR.

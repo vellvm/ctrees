@@ -206,10 +206,9 @@ Module CtlNotations.
   (* Temporal syntax: base *)
   Notation "'now' p" := (CBase p) (in custom ctl at level 74): ctl_scope.
   Notation "'pure'" := (CBase (fun w => w = Pure)) (in custom ctl at level 74): ctl_scope.
-  Notation "'obs' p" := (CBase (obs_with p)) (in custom ctl at level 74): ctl_scope.
-  Notation "'return' r" := (CBase (return_eq _ r)) (in custom ctl at level 74): ctl_scope.      
-  Notation "'done' p" := (CBase (done_with p)) (in custom ctl at level 74): ctl_scope.
-  Notation "'finish' p" := (CBase (finish_with p)) (in custom ctl at level 74): ctl_scope.
+  Notation "'obs' R" := (CBase (fun w => exists e (v: encode e), w = Obs e v /\ R e v)) (in custom ctl at level 74): ctl_scope.
+  Notation "'return' r" := (CBase (return_val _ r)) (in custom ctl at level 74): ctl_scope.
+  Notation "'done' R" := (CBase (done_with R)) (in custom ctl at level 74): ctl_scope.
   Notation "⊤" := (CBase (fun _ => True)) (in custom ctl at level 76): ctl_scope.
   Notation "⊥" := (CBase (fun _ => False)) (in custom ctl at level 76): ctl_scope.
   
@@ -274,25 +273,20 @@ Lemma ctl_pure `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W),
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_pure: ctl.
 
-Lemma ctl_obs `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) (φ: forall (e: W), encode e -> Prop),
-    <( t, w |= obs φ )> <-> obs_with φ w.
+Lemma ctl_obs `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) φ,
+    <( t, w |= obs φ )> <-> exists (e: W) (v: encode e), w = Obs e v /\ φ e v.
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_obs: ctl.
 
 Lemma ctl_return `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) (r: X),
-    <( t, w |= return r )> <-> return_eq X r w.
+    <( t, w |= return r )> <-> return_val X r w.
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_return: ctl.
 
-Lemma ctl_done `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) (φ: X -> Prop),
+Lemma ctl_done `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) (φ: X -> World W -> Prop),
     <( t, w |= done φ )> <-> done_with φ w.
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_done: ctl.
-
-Lemma ctl_finish`{KMS: Kripke M meq W} X:forall(t: M X)(w: World W)(φ: forall (e: W), encode e -> X -> Prop),
-    <( t, w |= finish φ )> <-> finish_with φ w.
-Proof. unfold entailsF; now cbn. Qed.
-Global Hint Resolve ctl_finish: ctl.
 
 (*| AX, WX, EX unfold |*)
 Lemma ctl_ax `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) p,

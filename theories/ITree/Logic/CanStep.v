@@ -64,7 +64,7 @@ Lemma can_step_bind_iff `{HE: Encode E} {X Y}: forall (t: itree E Y) (k: Y -> it
     can_step (x <- t ;; k x) w <->        
       (exists t' w', [t, w] ↦ [t', w'] /\ not_done w')
       \/ (exists y w', [t, w] ↦ [Itree.stuck, w']
-                 /\ return_eq Y y w'
+                 /\ return_val Y y w'
                  /\ can_step (k y) w).
 Proof with (eauto with ctl).
   unfold can_step; split.
@@ -89,7 +89,7 @@ Proof with (eauto with ctl).
       exists t_, w_; apply KtransTau; auto.
     + inv Hd.
     + inv Hd.
-    + destruct Hd; inv H1.
+    + dependent destruction Hd.
     + observe_equ x0; cbn in *.
       setoid_rewrite Eqt.
       setoid_rewrite bind_tau.
@@ -98,12 +98,12 @@ Proof with (eauto with ctl).
         as (k' & wk' & TRk').        
       exists k', wk'; apply KtransTau; auto.
     + observe_equ x1.
-      destruct Hd; dependent destruction H0; cbn in *.
+      dependent destruction Hd; cbn in *.
       setoid_rewrite Eqt.
       setoid_rewrite bind_ret_l.
       exists k_, w_; auto.
     + observe_equ x1.
-      destruct Hd; dependent destruction H0; cbn in *.
+      dependent destruction Hd; cbn in *.
       setoid_rewrite Eqt.
       setoid_rewrite bind_ret_l.
       exists k_, w_; auto.

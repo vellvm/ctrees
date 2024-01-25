@@ -30,24 +30,19 @@ Variant not_pure `{Encode E}: World E -> Prop :=
       not_pure (Finish e v x).
 Global Hint Constructors not_pure: ctl.
 
-Variant obs_with `{Encode E} (R: forall (e: E), encode e -> Prop): World E -> Prop :=
-  | ObsWithCtor: forall (e: E) (v: encode e),
-      R e v -> obs_with R (Obs e v).
-Global Hint Constructors obs_with: ctl.
-
-Variant finish_with `{Encode E} {X} (R: forall (e: E), encode e -> X -> Prop): World E -> Prop :=
-  | FinishWithCtor: forall (e: E) (v: encode e) (x: X),
-      R e v x -> finish_with R (Finish e v x).
-Global Hint Constructors finish_with: ctl.
-
-Variant done_with `{Encode E} {X} (R: X -> Prop): World E -> Prop :=
-  |DoneWithCtor: forall (x: X),
-      R x -> done_with R (Done x).
+Variant done_with `{Encode E} {X} (R: X -> World E -> Prop): World E -> Prop :=
+  | DoneWithDone: forall (x: X),
+      R x Pure -> done_with R (Done x)
+  | DoneWithFinish: forall (e: E) (v: encode e) (x: X),
+      R x (Obs e v) -> done_with R (Finish e v x).
 Global Hint Constructors done_with: ctl.
 
-Definition return_eq `{Encode E} X (x: X)(w: World E): Prop :=
-  done_with (eq x) w \/ finish_with (fun _ _ => eq x) w.
-Global Hint Unfold return_eq: ctl.
+Inductive return_val `{Encode E} X (x: X): World E -> Prop :=
+| ReturnValDone:
+    return_val X x (Done x)
+| ReturnValFinish: forall (e: E) (v: encode e),
+    return_val X x (Finish e v x).
+Global Hint Constructors return_val: ctl.
   
 Variant not_done `{Encode E}: World E -> Prop :=
   | NotDonePure: not_done Pure

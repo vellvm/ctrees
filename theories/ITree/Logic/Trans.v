@@ -339,7 +339,7 @@ Section KripkeLemmas.
     forall (t: itree E Y) (u: itree E X) (k: Y -> itree E X)
       (y: Y) w w_ w',
       [t, w] ↦ [stuck, w_] ->
-      return_eq Y y w_ ->
+      return_val Y y w_ ->
       [k y, w] ↦ [u, w'] ->
       [y <- t ;; k y, w] ↦ [u, w'].
   Proof.
@@ -351,9 +351,9 @@ Section KripkeLemmas.
     - desobs t; dependent destruction x0.
       apply ktrans_tau.
       cbn; eapply IHktrans_; eauto.
-    - destruct H0; dependent destruction H0.
+    - dependent destruction H0. 
       desobs t; dependent destruction x1; auto.
-    - destruct H0; dependent destruction H0.
+    - dependent destruction H0.
       desobs t; dependent destruction x1; auto.
   Qed.
 
