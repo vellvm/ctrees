@@ -12,11 +12,9 @@ From ExtLib Require Import
 From CTree Require Import
   Events.Core
   ITree.Core
-  ITree.Pred
   ITree.Equ  
   ITree.Logic.Trans
   ITree.Logic.CanStep
-  ITree.Events.Writer
   Logic.Ctl
   Logic.Kripke.
 
@@ -368,8 +366,8 @@ Section CtlAfBind.
   Qed.
 
   Theorem af_bind_obs{X Y}: forall (t: itree E Y) (k: Y -> itree E X) φ w,
-      <( t, w |= AF obs φ )> ->
-      <( {x <- t ;; k x}, w |= AF obs φ )>.
+      <( t, w |= AF vis φ )> ->
+      <( {x <- t ;; k x}, w |= AF vis φ )>.
   Proof.
     intros * Haf.
     apply af_afind in Haf.
@@ -443,3 +441,8 @@ Section CtlAfBind.
   Qed.
   
 End CtlAfBind.
+
+Section CtlAfIter.
+  Context {E: Type} {HE: Encode E}.
+  (* Write total correctness lemma for [iter] *)
+  

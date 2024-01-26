@@ -298,6 +298,16 @@ Section CTreeTrans.
       rewrite Heqt in H; auto.
   Qed.
 
+  Lemma done_not_ktrans{X}: forall (t: ctree E X) w,
+      is_done w ->
+      ~ (exists t' w', [t, w] ↦ [t', w']).
+  Proof.
+    intros * Hret Htr.
+    destruct Htr as (? & ? & ?).
+    inv Hret;
+      apply ktrans_not_done in H; inv H.
+  Qed.
+
   Lemma ktrans_done_inv{X}: forall (t t': ctree E X) (x: X) w,
       ~ [t, Done x] ↦ [t', w].
   Proof. intros * Hcontra; inv Hcontra; inv H0. Qed.
