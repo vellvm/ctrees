@@ -272,6 +272,23 @@ Section State.
     reflexivity.
   Qed.
 
+  Lemma interp_state_trigger `{C -< D} : forall (e : E R) st,
+  interp_state h (CTree.trigger e : ctree E (B01 +' C) R) st ≅ x <- h e st;; Guard (Ret x).
+  Proof.
+    intros. rewrite unfold_interp_state. cbn.
+    upto_bind. reflexivity. intros [] [] <-.
+    now rewrite interp_state_ret.
+  Qed.
+
+  Lemma interp_state_stuck `{C -< D} : forall st,
+  interp_state h (stuckD : ctree E (B01 +' C) R) st ≅ stuckD.
+  Proof.
+    intros. rewrite unfold_interp_state. cbn.
+    unfold mbr, MonadBr_ctree.
+    rewrite bind_bind, bind_branch. cbn.
+    now rewrite br0_always_stuck.
+  Qed.
+
   Lemma interp_interp_state `{C -< D} : forall (t : ctree E (B01 +' C) R) s,
     interp h t s ≅ interp_state h t s.
   Proof.

@@ -565,6 +565,13 @@ Hence [equ eq] is a included in [sbisim]
     rewrite H; reflexivity.
   Qed.
 
+  #[global] Instance is_stuck_sbisim : Proper (sbisim L ==> flip impl) is_stuck.
+  Proof.
+    cbn. intros ???????.
+    step in H. destruct H as [? _].
+    apply H in H1 as (? & ? & ? & ? & ?). now apply H0 in H1.
+  Qed.
+
 End sbisim_homogenous_theory.
 
 (*|
@@ -1161,23 +1168,23 @@ Section Proof_Rules.
     typeclasses eauto.
   Qed.
 
-  Lemma step_sb_brS_id_gen {X'} (c : C X')
-        (k : X' -> ctree E C X) (k' : X' -> ctree F C Y) (R : rel _ _) :
+  Lemma step_sb_brS_id_gen {Z} (c : C Z) (d : D Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R : rel _ _) :
     (Proper (equ eq ==> equ eq ==> impl) R) ->
     L tau tau ->
     (forall x, R (k x) (k' x)) ->
-    sb L R (BrS c k) (BrS c k').
+    sb L R (BrS c k) (BrS d k').
   Proof.
     intros PROP ? EQs.
     split; apply step_ss_brS_id_gen; eauto.
     typeclasses eauto.
   Qed.
 
-  Lemma step_sb_brS_id {X'} (c : C X')
-        (k : X' -> ctree E C X) (k' : X' -> ctree F C Y) (R : rel _ _):
+  Lemma step_sb_brS_id {Z} (c : C Z) (d : D Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R : rel _ _):
     L tau tau ->
     (forall x, st L R (k x) (k' x)) ->
-    sbt L R (BrS c k) (BrS c k').
+    sbt L R (BrS c k) (BrS d k').
   Proof.
     apply step_sb_brS_id_gen.
     typeclasses eauto.
@@ -1225,18 +1232,18 @@ Section Proof_Rules.
     now apply step_sb_brD_gen.
   Qed.
 
-  Lemma step_sb_brD_id_gen {Z} (c : C Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F C Y) (R : rel _ _) :
+  Lemma step_sb_brD_id_gen {Z} (c : C Z) (d: D Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R : rel _ _) :
     (forall x, sb L R (k x) (k' x)) ->
-    sb L R (BrD c k) (BrD c k').
+    sb L R (BrD c k) (BrD d k').
   Proof.
     intros. split; apply step_ss_brD_id_gen; apply H.
   Qed.
 
-  Lemma step_sb_brD_id {Z} (c : C Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F C Y) (R : rel _ _) :
+  Lemma step_sb_brD_id {Z} (c : C Z) (d : D Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R : rel _ _) :
     (forall x, sbt L R (k x) (k' x)) ->
-    sbt L R (BrD c k) (BrD c k').
+    sbt L R (BrD c k) (BrD d k').
   Proof.
     now apply step_sb_brD_id_gen.
   Qed.
@@ -2248,7 +2255,14 @@ but we prove a counter-example for a ctree with a binary br.
 
   End Homogeneous.
 
-  Lemma ss_sb : forall {E C X} RR {HasStuck: B0 -< C}
+  Lemma ss_sb : forall {E F B C X Y} `{B0 -< B} `{B0 -< C} {L} {R : rel (ctree E B X) (ctree F C Y)} t t',
+    sb L R t t' ->
+    ss L R t t'.
+  Proof.
+    intros. apply H1.
+  Qed.
+
+  Lemma split_sb_eq : forall {E C X} RR {HasStuck: B0 -< C}
                   (t t' : ctree E C X),
       ss eq RR t t' ->
       ss eq (flip RR) t' t ->
@@ -2270,7 +2284,7 @@ but we prove a counter-example for a ctree with a binary br.
       eapply weq_ss with (y := flip eq). { cbn. intros. split; intro; now subst. }
       cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?).
       unfold flip in H2, H3. symmetry in H2. etrans.
-    - apply ss_sb. { apply H. }
+    - apply split_sb_eq. { apply H. }
       destruct H as [_ H].
       cbn. intros. apply H in H0 as (? & ? & ? & ? & ?).
       unfold flip in H1, H2. symmetry in H1. etrans.
