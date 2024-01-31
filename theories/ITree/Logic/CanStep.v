@@ -60,6 +60,17 @@ Proof.
 Qed.
 Global Hint Resolve can_step_vis: ctl.
 
+Lemma can_step_ret `{HE: Encode E} {X: Type}: forall w (x: X),
+    not_done w ->
+    can_step (Ret x) w.
+Proof.
+  intros; inv H.
+  Opaque Itree.stuck.
+  - exists Itree.stuck, (Done x); now constructor. 
+  - exists Itree.stuck, (Finish e v x); now constructor.
+Qed.
+Global Hint Resolve can_step_ret: ctl.
+
 Lemma can_step_bind_iff `{HE: Encode E} {X Y}: forall (t: itree E Y) (k: Y -> itree E X) w,
     can_step (x <- t ;; k x) w <->        
       (exists t' w', [t, w] ↦ [t', w'] /\ not_done w')

@@ -50,6 +50,30 @@ Section BasicLemmas.
         now apply H2.
   Qed.
 
+  Lemma afax_tau: forall (t: itree E X) w φ,
+      <( t, w |= AF AX now φ )> -> 
+      <( {Tau t}, w |= AF AX (now φ) )>.
+  Proof.
+    intros.
+    Transparent entailsF.
+    unfold entailsF in H.
+    induction H.
+    - destruct H.
+      next; left. 
+      split.
+      + now apply can_step_tau.
+      + intros *  TR.
+        rewrite ktrans_tau in TR.
+        now apply H0 with t'.
+    - destruct H0, H1; clear H H1.
+      next; right.
+      split.
+      + now apply can_step_tau.
+      + intros * TR.
+        rewrite ktrans_tau in TR.
+        now apply H2.
+  Qed.
+
   Lemma af_vis: forall (e: E) (k: encode e -> itree E X) (_: encode e) w φ,
       (φ w \/ (not_done w /\ forall (x: encode e), <( {k x}, {Obs e x} |= AF now φ )>)) ->
       <( {Vis e k}, w |= AF now φ )>.        
@@ -63,6 +87,8 @@ Section BasicLemmas.
         apply ktrans_vis in TR' as (? & -> & -> & ?).
         apply H.
   Qed.
+
+  
 
 End BasicLemmas.
 
@@ -347,6 +373,25 @@ Section AfDoneIndLemma.
         now apply afdoneind_stuck in H3.
   Qed.
 
+  Lemma af_ret_inv: forall (x: X) w R,
+      <( {Ret x}, w |= AF (AX done R) )> ->
+      R x w.
+  Proof.
+    intros.
+    apply af_afind in H.
+    dependent induction H.
+    - destruct H.
+      destruct H as (t' & w' & TR).
+      specialize (H0 _ _ TR).
+      inv H0; destruct w; cbn in TR; dependent destruction TR; auto.
+    - destruct H0.
+      apply can_step_not_done in H.
+      inv H.
+    - destruct H0.
+      apply can_step_not_done in H.
+      inv H.
+  Qed.
+
 End AfDoneIndLemma.
 
 Section CtlAfBind.
@@ -365,7 +410,7 @@ Section CtlAfBind.
         dependent destruction H; auto.      
   Qed.
 
-  Theorem af_bind_obs{X Y}: forall (t: itree E Y) (k: Y -> itree E X) φ w,
+  Theorem af_bind_vis{X Y}: forall (t: itree E Y) (k: Y -> itree E X) φ w,
       <( t, w |= AF vis φ )> ->
       <( {x <- t ;; k x}, w |= AF vis φ )>.
   Proof.
@@ -391,8 +436,31 @@ Section CtlAfBind.
       apply af_vis; eauto.
   Qed.
 
-  Lemma can_step_bind_r{X Y} {HP: Productive E}:
-    forall (t: itree E Y) (k: Y -> itree E X) w R,      
+  Theorem af_bind_pure{X Y}: forall (t: itree E Y) (k: Y -> itree E X) w,
+      <( t, w |= AF pure )> ->
+      <( {x <- t ;; k x}, w |= AF pure )>.
+  Proof.
+    intros * Haf.
+    apply af_afind in Haf.
+    revert X k.    
+    induction Haf; intros; subst. 
+    - (* Base *)
+      next; left; now cbn. 
+    - (* Done *)
+      inv H0.
+    - (* Finish *)
+      inv H0.
+    - (* Tau *)
+      observe_equ H.
+      rewrite Eqt, bind_tau.
+      apply af_tau; eauto.
+    - (* Vis *)
+      observe_equ H.
+      rewrite Eqt, bind_vis.
+      apply af_vis; eauto.
+  Qed.
+  
+  Lemma can_step_bind_r{X Y}: forall (t: itree E Y) (k: Y -> itree E X) w R,      
       <( t, w |= AF AX done R )> ->
       (forall y w, R y w -> can_step (k y) w) ->
       can_step (x <- t ;; k x) w.
@@ -416,10 +484,9 @@ Section CtlAfBind.
   Qed.
   Hint Resolve can_step_bind_r: ctl.
 
-  Theorem af_bind_r{X Y} {HP: Productive E}:
-    forall (t: itree E Y) (k: Y -> itree E X) w φ R,
+  Theorem af_bind_r{X Y}: forall (t: itree E Y) (k: Y -> itree E X) w φ R,
       <( t, w |= AF AX done R )> ->
-      (forall (y: Y) w, R y w -> <( {k y}, w |= AF now φ )>) ->
+      (forall (y: Y) w, R y w -> not_done w -> <( {k y}, w |= AF now φ )>) ->
       <( {x <- t ;; k x}, w |= AF now φ )>.
   Proof.
     intros.
@@ -429,20 +496,76 @@ Section CtlAfBind.
     generalize dependent k.
     induction H; intros; observe_equ H; rewrite Eqt.
     - (* Done *)
-      rewrite bind_ret_l; eauto.
+      rewrite bind_ret_l; eauto with ctl.
     - (* Finish *)
-      rewrite bind_ret_l; eauto.
+      rewrite bind_ret_l; eauto with ctl.
     - (* Tau *)
       rewrite bind_tau.
-      apply af_tau; eauto.
+      apply af_tau; eauto with ctl.
     - (* Vis *)
       rewrite bind_vis.
-      apply af_vis; eauto.
+      apply af_vis; eauto with ctl.
   Qed.
-  
+
 End CtlAfBind.
+
+Check Itree.iter.
+From Coq Require Import Init.Wf.
 
 Section CtlAfIter.
   Context {E: Type} {HE: Encode E}.
-  (* Write total correctness lemma for [iter] *)
-  
+
+  (* Total correctness lemma for [iter] *)
+  (* [Ri: I -> World E -> Prop] captures the domain and codomain of [k] when it eventually returns [inl]  *)
+  (* [Rr: X -> World E -> Prop] captures the codomain of [k] when it eventually returns [inr] *)
+  Lemma af_iter{X I} Ri Rr (Rv: relation (I * World E)) (i: I) w (k: I -> itree E (I + X)):
+      (forall (i: I) w, Ri i w ->
+                   <( {k i}, w |= AF AX done {fun (x: I + X) w' =>
+                                             match x with
+                                             | inl i' => Ri i' w' /\ Rv (i', w') (i, w)
+                                             | inr r' => Rr r' w'
+                                             end})>) ->
+      well_founded Rv ->
+      Ri i w ->
+      <( {Itree.iter k i}, w |= AF done Rr )>.
+  Proof.      
+    intros H WfR Hi.
+    generalize dependent k.
+    revert Hi.
+    remember (i, w) as P.
+    replace i with (fst P) by now subst.
+    replace w with (snd P) by now subst.
+    clear HeqP i w.
+    Opaque entailsF.
+    induction P using (well_founded_induction WfR); (* wf_ind *)
+      destruct P as (i, w); cbn in *. 
+    rename H into HindWf.
+    intros.
+    rewrite unfold_iter.
+    eapply af_bind_r with (R:=fun (x : I + X) (w' : World E) =>
+                                match x with
+                                | inl i' => Ri i' w' /\ Rv (i', w') (i, w)
+                                | inr r' => Rr r' w'
+                                end); auto.
+    intros [i' | r] w'.
+    - intros (Hi' & Hv) Hd.
+      apply af_tau.
+      remember (i', w') as y.
+      replace i' with (fst y) by now subst.
+      replace w' with (snd y) by now subst.      
+      apply HindWf; inv Heqy; auto.
+    - intros Hr Hd.
+      next; right; next; split.
+      + now apply can_step_ret.
+      + intros t_ w_ TR_.
+        inv Hd.
+        * apply ktrans_pure in TR_ as (-> & ->).
+          next; left.
+          rewrite ctl_done.
+          now constructor.
+        * apply ktrans_finish in TR_ as (-> & ->).
+          next; left.
+          rewrite ctl_done.
+          now constructor.
+  Qed.
+End CtlAfIter.

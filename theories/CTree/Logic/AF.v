@@ -8,7 +8,8 @@ From Coinduction Require Import
 From CTree Require Import
   Events.Core
   CTree.Core
-  CTree.SBisim 
+  CTree.SBisim
+  CTree.Trans
   CTree.Logic.Trans
   CTree.Logic.CanStep
   Logic.Ctl
@@ -23,7 +24,7 @@ Local Open Scope ctree_scope.
   
 (*| CTL logic lemmas on c/itrees |*)
 Section BasicLemmas.
-  Context {E: Type} {HE: Encode E} {X: Type} (φ: X -> World E -> Prop).
+  Context {E: Type} {HE: Encode E} {X: Type}.
 
   Lemma done_af: forall (t: ctree E X) φ w,
       is_done w ->
@@ -62,27 +63,23 @@ Section BasicLemmas.
       <( {BrD n k}, w |= AF (now φ) )>.
   Proof.
     intros.
-    unfold entailsF in H.    
     pose proof (H Fin.F1).
-    remember (k Fin.F1).
-    induction H0; subst.
+    unfold entailsF in H.
+    remember (k Fin.F1) as K.
+    generalize dependent k.
+    induction H0; intros; subst.
     - now next; left.
-    - destruct H1, H2; clear H0 H2.
-      destruct H1 as (t' & w' & TR).
-      specialize (H3 _ _ TR). 
-      next; right.
-      split.
-      + apply can_step_brD.
-        exists Fin.F1; exists t', w'; auto.
-      + intros t_ w_ TR_.
-        apply ktrans_brD in TR_ as (j & TR_).
-
-        
-        clear H4 t' w' TR H3.
-        specialize (H j).
-        remember (k j) as K.
-        induction H; subst.
-        * admit.
+    - destruct H0, H1; clear H H1.
+      destruct H0 as (t' & w' & TR').
+      remember (k Fin.F1) as K.
+      generalize dependent k.
+      revert H3 H4.
+      apply ktrans_trans in TR' as (l & TR & ?).
+      revert H.
+      dependent induction TR; intros; subst.
+      + next; right; split.
+        * apply can_step_brD.
+          exists Fin.F1. auto.
   Admitted.
 
   Lemma af_brS: forall n (k: fin' n -> ctree E X) w φ,
