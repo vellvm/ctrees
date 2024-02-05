@@ -121,7 +121,9 @@ Section CanStepCtrees.
       can_step (x <- t ;; k x) w.
   Proof.
     intros.
-    eapply can_step_bind; firstorder.
+    eapply can_step_bind.
+    left.
+    exists t', w'; auto.
   Qed.
   Hint Resolve can_step_bind_l: ctl.
 End CanStepCtrees.

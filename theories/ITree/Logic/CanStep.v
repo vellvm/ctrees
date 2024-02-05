@@ -95,7 +95,7 @@ Proof with (eauto with ctl).
     + observe_equ x0; cbn in *.
       setoid_rewrite Eqt.
       setoid_rewrite bind_tau.
-      destruct (IHTR t0 k w t' _ eq_refl JMeq_refl x JMeq_refl Hd)
+      destruct (IHTR t0 k t' eq_refl x Hd)
         as (t_ & w_ & TR_).
       exists t_, w_; apply KtransTau; auto.
     + inv Hd.
@@ -105,7 +105,7 @@ Proof with (eauto with ctl).
       setoid_rewrite Eqt.
       setoid_rewrite bind_tau.
       cbn.
-      destruct (IHTR t0 k w _ eq_refl JMeq_refl x JMeq_refl Hd k_ w_ TR_)
+      destruct (IHTR t0 k eq_refl x Hd k_ w_ TR_)
         as (k' & wk' & TRk').        
       exists k', wk'; apply KtransTau; auto.
     + observe_equ x1.

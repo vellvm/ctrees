@@ -27,7 +27,7 @@ Generalizable All Variables.
 
 (*| CTL logic based on kripke semantics |*)
 Section Ctl.
-  Context `{KMS: Kripke M mequ W} {X: Type} (strong: bool).  
+  Context `{KMS: Kripke M W} {X: Type} (strong: bool).  
   Notation MP := (M X -> World W -> Prop).
   Local Open Scope ctl_scope.
 
@@ -169,7 +169,7 @@ Inductive ctlf (W: Type) `{HW: Encode W} : Type :=
 Arguments ctlf W {HW}.
 
 (* Entailment inductively on formulas *)
-Fixpoint entailsF `{KMS: Kripke M meq W} {X}
+Fixpoint entailsF `{KMS: Kripke M W} {X}
   (φ: ctlf W)(t: M X)(w: World W): Prop :=
     match φ with
     | CBase  p  => p w
@@ -263,33 +263,33 @@ Import CtlNotations.
 Local Open Scope ctl_scope.
 
 (*| Base constructors of logical formulas |*)
-Lemma ctl_now `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) (φ: World W -> Prop),
+Lemma ctl_now `{KMS: Kripke M W} X: forall (t: M X) (w: World W) (φ: World W -> Prop),
     <( t, w |= now φ )> <-> φ w.
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_now: ctl.
 
-Lemma ctl_pure `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W),
+Lemma ctl_pure `{KMS: Kripke M W} X: forall (t: M X) (w: World W),
     <( t, w |= pure )> <-> w = Pure.
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_pure: ctl.
 
-Lemma ctl_vis `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) φ,
+Lemma ctl_vis `{KMS: Kripke M W} X: forall (t: M X) (w: World W) φ,
     <( t, w |= vis φ )> <-> exists (e: W) (v: encode e), w = Obs e v /\ φ e v.
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_vis: ctl.
 
-Lemma ctl_return `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) (r: X),
+Lemma ctl_return `{KMS: Kripke M W} X: forall (t: M X) (w: World W) (r: X),
     <( t, w |= return r )> <-> return_val X r w.
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_return: ctl.
 
-Lemma ctl_done `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) (φ: X -> World W -> Prop),
+Lemma ctl_done `{KMS: Kripke M W} X: forall (t: M X) (w: World W) (φ: X -> World W -> Prop),
     <( t, w |= done φ )> <-> done_with φ w.
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_done: ctl.
 
 (*| AX, WX, EX unfold |*)
-Lemma ctl_ax `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) p,
+Lemma ctl_ax `{KMS: Kripke M W} X: forall (t: M X) (w: World W) p,
     <( t, w |= AX p )> <-> can_step t w /\ forall t' w', [t, w] ↦ [t',w'] -> <( t',w' |= p )>.
 Proof.
   intros; split; intro H'; repeat destruct H'.
@@ -297,7 +297,7 @@ Proof.
   - unfold entailsF, cax; split; eauto with ctl.
 Qed.
 
-Lemma ctl_wx `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) p,
+Lemma ctl_wx `{KMS: Kripke M W} X: forall (t: M X) (w: World W) p,
     <( t,w |= WX p )> <-> forall t' w', [t,w] ↦ [t',w'] -> <( t',w' |= p )>.
 Proof.
   intros; split; intro H'; repeat destruct H'.
@@ -305,7 +305,7 @@ Proof.
   - unfold entailsF, cax; split; auto.
 Qed.
 
-Lemma ctl_ex `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) p,
+Lemma ctl_ex `{KMS: Kripke M W} X: forall (t: M X) (w: World W) p,
     <( t,w |= EX p )> <-> exists t' w', [t,w] ↦ [t',w'] /\ <( t',w' |= p )>.
 Proof.
   intros; split; intro H; repeat destruct H.
@@ -315,7 +315,7 @@ Qed.
 Global Hint Resolve ctl_ax ctl_ex ctl_wx: ctl.
 
 (* [AX φ] is stronger than [EX φ] *)
-Lemma ctl_ax_ex `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) p,
+Lemma ctl_ax_ex `{KMS: Kripke M W} X: forall (t: M X) (w: World W) p,
     <( t, w |= AX p )> -> <( t, w |= EX p )>.
 Proof.
   unfold cex, cax; intros * H.
@@ -326,7 +326,7 @@ Proof.
 Qed.
 
 (* [AF φ] is stronger than [EF φ] *)
-Lemma ctl_af_ef `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) p,
+Lemma ctl_af_ef `{KMS: Kripke M W} X: forall (t: M X) (w: World W) p,
     <( t, w |= AF p )> -> <( t, w |= EF p )>.
 Proof.
   intros. 
@@ -340,7 +340,7 @@ Proof.
 Qed.
 
 (* [AF φ] is stronger than [WF φ] *)
-Lemma ctl_af_wf `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) p,
+Lemma ctl_af_wf `{KMS: Kripke M W} X: forall (t: M X) (w: World W) p,
     <( t, w |= AF p )> -> <( t, w |= WF p )>.
 Proof.
   intros. 
@@ -353,7 +353,7 @@ Proof.
 Qed.
 
 (*| Induction lemmas |*)
-Lemma ctl_au_ind `{KMS: Kripke M meq W} X: 
+Lemma ctl_au_ind `{KMS: Kripke M W} X: 
   forall [p q: ctlf W] (P : M X -> World W -> Prop),
     (forall t w, <( t, w |= q )> -> P t w) -> (* base *)
     (forall t w,
@@ -364,7 +364,7 @@ Lemma ctl_au_ind `{KMS: Kripke M meq W} X:
     forall t w, <( t, w |= p AU q )> -> P t w.
 Proof. intros; induction H1; auto. Qed.
 
-Lemma ctl_wu_ind `{KMS: Kripke M meq W} X: 
+Lemma ctl_wu_ind `{KMS: Kripke M W} X: 
   forall [p q: ctlf W] (P : M X -> World W -> Prop),
     (forall t w, <( t, w |= q )> -> P t w) -> (* base *)
     (forall t w,
@@ -375,7 +375,7 @@ Lemma ctl_wu_ind `{KMS: Kripke M meq W} X:
     forall t w, <( t, w |= p WU q )> -> P t w.
 Proof. intros; induction H1; auto. Qed.
 
-Lemma ctl_eu_ind `{KMS: Kripke M meq W} X: 
+Lemma ctl_eu_ind `{KMS: Kripke M W} X: 
   forall [p q: ctlf W] (P : M X -> World W -> Prop),
     (forall t w, <( t, w |= q )> -> P t w) -> (* base *)
     (forall t w,
@@ -387,22 +387,22 @@ Lemma ctl_eu_ind `{KMS: Kripke M meq W} X:
 Proof. intros; induction H1; auto. Qed.
   
 (*| Bot is false |*)
-Lemma ctl_sound `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W),
+Lemma ctl_sound `{KMS: Kripke M W} X: forall (t: M X) (w: World W),
     ~ <( t, w |= ⊥ )>.
 Proof. intros * []. Qed.
 
 (*| Ex-falso |*)
-Lemma ctl_ex_falso `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W) p,
+Lemma ctl_ex_falso `{KMS: Kripke M W} X: forall (t: M X) (w: World W) p,
     <( t, w |= ⊥ -> p )>.
 Proof. intros; unfold entailsF; intro CONTRA; contradiction. Qed.
 
 (*| Top is True |*)
-Lemma ctl_top `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W),
+Lemma ctl_top `{KMS: Kripke M W} X: forall (t: M X) (w: World W),
     <( t, w |= ⊤ )>.
 Proof. reflexivity. Qed. 
 
 (*| Cannot exist path such that eventually Bot |*)
-Lemma ctl_sound_ef `{KMS: Kripke M meq W} X: forall (t: M X) (w: World W),
+Lemma ctl_sound_ef `{KMS: Kripke M W} X: forall (t: M X) (w: World W),
     ~ <( t, w |= EF ⊥ )>.
 Proof.
   intros * Contra.
@@ -414,7 +414,7 @@ Proof.
 Qed.
 
 (*| Cannot have all paths such that eventually always Bot |*)
-Lemma ctl_sound_af `{KMS: Kripke M mequ W} X: forall (t: M X) (w: World W),
+Lemma ctl_sound_af `{KMS: Kripke M W} X: forall (t: M X) (w: World W),
     ~ <( t, w |= AF ⊥ )>.
 Proof.
   intros * Contra.
@@ -424,7 +424,42 @@ Proof.
 Qed.
 
 (*| Semantic equivalence of formulas |*)
-Definition equiv_ctl `{K: Kripke M meq W}{X}: relation (ctlf W) :=
-  fun p q => forall (t: M X) (w: World W), entailsF p t w <-> entailsF q t w.
+Definition equiv_ctl {M} `{HE: Encode W} {K: Kripke M W}{X}: relation (ctlf W)
+  := fun p q => forall (t: M X) (w: World W), entailsF p t w <-> entailsF q t w.
 
 Infix "⩸" := equiv_ctl (at level 58, left associativity): ctl_scope.
+
+Section EquivCtlEquivalence.
+  Context {M: Type -> Type} `{HE: Encode W} {K: Kripke M W}
+    {X: Type}.
+  Notation equiv_ctl := (@equiv_ctl M W HE K X).
+
+  Global Instance Equivalence_equiv_ctl:
+    Equivalence equiv_ctl.
+  Proof.
+    constructor.
+    - intros P x; reflexivity.
+    - intros P Q H' x; symmetry; auto.
+    - intros P Q R H0' H1' x; etransitivity; auto.
+  Qed.
+
+  (*| [equiv_ctl] proper under [equiv_ctl] |*)
+  Global Add Parametric Morphism : equiv_ctl with signature
+         equiv_ctl ==> equiv_ctl ==> iff as equiv_ctl_equiv.
+  Proof.
+    intros p q EQpq p' q' EQpq'; split;
+      intros EQpp'; split; intro BASE; cbn in *.
+    - symmetry in EQpq'; apply EQpq'.
+      symmetry in EQpp'; apply EQpp'.
+      now apply EQpq.
+    - symmetry in EQpq'; apply EQpq.
+      apply EQpp'.
+      now apply EQpq'.
+    - apply EQpq'.
+      symmetry in EQpp'; apply EQpp'.
+      symmetry in EQpq; now apply EQpq.
+    - apply EQpq.
+      apply EQpp'.
+      symmetry in EQpq'; now apply EQpq'.
+  Qed.
+End EquivCtlEquivalence.

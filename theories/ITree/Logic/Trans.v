@@ -12,6 +12,7 @@ From Coq Require Import
 From CTree Require Import
   Events.Core
   Logic.Kripke
+  Logic.Setoid
   ITree.Events.Writer
   ITree.Equ
   ITree.Interp
@@ -91,35 +92,37 @@ Section KripkeTrans.
       apply KtransFinish; auto.
   Qed.
 
-  Definition equ X := @equ E HE X X eq.
-  Arguments equ /.
-  Global Program Instance itree_kripke:
-    Kripke (itree E) equ E := {
+  Global Program Instance itree_kripke: Kripke (itree E) E := {
       ktrans X t w t' w' :=
         ktrans_ (X:=X) (observe t) w (observe t') w'
     }.
   Next Obligation.
-    rewrite H in H0.
-    exists s'; split; auto.
+    dependent induction H; cbn; eauto with ctl.
   Defined.
   Next Obligation.
-    remember (observe t) as m.
-    remember (observe t') as m'.
-    clear Heqm Heqm' t t'.
-    induction H; cbn; auto with ctl.
+    dependent induction H; cbn; eauto with ctl; inv H0.
   Defined.
   Arguments ktrans /.
   
   Global Instance ktrans_equ_proper{X}:
-    Proper (equ X ==> eq ==> equ X ==> eq ==> iff) (ktrans (X:=X)).
+    Proper (equ eq ==> eq ==> equ eq ==> eq ==> iff) (ktrans (X:=X)).
   Proof.
     unfold Proper, respectful, RelCompFun, fst, snd; cbn; intros; subst.
     split; intros TR; unfold ktrans.
     - now rewrite <- H, <- H1.
     - now rewrite H, H1.
   Qed.
-
 End KripkeTrans.
+
+(*| Allow rewriting with [equ] under CTL entailment |*)
+Global Instance equ_kripke `{HE: Encode E} {X}: KripkeSetoid (itree E) E X (equ eq).
+Proof.
+  repeat red.
+  intros.
+  exists s'.
+  rewrite H in H0.
+  rewrite <- H in *; auto.
+Qed.
 
 Ltac ktrans_ind H :=
   simpl ktrans in H;
@@ -127,17 +130,6 @@ Ltac ktrans_ind H :=
 
 Section KripkeLemmas.
   Context {E: Type} {HE: Encode E}.
-
-  (* Always step from impore [w] to impure [w']  |*)
-  Lemma ktrans_not_pure {X} : forall (t t': itree E X) w w',
-      [t, w] ↦ [t', w'] ->
-      not_pure w ->
-      not_pure w'.
-  Proof.
-    intros.
-    ktrans_ind H.
-    inv H0.
-  Qed.
   
   Lemma ktrans_stuck{X}: forall (t: itree E X) w w',
       ~ [stuck, w] ↦ [t, w'].

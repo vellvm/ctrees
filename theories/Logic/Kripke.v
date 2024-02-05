@@ -67,56 +67,37 @@ Proof.
 Qed.
 
 (*| Polymorphic Kripke model over family M |*)
-Class Kripke (M: Type -> Type) (meq: forall X, relation (M X)) E := {
+Class Kripke (M: Type -> Type) (E: Type) `{HE: Encode E} := {
 
-    EncodeE :: Encode E;
-
-    EquM :: forall X, Equivalence (meq X);
-    
     (* - [ktrans] the transition relation over [M X * W] *)
     ktrans {X}: M X -> World E -> M X -> World E -> Prop;
-
-    (* - [ktrans] does not allow rewriting with bisimulation,
-       but there does exist a [t'] equivalent to [s'] *)
-    ktrans_semiproper {X} : forall (t s s': M X) w w',
-      meq X s t ->
-      ktrans s w s' w' ->
-      exists t', ktrans t w t' w' /\ meq X s' t';
 
     (* - [ktrans] only if [not_done] *)
     ktrans_not_done {X}: forall (t t': M X) (w w': World E),
       ktrans t w t' w' ->
-      not_done w
-  }.
+      not_done w;
 
-Arguments EncodeE /.
-Arguments EquM /.
+    (* - [ktrans] preserves impure effects *)
+    ktrans_not_pure {X}: forall (t t': M X) (w w': World E),
+      ktrans t w t' w' ->
+      not_pure w ->
+      not_pure w'
+  }.
 
 Declare Custom Entry ctl.
 Declare Scope ctl_scope.
 
 (* Transition relation *)
-Notation "[ t , w ]  ↦ [ t' , w' ]" := (ktrans t w t' w')
-                                        (at level 78,
-                                          right associativity): ctl_scope.
+Notation "[ t , w ]  ↦ [ t' , w' ]" :=
+  (ktrans t w t' w')
+    (at level 78,
+      right associativity): ctl_scope.
 Local Open Scope ctl_scope.
 
-Definition can_step `{Kripke M meq W} {X} (m: M X) (w: World W): Prop :=
+Definition can_step `{Kripke M W} {X} (m: M X) (w: World W): Prop :=
   exists m' w', [m,w] ↦ [m',w'].
 
-Global Instance can_step_proper `{Kripke M meq W} {X}:
-  Proper (meq X ==> eq ==> iff) can_step.
-Proof.
-  unfold Proper, respectful, can_step, impl; intros t t' Heqt w w' Heqw;
-    split; intros; subst; destruct H0 as (t_ & w_ & ?).
-  - destruct (ktrans_semiproper t' t _ _ w_ Heqt H0) as (y' & TR' & EQ').
-    now (exists y', w_).
-  - symmetry in Heqt.
-    destruct (ktrans_semiproper _ _ _ _ w_ Heqt H0) as (y' & TR' & EQ').
-    now (exists y', w_).
-Qed.
-
-Lemma can_step_not_done `{Kripke M meq W} {X}: forall (t: M X) w,
+Lemma can_step_not_done `{Kripke M W} {X}: forall (t: M X) w,
     can_step t w ->
     not_done w.
 Proof.
@@ -145,24 +126,4 @@ Ltac world_inv :=
   | [H: ?w = @Finish ?E ?HE ?X ?e ?v ?x |- _] =>
       dependent destruction H
   end.
-
 Global Hint Extern 2 => world_inv: ctl.
-
-Ltac ktrans_equ TR :=
-  match type of TR with
-  | @ktrans ?M ?mequ _ ?KMS _ ?y ?s ?z ?w => 
-      match goal with
-      | [H: @mequ ?X ?x ?y |- _] =>
-          symmetry in H;
-          let TR_ := fresh "TR" in
-          let EQ_ := fresh "EQ" in
-          let z_ := fresh "z" in
-          destruct (ktrans_semiproper _ _ _ _ _
-                      H TR) as (z_ & TR_ & EQ_)
-      | [H: @mequ ?X ?x ?y |- _] =>
-          let TR_ := fresh "TR" in
-          let EQ_ := fresh "EQ" in
-          let z_ := fresh "z" in
-          destruct (ktrans_semiproper _ _ _ _ _ H TR) as (z_ & TR_ & EQ_)
-      end
-  end.

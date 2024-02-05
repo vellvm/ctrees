@@ -3,6 +3,7 @@ From Coinduction Require Import
 
 From CTree Require Import
   Utils.Utils
+  Events.Core
   Logic.Semantics.
 
 Import CtlNotations.
@@ -27,14 +28,14 @@ Ltac cleft :=
 
 Ltac cdestruct H0 :=
   match type of H0 with
-  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (CAnd ?φ ?ψ) ?t ?w =>
-      replace (@entailsF W M MM meq EqM KMS X (CAnd φ ψ) t w)
-      with (<( t, w |= φ)> /\ <( t, w |= ψ )>) in H0 by reflexivity;
-      destruct H0
-  | @entailsF ?W ?M ?MM ?meq ?EqM ?KMS ?X (COr ?φ ?ψ) ?t ?w =>
-      replace (@entailsF W M MM meq EqM KMS X (COr φ ψ) t w)
-      with (<( t, w |= φ)> \/ <( t, w |= ψ )>) in H0 by reflexivity;
-      destruct H0              
+  | @entailsF ?M ?W ?HE ?KMS ?X (CAnd ?φ ?ψ) ?t ?w =>
+      replace (@entailsF M W HE KMS X (CAnd φ ψ) t w)
+      with (<( t, w |= φ)> /\ <( t, w |= ψ )>) in H0
+        by reflexivity; destruct H0
+  | @entailsF ?M ?W ?HE ?KMS ?X (COr ?φ ?ψ) ?t ?w =>
+      replace (@entailsF M W HE KMS X (COr φ ψ) t w)
+      with (<( t, w |= φ)> \/ <( t, w |= ψ )>) in H0
+        by reflexivity; destruct H0              
   end.
 
 #[global] Tactic Notation "split" := (csplit || split).
@@ -45,8 +46,8 @@ Ltac cdestruct H0 :=
 #[local] Ltac __coinduction_g R H :=  
   unfold entailsF; coinduction R H;
   try match goal with
-  | [KMS: Kripke ?M ?W ?equ |- context[?M ?X] ] =>
-      fold (@entailsF M W equ KMS X) in *
+  | [KMS: Kripke ?M ?W ?HE |- context[?M ?X] ] =>
+      fold (@entailsF M W HE KMS X) in *
   end.
 
 #[global] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=

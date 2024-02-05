@@ -84,12 +84,12 @@ Section BasicLemmas.
     - next; right; next; split.
       + now apply can_step_vis.
       + intros t' w' TR'.
-        apply ktrans_vis in TR' as (? & -> & -> & ?).
+        apply ktrans_vis in TR' as (? & ? & -> & ?).
+        rewrite H0.
         apply H.
   Qed.
 
-  
-
+ 
 End BasicLemmas.
 
 Section AfIndLemma.
@@ -119,6 +119,43 @@ Section AfIndLemma.
       not_done w ->
       (forall (v: encode e), AFInd (k v) (Obs e v)) ->
       AFInd t w.
+
+  Global Instance proper_equ_afind {HP: Proper (equ eq ==> eq ==> iff) φ}:
+    Proper (equ eq ==> eq ==> iff) AFInd.
+  Proof.
+    unfold Proper, respectful.
+    intros; subst; split; intros Hind.
+    - generalize dependent y.
+      induction Hind; intros.
+      + apply AFIndBase; auto.
+        now rewrite <- H0.
+      + apply AFIndDoneBase with x; auto.
+        unfold equ in H1; step in H1; cbn in H1; dependent destruction H1; congruence.
+      + apply AFIndFinishBase with x; auto.
+        unfold equ in H1; step in H1; cbn in H1; dependent destruction H1; congruence.
+      + unfold equ; step in H0; cbn in H0; rewrite H in H0.
+        dependent destruction H0.
+        apply IHHind in H0.
+        apply AFIndTau with t2; congruence.
+      + unfold equ; step in H3; cbn in H3; rewrite H in H3.
+        dependent destruction H3.
+        eapply AFIndVis with e k2; auto.
+    - generalize dependent x.
+      induction Hind; intros.
+      + apply AFIndBase; auto.
+        now rewrite H0.
+      + apply AFIndDoneBase with x; auto.
+        unfold equ in H1; step in H1; cbn in H1; dependent destruction H1; congruence.
+      + apply AFIndFinishBase with x; auto.
+        unfold equ in H1; step in H1; cbn in H1; dependent destruction H1; congruence.
+      + unfold equ; step in H0; cbn in H0; rewrite H in H0.
+        dependent destruction H0.
+        apply IHHind in H0.
+        apply AFIndTau with t1; congruence.
+      + unfold equ; step in H3; cbn in H3; rewrite H in H3.
+        dependent destruction H3.
+        eapply AFIndVis with e k1; auto.
+  Qed.      
 
   Lemma af_ind_stuck_done: forall (x: X),
     AFInd Itree.stuck (Done x) <->
@@ -180,7 +217,7 @@ Section AfIndLemma.
   
   (* -> *)
   Lemma afind_af {Hpr: @Productive E HE}
-    {HP: Proper (equ X ==> eq ==> iff) φ}
+    {HP: Proper (equ eq ==> eq ==> iff) φ}
     {TauInv: forall (t: itree E X) w, φ t w  -> φ (Tau t) w}
     : forall (t: itree E X) (w: World E),
       AFInd t w -> cau true (fun _ _ => True) φ t w.
@@ -236,8 +273,10 @@ Section AfIndLemma.
 End AfIndLemma.
 
 Section AfDoneIndLemma.
-  Context {E: Type} {HE: Encode E} {X: Type} (φ: X -> World E -> Prop).
+  Context {E: Type} {HE: Encode E} {X: Type}
+    (φ: X -> World E -> Prop).
 
+  (* t |= AF done R *)
   Inductive AFDoneInd: itree E X -> World E -> Prop :=
   | AFDoneDoneBase: forall t (x: X),
       observe t = RetF x ->
@@ -258,7 +297,7 @@ Section AfDoneIndLemma.
       AFDoneInd t w.
 
   Global Instance proper_equ_afdoneind:
-    Proper (equ X ==> eq ==> iff) AFDoneInd.
+    Proper (equ eq ==> eq ==> iff) AFDoneInd.
   Proof.
     unfold Proper, respectful.
     intros; subst; split; intros Hind.
@@ -278,8 +317,6 @@ Section AfDoneIndLemma.
       + unfold equ; step in H3; cbn in H3; rewrite H in H3.
         dependent destruction H3.
         eapply AFDoneIndVis with e k2; auto.
-        intros.
-        apply H2, H3.
     - generalize dependent x.
       induction Hind; intros.
       + apply AFDoneDoneBase with x; auto.
@@ -296,8 +333,6 @@ Section AfDoneIndLemma.
       + unfold equ; step in H3; cbn in H3; rewrite H in H3.
         dependent destruction H3.
         eapply AFDoneIndVis with e k1; auto.
-        intros.
-        apply H2, H3.
   Qed.
 
   Lemma afdoneind_stuck: forall w,
@@ -484,9 +519,11 @@ Section CtlAfBind.
   Qed.
   Hint Resolve can_step_bind_r: ctl.
 
-  Theorem af_bind_r{X Y}: forall (t: itree E Y) (k: Y -> itree E X) w φ R,
+  Theorem af_bind_r{X Y}: forall (t: itree E Y)
+                            (k: Y -> itree E X) w φ R,
       <( t, w |= AF AX done R )> ->
-      (forall (y: Y) w, R y w -> not_done w -> <( {k y}, w |= AF now φ )>) ->
+      (forall (y: Y) w, R y w -> not_done w ->
+                   <( {k y}, w |= AF now φ )>) ->
       <( {x <- t ;; k x}, w |= AF now φ )>.
   Proof.
     intros.
@@ -516,8 +553,9 @@ Section CtlAfIter.
   Context {E: Type} {HE: Encode E}.
 
   (* Total correctness lemma for [iter] *)
-  (* [Ri: I -> World E -> Prop] captures the domain and codomain of [k] when it eventually returns [inl]  *)
-  (* [Rr: X -> World E -> Prop] captures the codomain of [k] when it eventually returns [inr] *)
+  (* [Ri: I -> World E -> Prop] loop invariant.
+     [Rr: X -> World E -> Prop] loop postcondition.
+     [Rv: (I * World E) -> (I * World E) -> Prop)] loop variant. *)
   Lemma af_iter{X I} Ri Rr (Rv: relation (I * World E)) (i: I) w (k: I -> itree E (I + X)):
       (forall (i: I) w, Ri i w ->
                    <( {k i}, w |= AF AX done {fun (x: I + X) w' =>
@@ -566,6 +604,6 @@ Section CtlAfIter.
         * apply ktrans_finish in TR_ as (-> & ->).
           next; left.
           rewrite ctl_done.
-          now constructor.
+          now constructor.          
   Qed.
 End CtlAfIter.
