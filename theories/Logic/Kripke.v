@@ -26,9 +26,16 @@ Arguments Finish {E} {_} {X} e v x.
 Variant not_pure `{Encode E}: World E -> Prop :=
   | NotPureObs: forall (e: E) (v: encode e),
       not_pure (Obs e v)
-  | NotPureDone {X}: forall (e: E) (v: encode e) (x: X),
+  | NotPureFinish {X}: forall (e: E) (v: encode e) (x: X),
       not_pure (Finish e v x).
 Global Hint Constructors not_pure: ctl.
+
+Variant is_pure `{Encode E}: World E -> Prop :=
+  | IsPurePure:
+      is_pure Pure
+  | IsPureDone {X}: forall (x: X),
+      is_pure (Done x).
+Global Hint Constructors is_pure: ctl.
 
 Variant done_with `{Encode E} {X} (R: X -> World E -> Prop): World E -> Prop :=
   | DoneWithDone: forall (x: X),
@@ -64,6 +71,16 @@ Proof.
   - left; econstructor.
   - right; econstructor. 
   - right; econstructor.
+Qed.
+
+Definition not_pure_dec `{Encode E}: forall (w: World E),
+    {not_pure w} + {is_pure w}.
+Proof.
+  dependent destruction w; intros.
+  - right; econstructor. 
+  - left; econstructor.
+  - right; econstructor. 
+  - left; econstructor.
 Qed.
 
 (*| Polymorphic Kripke model over family M |*)

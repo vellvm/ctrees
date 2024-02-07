@@ -1,5 +1,6 @@
 From Coq Require Import
   Basics
+  Init.Wf
   Classes.Morphisms.
 
 From Coinduction Require Import
@@ -194,7 +195,7 @@ Section AfIndLemma.
         rewrite <- x0.
         apply KtransObs; auto.
       + eapply AFIndTau with (u:=t0); auto.
-        eapply (IHTR) with (t':=t'); auto.
+        eapply IHTR with (t':=t'); auto.
         -- intros t_ w_ TR_.
            apply H2; cbn.
            rewrite <- x0.
@@ -276,7 +277,7 @@ Section AfDoneIndLemma.
   Context {E: Type} {HE: Encode E} {X: Type}
     (φ: X -> World E -> Prop).
 
-  (* t |= AF done R *)
+  (* t |= AF AX done R *)
   Inductive AFDoneInd: itree E X -> World E -> Prop :=
   | AFDoneDoneBase: forall t (x: X),
       observe t = RetF x ->
@@ -306,10 +307,12 @@ Section AfDoneIndLemma.
       + apply AFDoneDoneBase with x; auto.
         rewrite <- H.
         unfold equ in H.
-        step in H1; cbn in H1; dependent destruction H1; congruence.
+        step in H1; cbn in H1; dependent destruction H1;
+          congruence.
       + apply AFDoneFinishBase with x; auto.
         rewrite <- H.
-        step in H1; cbn in H1; dependent destruction H1; congruence.
+        step in H1; cbn in H1; dependent destruction H1;
+          congruence.
       + unfold equ; step in H0; cbn in H0; rewrite H in H0.
         dependent destruction H0.
         apply IHHind in H0.
@@ -322,10 +325,12 @@ Section AfDoneIndLemma.
       + apply AFDoneDoneBase with x; auto.
         rewrite <- H.
         unfold equ in H.
-        step in H1; cbn in H1; dependent destruction H1; congruence.
+        step in H1; cbn in H1; dependent destruction H1;
+          congruence.
       + apply AFDoneFinishBase with x; auto.
         rewrite <- H.
-        step in H1; cbn in H1; dependent destruction H1; congruence.
+        step in H1; cbn in H1; dependent destruction H1;
+          congruence.
       + unfold equ; step in H0; cbn in H0; rewrite H in H0.
         dependent destruction H0.
         apply IHHind in H0.
@@ -546,16 +551,13 @@ Section CtlAfBind.
 
 End CtlAfBind.
 
-Check Itree.iter.
-From Coq Require Import Init.Wf.
-
 Section CtlAfIter.
   Context {E: Type} {HE: Encode E}.
 
   (* Total correctness lemma for [iter] *)
-  (* [Ri: I -> World E -> Prop] loop invariant.
-     [Rr: X -> World E -> Prop] loop postcondition.
-     [Rv: (I * World E) -> (I * World E) -> Prop)] loop variant. *)
+  (* [Ri: I -> World E -> Prop] loop invariant (left).
+     [Rr: X -> World E -> Prop] loop postcondition (right).
+     [Rv: (I * World E) -> (I * World E) -> Prop)] loop variant (left). *)
   Lemma af_iter{X I} Ri Rr (Rv: relation (I * World E)) (i: I) w (k: I -> itree E (I + X)):
       (forall (i: I) w, Ri i w ->
                    <( {k i}, w |= AF AX done {fun (x: I + X) w' =>
