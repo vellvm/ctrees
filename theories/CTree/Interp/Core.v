@@ -28,7 +28,8 @@ Definition interp {E} {M : Type -> Type}
   fun R => iter (fun t =>
                 match observe t with
                 | RetF r => ret (inr r)
-                | BrF b n k => bind (mbr b n) (fun x => ret (inl (k x)))
+                | BrF n k => bind (mbr n) (fun x => ret (inl (k x)))
+                | TauF t => ret (inl t)
                 | VisF e k => bind (h.(handler) e) (fun x => ret (inl (k x)))
                 end).
 
@@ -38,8 +39,9 @@ Arguments interp {E M MM MI MB} h [X].
 Notation _interp h t :=
   (match observe t with
    | RetF r => Ret r
-   | BrF b n k => Br b n (fun x => guard (interp h (k x)))
-   | VisF e k => h.(handler) e >>= (fun x => guard (interp h (k x)))
+   | TauF t => Tau (interp h t)
+   | BrF n k => Br n (fun x => Tau (interp h (k x)))
+   | VisF e k => h.(handler) e >>= (fun x => Tau (interp h (k x)))
   end).
 
 Local Typeclasses Transparent equ.
@@ -56,6 +58,7 @@ Proof.
     apply br_equ; intros.
     rewrite ?bind_ret_l.
     reflexivity.
+  - reflexivity.
   - setoid_rewrite bind_ret_l.
     reflexivity.
 Qed.
@@ -72,9 +75,12 @@ Proof.
     upto_bind_equ. 
     constructor. intros.
     apply CH. apply H2.
+  - setoid_rewrite bind_ret_l.
+    constructor.
+    apply CH. apply H2.
   - setoid_rewrite bind_bind.
     upto_bind_equ.
     setoid_rewrite bind_ret_l.
-    constructor. intros _.
+    constructor. 
     apply CH. apply H2.
 Qed.

@@ -58,6 +58,6 @@ Arguments Put {S}.
         end) (i, s)).
 
 #[global] Instance MonadBr_stateT {S M} {MM : Monad M} {AM : MonadBr M}: MonadBr (stateT S M) :=
-  fun b n => mkStateT (fun s => f <- mbr b n;; ret (f,s)).
+  fun n => mkStateT (fun s => f <- mbr n;; ret (f,s)).
 
 #[global] Existing Instance Monad_stateT.

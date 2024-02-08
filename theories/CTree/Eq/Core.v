@@ -23,9 +23,12 @@ Section Equ.
     | Eq_Vis (e: E) (k1 k2: encode e -> _):
       (forall x, eq (k1 x) (k2 x)) ->
       equF eq (VisF e k1) (VisF e k2)
-    | Eq_Br b {n} k1 k2:
+    | Eq_Tau t1 t2:
+      eq t1 t2 ->
+      equF eq (TauF t1) (TauF t2)
+    | Eq_Br {n} k1 k2:
       (forall (x: fin' n), eq (k1 x) (k2 x)) ->
-      equF eq (BrF b n k1) (BrF b n k2).
+      equF eq (BrF n k1) (BrF n k2).
   Hint Constructors equF: core.
 
   Program Definition fequ: mon (ctree E X1 -> ctree E X2 -> Prop) :=
@@ -123,6 +126,9 @@ Section EquTheory.
     - rewrite <- H0 in H2.
       dependent destruction H2.
       eauto.
+    - rewrite <- H0 in H2.
+      dependent destruction H2.
+      eauto.
   Qed.
 
   #[global] Instance Equivalence_et {HR: Equivalence RR} S: Equivalence (et S).
@@ -165,6 +171,12 @@ Proof.
     intro x1; rewrite H1, H0, <- H.
     reflexivity.
   - dependent destruction EQ.
+    rewrite <- x in EQu.
+    dependent destruction EQu.
+    rewrite <- x.
+    constructor.
+    eapply IH; eauto.
+  - dependent destruction EQ.
     cbn.
     rewrite <- x in EQu.
     dependent destruction EQu.
@@ -194,6 +206,12 @@ Proof.
     constructor.
     intro x1. rewrite <- H, <- H1, H0.
     reflexivity.
+  - dependent destruction EQ.
+    cbn.
+    rewrite <- x in EQu.
+    dependent destruction EQu.
+    rewrite <- x.
+    constructor; eauto.
   - dependent destruction EQ.
     cbn.
     rewrite <- x in EQu.
@@ -253,7 +271,11 @@ Lemma bind_ret_ {E R S} {HE: Encode E} (r : R) (k : R -> ctree E S) :
 Proof. constructor; reflexivity. Qed.
 
 Lemma bind_guard_ {E R} {HE: Encode E} U t (k: U -> ctree E R) :
-  observing eq (Ctree.bind (guard t) k) (guard (Ctree.bind t k)).
+  observing eq (Ctree.bind (Tau t) k) (Tau (Ctree.bind t k)).
+Proof. constructor; reflexivity. Qed.
+
+Lemma bind_br_ {E R} {HE: Encode E} n U (bk: fin' n -> ctree E U) (k: U -> ctree E R) :
+  observing eq (Ctree.bind (Br n bk) k) (Br n (fun i => Ctree.bind (bk i) k)).
 Proof. constructor; reflexivity. Qed.
 
 Lemma bind_vis_ {E R U} {HE: Encode E} (e: E) (ek: encode e -> ctree E U) (k: U -> ctree E R) :
@@ -267,7 +289,7 @@ Proof. constructor; reflexivity. Qed.
 Lemma unfold_aloop_ {E X Y} {HE: Encode E} (f : X -> ctree E (X + Y)) (x : X) :
   observing eq
     (Ctree.iter f x)
-    (Ctree.bind (f x) (fun lr => on_left lr l (guard (Ctree.iter f l)))).
+    (Ctree.bind (f x) (fun lr => on_left lr l (Tau (Ctree.iter f l)))).
 Proof. constructor; reflexivity. Qed.
 
 (** ** [going]: Lift relations through [go]. *)
@@ -316,8 +338,8 @@ Lemma resumCtree_Ret {E1 E2 : Type} `{ReSumRet E1 E2}
 Proof. step. cbn. constructor. reflexivity. Qed.
 
 Lemma resumCtree_Br  {E1 E2 : Type} `{ReSumRet E1 E2}
-           {R} (t : ctree E1 R) b (n: nat) (k: fin' n -> ctree E1 R):
-  resumCtree (Br b n k) ≅ Br b n (fun x => resumCtree (k x)).
+           {R} (t : ctree E1 R) (n: nat) (k: fin' n -> ctree E1 R):
+  resumCtree (Br n k) ≅ Br n (fun x => resumCtree (k x)).
 Proof.
   step.
   cbn.
@@ -364,22 +386,30 @@ Proof.
   auto.
 Qed.
 
-Lemma equ_br_invT {E S n1 n2 b1 b2} {HE: Encode E}
+Lemma equ_br_invT {E S n1 n2} {HE: Encode E}
   {k1 : fin' n1 -> ctree E S} {k2: fin' n2 -> ctree E S}:
-  Br b1 n1 k1 ≅ Br b2 n2 k2 ->
+  Br n1 k1 ≅ Br n2 k2 ->
   n1 = n2.
 Proof.
   intros EQ; step in EQ.
   inv EQ; auto.
 Qed.
 
-Lemma equ_br_invE {E S n b1 b2} {HE: Encode E} {k1 k2: fin' n -> ctree E S}:
-  Br b1 n k1 ≅ Br b2 n k2 ->
-  b1 = b2 /\ forall x,k1 x ≅ k2 x.
+Lemma equ_br_invE {E S n} {HE: Encode E} {k1 k2: fin' n -> ctree E S}:
+  Br n k1 ≅ Br n k2 ->
+  forall x,k1 x ≅ k2 x.
 Proof.
   intros EQ; step in EQ; cbn in EQ.
   dependent destruction EQ.
-  split; [reflexivity| assumption].
+  auto.
+Qed.
+
+Lemma equ_tau_invE {E S} {HE: Encode E} {t1 t2: ctree E S}:
+  Tau t1 ≅ Tau t2 ->
+  t1 ≅ t2.
+Proof.
+  intros EQ; step in EQ; cbn in EQ.
+  now dependent destruction EQ.
 Qed.
 
 Lemma equF_vis_invT {E S} {HE: Encode E} {e1 e2: E} {R} {k1 k2: _ -> ctree E S}:
@@ -399,16 +429,16 @@ Proof.
   dependent destruction H1; dependent destruction H2; eauto.
 Qed.
 
-Lemma equF_br_invT {E S n1 n2 b1 b2} {HE: Encode E} {R}
+Lemma equF_br_invT {E S n1 n2} {HE: Encode E} {R}
   (k1 : fin' n1 -> ctree E S) (k2: fin' n2 -> ctree E S) :
-  equF R (equ R) (BrF b1 n1 k1) (BrF b2 n2 k2) ->
+  equF R (equ R) (BrF n1 k1) (BrF n2 k2) ->
   n1 = n2.
 Proof.
   intros EQ; dependent induction EQ; auto.
 Qed.
 
-Lemma equb_br_invE {E S n b1 b2} {HE: Encode E} {R} {k1 k2: fin' n -> ctree E S}:
-  equF R (equ R) (BrF b1 n k1) (BrF b2 n k2) ->
+Lemma equb_br_invE {E S n} {HE: Encode E} {R} {k1 k2: fin' n -> ctree E S}:
+  equF R (equ R) (BrF n k1) (BrF n k2) ->
   forall x, equ R (k1 x) (k2 x).
 Proof.
   intros EQ.
@@ -433,8 +463,8 @@ equ ==> equ ==> flip impl)       bt_equ eq r
   Proper (equ R ==> going (equ R)) observe.
 Proof. constructor; step in H; now step. Qed.
 
-#[global] Instance equ_BrF {E X} {HE: Encode E} {n b R}:
-  Proper (pointwise_relation _ (equ R) ==> going (equ R)) (@BrF E _ X _ b n).
+#[global] Instance equ_BrF {E X} {HE: Encode E} {n R}:
+  Proper (pointwise_relation _ (equ R) ==> going (equ R)) (@BrF E _ X _ n).
 Proof. constructor; red in H; step; econstructor; eauto. Qed.
 
 #[global] Instance equ_VisF {E X} {HE: Encode E} {R} (e : E) :
@@ -464,10 +494,12 @@ Proof.
   - econstructor; transitivity x1; eauto.
   - dependent induction H4; econstructor.
     now setoid_rewrite <- H in H0.
-  - dependent induction H5; econstructor.
+  - econstructor.
+    transitivity t0; eauto.
+    now setoid_rewrite <- H.
+  - dependent induction H4; econstructor.
     now setoid_rewrite <- H in H0.
 Qed.
-
 
 #[global] Instance equ_clos_eT_goal {E X} {HE: Encode E} R RR f {HR: Equivalence R}:
   Proper (@equ E HE X X R ==> equ R ==> iff) (eT R f RR).

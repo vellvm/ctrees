@@ -24,7 +24,8 @@ Section Ctree.
   Context {E: Type} `{Encode E} {X: Type}.
   Variant ctreeF(ctree: Type): Type :=
     | RetF (x: X)
-    | BrF (b: bool) {n} (k: fin' n -> ctree)
+    | BrF {n} (k: fin' n -> ctree)
+    | TauF (t: ctree)
     | VisF (e: E)(k: encode e -> ctree).
 
   #[projections(primitive)] CoInductive ctree: Type :=
@@ -39,7 +40,8 @@ Local Open Scope ctree_scope.
 
 Arguments ctree E {H} X. 
 Arguments ctreeF E {H} X.
-Arguments BrF {E H X} [ctree] b n k.
+Arguments BrF {E H X} [ctree] n k.
+Arguments TauF {E H X} [ctree] t.
 Arguments RetF {E H X} [ctree] x.
 Arguments VisF {E H X} [ctree] e k.
 
@@ -50,20 +52,17 @@ Definition observe `{HE: Encode E} `(t : ctree E X) : ctree' E X := @_observe E 
 
 Notation Ret x        := (go (RetF x)).
 Notation Vis e k      := (go (VisF e k)).
-Notation Br b n k     := (go (BrF b n k)).
-Notation BrD n k      := (Br false n k).
-Notation BrS n k      := (Br true n k).
-
-(* TODO: Subevent in the monomorphic encoding of effects? *)
-Notation guard t    := (BrD 0 (fun _ => t)).
-Notation step t     := (BrS 0 (fun _ => t)).
+Notation Br n k     := (go (BrF n k)).
+Notation Tau t     := (go (TauF t)).
+Notation step t     := (Br 0 (fun _ => t)).
 
 (* Use resum and resum_ret to map the events in an entree to another type *)
 CoFixpoint resumCtree' {E1 E2 : Type} `{ReSumRet E1 E2}
            {A} (ot : ctree' E1 A) : ctree E2 A :=
   match ot with
   | RetF r => Ret r
-  | BrF b n k => Br b n (fun i => resumCtree' (observe (k i)))
+  | BrF n k => Br n (fun i => resumCtree' (observe (k i)))
+  | TauF t => Tau (resumCtree' (observe t))
   | VisF e k => Vis (resum e) (fun x => resumCtree' (observe (k (resum_ret e x))))
   end.
 
@@ -78,7 +77,8 @@ Module Ctree.
     cofix _subst (ot : ctree' E R) :=
       match ot with
       | RetF r => k r
-      | BrF b n h => Br b n (fun x => _subst (observe (h x)))
+      | BrF n h => Br n (fun x => _subst (observe (h x)))
+      | TauF t => Tau (_subst (observe t))
       | VisF e k => Vis e (fun x => _subst (observe (k x)))
     end.
 
@@ -99,51 +99,34 @@ Module Ctree.
     Vis (resum e) (fun x : encode (resum e) => Ret (resum_ret e x)).
   
   (*| Atomic ctrees with choice. |*)
-  Definition branch `{HE: Encode E} b n: ctree E (fin' n) :=
-    Br b n (fun x => Ret x).
+  Definition branch `{HE: Encode E} n: ctree E (fin' n) :=
+    Br n (fun x => Ret x).
 
   (*| Binary non-deterministic branch |*)
-  Definition brD2 `{HE: Encode E}{X} (a b: ctree E X): ctree E X :=
-    BrD 1 (fun x: fin' 1 =>
+  Definition br2 `{HE: Encode E}{X} (a b: ctree E X): ctree E X :=
+    Br 1 (fun x: fin' 1 =>
             match x in Fin.t n return n = 2 -> ctree E X with
             | Fin.F1 => fun _: _ = 2 => a
             | _ => fun _: _ = 2 => b
             end eq_refl).
 
   (*| Ternary non-deterministic branch |*)
-  Definition brD3 `{HE: Encode E}{X} (a b c: ctree E X): ctree E X :=
-    BrD 2 (fun x: fin' 2 =>
+  Definition br3 `{HE: Encode E}{X} (a b c: ctree E X): ctree E X :=
+    Br 2 (fun x: fin' 2 =>
             match x in Fin.t n return n = 3 -> ctree E X with
             | Fin.F1 => fun _: _ = 3 => a
             | Fin.FS Fin.F1 => fun _: _ = 3 => b
             | _ => fun _: _ = 3 => c
             end eq_refl).
 
-  (*| Binary non-deterministic (visible) branch |*)
-  Definition brS2 `{HE: Encode E}{X} (a b: ctree E X): ctree E X :=
-    BrS 1 (fun x: fin' 1 =>
-            match x in Fin.t n return n = 2 -> ctree E X with
-            | Fin.F1 => fun _: _ = 2 => a
-            | _ => fun _: _ = 2 => b
-            end eq_refl).
-
-  (*| Ternary non-deterministic (visible) branch |*)
-  Definition brS3 `{HE: Encode E}{X} (a b c: ctree E X): ctree E X :=
-    BrS 2 (fun x: fin' 2 =>
-            match x in Fin.t n return n = 3 -> ctree E X with
-            | Fin.F1 => fun _: _ = 3 => a
-            | Fin.FS Fin.F1 => fun _: _ = 3 => b
-            | _ => fun _: _ = 3 => c
-            end eq_refl).
-  
   (*| Ignore the result of a ctree. |*)
   Definition ignore `{HE: Encode E} {R} : ctree E R -> ctree E unit :=
     map (fun _ => tt).
 
   (*| Run forever, do nothing |*)
-  CoFixpoint stuck `{HE: Encode E} {R} : ctree E R := guard stuck.
+  CoFixpoint stuck `{HE: Encode E} {R} : ctree E R := Tau stuck.
   
-  (*| Run forever, do tau steps |*)
+  (*| Run forever, do tasteps |*)
   CoFixpoint spin `{HE: Encode E} {R} : ctree E R := step spin.
 
   (*| [iter] |*)
@@ -151,7 +134,7 @@ Module Ctree.
     (step : I -> ctree E (I + R)) : I -> ctree E R :=
     cofix iter_ i := bind (step i) (fun lr =>
                                       match lr with
-                                      | inl l => (guard (iter_ l))
+                                      | inl l => (Tau (iter_ l))
                                       | inr r => Ret r
                                       end).
 End Ctree.
@@ -219,7 +202,7 @@ End CTreeNotations.
   fun _ _ => Ctree.iter.
 
 #[global] Instance MonadBr_ctree `{HE: Encode E} : MonadBr (ctree E) :=
-  fun b n => Ctree.branch b n.
+  fun n => Ctree.branch n.
 
 (*| Export various useful Utils |*)
 From CTree Require Export Utils.Utils.

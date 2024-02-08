@@ -10,7 +10,7 @@ Polymorphic Class MonadIter (M : Type -> Type) : Type :=
 
 (*| [mbr] Branch monad |*)
 Polymorphic Class MonadBr (M : Type -> Type) : Type :=
-  mbr : forall (b: bool) (n: nat), M (fin (S n)).
+  mbr : forall (n: nat), M (fin (S n)).
 
 (*| Greatest fixpoint of [k] |*)
 Definition forever {M: Type -> Type} {MF: Functor M} {IT: MonadIter M} {X}

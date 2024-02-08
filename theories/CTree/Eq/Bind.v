@@ -145,6 +145,9 @@ and with the argument (pointwise) on the continuation.
     - constructor; intros ?. apply (fTf_Tf (fequ _)).
       apply in_bind_ctx. apply H.
       red; intros. apply (b_T (fequ _)), kk'; auto.
+    - constructor. apply (fTf_Tf (fequ _)).
+      apply in_bind_ctx. apply H.
+      red; intros. apply (b_T (fequ _)), kk'; auto.
     - constructor. intro a. apply (fTf_Tf (fequ _)).
       apply in_bind_ctx. apply H.
       red; intros. apply (b_T (fequ _)), kk'; auto.
@@ -304,7 +307,7 @@ Qed.
 Lemma ctree_eta {E R} {HE: Encode E} (t : ctree E R) : t ≅ go (observe t).
 Proof. step; now cbn. Qed.
 
-Lemma unfold_stuck {E R} {HE: Encode E}: @stuck E _ R ≅ guard stuck.
+Lemma unfold_stuck {E R} {HE: Encode E}: @stuck E _ R ≅ Tau stuck.
 Proof. exact (ctree_eta stuck). Qed.
 
 Lemma unfold_spin {E R} {HE: Encode E}: @spin E _ R ≅ step spin.
@@ -314,7 +317,8 @@ Notation bind_ t k :=
   match observe t with
   | RetF r => k%function r
   | VisF e ke => Vis e (fun x => bind (ke x) k)
-  | BrF b n ke => Br b n (fun x => bind (ke x) k)
+  | TauF t => Tau (bind t k)
+  | BrF n ke => Br n (fun x => bind (ke x) k)
   end (only parsing).
 
 Lemma unfold_bind {E R S} {HE: Encode E} (t : ctree E R) (k : R -> ctree E S): bind t k ≅ bind_ t k.
@@ -323,7 +327,7 @@ Proof. step; now cbn. Qed.
 Notation iter_ step i :=
   (lr <- step%function i;;
    match lr with
-   | inl l => guard (iter step l)
+   | inl l => Tau (iter step l)
    | inr r => Ret r
    end)%ctree (only parsing).
 
@@ -373,7 +377,8 @@ Proof.
   desobs t; cbn.
   - reflexivity.
   - constructor; intros; apply CIH.
-  - constructor; intros. apply CIH.
+  - constructor; intros; apply CIH.
+  - constructor; intros; apply CIH.
 Qed.
 
 (*| Structural rules |*)
@@ -392,19 +397,25 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma bind_br {E n b Y Z} {HE: Encode E} (k : fin' n -> ctree E Y) (g : Y -> ctree E Z):
-  Br b n k >>= g ≅ Br b n (fun x => k x >>= g).
+Lemma bind_br {E n Y Z} {HE: Encode E} (k : fin' n -> ctree E Y) (g : Y -> ctree E Z):
+  Br n k >>= g ≅ Br n (fun x => k x >>= g).
 Proof. now rewrite unfold_bind. Qed.
 
-Lemma bind_branch : forall {E n X} {HE: Encode E} (k : fin' n -> ctree E X) b,
-    branch b n >>= k ≅ Br b n k.
+Lemma bind_tau : forall {E X Y} {HE: Encode E} (t: ctree E X) (g: X -> ctree E Y),
+    Tau t >>= g ≅ Tau (t >>= g).
+Proof.
+  intros. rewrite unfold_bind. reflexivity. 
+Qed.
+
+Lemma bind_branch : forall {E n X} {HE: Encode E} (k : fin' n -> ctree E X),
+    branch n >>= k ≅ Br n k.
 Proof.
   intros. rewrite unfold_bind. cbn. setoid_rewrite bind_ret_l. reflexivity.
 Qed.
 
 Lemma bind_guard {E X Y} {HE: Encode E} (t : ctree E X) (g : X -> ctree E Y):
-  guard t >>= g ≅ guard (t >>= g).
-Proof. now rewrite bind_br. Qed.
+  Tau t >>= g ≅ Tau (t >>= g).
+Proof. now rewrite bind_tau. Qed.
 
 Lemma vis_equ_bind {E X Y} {HE: Encode E}:
   forall (t : ctree E X) (e : E) k (k' : encode e -> ctree E Y),
@@ -416,6 +427,7 @@ Proof.
   destruct (observe t) eqn:?.
   - left. exists x. rewrite ctree_eta, Heqc. reflexivity.
   - rewrite (ctree_eta t), Heqc, bind_br in H;step in H; inv H.
+  - rewrite (ctree_eta t), Heqc, bind_tau in H;step in H; inv H.
   - rewrite (ctree_eta t), Heqc, bind_vis in H.
     apply equ_vis_invT in H as ?; subst.
     destruct H0; subst.
@@ -425,11 +437,11 @@ Proof.
     + cbn in H1. symmetry in H1. apply H1.
 Qed.
 
-Lemma br_equ_bind {E n b X Y} {HE: Encode E}:
+Lemma br_equ_bind {E n X Y} {HE: Encode E}:
   forall (t : ctree E X) k (k' : X -> ctree E Y),
-  x <- t;; k' x ≅ Br b n k ->
+  x <- t;; k' x ≅ Br n k ->
   (exists r, t ≅ Ret r) \/
-  exists k0, t ≅ Br b n k0 /\ forall x, k x ≅ x <- k0 x;; k' x.
+  exists k0, t ≅ Br n k0 /\ forall x, k x ≅ x <- k0 x;; k' x.
 Proof.
   intros.
   destruct (observe t) eqn:?.
@@ -438,10 +450,12 @@ Proof.
     pose proof (equ_br_invT H) as ->.
     pose proof (equ_br_invE H).
     right. exists k0.
-    split; destruct H0 as (-> & ?).
+    split; cbn in H0. 
     + rewrite (ctree_eta t), Heqc.
       reflexivity.
     + cbn in H0. symmetry in H0. apply H0.
+  - rewrite (ctree_eta t), Heqc, bind_tau in H.
+    step in H; cbn in H; dependent destruction H.
   - rewrite (ctree_eta t), Heqc, bind_vis in H. step in H. inv H.
 Qed.
 
@@ -454,6 +468,7 @@ Proof.
   destruct (observe t) eqn:?.
   - rewrite bind_ret_l in H. eauto.
   - rewrite bind_br in H. step in H. inv H.
+  - rewrite bind_tau in H. step in H. inv H.
   - rewrite bind_vis in H. step in H. inv H.
 Qed.
 
@@ -485,7 +500,7 @@ Qed.
 
 (*| Forever |*)
 Lemma unfold_forever {E X} {HE: Encode E}: forall (k: X -> ctree E X)(i: X),
-    forever k i ≅ r <- k i ;; guard (forever k r).
+    forever k i ≅ r <- k i ;; Tau (forever k r).
 Proof.
   intros k i.
   unfold forever, Classes.iter, MonadIter_ctree, Functor.fmap, Functor_ctree.
@@ -494,20 +509,20 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma br_equ': forall n b (E: Type) {HE: Encode E} R (k k': fin' n -> ctree E R) Q,
+Lemma br_equ': forall n (E: Type) {HE: Encode E} R (k k': fin' n -> ctree E R) Q,
     (forall t, k t (≅ Q) (k' t)) ->
-    Br b n k (≅ Q) Br b n k'.
+    Br n k (≅ Q) Br n k'.
 Proof.
   intros * EQ.
   step; econstructor; auto.
 Qed.
 
-Lemma br_equ: forall n b (E: Type) {HE: Encode E} R (k k': fin' n -> ctree E R),
+Lemma br_equ: forall n (E: Type) {HE: Encode E} R (k k': fin' n -> ctree E R),
     (forall t, k t ≅ k' t) ->
-    Br b n k ≅ Br b n k'.
+    Br n k ≅ Br n k'.
 Proof.
-  intros b n E HE R k k'.
-  exact (@br_equ' b n E HE R k k' eq).
+  intros n E HE R k k'.
+  exact (@br_equ' n E HE R k k' eq).
 Qed.
 
 #[global] Instance proper_equ_forever{E X} {HE: Encode E}:
@@ -518,7 +533,7 @@ Proof.
   rewrite (unfold_forever x), (unfold_forever y).
   rewrite H.
   upto_bind_equ.
-  econstructor; intros []; apply CIH.
+  econstructor; apply CIH.
 Qed.
 
 (*| Inversion of [≅] hypotheses |*)
@@ -530,10 +545,8 @@ Ltac subst_hyp_in EQ h :=
 
 Ltac ctree_head_in t h :=
   match t with
-  | guard ?t =>
-      change (guard t) with (BrD 1 (fun _ => t)) in h
   | step ?t =>
-      change (step t) with (BrS 1 (fun _ => t)) in h
+      change (step t) with (Br 1 (fun _ => t)) in h
   | @Ctree.trigger ?E ?B ?R ?e =>
       change t with (Vis e (fun x => Ret x) : ctree E R) in h
   | @Ctree.branch ?E ?B ?vis ?X ?b =>
@@ -557,6 +570,11 @@ Ltac inv_equ h :=
       apply equ_vis_invT in h as EQt;
       subst_hyp_in EQt h;
       apply equ_vis_invE in h as [EQe EQ];
+      subst
+  | Tau _ ≅ Tau _ =>
+      let EQt := fresh "EQt" in
+      let EQ := fresh "EQ" in
+      apply equ_br_invE in h as [EQt EQ];
       subst
   | Br _ _ _ ≅ Br _ _ _ =>
       let EQt := fresh "EQt" in

@@ -20,4 +20,4 @@ Definition log {S}: S -> ctree (writerE S) unit := fun s => Ctree.trigger (Log s
 
 #[global] Instance MonadBr_writerT {M Σ} {SM: Monoid Σ} {MM: Monad M} {AM: MonadBr M}
   : MonadBr (writerT SM M) :=
-  fun b n => @mkWriterT Σ SM M (fin (S n)) (f <- mbr b n;; ret (ppair f (monoid_unit SM))).
+  fun n => @mkWriterT Σ SM M (fin (S n)) (f <- mbr n;; ret (ppair f (monoid_unit SM))).
