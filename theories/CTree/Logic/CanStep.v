@@ -5,11 +5,8 @@ From Coq Require Import
 From CTree Require Import
   Events.Core
   CTree.Core
-  CTree.Pred
-  CTree.Trans
   CTree.Logic.Trans
   CTree.Equ
-  CTree.SBisim
   CTree.Equ
   Logic.Ctl
   Logic.Kripke.
@@ -37,39 +34,31 @@ Section CanStepCtrees.
   Qed.
 
   (*| Br |*)  
-  Lemma can_step_br{n X}: forall (k: fin' n -> ctree E X) w b,
-      can_step (Br b n k) w <->
-        (if b then not_done w else exists (i: fin' n), can_step (k i) w).
+  Lemma can_step_br{n X}: forall (k: fin' n -> ctree E X) w,
+      can_step (Br n k) w <-> not_done w.
   Proof.
-    destruct b.
-    - split; intros.
-      + destruct H as (t' & w' & TR).
-        eapply ktrans_not_done; eauto.
-      + exists (k Fin.F1), w.
-        apply ktrans_brS; exists Fin.F1; auto.
-    - split.
-      + intros (t & w' & TR).
-        apply ktrans_brD in TR as (i & ?).
-        exists i, t, w'; auto.
-      + intros (i & t & w' & TR).
-        exists t, w'. 
-        apply ktrans_brD.
-        exists i; eauto.
+    split; intros.
+    - destruct H as (t' & w' & TR).
+      eapply ktrans_not_done; eauto.
+    - exists (k Fin.F1), w.
+      apply ktrans_br; exists Fin.F1; auto.
   Qed.
-
-  Lemma can_step_brD{n X}: forall (k: fin' n -> ctree E X) w,
-      can_step (BrD n k) w <->
-        (exists (i: fin' n), can_step (k i) w).
+  Hint Resolve can_step_br: ctl.
+  
+  (*| Tau |*)  
+  Lemma can_step_tau{X}: forall (t: ctree E X) w,
+      can_step (Tau t) w <-> can_step t w.
   Proof.
-    intros; now rewrite can_step_br.
+    split; intros.
+    - destruct H as (t' & w' & TR).
+      rewrite ktrans_tau in TR.
+      now (exists t', w').
+    - destruct H as (t' & w' & TR).
+      apply ktrans_tau in TR.
+      now (exists t', w').
   Qed.
-
-  Lemma can_step_brS{n X}: forall (k: fin' n -> ctree E X) w,
-      can_step (BrS n k) w <-> (not_done w).
-  Proof.
-    intros; now rewrite can_step_br.
-  Qed.
-
+  Hint Resolve can_step_tau: ctl.
+  
   Lemma can_step_vis{X}: forall (e:E) (k: encode e -> ctree E X) (_: encode e) w,
       can_step (Vis e k) w <-> not_done w.
   Proof.
@@ -79,7 +68,20 @@ Section CanStepCtrees.
     - exists (k X0), (Obs e X0).
       apply ktrans_vis; exists X0; auto.
   Qed.
+  Hint Resolve can_step_vis: ctl.
 
+  Lemma can_step_ret{X}: forall w (x: X),
+    not_done w ->
+    can_step (Ret x) w.
+  Proof.
+    intros; inv H.
+    Opaque Ctree.stuck.
+    - exists Ctree.stuck, (Done x); now constructor. 
+    - exists Ctree.stuck, (Finish e v x); now constructor.
+  Qed.
+  Hint Resolve can_step_ret: ctl.
+
+  Typeclasses Transparent equ.
   Lemma can_step_bind{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) w,
       can_step (x <- t ;; k x) w <->        
         (exists t' w', [t, w] ↦ [t', w'] /\ not_done w')
@@ -90,28 +92,42 @@ Section CanStepCtrees.
     unfold can_step; split.
     - intros (k' & w' & TR).
       apply ktrans_bind_inv in TR
-          as [(t' & TR' & Hd & ?) | (y & w_ & ? & Hd & ?)].
+          as [(t' & TR' & Hd & ?) | [(y & ? & -> & ?) | (e' & v' & x' & TR & -> & TRk)]].
       + left; exists t', w'...
-      + right; inv Hd.
-        * exists y, (Done y)...
-        * exists y, (Finish e v y)...
-    - intros * [(t' & w' & TR & Hd) | (y & w' & TR & Hd & k_ & w_ & TR_)];
-        ktrans_inv TR.
-      + exists (x <- t' ;; k x), w; apply ktrans_bind_l...
-        apply ktrans_trans; exists (tau)... 
-      + exists (x <- t' ;; k x), (Obs e x); apply ktrans_bind_l...
-        apply ktrans_trans; exists (obs e x); split; [|right; left]...
-      + inv Hd.
-      + inv Hd.
-      + inv Hd; inv H0.
-      + inv Hd. 
-      + exists k_, w_; eapply ktrans_bind_r with (w_:=Done x) (y:=x)...
-        apply ktrans_trans; exists (val x); split; [|right; right; left]...
-        now dependent destruction Hd.        
-      + exists k_, w_; eapply ktrans_bind_r with (w_:=Finish e v x) (y:=x)...
-        apply ktrans_trans; exists (val x); split; [| right; right; right]...
-        exists e, v ,x...
-        now dependent destruction Hd.
+      + right. 
+        exists y, (Done y)...
+      + right.
+        exists x', (Finish e' v' x')...
+    - intros * [(t' & w' & TR & Hd) | (y & w' & TR & Hd & k_ & w_ & TR_)].
+      + exists (x <- t' ;; k x), w'.
+        apply ktrans_bind_l...
+      + exists k_, w_.
+        inv Hd.
+        * Opaque Ctree.stuck.
+          cbn in TR.
+          generalize dependent w_.
+          generalize dependent k_.
+          generalize dependent k.
+          dependent induction TR; intros.
+          -- observe_equ x0.
+             rewrite Eqt, bind_tau.
+             apply ktrans_tau.
+             apply IHTR with y...
+          -- inv H.
+          -- observe_equ x1.
+             now rewrite Eqt, bind_ret_l.
+        * cbn in TR.
+          generalize dependent w_.
+          generalize dependent k_.
+          generalize dependent k.
+          dependent induction TR; intros.
+          -- observe_equ x0.
+             rewrite Eqt, bind_tau.
+             apply ktrans_tau.
+             apply IHTR with y e v ...
+          -- inv H.
+          -- observe_equ x1.
+             now rewrite Eqt, bind_ret_l.
   Qed.
   Hint Resolve can_step_bind: ctl.
 
