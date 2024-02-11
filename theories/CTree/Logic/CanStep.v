@@ -81,6 +81,14 @@ Section CanStepCtrees.
   Qed.
   Hint Resolve can_step_ret: ctl.
 
+  Lemma can_step_stuck{X}: forall w,
+      ~ (can_step (Ctree.stuck: ctree E X) w).
+  Proof.
+    intros * (t' & w' & TRcontra).
+    now apply ktrans_stuck in TRcontra.
+  Qed.
+  Hint Resolve can_step_stuck: ctl.
+
   Typeclasses Transparent equ.
   Lemma can_step_bind{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) w,
       can_step (x <- t ;; k x) w <->        

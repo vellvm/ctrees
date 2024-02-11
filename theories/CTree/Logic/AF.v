@@ -561,10 +561,8 @@ Section CtlAfBind.
     - (* Base *)
       next; left; cbn; apply H.
     - (* Done *)
-      destruct H0 as (? & ? & ? & ?).
       inv H0.
     - (* Finish *)
-      destruct H0 as (? & ? & ? & ?).
       inv H0.
     - (* Tau *)
       observe_equ H.
@@ -673,15 +671,18 @@ Section CtlAfIter.
      [Rr: X -> World E -> Prop] loop postcondition (right).
      [Rv: (I * World E) -> (I * World E) -> Prop)] loop variant (left). *)
   Lemma af_iter{X I} Ri Rr (Rv: relation (I * World E)) (i: I) w (k: I -> ctree E (I + X)):
-      (forall (i: I) w, Ri i w ->
-                   <( {k i}, w |= AF AX done {fun (x: I + X) w' =>
-                                             match x with
-                                             | inl i' => Ri i' w' /\ Rv (i', w') (i, w)
-                                             | inr r' => Rr r' w'
-                                             end})>) ->
-      well_founded Rv ->
-      Ri i w ->
-      <( {Ctree.iter k i}, w |= AF done Rr )>.
+    (forall (i: I) w,
+        Ri i w ->
+        <( {k i}, w |= AF AX done
+                    {fun (x: I + X) w' =>
+                       match x with
+                       | inl i' => Ri i' w' /\
+                                    Rv (i', w') (i, w)
+                       | inr r' => Rr r' w'
+                       end})>) ->
+    well_founded Rv ->
+    Ri i w ->
+    <( {Ctree.iter k i}, w |= AF done Rr )>.
   Proof.      
     intros H WfR Hi.
     generalize dependent k.
@@ -691,7 +692,7 @@ Section CtlAfIter.
     replace w with (snd P) by now subst.
     clear HeqP i w.
     Opaque entailsF.
-    induction P using (well_founded_induction WfR); (* wf_ind *)
+    induction P using (well_founded_induction WfR);
       destruct P as (i, w); cbn in *. 
     rename H into HindWf.
     intros.
@@ -723,5 +724,3 @@ Section CtlAfIter.
           now constructor.          
   Qed.
 End CtlAfIter.
-
-

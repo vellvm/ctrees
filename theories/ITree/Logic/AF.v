@@ -461,10 +461,8 @@ Section CtlAfBind.
     - (* Base *)
       next; left; cbn; apply H.
     - (* Done *)
-      destruct H0 as (? & ? & ? & ?).
       inv H0.
     - (* Finish *)
-      destruct H0 as (? & ? & ? & ?).
       inv H0.
     - (* Tau *)
       observe_equ H.

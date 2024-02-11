@@ -206,7 +206,7 @@ Module CtlNotations.
   (* Temporal syntax: base *)
   Notation "'now' p" := (CBase p) (in custom ctl at level 74): ctl_scope.
   Notation "'pure'" := (CBase (fun w => w = Pure)) (in custom ctl at level 74): ctl_scope.
-  Notation "'vis' R" := (CBase (fun w => exists e (v: encode e), w = Obs e v /\ R e v)) (in custom ctl at level 74): ctl_scope.
+  Notation "'vis' R" := (CBase (vis_with R)) (in custom ctl at level 74): ctl_scope.
   Notation "'return' r" := (CBase (return_val _ r)) (in custom ctl at level 74): ctl_scope.
   Notation "'done' R" := (CBase (done_with R)) (in custom ctl at level 74): ctl_scope.
   Notation "⊤" := (CBase (fun _ => True)) (in custom ctl at level 76): ctl_scope.
@@ -274,7 +274,7 @@ Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_pure: ctl.
 
 Lemma ctl_vis `{KMS: Kripke M W} X: forall (t: M X) (w: World W) φ,
-    <( t, w |= vis φ )> <-> exists (e: W) (v: encode e), w = Obs e v /\ φ e v.
+    <( t, w |= vis φ )> <-> vis_with φ w. 
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_vis: ctl.
 

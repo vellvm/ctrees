@@ -44,6 +44,11 @@ Variant done_with `{Encode E} {X} (R: X -> World E -> Prop): World E -> Prop :=
       R x (Obs e v) -> done_with R (Finish e v x).
 Global Hint Constructors done_with: ctl.
 
+Variant vis_with `{Encode E} R : World E -> Prop :=
+  | VisWithVis: forall (e: E) (v: encode e),
+      R e v -> vis_with R (Obs e v).
+Global Hint Constructors vis_with: ctl.
+
 Inductive return_val `{Encode E} X (x: X): World E -> Prop :=
 | ReturnValDone:
     return_val X x (Done x)
