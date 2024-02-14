@@ -661,6 +661,17 @@ Section CtlAfBind.
       apply af_br; eauto with ctl.
   Qed.
 
+  Lemma af_bind_r_eq{X Y}: forall (t: ctree E Y)
+                             (k: Y -> ctree E X) w φ r w',
+      <( t, w |= AF AX done_eq r w' )> ->
+      <( {k r}, w' |= AF now φ )> ->
+      <( {x <- t ;; k x}, w |= AF now φ )>.
+  Proof.
+    intros.
+    apply af_bind_r with (R:=fun (x : Y) (w : World E) => x = r /\ w = w'); auto.
+    intros; intuition; now subst.
+  Qed.
+  
 End CtlAfBind.
 
 Section CtlAfIter.

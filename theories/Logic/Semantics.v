@@ -207,8 +207,11 @@ Module CtlNotations.
   Notation "'now' p" := (CBase p) (in custom ctl at level 74): ctl_scope.
   Notation "'pure'" := (CBase (fun w => w = Pure)) (in custom ctl at level 74): ctl_scope.
   Notation "'vis' R" := (CBase (vis_with R)) (in custom ctl at level 74): ctl_scope.
-  Notation "'return' r" := (CBase (return_val _ r)) (in custom ctl at level 74): ctl_scope.
+  Notation "'finish' R" := (CBase (finish_with R)) (in custom ctl at level 74): ctl_scope.
   Notation "'done' R" := (CBase (done_with R)) (in custom ctl at level 74): ctl_scope.
+  Notation "'done_eq' r w" := (CBase (done_with (fun r' w' => r = r' /\ w = w')))
+                                (in custom ctl at level 74): ctl_scope.
+  
   Notation "⊤" := (CBase (fun _ => True)) (in custom ctl at level 76): ctl_scope.
   Notation "⊥" := (CBase (fun _ => False)) (in custom ctl at level 76): ctl_scope.
   
@@ -278,15 +281,15 @@ Lemma ctl_vis `{KMS: Kripke M W} X: forall (t: M X) (w: World W) φ,
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_vis: ctl.
 
-Lemma ctl_return `{KMS: Kripke M W} X: forall (t: M X) (w: World W) (r: X),
-    <( t, w |= return r )> <-> return_val X r w.
-Proof. unfold entailsF; now cbn. Qed.
-Global Hint Resolve ctl_return: ctl.
-
 Lemma ctl_done `{KMS: Kripke M W} X: forall (t: M X) (w: World W) (φ: X -> World W -> Prop),
     <( t, w |= done φ )> <-> done_with φ w.
 Proof. unfold entailsF; now cbn. Qed.
 Global Hint Resolve ctl_done: ctl.
+
+Lemma ctl_done_eq `{KMS: Kripke M W} X: forall (t: M X) (w: World W) (r:X),
+    <( t, w |= done_eq r w )> <-> done_with (fun r' w' => r=r' /\ w=w') w.
+Proof. unfold entailsF; now cbn. Qed.
+Global Hint Resolve ctl_done_eq: ctl.
 
 (*| AX, WX, EX unfold |*)
 Lemma ctl_ax `{KMS: Kripke M W} X: forall (t: M X) (w: World W) p,

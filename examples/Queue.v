@@ -2,11 +2,11 @@ From CTree Require Import
   CTree.Core
   Logic.Ctl
   CTree.Equ
-  CTree.Pred
   CTree.Logic.Trans
   Logic.Kripke
   CTree.Interp.Core
-  CTree.Logic.Lemmas
+  CTree.Logic.AF
+  CTree.Logic.CanStep
   CTree.Interp.State
   CTree.Events.State
   CTree.Events.Writer.
@@ -46,8 +46,9 @@ Definition pop {S}: ctree (queueE S) (option S) :=
   Ctree.trigger Pop.
 
 Section QueueEx.
+  Context {S: Type}.
   (* Drain a queue *)
-  Definition drain{S}: ctree (queueE S) unit :=
+  Definition drain: ctree (queueE S) unit :=
     iter (fun _ =>
             x <- pop ;;
             match x with
@@ -55,50 +56,74 @@ Section QueueEx.
             | None => Ret (inr tt)   (* done *)
             end) tt.
 
-  Global Instance handler_queueE{S}: queueE S ~> state (list S) := {
+  Global Instance handler_queueE: queueE S ~> state (list S) := {
       handler e :=
         mkState (fun q =>
                    match e return encode e * list S with
                    | Push v => (tt, q ++ [v])
                    | Pop => match q with
-                           | [] => (None, [])
+                           | nil => (None, nil)
                            | h :: ts => (Some h, ts)
                            end
                    end)
     }.
 
-  Definition instr_queueE{S}: queueE S ~> stateT (list S) (ctree (writerE (Bar (queueE S)))) :=
-    h_stateT_writerE _.
-  
-  Definition pops_s{S}(e: Bar (queueE S))(s: S) :=
-    match e with
-    | Obs e x =>
-        match e return encode e -> Prop with
-        | Pop => fun x: option S => x = Some s
-        | _ => fun _ => False
-        end x
-    end.
+  (* Pick this view of the system, the semantics are [handler_queueE] *)
+  Variant view :=
+    | VPop (queue: list S) (elem: S)
+    | VPush (queue: list S) (elem: S)
+    | VEmpty.
 
+  Definition instr_queueE: queueE S ~> stateT (list S) (ctree (writerE view)) :=
+    h_writerA _
+      (fun (e: queueE S) (v: encode e) (q: list S) =>
+         match e return encode e -> view with
+         | Pop => fun x: option S =>
+                   match x with
+                   | Some x => VPop q x
+                   | None => VEmpty
+                   end
+         | Push x => fun _ => VPop q x
+         end v).
+
+  Print writerE.
   (*| Eventually we get [s] |*)
-  Theorem ctl_queue_eventually{S}: forall (s: S) q x,
-      <( {(interp_state instr_queueE drain (q ++ [s]), x)} |=
-         AF now {fun '(Obs (Log e) _) => pops_s e s} )>.
+  Check finish_with.
+  Theorem ctl_queue_eventually: forall (s: S) q,
+      <( {interp_state instr_queueE drain (q ++ [s])}, Pure |=
+         AF finish {fun '(Log v) 'tt 'tt => v = VPop nil s } )>.
   Proof.
     intros.
     Opaque entailsF.
     unfold drain.
-    revert s x.
+    revert s.
     induction q; intros. 
     - setoid_rewrite interp_state_unfold_iter.
-      apply ctl_bind_af_l.
-      setoid_rewrite interp_state_bind.
-      apply ctl_bind_af_l.
-      unfold pop, trigger.
-      rewrite interp_state_vis.      
-      cbn.
-      setoid_rewrite bind_bind.
-      eapply ctl_bind_af_r; [cbn; econstructor|].
-      cbn.
+      Check af_bind_r.
+      Print finish_with.
+      eapply af_bind_r.
+      + unfold pop.
+        Check @bind_trigger.
+        replace (x <- trigger Pop;; match x with
+                                   | Some _ => Ret (inl tt)
+                                   | None => Ret (inr tt)
+                                   end) with (x <- trigger Pop;; match x with
+                                   | Some _ => Ret (inl tt)
+                                   | None => Ret (inr tt)
+                                                                end
+                                                                  match (Some s: option S) with
+                                              | Some _ => Ret (inl tt)
+                                              | None => Ret (inr tt)
+                                              end).
+        setoid_rewrite bind_trigger.
+        unfold pop, trigger.
+        rewrite bind_vis.
+        rewrite interp_state_vis.
+        cbn.
+        setoid_rewrite bind_bind.
+        unfold pop.
+        rewrite resumCtree_Ret.
+
       setoid_rewrite bind_trigger.
       eapply ctl_bind_af_l.
       next; right.

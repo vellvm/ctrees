@@ -24,13 +24,13 @@ Set Implicit Arguments.
 Generalizable All Variables.
 
 (*| Observe 1-to-1 interpretation event-to-state -- [state S] to [stateT S (ctree void)] |*)
-Global Instance h_state_stateT {E Σ} (h:E ~> state Σ): E ~> stateT Σ (ctree void) := {
+Global Instance h_state {E Σ} (h:E ~> state Σ): E ~> stateT Σ (ctree void) := {
     handler e :=
       mkStateT (fun s => Ret (runState (h.(handler) e) s))
   }.
 
 (*| Intrument by an evaluation [E ~> stateT Σ ctree] and observation function [obs] |*)
-Global Instance h_stateT_writerA {E W Σ} (h:E ~> stateT Σ (ctree void))
+Global Instance h_writerA {E W Σ} (h:E ~> stateT Σ (ctree void))
   (obs: forall (e: E), encode e -> Σ -> W):
   E ~> stateT Σ (ctree (writerE W)) := {
     handler e :=
@@ -41,9 +41,9 @@ Global Instance h_stateT_writerA {E W Σ} (h:E ~> stateT Σ (ctree void))
   }.
 
 (*| Observe states. The [stateT S (ctree void)] to [stateT S (ctree (writerE S))] |*)
-Global Instance h_stateT_writerΣ {E Σ} (h:E ~> stateT Σ (ctree void)):
+Global Instance h_writerΣ {E Σ} (h:E ~> stateT Σ (ctree void)):
   E ~> stateT Σ (ctree (writerE Σ)) := {
-    handler := @handler _ _ (h_stateT_writerA h (fun _ _ s => s))
+    handler := @handler _ _ (h_writerA h (fun _ _ s => s))
   }.
 
 (*| Lemmas about state |*)

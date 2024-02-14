@@ -102,6 +102,35 @@ Section BasicLemmas.
     next in H0; destruct H0.
     now apply can_step_stuck in H0.
   Qed.
+
+  Lemma ag_tau: forall (u: ctree E X) w φ,
+      <( u, w |= AG now φ )> -> <( {Tau u}, w |= AG now φ )>.
+  Proof.
+    coinduction R CIH; intros.
+    - apply RStepA.
+      + step in H; destruct H; auto.
+      + split.
+        * apply can_step_tau.
+          step in H; destruct H; try contradiction.
+          now destruct H0.
+        * intros u' w' TR.
+          cbn in TR.
+          remember (TauF u) as U.
+          rewrite (ctree_eta u').
+          remember (observe u') as U'.
+          clear HeqU' u'.
+          generalize dependent u.
+          revert φ.          
+          induction TR; intros; dependent destruction HeqU.
+          eapply IHTR.
+          rewrite ktrans_tau in TR.
+          cbn in TR.
+          dependent induction TR; auto.
+          eapply IHTR; eauto.
+    split; doin
+    intros.
+
+    
 End BasicLemmas.  
 
 Section BindCtxUnary.
