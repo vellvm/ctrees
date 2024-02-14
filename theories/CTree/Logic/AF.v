@@ -91,6 +91,25 @@ Section BasicLemmas.
         apply ktrans_brD in H0 as (i & TR).
         destruct (H i); eauto.
   Qed.
+
+  Lemma can_step_stuck: forall w,
+      can_step (Ctree.stuck: ctree E X) w -> False.
+  Proof.
+    intros w (t' & w' & TR).
+    cbn in TR.
+    dependent induction TR; eauto.
+  Qed.
+  
+  Lemma af_stuck: forall w φ,
+      <( {Ctree.stuck: ctree E X}, w |= AF now φ )> ->
+      φ w.
+  Proof.
+    intros.
+    cbn in H; dependent induction H; auto.
+    destruct H0, H1.
+    apply can_step_stuck in H1.
+    contradiction.
+  Qed.
   
   Lemma af_brS: forall n (k: fin' n -> ctree E X) w φ,
       <( {BrS n k}, w |= AF now φ )> <->
@@ -211,6 +230,15 @@ Section AfIndLemma.
         intros.
         apply H2, H3.
   Qed.
+
+  Lemma afind_stuck: forall w φ,
+      AFNowInd φ (Ctree.stuck: ctree E X) w -> φ w.
+  Proof.
+    intros.
+    Transparent Ctree.stuck.
+    remember (Ctree.stuck) as S.
+    induction H; intros; subst; auto; unfold Ctree.stuck in H; dependent destruction H.
+  Abort.
 
   Lemma afind_brD_aux: forall n (k: fin' n -> ctree E X) w φ,
       (forall i, AFNowInd φ (k i) w) ->
