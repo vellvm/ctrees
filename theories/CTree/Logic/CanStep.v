@@ -70,6 +70,14 @@ Section CanStepCtrees.
     intros; now rewrite can_step_br.
   Qed.
 
+  Lemma can_step_stuck{X}: forall w,
+      can_step (Ctree.stuck: ctree E X) w -> False.
+  Proof.
+    intros w (t' & w' & TR).
+    cbn in TR.
+    dependent induction TR; eauto.
+  Qed.
+
   Lemma can_step_vis{X}: forall (e:E) (k: encode e -> ctree E X) (_: encode e) w,
       can_step (Vis e k) w <-> not_done w.
   Proof.

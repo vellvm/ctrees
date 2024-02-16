@@ -34,6 +34,13 @@ Proof.
   firstorder congruence.
 Qed.
 
+Lemma pull2_iff: forall {A B C} (P : A -> B -> Prop) (R : A -> B -> C -> Prop),
+    (forall a b, (exists c, R a b c)-> P a b) <-> (forall a b c, R a b c -> P a b).
+  split; intros; eauto.
+  destruct H0.
+  now apply H with x.
+Qed.
+
 Definition Disjoint(A B: Prop) :=
   (A /\ ~ B) \/ (~ A /\ B).
 

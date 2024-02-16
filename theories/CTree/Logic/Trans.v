@@ -390,6 +390,32 @@ Section CTreeTransLemmas.
     intros * Hcontra; cbn in Hcontra; dependent induction Hcontra; eauto; inv H.
   Qed.
 
+  Lemma ktrans_to_done_inv{X}: forall (t t': ctree E X) w (x: X),
+      [t, w] ↦ [t', Done x] ->
+      t' ≅ Ctree.stuck /\ w = Pure.
+  Proof.
+    intros.
+    cbn in H.
+    dependent induction H; intros; eauto.
+    - inv H.
+    - observe_equ x.
+      rewrite Eqt in H.
+      intuition.
+  Qed.
+  
+  Lemma ktrans_to_finish_inv{X}: forall (t t': ctree E X) w (e: E) (v: encode e) (x: X),
+      [t, w] ↦ [t', Finish e v x] ->
+      t' ≅ Ctree.stuck /\ w = Obs e v.
+  Proof.
+    intros.
+    cbn in H.
+    dependent induction H; intros; eauto.
+    - inv H.
+    - observe_equ x.
+      rewrite Eqt in H.
+      intuition.
+  Qed.
+
   Lemma ktrans_bind_l{X Y}: forall (t t': ctree E Y) (k: Y -> ctree E X) w w',
       [t, w] ↦ [t', w'] ->
       not_done w' ->
@@ -537,5 +563,3 @@ Proof.
   - apply ktrans_vis in TR as (y & ? & ? & ?); subst.
     step in H6; cbn in H6; inv H6.
 Qed.
-
-
