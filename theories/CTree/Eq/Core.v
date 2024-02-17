@@ -10,6 +10,8 @@ From Coinduction Require Import
 From CTree Require Import
   CTree.Core.
 
+Generalizable All Variables.
+
 (*| Syntactic quality on trees |*)
 Section Equ.
 
@@ -332,12 +334,12 @@ End going_relations.
 Local Open Scope ctree_scope.
 
 (* Resum lemmas *)
-Lemma resumCtree_Ret {E1 E2 : Type} `{ReSumRet E1 E2}
+Lemma resumCtree_ret {E1 E2 : Type} `{ReSumRet E1 E2}
            {R} (r : R) :
   resumCtree (Ret r) ≅ Ret r.
 Proof. step. cbn. constructor. reflexivity. Qed.
 
-Lemma resumCtree_Br  {E1 E2 : Type} `{ReSumRet E1 E2}
+Lemma resumCtree_br  {E1 E2 : Type} `{ReSumRet E1 E2}
            {R} (t : ctree E1 R) (n: nat) (k: fin' n -> ctree E1 R):
   resumCtree (Br n k) ≅ Br n (fun x => resumCtree (k x)).
 Proof.
@@ -347,6 +349,56 @@ Proof.
   intros.
   reflexivity.
 Qed.
+
+Lemma resumCtree_vis {E1 E2 : Type} `{ReSumRet E1 E2}
+           {R} (e : E1) (k : encode e -> ctree E1 R) :
+  resumCtree (Vis e k) ≅ Vis (resum e) (fun x => resumCtree (k (resum_ret e x))).
+Proof.
+  step.
+  cbn.
+  constructor.
+  intros.
+  reflexivity.
+Qed.
+
+(* Resum lemmas (void) *)
+Lemma resumCtree_ret' `{Encode E} {R} (r : R) :
+  @resumCtree void E _ H _ _ _ (Ret r) ≅ Ret r.
+Proof. step. cbn. constructor. reflexivity. Qed.
+
+Lemma resumCtree_br'  `{Encode E} {R} (t : ctree E R) (n: nat) (k: fin' n -> ctree void R):
+  @resumCtree void E _ H _ _ _ (Br n k) ≅ Br n (fun x => resumCtree (k x)).
+Proof.
+  step.
+  cbn.
+  constructor.
+  intros.
+  reflexivity.
+Qed.
+
+Ltac resum :=
+  match goal with
+  | [H: context[@resumCtree void ?E _ ?HE _ _ _ (Ret ?r)] |- _ ] =>
+      rewrite resumCtree_ret' in H
+  | [ |- context[@resumCtree void ?E _ ?HE _ _ _ (Ret ?r)] ] =>
+      rewrite resumCtree_ret'
+  | [H: context[@resumCtree void ?E _ ?HE _ _ _ (Br ?n ?k)] |- _ ] =>
+      rewrite resumCtree_br' in H
+  | [ |- context[@resumCtree void ?E _ ?HE _ _ _ (Br ?n ?k)] ] =>
+      rewrite resumCtree_br'
+  | [H: context[resumCtree (Ret ?r)] |- _ ] =>
+      rewrite resumCtree_ret in H
+  | [ |- context[resumCtree (Ret ?r)] ] =>
+      rewrite resumCtree_ret
+  | [H: context[resumCtree (Br ?n ?k)] |- _] =>
+      rewrite resumCtree_br in H
+  | [ |- context[resumCtree (Br ?n ?r)] ] =>
+      rewrite resumCtree_br
+  | [H: context[resumCtree (Vis ?n ?k)] |- _] =>
+      rewrite resumCtree_vis in H
+  | [ |- context[resumCtree (Vis ?n ?r)] ] =>
+      rewrite resumCtree_vis
+  end.
 
 Lemma resumCtree_Vis {E1 E2 : Type} `{ReSumRet E1 E2}
            {R} (e : E1) (k : encode e -> ctree E1 R) :

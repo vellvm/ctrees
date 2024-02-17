@@ -46,51 +46,36 @@ End Messaging.
 Arguments Recv {n} {T}.
 Arguments Send {n} {T}.
 
-(*| Many interpretations for network effects.
-    Using modules to curtail typeclass resolution. |*)
+(*| Many interpretations for network effects. |*)
 
-(*| Bidirectional queues (input, output) interpretation of an event [netE] |*)
-Module IOQueues.
-  Section Messaging.
+(*| Bidirectional queues (input, output) interpretation
+  of an event [netE] |*)
+Section Messaging.
   Import MonadNotation.
   Local Open Scope monad_scope.
 
   Context (n: nat) (T: Type).
   Notation uid := (uid n).
-  Notation Qs := (list T * list (uid * T)) (only parsing).
+  Notation LQs := (list T * list (uid * T)) (only parsing).
+  Notation VQs := (vec n (list T)) (only parsing).
   Notation netE := (netE n T).
 
-  #[export] Instance handler_netE: netE ~> state Qs := {
-      handler e :=
+  Definition h_netE_l: netE ~> state LQs :=
+      fun e =>
         '(inp, out) <- get ;;
-        match e return state Qs (encode e) with
+        match e return state LQs (encode e) with
         | Recv me =>
             match inp with
             | [] => ret None
             | msg :: ts => put (ts, out) ;; ret (Some msg)
             end
         | Send _ to msg => put (inp, out ++ [(to, msg)])
-        end
-    }.
+        end.
 
-  End Messaging.
-End IOQueues.
-
-(*| Vector of queues (mailboxes) interpretation of an event [netE] |*)
-Module MultiQueues.
-  Section Messaging.
-  Import MonadNotation.
-  Local Open Scope monad_scope.
-
-  Context (n: nat) (T: Type).
-  Notation uid := (uid n).
-  Notation Qs := (vec n (list T)) (only parsing).
-  Notation netE := (netE n T).
-
-  #[export] Instance handler_netE: netE ~> state Qs := {
-      handler e :=
+  Definition h_netE_v: netE ~> state VQs :=
+    fun e =>
         qs <- get;;
-        match e return state Qs (encode e) with
+        match e return state VQs (encode e) with
         | Recv i =>
             match Vector.nth qs i with
             | [] => ret None
@@ -99,9 +84,7 @@ Module MultiQueues.
                 ret (Some msg)
             end
         | Send i to msg => put (nth_map qs to (fun q => q ++ [msg]))
-        end
-    }.
+        end.
 
-  End Messaging.
-End MultiQueues.
+End Messaging.
 

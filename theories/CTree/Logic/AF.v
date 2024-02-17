@@ -1,5 +1,6 @@
 From Coq Require Import
   Basics
+  Arith.Wf_nat
   Classes.Morphisms.
 
 From Coinduction Require Import
@@ -663,13 +664,15 @@ Section CtlAfBind.
 
   Lemma af_bind_r_eq{X Y}: forall (t: ctree E Y)
                              (k: Y -> ctree E X) w φ r w',
-      <( t, w |= AF AX done_eq r w' )> ->
+      <( t, w |= AF AX done= r w' )> ->
       <( {k r}, w' |= AF now φ )> ->
       <( {x <- t ;; k x}, w |= AF now φ )>.
   Proof.
     intros.
-    apply af_bind_r with (R:=fun (x : Y) (w : World E) => x = r /\ w = w'); auto.
-    intros; intuition; now subst.
+    eapply af_bind_r.
+    + apply H.
+    + intros.
+      now destruct H1 as (-> & ->). 
   Qed.
   
 End CtlAfBind.
@@ -734,4 +737,25 @@ Section CtlAfIter.
           rewrite ctl_done.
           now constructor.          
   Qed.
+
+  (*| Instead of a WF relation [Rv] provide a
+    "ranking" function [f] |*)
+  Lemma af_iter_nat{X I} Ri Rr (f: I -> World E -> nat) (i: I) w (k: I -> ctree E (I + X)):
+    (forall (i: I) w,
+        Ri i w ->
+        <( {k i}, w |= AF AX done
+                    {fun (x: I + X) w' =>
+                       match x with
+                       | inl i' => Ri i' w' /\ f i' w' < f i w
+                       | inr r' => Rr r' w'
+                       end})>) ->
+    Ri i w ->
+    <( {Ctree.iter k i}, w |= AF done Rr )>.
+  Proof.
+    intros.
+    eapply af_iter with Ri (ltof _ (fun '(i, w) => f i w));
+      auto.
+    apply well_founded_ltof.
+  Qed.
+
 End CtlAfIter.

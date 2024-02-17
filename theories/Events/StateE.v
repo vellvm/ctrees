@@ -27,16 +27,13 @@ Section State.
           | Put _ => unit
           end.
 
-  #[global] Instance handler_stateE: stateE ~> state S :=
-    {|
-      Handler_Encode := encode_stateE;
-      handler e := mkState
-                     (fun s =>
-                        match e return (encode e * S) with
-                        | Get => (s, s)
-                        | Put s' => (tt, s')
-                        end)
-    |}.
+  Definition h_stateE: stateE ~> state S :=
+    fun e => mkState
+            (fun s =>
+               match e return (encode e * S) with
+               | Get => (s, s)
+               | Put s' => (tt, s')
+               end).
 
 End State.
 

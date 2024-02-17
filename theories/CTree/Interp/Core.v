@@ -23,17 +23,17 @@ Generalizable All Variables.
 (** An event handler [E ~> M] defines a monad morphism
     [c   tree E ~> M] for any monad [M] with a loop operator. *)
 
-Definition interp {E} {M : Type -> Type}
+Definition interp `{Encode E} {M : Type -> Type}
   {MM : Monad M} {MI : MonadIter M} {MB: MonadBr M} (h: E ~> M) : forall X, ctree E X -> M X :=
   fun R => iter (fun t =>
                 match observe t with
                 | RetF r => ret (inr r)
                 | BrF n k => bind (mbr n) (fun x => ret (inl (k x)))
                 | TauF t => ret (inl t)
-                | VisF e k => bind (h.(handler) e) (fun x => ret (inl (k x)))
+                | VisF e k => bind (h e) (fun x => ret (inl (k x)))
                 end).
 
-Arguments interp {E M MM MI MB} h [X].
+Arguments interp {E H M MM MI MB} h [X].
 
 (*| Unfolding of [interp]. |*)
 Notation _interp h t :=
@@ -41,11 +41,11 @@ Notation _interp h t :=
    | RetF r => Ret r
    | TauF t => Tau (interp h t)
    | BrF n k => Br n (fun x => Tau (interp h (k x)))
-   | VisF e k => h.(handler) e >>= (fun x => Tau (interp h (k x)))
+   | VisF e k => h e >>= (fun x => Tau (interp h (k x)))
   end).
 
 Local Typeclasses Transparent equ.
-Lemma unfold_interp `{Encode F} {E R} `{f : E ~> ctree F} (t : ctree E R) :
+Lemma unfold_interp `{Encode E} `{Encode F} {R} `{f : E ~> ctree F} (t : ctree E R) :
   interp f t ≅ _interp f t.
 Proof.
   unfold interp, iter, MonadIter_ctree.
@@ -64,7 +64,7 @@ Proof.
 Qed.
 
 #[global] Instance interp_equ `{HE: Encode E} {X} {h: E ~> ctree E} :
-  Proper (equ eq ==> equ eq) (@interp E _ _ _ _ h X).
+  Proper (equ eq ==> equ eq) (@interp E _ _ _ _ _ h X).
 Proof.
   unfold Proper, respectful.
   coinduction R CH.

@@ -154,3 +154,12 @@ Ltac world_inv :=
       dependent destruction H
   end.
 Global Hint Extern 2 => world_inv: ctl.
+
+Ltac ktrans_inv :=
+  match goal with
+  | [H: [?t, ?w] ↦ [?t', ?w'] |- can_step ?t ?w] =>
+      exists t', w'; apply H
+  | [H: [?t, ?w] ↦ [?t', ?w'] |- not_done ?w] =>
+      apply ktrans_not_done with t t' w'; apply H
+  end.
+Global Hint Extern 2 => ktrans_inv: ctl.                       

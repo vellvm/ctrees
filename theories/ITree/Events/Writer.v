@@ -1,6 +1,7 @@
 (*| Useful instructions: State |*)
 From CTree Require Import
   Classes
+  Events.Core
   ITree.Core.
 
 From CTree Require Export
@@ -16,4 +17,5 @@ From ExtLib Require Import
 Import MonadNotation.
 Local Open Scope monad_scope.
 
-Definition log {S}: S -> itree (writerE S) unit := fun s => Itree.trigger (Log s).
+Definition log {S}: S -> itree (writerE S) unit :=
+  fun s => Itree.trigger (Log s).

@@ -35,8 +35,8 @@ Section IO.
           | Close f => bool
           end.
 
-  #[global] Instance handler_ioE: ioE ~> state (fd * stF * stS) := {
-      handler e :=
+  Definition h_ioE: ioE ~> state (fd * stF * stS) :=
+      fun e =>
         mkState
           (fun '(i, σf, σs) =>                                      (* A fd counter [i] and state [σ] *)
              match e return (encode e * (fd * stF * stS)) with
@@ -65,8 +65,7 @@ Section IO.
                      (true, (i, add f false σf, σs))             (* Close it, return [true] *)
                  | _ => (false, (i, σf, σs))                      (* Fail on double-close *)
                  end
-             end)
-    }.
+             end).
   
 End IO.
 

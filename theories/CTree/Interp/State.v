@@ -24,43 +24,39 @@ Set Implicit Arguments.
 Generalizable All Variables.
 
 (*| Observe 1-to-1 interpretation event-to-state -- [state S] to [stateT S (ctree void)] |*)
-Global Instance h_state {E Σ} (h:E ~> state Σ): E ~> stateT Σ (ctree void) := {
-    handler e :=
-      mkStateT (fun s => Ret (runState (h.(handler) e) s))
-  }.
+Definition h_state `{Encode E} {Σ} (h:E ~> state Σ):
+  E ~> stateT Σ (ctree void) :=
+  fun e => mkStateT (fun s => Ret (runState (h e) s)).
 
 (*| Intrument by an evaluation [E ~> stateT Σ ctree] and observation function [obs] |*)
-Global Instance h_writerA {E W Σ} (h:E ~> stateT Σ (ctree void))
-  (obs: forall (e: E), encode e -> Σ -> W):
-  E ~> stateT Σ (ctree (writerE W)) := {
-    handler e :=
-      mkStateT (fun s =>
-                  '(x, σ) <- resumCtree (runStateT (h.(handler) e) s) ;;
-                  Ctree.trigger (Log (obs e x σ)) ;;
-                  Ret (x, σ))
-  }.
+Definition h_writerA `{Encode E} {W Σ} (h:E ~> stateT Σ (ctree void))
+  (obs: forall (e: E), encode e -> Σ -> W): E ~> stateT Σ (ctree (writerE W)) :=
+  fun e => mkStateT (fun s =>
+                    '(x, σ) <- resumCtree (runStateT (h e) s) ;;
+                    Ctree.trigger (Log (obs e x σ)) ;;
+                    Ret (x, σ)).
 
 (*| Observe states. The [stateT S (ctree void)] to [stateT S (ctree (writerE S))] |*)
-Global Instance h_writerΣ {E Σ} (h:E ~> stateT Σ (ctree void)):
-  E ~> stateT Σ (ctree (writerE Σ)) := {
-    handler := @handler _ _ (h_writerA h (fun _ _ s => s))
-  }.
+Definition h_writerΣ `{Encode E} {Σ} (h:E ~> stateT Σ (ctree void)):
+  E ~> stateT Σ (ctree (writerE Σ)) :=
+  h_writerA h (fun _ _ s => s).
 
 (*| Lemmas about state |*)
-Definition interp_state {E W} `{EF: Encode F} (h : E ~> stateT W (ctree F))
-  {X} (t: ctree E X) (w: W) : ctree F (X*W) := runStateT (interp h t) w.
+Definition interp_state `{Encode E} `{Encode F} {W}
+  (h : E ~> stateT W (ctree F)) {X} (t: ctree E X) (w: W) :
+  ctree F (X*W) := runStateT (interp h t) w.
 
 (*| Unfolding of [interp_state] given state [s] *)
 Notation interp_state_ h t s :=
   (match observe t with
    | RetF r => Ret (r, s)
-   | VisF e k => (runStateT (h.(handler) e) s) >>=
+   | VisF e k => (runStateT (h e) s) >>=
                   (fun '(x, s') => Tau (interp_state h (k x) s'))
    | TauF t => Tau (interp_state h t s)
    | BrF n k => Br n (fun xs => Tau (interp_state h (k xs) s))
    end)%function.
 
-Lemma unfold_interp_state `{Encode F} `(h: E ~> stateT W (ctree F))
+Lemma unfold_interp_state `{Encode E} `{Encode F} `(h: E ~> stateT W (ctree F))
   {X} (t: ctree E X) (w : W) :
   interp_state h t w ≅ interp_state_ h t w.
 Proof.
@@ -84,7 +80,7 @@ Proof.
     reflexivity.
 Qed.
 
-#[global] Instance equ_interp_state `{Encode F} `(h: E ~> stateT W (ctree F)) {X}:
+#[global] Instance equ_interp_state `{Encode E} `{Encode F} W (h: E ~> stateT W (ctree F)) {X}:
   Proper (@equ E _ X X eq ==> eq ==> equ eq) (interp_state h).
 Proof.
   unfold Proper, respectful.
@@ -95,7 +91,7 @@ Proof.
     destruct x1.
     constructor; intros.
     apply IH; auto.
-    apply H2.
+    apply H3.
   - cbn.
     constructor; intros.
     apply IH; auto.
@@ -105,26 +101,26 @@ Proof.
     step.
     econstructor.
     apply IH; auto.
-    apply H2.
+    apply H3.
 Qed.
 
-Lemma interp_state_ret `{Encode F} `(h: E ~> stateT W (ctree F)) {X} (w : W) (r : X) :
+Lemma interp_state_ret `{Encode E} `{Encode F} W (h: E ~> stateT W (ctree F)) {X} (w : W) (r : X) :
   (interp_state h (Ret r) w) ≅ (Ret (r, w)).
 Proof.
   rewrite ctree_eta. reflexivity.
 Qed.
 
-Lemma interp_state_vis `{Encode F} `(h: E ~> stateT W (ctree F)) {X}  
+Lemma interp_state_vis `{Encode E} `{Encode F} `(h: E ~> stateT W (ctree F)) {X}  
   (e : E) (k : encode e -> ctree E X) (w : W) :
-  interp_state h (Vis e k) w ≅ runStateT (h.(handler) e) w >>=
+  interp_state h (Vis e k) w ≅ runStateT (h e) w >>=
     (fun '(x, w') => Tau (interp_state h (k x) w')).
 Proof.
   rewrite unfold_interp_state; reflexivity.
 Qed.
 
-Lemma interp_state_trigger `{Encode F} `(h: E ~> stateT W (ctree F))
+Lemma interp_state_trigger `{Encode E} `{Encode F} `(h: E ~> stateT W (ctree F))
   (e : E) (w : W) :
-  interp_state h (Ctree.trigger e) w ≅ runStateT (h.(handler) (resum e)) w >>= fun x => Tau (Ret x).
+  interp_state h (Ctree.trigger e) w ≅ runStateT (h (resum e)) w >>= fun x => Tau (Ret x).
 Proof.
   unfold Ctree.trigger.
   rewrite interp_state_vis.
@@ -135,41 +131,37 @@ Proof.
   reflexivity.
 Qed.  
 
-Lemma interp_state_br `{Encode F} `(h: E ~> stateT W (ctree F)) {X}
+Lemma interp_state_br `{Encode E} `{Encode F} `(h: E ~> stateT W (ctree F)) {X}
   (n : nat) (k : fin' n -> ctree E X) (w : W) :
   interp_state h (Br n k) w ≅ Br n (fun x => Tau (interp_state h (k x) w)).
-Proof.
-  rewrite !unfold_interp_state; reflexivity.
-Qed.
+Proof. rewrite !unfold_interp_state; reflexivity. Qed.
 
-Lemma interp_state_tau `{Encode F} `(h: E ~> stateT W (ctree F)) {X}
+Lemma interp_state_tau `{Encode E} `{Encode F} `(h: E ~> stateT W (ctree F)) {X}
   (t : ctree E X) (w : W) :
   interp_state h (Tau t) w ≅ Tau ((interp_state h t w)).
-Proof.
-  rewrite !unfold_interp_state; reflexivity.
-Qed.
+Proof. rewrite !unfold_interp_state; reflexivity. Qed.
 
-Lemma interp_state_ret_inv `{Encode F} `(h: E ~> stateT W (ctree F)) {X}:
-  forall s (t : ctree E X) r,
+Lemma interp_state_ret_inv `{Encode E} `{Encode F}
+  `(h: E ~> stateT W (ctree F)) {X}: forall s (t : ctree E X) r,
     interp_state h t s ≅ Ret r -> t ≅ Ret (fst r) /\ s = snd r.
 Proof.
   intros.
-  setoid_rewrite (ctree_eta t) in H0.
+  setoid_rewrite (ctree_eta t) in H1.
   setoid_rewrite (ctree_eta t).
   destruct (observe t) eqn:?.
-  - rewrite interp_state_ret in H0. step in H0. inv H0. split; reflexivity.
-  - rewrite interp_state_br in H0. step in H0. inv H0.
-  - rewrite interp_state_tau in H0. step in H0. inv H0.
-  - rewrite interp_state_vis in H0. apply ret_equ_bind in H0 as (? & ? & ?).
+  - rewrite interp_state_ret in H1. step in H1. inv H1. split; reflexivity.
+  - rewrite interp_state_br in H1. step in H1. inv H1.
+  - rewrite interp_state_tau in H1. step in H1. inv H1.
+  - rewrite interp_state_vis in H1. apply ret_equ_bind in H1 as (? & ? & ?).
     destruct x.
-    step in H1.
-    inv H1.
+    step in H2.
+    inv H2.
 Qed.
 
 Arguments interp_state: simpl never.
 Local Typeclasses Transparent equ.
-Lemma interp_state_bind `{Encode F} `(h : E ~> stateT W (ctree F)) {A B}
-  (t : ctree E A) (k : A -> ctree E B) (s : W) :
+Lemma interp_state_bind `{Encode E} `{Encode F} `(h : E ~> stateT W (ctree F))
+  {A B} (t : ctree E A) (k : A -> ctree E B) (s : W) :
   interp_state h (t >>= k) s ≅ interp_state h t s >>= fun '(x, s) => interp_state h (k x) s.
 Proof.
   revert s t.
@@ -198,7 +190,8 @@ Proof.
     apply IH.
 Qed.
 
-Lemma interp_state_unfold_iter `{Encode F} `(h : E ~> stateT W (ctree F)) {I R}
+Lemma interp_state_unfold_iter `{Encode E} `{Encode F}
+  `(h : E ~> stateT W (ctree F)) {I R}
   (k : I -> ctree E (I + R)) (i: I) (s: W) :
   interp_state h (iter k i) s ≅ interp_state h (k i) s >>= fun '(x, s) =>
       match x with
