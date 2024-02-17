@@ -758,4 +758,55 @@ Section CtlAfIter.
     apply well_founded_ltof.
   Qed.
 
+  Lemma af_iter_nat'{X I} Rr (f: I -> World E -> nat) (i: I) w (k: I -> ctree E (I + X)):
+    (forall (i: I) w,
+        not_done w ->
+        <( {k i}, w |= AF AX done
+                    {fun (x: I + X) w' =>
+                       match x with
+                       | inl i' => not_done w' /\ f i' w' < f i w
+                       | inr r' => Rr r' w'
+                       end})>) ->
+    not_done w ->
+    <( {Ctree.iter k i}, w |= AF done Rr )>.
+  Proof.
+    intros.
+    eapply af_iter_nat with (Ri:=fun _ w => not_done w) (f:=f); intros; auto.
+  Qed.
+
+  (* Well-founded loop on length of lists *)
+  Lemma af_iter_list{A X I} Ri Rr (f: I -> World E -> list A) (i: I) w (k: I -> ctree E (I + X)):
+    (forall (i: I) w,
+        Ri i w ->
+        <( {k i}, w |= AF AX done
+                    {fun (x: I + X) w' =>
+                       match x with
+                       | inl i' => Ri i' w' /\
+                                    length (f i' w') < length (f i w)
+                       | inr r' => Rr r' w'
+                       end})>) ->
+    Ri i w ->
+    <( {Ctree.iter k i}, w |= AF done Rr )>.
+  Proof.
+    intros.
+    eapply af_iter_nat with Ri (fun i w => length (f i w)); auto.
+  Qed.
+
+  Lemma af_iter_list'{A X I} Rr (f: I -> World E -> list A) (i: I) w (k: I -> ctree E (I + X)):
+    (forall (i: I) w,
+        not_done w ->
+        <( {k i}, w |= AF AX done
+                    {fun (x: I + X) w' =>
+                       match x with
+                       | inl i' => not_done w' /\
+                                    length (f i' w') < length (f i w)
+                       | inr r' => Rr r' w'
+                       end})>) ->
+    not_done w ->
+    <( {Ctree.iter k i}, w |= AF done Rr )>.
+  Proof.
+    intros.
+    eapply af_iter_list with (Ri:=fun _ => not_done) (f:=f); intros; auto.
+  Qed.
+  
 End CtlAfIter.
