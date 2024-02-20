@@ -266,7 +266,7 @@ Section CTreeTransLemmas.
   Typeclasses Transparent equ.
   Lemma ktrans_bind_r{X Y}: forall (t: ctree E Y) (u: ctree E X) (k: Y -> ctree E X) (y: Y) w w_ w',
       [t, w] ↦ [stuck, w_] ->
-      return_val Y y w_ ->
+      done_eq Y y w_ ->
       [k y, w] ↦ [u, w'] ->
       [y <- t ;; k y, w] ↦ [u, w'].
   Proof.
@@ -446,5 +446,3 @@ Proof.
   - apply ktrans_vis in TR as (y & ? & ? & ?); subst.
     step in H4; cbn in H4; inv H4.
 Qed.
-
-

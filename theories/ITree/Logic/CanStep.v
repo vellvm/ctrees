@@ -75,7 +75,7 @@ Lemma can_step_bind_iff `{HE: Encode E} {X Y}: forall (t: itree E Y) (k: Y -> it
     can_step (x <- t ;; k x) w <->        
       (exists t' w', [t, w] ↦ [t', w'] /\ not_done w')
       \/ (exists y w', [t, w] ↦ [Itree.stuck, w']
-                 /\ return_val Y y w'
+                 /\ done_eq Y y w'
                  /\ can_step (k y) w).
 Proof with (eauto with ctl).
   unfold can_step; split.

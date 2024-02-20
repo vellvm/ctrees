@@ -17,6 +17,7 @@ From ExtLib Require Import
 
 From CTree Require Import
   Events.Core
+  Events.WriterE
   Utils.Utils.
 
 From CTree Require Export
@@ -209,6 +210,8 @@ Module CtlNotations.
   Notation "'vis' R" := (CBase (vis_with R)) (in custom ctl at level 74): ctl_scope.
   Notation "'finish' R" := (CBase (finish_with R)) (in custom ctl at level 74): ctl_scope.
   Notation "'done' R" := (CBase (done_with R)) (in custom ctl at level 74): ctl_scope.
+  Notation "'doneS' R" := (CBase (done_with (fun '(r, s) w => R r w s)))
+                            (in custom ctl at level 74): ctl_scope.
   Notation "'done=' r w" := (CBase (done_with (fun r' w' => r = r' /\ w = w')))
                                 (in custom ctl at level 74): ctl_scope.
   

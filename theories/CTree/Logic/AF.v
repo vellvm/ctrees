@@ -8,8 +8,11 @@ From Coinduction Require Import
 
 From CTree Require Import
   Events.Core
+  Events.WriterE
   CTree.Core
   CTree.Equ
+  CTree.Interp.Core
+  CTree.Interp.State
   CTree.Logic.Trans
   CTree.Logic.CanStep
   Logic.Ctl
@@ -40,6 +43,27 @@ Section BasicLemmas.
       eapply done_not_ktrans with (t:=t); eauto.
   Qed.
 
+  Lemma af_ret: forall r w (Rr: rel X (World E)),      
+      Rr r w ->
+      not_done w ->
+      <( {Ret r}, w |= AF done Rr )>.
+  Proof.
+    intros * Hr Hd.
+    next; right; next; split.
+    - now apply can_step_ret.
+    - intros t_ w_ TR_.
+      inv Hd.
+      + cbn in TR_. dependent destruction TR_. 
+        next; left.
+        rewrite ctl_done.
+        now constructor.
+      + apply ktrans_finish in TR_ as (-> & ->).
+        next; left.
+        rewrite ctl_done.
+        now constructor.       
+  Qed.
+  Hint Resolve af_ret: ctl.
+  
   Lemma af_tau: forall (t: ctree E X) w φ,
       <( t, w |= AF now φ )> -> 
       <( {Tau t}, w |= AF (now φ) )>.
@@ -606,7 +630,7 @@ Section CtlAfBind.
       rewrite Eqt, bind_br.
       apply af_br; eauto.   
   Qed.
-  
+
   Lemma can_step_bind_r{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) w R,      
       <( t, w |= AF AX done R )> ->
       (forall y w, R y w -> can_step (k y) w) ->
@@ -634,8 +658,7 @@ Section CtlAfBind.
   Qed.
   Hint Resolve can_step_bind_r: ctl.
 
-  Theorem af_bind_r{X Y}: forall (t: ctree E Y)
-                            (k: Y -> ctree E X) w φ R,
+  Theorem af_bind_r{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) w φ R,
       <( t, w |= AF AX done R )> ->
       (forall (y: Y) w, R y w -> not_done w ->
                    <( {k y}, w |= AF now φ )>) ->
@@ -662,8 +685,7 @@ Section CtlAfBind.
       apply af_br; eauto with ctl.
   Qed.
 
-  Lemma af_bind_r_eq{X Y}: forall (t: ctree E Y)
-                             (k: Y -> ctree E X) w φ r w',
+  Lemma af_bind_r_eq{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) w φ r w',
       <( t, w |= AF AX done= r w' )> ->
       <( {k r}, w' |= AF now φ )> ->
       <( {x <- t ;; k x}, w |= AF now φ )>.
@@ -696,7 +718,7 @@ Section CtlAfIter.
                        end})>) ->
     well_founded Rv ->
     Ri i w ->
-    <( {Ctree.iter k i}, w |= AF done Rr )>.
+    <( {iter k i}, w |= AF done Rr )>.
   Proof.      
     intros H WfR Hi.
     generalize dependent k.
@@ -710,6 +732,7 @@ Section CtlAfIter.
       destruct P as (i, w); cbn in *. 
     rename H into HindWf.
     intros.
+    unfold iter, MonadIter_ctree.
     rewrite unfold_iter.
     eapply af_bind_r with (R:=fun (x : I + X) (w' : World E) =>
                                 match x with
@@ -723,23 +746,10 @@ Section CtlAfIter.
       replace i' with (fst y) by now subst.
       replace w' with (snd y) by now subst.      
       apply HindWf; inv Heqy; auto.
-    - intros Hr Hd.
-      next; right; next; split.
-      + now apply can_step_ret.
-      + intros t_ w_ TR_.
-        inv Hd.
-        * cbn in TR_. dependent destruction TR_. 
-          next; left.
-          rewrite ctl_done.
-          now constructor.
-        * apply ktrans_finish in TR_ as (-> & ->).
-          next; left.
-          rewrite ctl_done.
-          now constructor.          
+    - apply af_ret. 
   Qed.
 
-  (*| Instead of a WF relation [Rv] provide a
-    "ranking" function [f] |*)
+  (*| Instead of a WF relation [Rv] provide a "ranking" function [f] |*)
   Lemma af_iter_nat{X I} Ri Rr (f: I -> World E -> nat) (i: I) w (k: I -> ctree E (I + X)):
     (forall (i: I) w,
         Ri i w ->
@@ -750,7 +760,7 @@ Section CtlAfIter.
                        | inr r' => Rr r' w'
                        end})>) ->
     Ri i w ->
-    <( {Ctree.iter k i}, w |= AF done Rr )>.
+    <( {iter k i}, w |= AF done Rr )>.
   Proof.
     intros.
     eapply af_iter with Ri (ltof _ (fun '(i, w) => f i w));
@@ -768,25 +778,24 @@ Section CtlAfIter.
                        | inr r' => Rr r' w'
                        end})>) ->
     not_done w ->
-    <( {Ctree.iter k i}, w |= AF done Rr )>.
+    <( {iter k i}, w |= AF done Rr )>.
   Proof.
     intros.
-    eapply af_iter_nat with (Ri:=fun _ w => not_done w) (f:=f); intros; auto.
+    eapply af_iter_nat with (Ri:=fun _ => not_done) (f:=f); intros; auto.
   Qed.
 
-  (* Well-founded loop on length of lists *)
+  (* Well-founded induction on length of lists *)
   Lemma af_iter_list{A X I} Ri Rr (f: I -> World E -> list A) (i: I) w (k: I -> ctree E (I + X)):
     (forall (i: I) w,
         Ri i w ->
         <( {k i}, w |= AF AX done
                     {fun (x: I + X) w' =>
                        match x with
-                       | inl i' => Ri i' w' /\
-                                    length (f i' w') < length (f i w)
+                       | inl i' => Ri i' w' /\ length (f i' w') < length (f i w)
                        | inr r' => Rr r' w'
                        end})>) ->
     Ri i w ->
-    <( {Ctree.iter k i}, w |= AF done Rr )>.
+    <( {iter k i}, w |= AF done Rr )>.
   Proof.
     intros.
     eapply af_iter_nat with Ri (fun i w => length (f i w)); auto.
@@ -803,10 +812,164 @@ Section CtlAfIter.
                        | inr r' => Rr r' w'
                        end})>) ->
     not_done w ->
-    <( {Ctree.iter k i}, w |= AF done Rr )>.
+    <( {iter k i}, w |= AF done Rr )>.
   Proof.
     intros.
     eapply af_iter_list with (Ri:=fun _ => not_done) (f:=f); intros; auto.
   Qed.
   
 End CtlAfIter.
+
+(*| Combinators for [interp_state] |*)
+Section CtlAfState.
+  Context {E F S: Type} {HE: Encode E} {HF: Encode F}
+    (h: E ~> stateT S (ctree F)).
+
+  Theorem af_bind_state_vis{X Y}: forall s w (t: ctree E Y) (k: Y -> ctree E X) φ,
+      <( {interp_state h t s}, w |= AF vis φ )> ->
+      <( {interp_state h (x <- t ;; k x) s}, w |= AF vis φ )>.
+  Proof.
+    intros.
+    rewrite interp_state_bind.
+    now apply af_bind_vis.
+  Qed.
+  
+  Theorem af_bind_state_pure{X Y}: forall s w (t: ctree E Y) (k: Y -> ctree E X),
+      <( {interp_state h t s}, w |= AF pure )> ->
+      <( {interp_state h (x <- t ;; k x) s}, w |= AF pure )>.
+  Proof.
+    intros.
+    rewrite interp_state_bind.
+    now apply af_bind_pure.
+  Qed.
+
+  Theorem af_bind_state_r{X Y}: forall s (t: ctree E Y) (k: Y -> ctree E X) w φ R,
+      <( {interp_state h t s}, w |= AF AX doneS R )> ->
+      (forall (y: Y) w s, R y w s ->
+                     not_done w ->
+                     <( {interp_state h (k y) s}, w |= AF now φ )>) ->
+      <( {interp_state h (x <- t ;; k x) s}, w |= AF now φ )>.
+  Proof.
+    intros.
+    rewrite interp_state_bind.
+    apply af_bind_r with (R:=fun '(r, s) w => R r w s); auto.
+    intros [y s'] w' Hr Hd; auto.
+  Qed.
+     
+  Theorem af_iter_state{X I} s Ri Rr Rv (i: I) (k: I -> ctree E (I + X)) w:
+    (forall (i: I) w s,
+        Ri i w s ->
+        <( {interp_state h (k i) s}, w |= AF AX doneS
+                    {fun (x: (I + X)) w' (s': S) =>
+                       match x with
+                       | inl i' => Ri i' w' s' /\ Rv (i', w', s') (i, w, s)
+                       | inr r' => Rr r' w' s'
+                       end})>) ->
+    well_founded Rv ->
+    Ri i w s ->
+    <( {interp_state h (iter k i) s}, w |= AF doneS Rr )>.
+  Proof.
+    intros H WfR Hi.
+    generalize dependent k.
+    revert Hi.
+    remember (i, w, s) as P.
+    replace i with (fst (fst P)) by now subst.
+    replace w with (snd (fst P)) by now subst.
+    replace s with (snd P) by now subst.
+    clear HeqP i w s.
+    Opaque entailsF.
+    induction P using (well_founded_induction WfR);
+      destruct P as ((i, w), s); cbn in *. 
+    rename H into HindWf.
+    intros.
+    rewrite interp_state_unfold_iter.
+    eapply af_bind_r with (R:=fun '(r, s0) (w0 : World F) =>
+                      match r with
+                      | inl i' => Ri i' w0 s0 /\ Rv (i', w0, s0) (i, w, s)
+                      | inr r' => Rr r' w0 s0
+                      end); auto.
+    intros ([i' | r] & s') w'; cbn.
+    - intros (Hi' & Hv) Hd.
+      apply af_tau.
+      remember (i', w',s') as y.
+      replace i' with (fst (fst y)) by now subst.
+      replace w' with (snd (fst y)) by now subst.
+      replace s' with (snd y) by now subst.      
+      apply HindWf; inv Heqy; auto.
+    - intros; apply af_ret; auto.
+  Qed.
+    
+  (*| Instead of a WF relation [Rv] provide a "ranking" function [f] |*)
+  Lemma af_iter_state_nat{X I} (s: S) Ri Rr (f: I -> World F -> S -> nat) (i: I) w
+    (k: I -> ctree E (I + X)):
+    (forall (i: I) w s,
+        Ri i w s ->
+        <( {interp_state h (k i) s}, w |= AF AX doneS
+                    {fun (x: (I + X)) w' (s': S) =>
+                       match x with
+                       | inl i' => Ri i' w' s' /\ f i' w' s' < f i w s
+                       | inr r' => Rr r' w' s'
+                       end})>) ->
+    Ri i w s ->
+    <( {interp_state h (iter k i) s}, w |= AF doneS Rr )>.
+  Proof.
+    intros.
+    eapply af_iter_state with Ri (ltof _ (fun '(i, w, s) => f i w s)); auto.
+    apply well_founded_ltof.
+  Qed.
+
+  Lemma af_iter_state_nat'{X I} Rr (f: I -> S -> nat) (s: S)
+    (i: I) w (k: I -> ctree E (I + X)):
+    (forall (i: I) w s,
+        not_done w ->
+        <( {interp_state h (k i) s}, w |= AF AX doneS
+                    {fun (x: (I + X)) w' (s': S) =>
+                       match x with
+                       | inl i' => not_done w' /\ f i' s' < f i s
+                       | inr r' => Rr r' w' s'
+                       end})>) ->
+    not_done w ->
+    <( {interp_state h (iter k i) s}, w |= AF doneS Rr )>.
+  Proof.
+    intros.
+    eapply af_iter_state_nat with (Ri:=fun _ w _ => not_done w) (f:=fun i _ => f i); auto.
+  Qed.
+End CtlAfState.
+
+(*| Combinators for [interp_state] with [writerE] |*)
+Section CtlAfStateList.
+  Context {E F A: Type} {HE: Encode E} {HF: Encode F} (h: E ~> stateT (list A) (ctree F)).
+
+  Lemma af_iter_state_list{X I} Ri Rr (l: list A) w (i: I) (k: I -> ctree E (I + X)):
+    (forall (i: I) w (l: list A),
+        Ri i w l ->
+        <( {interp_state h (k i) l}, w |= AF AX doneS
+                 {fun (x: (I + X)) w' (l': list A) =>
+                    match x with
+                    | inl i' => Ri i' w' l' /\ length l' < length l
+                    | inr r' => Rr r' w' l'
+                    end})>) ->
+    Ri i w l ->
+    <( {interp_state h (iter k i) l}, w |= AF doneS Rr )>.
+  Proof.
+    intros.
+    apply af_iter_state_nat with (Ri:=Ri) (f:=fun _ _ l => length l); auto.
+  Qed.
+
+  Lemma af_iter_state_list'{X I} Rr (l: list A) (i: I) w (k: I -> ctree E (I + X)):
+    (forall (i: I) w (l: list A),
+        not_done w ->
+        <( {interp_state h (k i) l}, w |= AF AX doneS
+                 {fun (x: (I + X)) w' (l': list A) =>
+                    match x with
+                    | inl i' => not_done w' /\ length l' < length l
+                    | inr r' => Rr r' w' l'
+                    end})>) ->
+    not_done w ->
+    <( {interp_state h (iter k i) l}, w |= AF doneS Rr )>.
+  Proof.
+    intros.
+    eapply af_iter_state_list with (Ri:=fun _ w _ => not_done w); auto.
+  Qed.
+
+End CtlAfStateList.  

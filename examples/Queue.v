@@ -70,7 +70,7 @@ Section QueueEx.
             | None => Ret (inr tt) (* should never return *)
             end) tt.            
       
-  Definition h_queueE: queueE S ~> state (list S) := 
+  Definition h_queueE_sem: queueE S ~> state (list S) := 
     fun e =>
       mkState (fun q =>
                  match e return encode e * list S with
@@ -81,35 +81,51 @@ Section QueueEx.
                          end
                  end).
 
-  (* Pick this view of the queue to instrument *)
-  Variant view :=
-    | VPop (queue: list S) (elem: S)
-    | VPush (queue: list S) (elem: S)
-    | VEmpty.
-
-  Definition instr_queueE: queueE S ~> stateT (list S) (ctree (writerE view)) :=
+  Print writerE.
+  Variant qview :=
+    | QPop (h: option S)
+    | QPush (h: option S).
+  Definition unbox(q: qview): option S :=
+    match q with
+    | QPop h => h
+    | QPush h => h
+    end.
+  
+  Definition h_queueE: queueE S ~> stateT (list S) (ctree (writerE qview)) :=
     h_writerA
       (* queue semantics *)
-      (h_state h_queueE)
+      (h_state h_queueE_sem)
       (* queue instrumentation *)
-      (fun (e: queueE S) (v: encode e) (q: list S) =>
-         match e return encode e -> view with
-         | Pop => fun x: option S =>
-                   match x with
-                   | Some x => VPop q x
-                   | None => VEmpty
-                   end
-         | Push x => fun _ => VPop q x
+      (fun (e: queueE S) (v: encode e) (_: list S) =>
+         match e return encode e -> qview with
+         | Pop => fun x: option S => QPop x
+         | Push x => fun _ => QPush (Some x)
          end v).
-
 
   (*| Eventually we get [s] |*)
   Typeclasses Transparent equ.
   Theorem drain_af_pop: forall (s: S) q,
-      <( {interp_state instr_queueE drain (q ++ [s])}, Pure |=
-         AF finish {fun '(Log v) 'tt 'tt => v = VPop nil s } )>.
+      <( {interp_state h_queueE drain (q ++ [s])}, Pure |=
+         AF finishW {fun '(Log v) 'tt 'tt => v = VPop nil s } )>.
   Proof.
     intros.
+    Check af_iter_list'.
+    unfold finish_with.
+                       
+    pose proof (@af_iter_list' (writerE view) _ S unit unit
+                  (fun (x : unit) (w : World (writerE view)) =>
+                     exists (e : writerE view) (v : encode e),
+                       w = Finish e v x /\
+                         (let 'Log v0 as x0 := e return (rel (encode x0) unit) in
+                          fun 'tt 'tt => v0 = VPop [] s) v
+                           x)). 
+    apply H.
+
+    cbn.
+    Check (finish_with (fun '(Log v) 'tt 'tt => v = VPop nil s)).
+      ).
+    Check <( |- finish {fun '(Log v) 'tt 'tt => v = VPop nil s })>.
+    apply H.
     Opaque entailsF.
     unfold drain.
     revert s.
@@ -143,6 +159,7 @@ Section QueueEx.
           apply ax_finish; split; destruct x; eauto.
       + cbn.
         apply af_tau.
+        
   Admitted.
 
   (*

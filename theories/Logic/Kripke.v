@@ -7,7 +7,7 @@ From ExtLib Require Import Structures.Monad.
 From CTree Require Import
   Utils.Utils
   Events.Core
-  Utils.Trc.
+  Events.WriterE.
 
 Generalizable All Variables.
 
@@ -49,18 +49,15 @@ Variant vis_with `{Encode E} R : World E -> Prop :=
       R e v -> vis_with R (Obs e v).
 Global Hint Constructors vis_with: ctl.
 
-Variant finish_with `{Encode E} {X} R : World E -> Prop :=
-  | FinsihWithFinish: forall (e: E) (v: encode e) (x: X),
-      R e v x -> finish_with R (Finish e v x).
-Global Hint Constructors finish_with: ctl.
+Definition finish_with `{Encode E} {X} R: World E -> Prop :=
+  done_with (fun (x: X) w => exists (e: E) (v: encode e),
+                 w = Finish e v x /\ R e v x).
+Global Hint Unfold finish_with: ctl.
 
-Inductive return_val `{Encode E} X (x: X): World E -> Prop :=
-| ReturnValDone:
-    return_val X x (Done x)
-| ReturnValFinish: forall (e: E) (v: encode e),
-    return_val X x (Finish e v x).
-Global Hint Constructors return_val: ctl.
-  
+Definition done_eq `{Encode E} X (x: X): World E -> Prop :=  
+  done_with (fun (x': X) _ => x = x').
+Global Hint Unfold done_eq: ctl.
+
 Variant not_done `{Encode E}: World E -> Prop :=
   | NotDonePure: not_done Pure
   | NotDoneObs: forall (e: E) (v: encode e),
@@ -162,4 +159,4 @@ Ltac ktrans_inv :=
   | [H: [?t, ?w] ↦ [?t', ?w'] |- not_done ?w] =>
       apply ktrans_not_done with t t' w'; apply H
   end.
-Global Hint Extern 2 => ktrans_inv: ctl.                       
+Global Hint Extern 2 => ktrans_inv: ctl.  

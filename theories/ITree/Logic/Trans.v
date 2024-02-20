@@ -331,7 +331,7 @@ Section KripkeLemmas.
     forall (t: itree E Y) (u: itree E X) (k: Y -> itree E X)
       (y: Y) w w_ w',
       [t, w] ↦ [stuck, w_] ->
-      return_val Y y w_ ->
+      done_eq Y y w_ ->
       [k y, w] ↦ [u, w'] ->
       [y <- t ;; k y, w] ↦ [u, w'].
   Proof.

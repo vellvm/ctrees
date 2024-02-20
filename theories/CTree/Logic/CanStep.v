@@ -94,7 +94,7 @@ Section CanStepCtrees.
       can_step (x <- t ;; k x) w <->        
         (exists t' w', [t, w] ↦ [t', w'] /\ not_done w')
         \/ (exists y w', [t, w] ↦ [Ctree.stuck, w']
-                   /\ return_val Y y w'
+                   /\ done_eq Y y w'
                    /\ can_step (k y) w).
   Proof with eauto with ctl.
     unfold can_step; split.
@@ -103,9 +103,9 @@ Section CanStepCtrees.
           as [(t' & TR' & Hd & ?) | [(y & ? & -> & ?) | (e' & v' & x' & TR & -> & TRk)]].
       + left; exists t', w'...
       + right. 
-        exists y, (Done y)...
+        exists y, (Done y); intuition... 
       + right.
-        exists x', (Finish e' v' x')...
+        exists x', (Finish e' v' x'); intuition...
     - intros * [(t' & w' & TR & Hd) | (y & w' & TR & Hd & k_ & w_ & TR_)].
       + exists (x <- t' ;; k x), w'.
         apply ktrans_bind_l...
@@ -117,24 +117,24 @@ Section CanStepCtrees.
           generalize dependent k_.
           generalize dependent k.
           dependent induction TR; intros.
-          -- observe_equ x0.
+          -- observe_equ x1.
              rewrite Eqt, bind_tau.
              apply ktrans_tau.
-             apply IHTR with y...
+             apply IHTR with x0...
           -- inv H.
-          -- observe_equ x1.
+          -- observe_equ x2.
              now rewrite Eqt, bind_ret_l.
         * cbn in TR.
           generalize dependent w_.
           generalize dependent k_.
           generalize dependent k.
           dependent induction TR; intros.
-          -- observe_equ x0.
+          -- observe_equ x1.
              rewrite Eqt, bind_tau.
              apply ktrans_tau.
-             apply IHTR with y e v ...
+             apply IHTR with x0 e v ...
           -- inv H.
-          -- observe_equ x1.
+          -- observe_equ x2.
              now rewrite Eqt, bind_ret_l.
   Qed.
   Hint Resolve can_step_bind: ctl.
