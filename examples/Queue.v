@@ -69,7 +69,8 @@ Section QueueEx.
             | Some v => Ret (inl tt)
             | None => Ret (inr tt) (* should never return *)
             end) tt.            
-      
+
+  (* Queue semantics *)
   Definition h_queueE_sem: queueE S ~> state (list S) := 
     fun e =>
       mkState (fun q =>
@@ -81,15 +82,9 @@ Section QueueEx.
                          end
                  end).
 
-  Print writerE.
   Variant qview :=
     | QPop (h: option S)
     | QPush (h: option S).
-  Definition unbox(q: qview): option S :=
-    match q with
-    | QPop h => h
-    | QPush h => h
-    end.
   
   Definition h_queueE: queueE S ~> stateT (list S) (ctree (writerE qview)) :=
     h_writerA
@@ -104,10 +99,47 @@ Section QueueEx.
 
   (*| Eventually we get [s] |*)
   Typeclasses Transparent equ.
+  Opaque entailsF.
   Theorem drain_af_pop: forall (s: S) q,
       <( {interp_state h_queueE drain (q ++ [s])}, Pure |=
-         AF finishW {fun '(Log v) 'tt 'tt => v = VPop nil s } )>.
+         AF finish {fun '(Log v) '(tt) '(tt, l) =>
+                      v = QPop (Some s) /\ l = @nil S } )>.
   Proof.
+    intros.
+    Check af_iter_state_list.
+    apply af_iter_state_list
+      with (Ri:=fun '(tt) w l =>
+                  not_done w /\ exists ts, l = ts ++ [s]);
+      [|auto with ctl].
+    intros [] w l [Hd (ts & ->)].
+    rewrite interp_state_bind.
+    unfold pop, trigger.
+    rewrite interp_state_vis, bind_bind.
+    unfold runStateT, h_queueE; cbn.
+    rewrite bind_bind.
+    resum.
+    rewrite bind_ret_l.
+
+    
+      next; right; next; split.
+      + now apply can_step_vis.
+      + intros t' w' TR.
+        apply ktrans_vis in TR as ([] & -> & <- & ?).
+        rewrite bind_ret_l, bind_tau.
+        apply afax_tau.
+        rewrite interp_state_ret, bind_ret_l.
+        rewrite unfold_interp_state; cbn.
+        next; left.
+        apply ax_finish.
+        eexists; exists tt; split.
+        * reflexivity.
+        * cbn.
+        rewrite interp_state_bind. in H.
+
+        w = Finish e v x /\
+                 (let '(r, s0) := x in (let 'Log v0 as x0 := e return (encode x0 -> rel unit (list S)) in fun (_ : encode (Log v0)) 'tt (l : list S) => v0 = QPop (Some s) /\ l = []) v r s0)).
+    unfold finish_with.
+    
     intros.
     Check af_iter_list'.
     unfold finish_with.

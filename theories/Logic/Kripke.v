@@ -51,8 +51,9 @@ Global Hint Constructors vis_with: ctl.
 
 Definition finish_with `{Encode E} {X} R: World E -> Prop :=
   done_with (fun (x: X) w => exists (e: E) (v: encode e),
-                 w = Finish e v x /\ R e v x).
+                 w = Obs e v /\ R e v x).
 Global Hint Unfold finish_with: ctl.
+Arguments finish_with /.
 
 Definition done_eq `{Encode E} X (x: X): World E -> Prop :=  
   done_with (fun (x': X) _ => x = x').
