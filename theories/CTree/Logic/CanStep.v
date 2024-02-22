@@ -63,13 +63,15 @@ Section CanStepCtrees.
   Proof.
     intros; now rewrite can_step_br.
   Qed.
-
+  Hint Resolve can_step_brD: ctl.
+  
   Lemma can_step_brS{n X}: forall (k: fin' n -> ctree E X) w,
       can_step (BrS n k) w <-> (not_done w).
   Proof.
     intros; now rewrite can_step_br.
   Qed.
-
+  Hint Resolve can_step_brS: ctl.
+  
   Lemma can_step_stuck{X}: forall w,
       can_step (Ctree.stuck: ctree E X) w -> False.
   Proof.
@@ -77,7 +79,8 @@ Section CanStepCtrees.
     cbn in TR.
     dependent induction TR; eauto.
   Qed.
-
+  Hint Resolve can_step_stuck: ctl.
+  
   Lemma can_step_vis{X}: forall (e:E) (k: encode e -> ctree E X) (_: encode e) w,
       can_step (Vis e k) w <-> not_done w.
   Proof.
@@ -87,7 +90,19 @@ Section CanStepCtrees.
     - exists (k X0), (Obs e X0).
       apply ktrans_vis; exists X0; auto.
   Qed.
-
+  Hint Resolve can_step_vis: ctl.
+  
+  Lemma can_step_ret{X}: forall w (x: X),
+    not_done w ->
+    can_step (Ret x) w.
+  Proof.
+    intros; inv H.
+    Opaque Ctree.stuck.
+    - exists Ctree.stuck, (Done x); now constructor. 
+    - exists Ctree.stuck, (Finish e v x); now constructor.
+  Qed.
+  Hint Resolve can_step_ret: ctl.
+  
   Lemma can_step_bind{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) w,
       can_step (x <- t ;; k x) w <->        
         (exists t' w', [t, w] ↦ [t', w'] /\ not_done w')

@@ -354,7 +354,7 @@ Qed.
 
 (*| Induction lemmas |*)
 Lemma ctl_au_ind `{KMS: Kripke M W} X: 
-  forall [p q: ctlf W] (P : M X -> World W -> Prop),
+  forall (p q: ctlf W) (P : M X -> World W -> Prop),
     (forall t w, <( t, w |= q )> -> P t w) -> (* base *)
     (forall t w,
         <( t, w |= p )> ->          (* [p] now*)
@@ -365,7 +365,7 @@ Lemma ctl_au_ind `{KMS: Kripke M W} X:
 Proof. intros; induction H1; auto. Qed.
 
 Lemma ctl_wu_ind `{KMS: Kripke M W} X: 
-  forall [p q: ctlf W] (P : M X -> World W -> Prop),
+  forall (p q: ctlf W) (P : M X -> World W -> Prop),
     (forall t w, <( t, w |= q )> -> P t w) -> (* base *)
     (forall t w,
         <( t, w |= p )> ->          (* [p] now*)
@@ -376,7 +376,7 @@ Lemma ctl_wu_ind `{KMS: Kripke M W} X:
 Proof. intros; induction H1; auto. Qed.
 
 Lemma ctl_eu_ind `{KMS: Kripke M W} X: 
-  forall [p q: ctlf W] (P : M X -> World W -> Prop),
+  forall (p q: ctlf W) (P : M X -> World W -> Prop),
     (forall t w, <( t, w |= q )> -> P t w) -> (* base *)
     (forall t w,
         <( t, w |= p )> ->          (* [p] now*)

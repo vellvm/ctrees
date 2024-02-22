@@ -91,6 +91,26 @@ Section BasicLemmas.
         apply ktrans_brD in H0 as (i & TR).
         destruct (H i); eauto.
   Qed.
+
+  Lemma af_brD_inv: forall n (k: fin' n -> ctree E X) w φ,
+      <( {BrD n k}, w |= AF now φ )> ->
+      (forall (i: fin' n), <( {k i}, w |= AF now φ )>).
+  Proof.
+    intros.
+    next in H; destruct H.
+    - now next; left.
+    - apply af_brD_aux in H.
+    destruct H.
+    + next; now left.
+    + next; right.
+      next; split. 
+      * apply can_step_brD.
+        exists (Fin.F1).
+        now destruct (H Fin.F1).
+      * intros.
+        apply ktrans_brD in H0 as (i & TR).
+        destruct (H i); eauto.
+  Qed.
   
   Lemma af_stuck: forall w φ,
       <( {Ctree.stuck: ctree E X}, w |= AF now φ )> <->
@@ -148,7 +168,7 @@ End BasicLemmas.
 
 Section AfDoneIndLemma.
   Context {E: Type} {HE: Encode E} {X: Type}.
-
+  
   (* t |= AF AX done R *)
   Inductive AFDoneInd(φ: X -> World E -> Prop): ctree E X -> World E -> Prop :=
   | AFDoneDone: forall t (x: X),
@@ -159,8 +179,14 @@ Section AfDoneIndLemma.
       observe t = RetF x ->
       φ x (Obs e v) ->
       AFDoneInd φ t (Obs e v)
-  | AFDoneBr: forall b n t (k: fin' n -> ctree E X) w,
-      observe t = BrF b n k ->
+  | AFDoneBrD: forall n t (k: fin' n -> ctree E X) w,
+      observe t = BrF false n k ->
+      not_done w ->
+      (exists i, can_step (k i) w) -> 
+      (forall (i: fin' n), can_step (k i) w -> AFDoneInd φ (k i) w) ->
+      AFDoneInd φ t w
+  | AFDoneBrS: forall n t (k: fin' n -> ctree E X) w,
+      observe t = BrF true n k ->
       not_done w ->
       (forall (i: fin' n), AFDoneInd φ (k i) w) ->
       AFDoneInd φ t w
@@ -173,47 +199,7 @@ Section AfDoneIndLemma.
   Global Instance proper_equ_afdoneind φ:
     Proper (equ eq ==> eq ==> iff) (AFDoneInd φ).
   Proof.
-    unfold Proper, respectful.
-    intros; subst; split; intros Hind.
-    - generalize dependent y.
-      induction Hind; intros.
-      + apply AFDoneDone with x; auto.
-        rewrite <- H.
-        unfold equ in H.
-        step in H1; cbn in H1; dependent destruction H1;
-          congruence.
-      + apply AFDoneFinish with x; auto.
-        rewrite <- H.
-        step in H1; cbn in H1; dependent destruction H1;
-          congruence.
-      + unfold equ; step in H3; cbn in H3; rewrite H in H3.
-        dependent destruction H3.
-        apply AFDoneBr with b n k2; auto; intros.
-        apply H2 with i, H3.
-      + unfold equ; step in H3; cbn in H3; rewrite H in H3.
-        dependent destruction H3.
-        eapply AFDoneVis with e k2; auto; intros.
-        apply H2, H3.
-    - generalize dependent x.
-      induction Hind; intros.
-      + apply AFDoneDone with x; auto.
-        rewrite <- H.
-        unfold equ in H.
-        step in H1; cbn in H1; dependent destruction H1;
-          congruence.
-      + apply AFDoneFinish with x; auto.
-        rewrite <- H.
-        step in H1; cbn in H1; dependent destruction H1;
-          congruence.
-      + unfold equ; step in H3; cbn in H3; rewrite H in H3.
-        dependent destruction H3.
-        apply AFDoneBr with b n k1; auto; intros.
-        apply H2 with i, H3.
-      + unfold equ; step in H3; cbn in H3; rewrite H in H3.
-        dependent destruction H3.
-        eapply AFDoneVis with e k1; auto; intros.
-        apply H2, H3.
-  Qed.
+  Admitted.
 
   Lemma afdoneind_stuck: forall w φ,
       ~ (AFDoneInd φ Ctree.stuck w).
@@ -222,52 +208,58 @@ Section AfDoneIndLemma.
     dependent induction Hcontra; eauto.
     cbn in x.
     dependent destruction x.
-    apply H2; auto.
-    exact (Fin.F1).
+    inv H1.
+    now apply can_step_stuck in H.
   Qed.
 
-  Lemma afdone_step_done (t t': ctree E X) (w w': World E) φ : forall x,
-      [t, w] ↦ [t', Done x] ->      
-      φ x Pure ->
-      w = Pure /\ AFDoneInd φ t w.
-  Proof.
-    intros x TR; cbn in TR.
-    dependent induction TR; intros; split.
-    - now destruct (IHTR _ _ x0 eq_refl eq_refl eq_refl H).
-    - apply AFDoneBr with false n k; auto.
-      + now apply ktrans_not_done with (k i) t'0 (Done x0).
-      + admit.
-  Admitted.
-
-  Lemma afdone_step_finish (t t': ctree E X) (w w': World E) φ : forall (e: E) (v: encode e) x,
-      [t, w] ↦ [t', Finish e v x] ->      
-      φ x (Obs e v) ->
-      w = Obs e v /\ AFDoneInd φ t w.
-  Proof.
-  Admitted.
-
+  Arguments ctl_au_ind {M}%function_scope {W}%type_scope {HE KMS} [X]%type_scope 
+    (p q) (P _ _)%function_scope [t w] _.
   Lemma afdone_ind: forall φ (t: ctree E X) w,
       <( t, w |= AF AX done φ )> ->
       AFDoneInd φ t w.
   Proof.
-    intros; induction H.
+    intros.
+    refine (ctl_au_ind (<( ⊤ )>) (<( AX done φ)>) _ _ _ H); clear t w H; intros.
     - (* now *)
-      next in H.
-      destruct H as [(t_ & w_ & TR_) H].
-      cbn in TR_, H.
-      desobs t.
-      + (* Ret *)
-        pose proof (ktrans_not_done (Ret x) t_ w w_ TR_).
-        inv H0.
-        * (* Ret, Pure *)
-          apply AFDoneDone with x; auto.
-          specialize (H _ _ TR_).
-          dependent destruction TR_; dependent destruction H; auto.
-        * (* Ret, Obs *)
-          apply AFDoneFinish with x; auto.
+      admit.
+    - destruct H0, H1.
+
+      cbn in H2, H3.
+      + 
+        
+        admit.
+      + (* Br *)
+        destruct b.
+        * admit.
+        * (* BrD *)
+          setoid_rewrite ktrans_brD in H3.
+          rewrite pull2_iff in H3.
+          apply AFDoneBrD with n k; auto.
+          destruct H1 as (? & ? & ?).
+          apply ktrans_not_done with t x x0; auto.
+          apply can_step_brD in H0.
+          exact H0.
+          (* Universal quant *)
+          intros i Hs.
+          destruct Hs as (k_ & w_ & TR_).
+          clear -H3 TR_ H2.
+          setoid_rewrite ktrans_brD in H2.
+          rewrite pull2_iff in H2.
+          rewrite ctree_eta.
           specialize (H _ _ TR_).
           dependent destruction TR_; dependent destruction H; auto.
       + (* Br *)
+        destruct b.
+        * apply AFDoneBrS with n k; auto.
+          now apply ktrans_not_done with (Br true n k) t_ w_.
+           intros v'.
+           specialize (H _ _ TR_).
+           dependent destruction TR_; dependent destruction H1; inv H.
+        * (* BrD *)
+          setoid_rewrite ktrans_brD in H.
+          rewrite pull2_iff in H.
+
+          apply AFDoneBrD with n k; auto.
         apply AFDoneBr with b n k; auto.
         * now apply ktrans_not_done with (Br b n k) t_ w_.
         * destruct b.
@@ -508,196 +500,3 @@ Section CtlAfIter.
           now constructor.          
   Qed.
 End CtlAfIter.
-
-Section AfIndLemma.
-  Context {E: Type} {HE: Encode E} {X: Type}.
-
-  (* t |= AX AF done R *)
-  Inductive AXAFInd(φ: World E -> Prop): ctree E X -> World E -> Prop :=
-  | AXAFDoneBase: forall t (x: X),
-      observe t = RetF x ->
-      φ Ctree.stuck (Done x) ->
-      AXAFDoneInd t Pure
-  | AXAFFinishBase: forall t (e: E) (v: encode e) (x: X),
-      observe t = RetF x ->
-      φ Ctree.stuck (Finish e v x) ->
-      AXAFDoneInd t (Obs e v)
-  | AXAFBrD: forall t u w,
-      observe t = BrF b n k ->
-      (forall (i: fin' n), AFDoneInd (k i) w) ->
-      AFDoneInd t w
-  |AFDoneIndVis: forall (t: itree E X) w e k (_: encode e),
-      observe t = VisF e k ->
-      not_done w ->
-      (forall (v: encode e), AFDoneInd (k v) (Obs e v)) ->
-      AFDoneInd t w.
-
-  (* t, w |= AX AF now φ *)
-  Inductive AFNowInd(φ: World E -> Prop): ctree E X -> World E -> Prop :=
-  | AFNowIndBase: forall (t: ctree E X) (w: World E),
-      φ w ->
-      AFNowInd φ t w
-  | AFNowIndDone: forall t (x: X),
-      observe t = RetF x ->
-      φ (Done x) ->
-      AFNowInd φ t Pure
-  | AFNowIndFinish: forall t (e: E) (v: encode e) (x: X),
-      observe t = RetF x ->
-      φ (Finish e v x) ->
-      AFNowInd φ t (Obs e v)
-  | AFNowIndBrS: forall t w n (k: fin' n -> ctree E X),
-      observe t = BrF true n k ->
-      not_done w ->
-      (forall (i: fin' n), AFNowInd φ (k i) w) ->
-      AFNowInd φ t w
-  | AFNowIndBrD: forall t t' w w' n (k: fin' n -> ctree E X),
-      observe t = BrF false n k ->
-      not_done w ->
-      (exists i, can_step (k i) w) ->
-      (forall (i: fin' n), [k i, w] ↦ [t', w'] -> AFNowInd φ t' w') ->
-      AFNowInd φ t w
-  | AFNowIndVis: forall (t: ctree E X) w e k,
-      observe t = VisF e k ->
-      not_done w ->
-      (forall (v: encode e), AFNowInd φ (k v) (Obs e v)) ->
-      AFNowInd φ t w.
-
-  Global Instance proper_equ_afind φ:
-    Proper (equ eq ==> eq ==> iff) (AFNowInd φ).
-  Proof.
-    unfold Proper, respectful.
-    intros; subst; split; intros Hind.
-    - generalize dependent y.
-      induction Hind; intros.
-      + apply AFNowIndBase; auto.
-      + apply AFNowIndDone with x; auto.
-        unfold equ in H1; step in H1; cbn in H1;
-          dependent destruction H1; congruence.
-      + apply AFNowIndFinish with x; auto.
-        unfold equ in H1; step in H1; cbn in H1;
-          dependent destruction H1; congruence.
-  Admitted.
-
-  Lemma afind_stuck: forall w φ,
-      AFNowInd φ (Ctree.stuck: ctree E X) w -> φ w.
-  Proof.
-    intros.
-    Transparent Ctree.stuck.
-    dependent induction H; auto.
-    - cbn in x.
-      dependent destruction x.
-      destruct H1.
-      now apply can_step_stuck in H.
-  Qed.
-
-  Lemma pull1_iff: forall {A B} (P : A -> Prop) (R : A -> B -> Prop),
-      (forall a, (exists b, R a b)-> P a) <-> (forall a b, R a b -> P a).
-    split; intros; eauto.
-    destruct H0.
-    now apply H with x.
-  Qed.
-
-  Lemma pull2_iff: forall {A B C} (P : A -> B -> Prop) (R : A -> B -> C -> Prop),
-      (forall a b, (exists c, R a b c)-> P a b) <-> (forall a b c, R a b c -> P a b).
-    split; intros; eauto.
-    destruct H0.
-    now apply H with x.
-  Qed.
-    
-  (* This is a super useful lemma, it allows us to do
-     induction on [AFInd] instead of two inductions on
-     [cau] and [trans] *)
-  Opaque Ctree.stuck.
-  Lemma af_afind : forall (t: ctree E X) (w: World E) φ,
-       <( t, w |= AF now φ )> -> AFNowInd φ t w.
-  Proof.    
-    intros; cbn in H.
-    induction H.
-    - now apply AFNowIndBase.
-    - destruct H0, H1; clear H H1.
-      rewrite ctree_eta in H0; rewrite ctree_eta; cbn in H2, H3.
-      destruct H0 as (t_ & w_ & TR_); cbn in TR_.
-      desobs t; [|destruct b | ].
-      + (* RetF *)
-        destruct w.
-        * (* RetF, Pure *)
-          destruct (H2 _ _ TR_); dependent destruction TR_.
-          -- apply AFNowIndDone with x0; auto.
-          -- destruct H1.
-             apply can_step_not_done in H1.
-             inv H1.
-        * (* RetF, Obs e v *)
-          destruct (H2 _ _ TR_); dependent destruction TR_.
-          -- apply AFNowIndFinish with x0; auto.
-          -- destruct H1.
-             apply can_step_not_done in H1.
-             inv H1.
-        * (* RetF, Done *) dependent destruction TR_.
-        * (* RetF, Finish *) dependent destruction TR_.
-      + (* BrS n k *)
-        apply AFNowIndBrS with n k; auto.
-        * apply ktrans_not_done with (BrS n k) t_ w_; auto.
-        * intros i.
-          apply H3.
-          apply KtransBrS with i; auto.
-          apply ktrans_not_done with (BrS n k) t_ w_; auto.
-      + (* BrD n k *)
-        
-            exists x.
-            exists t', w'.
-            admit.
-          -- (* BrD *)
-            apply ktrans_brD in TR.
-            ++ destruct TR.
-               exists x.
-               exists t', w'; auto.
-        * (* AF *)
-          intros i Hd.
-          destruct b.
-          ++ admit.
-          ++ (* BrD *)           
-            apply ktrans_brD in TR as (j & TR).
-            apply H3.
-            cbn.
-            rewrite Heqt.
-            apply ktrans_brD.
-            
-            
-              intros i (t_ & w_ & TR_).
-            assert(TR': [t, w] ↦ [t_, w_]).
-            { cbn; rewrite Heqt; apply ktrans_brD; exists i; auto. }
-            cbn in TR_, TR', H2, H3.
-            rewrite Heqt in *.
-            clear TR TR_ t' w'.
-            specialize (H2 t_ w_ TR').
-            specialize (H3 t_ w_ TR').            
-            clear t Heqt.
-            rewrite ctree_eta.
-            rewrite ctree_eta in H2, H3.
-            remember (BrF false n k) as T.
-            remember (observe t_) as T_.            
-            clear HeqT_ t_.
-            revert i.
-            generalize dependent n.
-            generalize dependent φ.
-            dependent induction TR'; intros; dependent destruction HeqT.
-            apply AFNowIndBr with false n0 k0;  eauto.            
-            (* BrD *)            
-            ++ cbn. admit.
-            ++ now apply ktrans_not_done with (k0 i) t' w'.
-            ++ intros j Hs.
-               rewrite ctree_eta.
-               apply IHTR'; auto.
-               admit.
-      + (* Vis e k *)
-        apply AFNowIndVis with e k; auto.
-        * apply ktrans_not_done with (Vis e k) t' w'; auto.
-        * intros v. 
-          apply ktrans_vis in TR as (? & -> & ? & ?).
-          apply H3; cbn.
-          rewrite Heqt.
-          apply ktrans_vis.
-          exists v; auto.
-  Admitted.
-  
-End AfIndLemma.
