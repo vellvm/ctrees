@@ -171,21 +171,21 @@ Arguments ctlf W {HW}.
 
 (* Entailment inductively on formulas *)
 Fixpoint entailsF `{KMS: Kripke M W} {X}
-  (φ: ctlf W)(t: M X)(w: World W): Prop :=
+  (φ: ctlf W):  M X -> World W -> Prop :=
     match φ with
-    | CBase  p  => p w
-    | CAnd  φ ψ => (entailsF φ t w) /\ (entailsF ψ t w)
-    | COr   φ ψ => (entailsF φ t w) \/ (entailsF ψ t w)
-    | CImpl φ ψ => (entailsF φ t w) -> (entailsF ψ t w)
-    | CAX   φ   => cax true (entailsF φ) t w
-    | CWX   φ   => cax false (entailsF φ) t w
-    | CEX   φ   => cex (entailsF φ) t w
-    | CAU   φ ψ => cau true (entailsF φ) (entailsF ψ) t w
-    | CWU   φ ψ => cau false (entailsF φ) (entailsF ψ) t w                      
-    | CEU   φ ψ => ceu (entailsF φ) (entailsF ψ) t w
-    | CAR   φ ψ => gfp (car_ true) (entailsF φ) (entailsF ψ) t w
-    | CWR   φ ψ => gfp (car_ false) (entailsF φ) (entailsF ψ) t w                      
-    | CER   φ ψ => gfp cer_ (entailsF φ) (entailsF ψ) t w
+    | CBase  p  => fun _ => p
+    | CAnd  φ ψ => fun t w => (entailsF φ t w) /\ (entailsF ψ t w)
+    | COr   φ ψ => fun t w => (entailsF φ t w) \/ (entailsF ψ t w)
+    | CImpl φ ψ => fun t w => (entailsF φ t w) -> (entailsF ψ t w)
+    | CAX   φ   => cax true (entailsF φ)
+    | CWX   φ   => cax false (entailsF φ)
+    | CEX   φ   => cex (entailsF φ)
+    | CAU   φ ψ => cau true (entailsF φ) (entailsF ψ)
+    | CWU   φ ψ => cau false (entailsF φ) (entailsF ψ)
+    | CEU   φ ψ => ceu (entailsF φ) (entailsF ψ)
+    | CAR   φ ψ => gfp (car_ true) (entailsF φ) (entailsF ψ)
+    | CWR   φ ψ => gfp (car_ false) (entailsF φ) (entailsF ψ)
+    | CER   φ ψ => gfp cer_ (entailsF φ) (entailsF ψ)
     end.
 
 Module CtlNotations.
@@ -211,8 +211,18 @@ Module CtlNotations.
   Notation "'finish' R" := (CBase (finish_with R)) (in custom ctl at level 74): ctl_scope.
   Notation "'done' R" := (CBase (done_with R)) (in custom ctl at level 74): ctl_scope.
   Notation "'done=' r w" := (CBase (done_with (fun r' w' => r = r' /\ w = w')))
-                                (in custom ctl at level 74): ctl_scope.
-  
+                              (in custom ctl at level 74): ctl_scope.
+
+  Notation "'finishW' \ v s , y " :=
+    (CBase (finish_with (fun pat : writerE _ =>
+                           let 'Log v as x := pat
+                  return (rel (encode x) (unit * _)) in
+                  fun 'tt '(tt, s) => y)))
+      (in custom ctl at level 75,
+          v binder,
+          s binder,
+          y constr, left associativity): ctl_scope.
+
   Notation "⊤" := (CBase (fun _ => True)) (in custom ctl at level 76): ctl_scope.
   Notation "⊥" := (CBase (fun _ => False)) (in custom ctl at level 76): ctl_scope.
   
@@ -360,40 +370,6 @@ Proof.
     apply StepA; trivial.
     unfold cax; split; auto.
 Qed.
-
-(*| Induction lemmas |*)
-Lemma ctl_au_ind `{KMS: Kripke M W} X: 
-  forall [p q: ctlf W] (P : M X -> World W -> Prop),
-    (forall t w, <( t, w |= q )> -> P t w) -> (* base *)
-    (forall t w,
-        <( t, w |= p )> ->          (* [p] now*)
-        <( t, w |= AX (p AU q))> ->
-        cax true P t w ->
-        P t w) ->
-    forall t w, <( t, w |= p AU q )> -> P t w.
-Proof. intros; induction H1; auto. Qed.
-
-Lemma ctl_wu_ind `{KMS: Kripke M W} X: 
-  forall [p q: ctlf W] (P : M X -> World W -> Prop),
-    (forall t w, <( t, w |= q )> -> P t w) -> (* base *)
-    (forall t w,
-        <( t, w |= p )> ->          (* [p] now*)
-        <( t, w |= WX (p WU q))> ->
-        cax false P t w ->
-        P t w) ->
-    forall t w, <( t, w |= p WU q )> -> P t w.
-Proof. intros; induction H1; auto. Qed.
-
-Lemma ctl_eu_ind `{KMS: Kripke M W} X: 
-  forall [p q: ctlf W] (P : M X -> World W -> Prop),
-    (forall t w, <( t, w |= q )> -> P t w) -> (* base *)
-    (forall t w,
-        <( t, w |= p )> ->          (* [p] now*)
-        <( t, w |= EX (p EU q))> ->
-        cex P t w ->
-        P t w) ->
-    forall t w, <( t, w |= p EU q )> -> P t w.
-Proof. intros; induction H1; auto. Qed.
   
 (*| Bot is false |*)
 Lemma ctl_sound `{KMS: Kripke M W} X: forall (t: M X) (w: World W),

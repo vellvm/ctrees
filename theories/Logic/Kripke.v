@@ -18,6 +18,28 @@ Variant World (E:Type@{eff}) `{Encode E} :=
   | Finish {X} (e: E) (v: encode e) (x: X).    
 Global Hint Constructors World: ctl.
 
+Definition eq_dec(E: Type) := forall (e e': E), {e = e'} + {e <> e'}.
+
+Definition writerE_dec{S} {Hs: forall (s s': S), { s = s' } + { s <> s' }}:
+  forall (e e': writerE S), { e = e' } + { e <> e' }.
+Proof.
+  intros [] []; destruct (Hs s s0); subst.
+  - left; reflexivity.
+  - right; intros H; inv H; contradiction.
+Qed.
+
+Definition wwriterE_dec {S} {Hs: forall (s s': S), { s = s' } + { s <> s' }}
+  (w w': World (writerE S)): {w = w'} + {w <> w'}.
+Proof.
+  dependent destruction w.
+  - dependent destruction w'; [left; reflexivity | | |]; right; intro Hcontra; inv Hcontra.
+  - dependent destruction w'; try solve [right; intro Hcontra; inv Hcontra].
+    destruct (@writerE_dec S Hs e e0); subst; destruct v, v0.
+    + left; reflexivity.
+    + right; intros Hv; inv Hv; contradiction.
+  - dependent destruction w'; try solve [right; intro Hcontra; inv Hcontra].
+Admitted.
+  
 Arguments Pure {E} {_}.
 Arguments Obs {E} {_} e v.
 Arguments Done {E} {_} {X} x.

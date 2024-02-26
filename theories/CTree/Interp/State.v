@@ -30,16 +30,18 @@ Definition h_state `{Encode E} {Σ} (h:E ~> state Σ):
 
 (*| Intrument by an evaluation [E ~> stateT Σ ctree] and observation function [obs] |*)
 Definition h_writerA `{Encode E} {W Σ} (h:E ~> stateT Σ (ctree void))
-  (obs: forall (e: E), encode e -> Σ -> W): E ~> stateT Σ (ctree (writerE W)) :=
+  (obs: forall (e: E), encode e -> Σ -> option W): E ~> stateT Σ (ctree (writerE W)) :=
   fun e => mkStateT (fun s =>
                     '(x, σ) <- resumCtree (runStateT (h e) s) ;;
-                    Ctree.trigger (Log (obs e x σ)) ;;
-                    Ret (x, σ)).
+                    match obs e x σ with
+                    | Some v => Ctree.trigger (Log v);; Ret (x, σ)
+                    | None => Ret (x, σ)
+                    end).
 
-(*| Observe states. The [stateT S (ctree void)] to [stateT S (ctree (writerE S))] |*)
+(*| Observe all states. The [stateT S (ctree void)] to [stateT S (ctree (writerE S))] |*)
 Definition h_writerΣ `{Encode E} {Σ} (h:E ~> stateT Σ (ctree void)):
   E ~> stateT Σ (ctree (writerE Σ)) :=
-  h_writerA h (fun _ _ s => s).
+  h_writerA h (fun _ _ s => Some s).
 
 (*| Lemmas about state |*)
 Definition interp_state `{Encode E} `{Encode F} {W}
@@ -118,8 +120,7 @@ Proof.
   rewrite unfold_interp_state; reflexivity.
 Qed.
 
-Lemma interp_state_trigger `{Encode E} `{Encode F} `(h: E ~> stateT W (ctree F))
-  (e : E) (w : W) :
+Lemma interp_state_trigger `{Encode E} `{Encode F} `(h: E ~> stateT W (ctree F)) (e : E) (w : W) :
   interp_state h (Ctree.trigger e) w ≅ runStateT (h (resum e)) w >>= fun x => Tau (Ret x).
 Proof.
   unfold Ctree.trigger.
@@ -193,7 +194,7 @@ Qed.
 Lemma interp_state_unfold_iter `{Encode E} `{Encode F}
   `(h : E ~> stateT W (ctree F)) {I R}
   (k : I -> ctree E (I + R)) (i: I) (s: W) :
-  interp_state h (iter k i) s ≅ interp_state h (k i) s >>= fun '(x, s) =>
+  interp_state h (Ctree.iter k i) s ≅ interp_state h (k i) s >>= fun '(x, s) =>
       match x with
       | inl l => Tau (interp_state h (iter k l) s)
       | inr r => Ret (r, s)

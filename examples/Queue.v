@@ -18,6 +18,7 @@ From ExtLib Require Export
   Structures.Monad.
 
 From Coq Require Import
+  Lia
   List.
 
 Generalizable All Variables.
@@ -83,116 +84,100 @@ Section QueueEx.
                  end).
 
   Variant qview :=
-    | QPop (h: option S)
-    | QPush (h: option S).
-  
+    | QPop (h: S)
+    | QPush (h: S).
+
   Definition h_queueE: queueE S ~> stateT (list S) (ctree (writerE qview)) :=
     h_writerA
       (* queue semantics *)
       (h_state h_queueE_sem)
       (* queue instrumentation *)
       (fun (e: queueE S) (v: encode e) (_: list S) =>
-         match e return encode e -> qview with
-         | Pop => fun x: option S => QPop x
-         | Push x => fun _ => QPush (Some x)
+         match e return encode e -> option qview with
+         | Pop => fun x: option S => option_map QPop x
+         | Push x => fun _ => Some (QPush x)
          end v).
 
+  Lemma list_app_contra: forall (s: S),
+      ~ (exists ts : list S, nil = ts ++ [s]).
+  Proof.
+    intros * Hv; destruct Hv, x; cbn in *; inv H.
+  Qed.
+
+  Lemma list_app_cons: forall (h s: S) ts hs,
+      h :: ts = hs ++ [s] ->
+      match hs with
+      | nil => h = s /\ ts = nil
+      | h' :: ts' => h = h' /\ ts = ts' ++ [s]
+      end.  
+  Proof. destruct hs; intros; cbn in *; inv H; auto. Qed.
+  
   (*| Eventually we get [s] |*)
   Typeclasses Transparent equ.
   Opaque entailsF.
   Theorem drain_af_pop: forall (s: S) q,
       <( {interp_state h_queueE drain (q ++ [s])}, Pure |=
-         AF finish {fun '(Log v) '(tt) '(tt, l) =>
-                      v = QPop (Some s) /\ l = @nil S } )>.
+         AF finishW \v l, v = QPop s /\ l = @nil S )>.
   Proof.
     intros.
-    Check af_iter_state_list.
     apply af_iter_state_list
       with (Ri:=fun '(tt) w l =>
-                  not_done w /\ exists ts, l = ts ++ [s]);
-      [|auto with ctl].
-    intros [] w l [Hd (ts & ->)].
+                  not_done w /\
+                  match w with
+                  | Obs (Log (QPop s')) tt =>
+                      match l with
+                      | nil => s = s'
+                      | h :: ts => exists hs, h:: ts = hs ++ [s]
+                      end
+                  | _ => exists hs, l = hs ++ [s]
+                  end); [|eauto with ctl].
+    intros [] w l Hw.    
     rewrite interp_state_bind.
     unfold pop, trigger.
     rewrite interp_state_vis, bind_bind.
     unfold runStateT, h_queueE; cbn.
     rewrite bind_bind.
     resum.
-    rewrite bind_ret_l.
-
-    
-      next; right; next; split.
-      + now apply can_step_vis.
-      + intros t' w' TR.
-        apply ktrans_vis in TR as ([] & -> & <- & ?).
-        rewrite bind_ret_l, bind_tau.
-        apply afax_tau.
+    rewrite bind_ret_l. 
+    destruct l as [|h ts], Hw as [Hd Hw].
+    - (* l = [] *)
+      inv Hd; cbn.
+      + now apply list_app_contra in Hw.
+      + rewrite bind_ret_l, bind_tau.
+        apply af_tau.
         rewrite interp_state_ret, bind_ret_l.
-        rewrite unfold_interp_state; cbn.
+        cbn.
+        rewrite interp_state_ret.
         next; left.
         apply ax_finish.
-        eexists; exists tt; split.
-        * reflexivity.
-        * cbn.
-        rewrite interp_state_bind. in H.
-
-        w = Finish e v x /\
-                 (let '(r, s0) := x in (let 'Log v0 as x0 := e return (encode x0 -> rel unit (list S)) in fun (_ : encode (Log v0)) 'tt (l : list S) => v0 = QPop (Some s) /\ l = []) v r s0)).
-    unfold finish_with.
-    
-    intros.
-    Check af_iter_list'.
-    unfold finish_with.
-                       
-    pose proof (@af_iter_list' (writerE view) _ S unit unit
-                  (fun (x : unit) (w : World (writerE view)) =>
-                     exists (e : writerE view) (v : encode e),
-                       w = Finish e v x /\
-                         (let 'Log v0 as x0 := e return (rel (encode x0) unit) in
-                          fun 'tt 'tt => v0 = VPop [] s) v
-                           x)). 
-    apply H.
-
-    cbn.
-    Check (finish_with (fun '(Log v) 'tt 'tt => v = VPop nil s)).
-      ).
-    Check <( |- finish {fun '(Log v) 'tt 'tt => v = VPop nil s })>.
-    apply H.
-    Opaque entailsF.
-    unfold drain.
-    revert s.
-    induction q; intros. 
-    - setoid_rewrite interp_state_unfold_iter.
-      eapply af_bind_r_eq.
-      + rewrite interp_state_bind.
-        rewrite List.app_nil_l.        
-        unfold pop, trigger, resum, ReSum_refl.
-        rewrite interp_state_vis.
-        cbn.
-        repeat rewrite bind_bind.
-        resum.
-        rewrite bind_ret_l.
-        rewrite bind_trigger, bind_vis.
-        unfold resum, ReSum_refl.
-        next; right.
-        next; split; eauto with ctl.
-        * apply can_step_vis; auto with ctl.
-        * intros t' w' TR.
-          apply ktrans_vis in TR as (x & -> & Heqt & Hd).
-          rewrite bind_ret_l in Heqt.
-          rewrite bind_tau in Heqt.
-          rewrite <- Heqt.
-          next; left.
-          apply ax_tau.          
-          rewrite interp_state_ret.
-          rewrite bind_ret_l.
-          cbn.          
-          rewrite interp_state_ret.
-          apply ax_finish; split; destruct x; eauto.
-      + cbn.
+        do 2 eexists; intuition.
+        destruct e, v, q0; subst; auto.
+        now apply list_app_contra in Hw.
+    - (* l = h :: ts *)
+      cbn.
+      rewrite bind_trigger, bind_vis.      
+      next; right; next; split.
+      + apply can_step_vis; intuition.
+      + intros t' w' TR.
+        apply ktrans_vis in TR as (x & -> & <- & _).        
+        rewrite bind_ret_l, bind_tau.
         apply af_tau.
-        
-  Admitted.
+        rewrite interp_state_ret, bind_ret_l.
+        cbn.
+        rewrite interp_state_ret.
+        next; left.
+        apply ax_finish; cbn; destruct x; intuition. 
+        inv Hd.
+        * destruct Hw as [[|h' ts'] Hw];
+            apply list_app_cons in Hw as (-> & ->); cbn.
+          -- auto.
+          -- destruct ts'; cbn; intuition.
+             ++ now (exists nil).
+             ++ now (exists (s0 :: ts')).
+        * destruct e, q0, v, Hw; apply list_app_cons in H; destruct x, H; subst; cbn; auto.
+          all: destruct x; cbn; intuition; [now (exists nil) | now (exists (s1 :: x))].
+  Qed.       
+
 
   (*
   forever p x |= AF now φ

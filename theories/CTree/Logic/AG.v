@@ -103,33 +103,33 @@ Section BasicLemmas.
     now apply can_step_stuck in H0.
   Qed.
 
-  Lemma ag_tau: forall (u: ctree E X) w φ,
-      <( u, w |= AG now φ )> -> <( {Tau u}, w |= AG now φ )>.
-  Proof.
-    coinduction R CIH; intros.
-    - apply RStepA.
-      + step in H; destruct H; auto.
-      + split.
-        * apply can_step_tau.
-          step in H; destruct H; try contradiction.
-          now destruct H0.
-        * intros u' w' TR.
-          cbn in TR.
-          remember (TauF u) as U.
-          rewrite (ctree_eta u').
-          remember (observe u') as U'.
-          clear HeqU' u'.
-          generalize dependent u.
-          revert φ.          
-          induction TR; intros; dependent destruction HeqU.
-          eapply IHTR.
-          rewrite ktrans_tau in TR.
-          cbn in TR.
-          dependent induction TR; auto.
-          eapply IHTR; eauto.
-    split; doin
-    intros.
+  
+  Inductive tau_clos_body `{Encode E} {X} (R: relation (ctree E X)): relation (ctree' E X) :=
+  | Tau_closL: forall (t: ctree E X) u,
+      tau_clos_body R (observe t) u ->
+      tau_clos_body R (TauF t) u
+  | Tau_closR: forall t (u : ctree E X),
+      tau_clos_body R t (observe u) ->
+      tau_clos_body R t (TauF u)
+  | Tau_closRec: forall t u,
+      R t u ->
+      tau_clos_body R (TauF t) (TauF u).
 
+  Program Definition tau_clos `{Encode E} {X}: mon (relation (ctree E X)) :=
+    {| body R t u:= @tau_clos_body H X R (observe t) (observe u) |}.
+  Next Obligation.
+    unfold impl; repeat red; intros.
+    induction H1.
+    - apply Tau_closL; auto.
+    - apply Tau_closR; eauto.
+    - apply Tau_closRec; eauto.
+  Qed.
+
+  
+  Lemma tau_clos_car:
+    tau_clos_body <= cart.
+  Proof.    
+    
     
 End BasicLemmas.  
 

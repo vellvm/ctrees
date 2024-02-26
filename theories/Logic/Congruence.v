@@ -32,7 +32,7 @@ Section EquivCtlFormulas.
            as proper_equiv_ctl_entailsF.
   Proof. intro x; induction x; intros y EQφ; apply EQφ. Qed.
 
-  (*| Now we start proving congruence on formulas (2nd argument) |*)
+  (*| Now we start proving congruence on formulas (1st argument) |*)
   Variant equiv_ctl_clos_body (R : MP -> MP -> MP) : MP -> MP -> MP :=
     | equiv_ctl_clos_ctor : forall t0 w0 p0 p1 q0 q1
                               (Heqp: forall t w, p0 t w <-> p1 t w)
