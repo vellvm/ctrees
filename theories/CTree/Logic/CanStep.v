@@ -93,13 +93,15 @@ Section CanStepCtrees.
   Hint Resolve can_step_vis: ctl.
   
   Lemma can_step_ret{X}: forall w (x: X),
-    not_done w ->
+    not_done w <->
     can_step (Ret x) w.
   Proof.
-    intros; inv H.
+    split; intros; inv H.
     Opaque Ctree.stuck.
     - exists Ctree.stuck, (Done x); now constructor. 
     - exists Ctree.stuck, (Finish e v x); now constructor.
+    - destruct H0.
+      now apply ktrans_not_done in H.
   Qed.
   Hint Resolve can_step_ret: ctl.
   

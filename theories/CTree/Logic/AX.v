@@ -98,18 +98,27 @@ Section BasicLemmas.
 
   Lemma ax_brD_inv: forall n (k: fin' n -> ctree E X) w φ,
       <( {BrD n k}, w |= AX φ )> ->
-      (forall i, can_step (k i) w) ->                                       
-      (forall (i: fin' n), <( {k i}, w |= AX φ )>).
+      (forall (i: fin' n), can_step (k i) w -> <( {k i}, w |= AX φ )>).
   Proof.
     intros.
     next in H; destruct H.
     next; split.
     + apply can_step_brD in H as (j & Hd).
-      apply H0. (* LEF: Need to know all branches can step here *)
+      apply H0. (* LEF: all branches can step here *)
     + intros.
       setoid_rewrite ktrans_brD in H1.
       rewrite pull2_iff in H1.
       now apply H1 with i.
+  Qed.
+
+  Lemma ax_stuck: forall w φ,
+      <( {Ctree.stuck: ctree E X}, w |= AX φ )> ->
+      <( {Ctree.stuck: ctree E X}, w |= φ )>.
+  Proof.
+    intros.
+    cbn in H; dependent induction H; auto.
+    apply can_step_stuck in H.
+    contradiction.
   Qed.
   
   Lemma ax_brS: forall n (k: fin' n -> ctree E X) w φ,
