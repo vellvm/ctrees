@@ -323,46 +323,86 @@ Section CtlAfBind.
            right.
            exists x, (Finish e v x); split; auto with ctl.
     - destruct H1, H2; clear H2.
-      destruct H2 as (t' & w' & TR').
-      
-      apply H3.
-
-    - (* Finish *)
-      rewrite bind_ret_l.
-      now apply H1.
-    - (* Tau *)
-      rewrite bind_tau.
-      apply can_step_tau; eauto.
-    - (* Vis *)
-      rewrite bind_vis.
-      apply can_step_vis; auto.
+      destruct H1 as (t' & w' & TR').
+      cbn in *.
+      remember (observe t) as T.
+      remember (observe t') as T'.
+      clear HeqT t HeqT' t'.
+      induction TR'.
+      * edestruct IHTR'.
+        -- intros t_ w_ TR_; eauto.
+        -- intros t_ w_ TR_; eauto.
+        -- setoid_rewrite ktrans_brD.
+           left.
+           destruct H1 as (? & ? & ?).
+           exists x, x0; split.
+           ++ now (exists i).
+           ++ now destruct H1.
+        -- right.
+           destruct H1 as (? & ? & ? & ? & ?).
+           exists x, x0; split; auto.             
+           apply ktrans_brD.
+           now (exists i).
+      * left.
+        exists (k0 i), w.
+        split; auto.
+        apply ktrans_brS.
+        exists i; auto.
+      * left.
+        exists (k0 v), (Obs e v); auto with ctl.
+      * assert (TR': [Ret x, Pure] ↦ [Ctree.stuck, Done x])
+          by now apply ktrans_done.
+        destruct (H3 _ _ TR').
+        -- apply ktrans_done in TR' as (-> & _).
+           destruct H2.
+           apply can_step_not_done in H2; inv H2.
+        -- destruct H5.
+           apply ktrans_done in TR' as (-> & ?).
+           apply can_step_not_done in H5; inv H5.
+      * assert (TR': [Ret x, Obs e v] ↦ [Ctree.stuck, Finish e v x])
+          by now apply ktrans_finish.
+        destruct (H3 _ _ TR').
+        -- apply ktrans_finish in TR' as (-> & _).
+           destruct H2.
+           apply can_step_not_done in H2; inv H2.
+        -- destruct H5.
+           apply ktrans_finish in TR' as (-> & ?).
+           apply can_step_not_done in H5; inv H5.
   Qed.
   Hint Resolve can_step_bind_r: ctl.
 
-  Theorem af_bind_r{X Y}: forall (t: itree E Y)
-                            (k: Y -> itree E X) w φ R,
+  Theorem af_bind_r{X Y}: forall (t: ctree E Y)
+                            (k: Y -> ctree E X) w φ R,
       <( t, w |= AF AX done R )> ->
       (forall (y: Y) w, R y w -> not_done w ->
                    <( {k y}, w |= AF now φ )>) ->
       <( {x <- t ;; k x}, w |= AF now φ )>.
   Proof.
     intros.
-    apply afdone_ind in H.
-    revert H0.
-    generalize dependent φ.
-    generalize dependent k.
-    induction H; intros; observe_equ H; rewrite Eqt.
-    - (* Done *)
-      rewrite bind_ret_l; eauto with ctl.
-    - (* Finish *)
-      rewrite bind_ret_l; eauto with ctl.
-    - (* Tau *)
-      rewrite bind_tau.
-      apply af_tau; eauto with ctl.
-    - (* Vis *)
-      rewrite bind_vis.
-      apply af_vis; eauto with ctl.
-  Qed.
+    rewrite (ctree_eta t).
+    rewrite (ctree_eta t) in H.
+    remember (observe t) as T.
+    clear t HeqT.      
+    induction H.
+    - destruct H as ((t' & w' & TR') & ?).
+      cbn in *.
+      clear T.
+      rewrite (ctree_eta t).
+      remember (observe t) as T.
+      remember (observe t') as T'.
+      clear HeqT t HeqT' t'.
+      revert H H0.
+      induction TR'; intros.
+      + edestruct IHTR'; eauto with ctl.
+        * rewrite bind_br.
+          setoid_rewrite ktrans_brD in H.
+          rewrite pull2_iff in H.
+          apply af_brD.
+          intro j.
+          specialize (H _ _ _ TR').
+          inv H.
+          specialize (H0 _ _ H2 NotDonePure).
+  Admitted.
 
 End CtlAfBind.
 
@@ -373,16 +413,16 @@ Section CtlAfIter.
   (* [Ri: I -> World E -> Prop] loop invariant (left).
      [Rr: X -> World E -> Prop] loop postcondition (right).
      [Rv: (I * World E) -> (I * World E) -> Prop)] loop variant (left). *)
-  Lemma af_iter{X I} Ri Rr (Rv: relation (I * World E)) (i: I) w (k: I -> itree E (I + X)):
+  Lemma af_iter{X I} Ri Rr (Rv: relation (I * World E)) (i: I) w (k: I -> ctree E (I + X)):
       (forall (i: I) w, Ri i w ->
                    <( {k i}, w |= AF AX done {fun (x: I + X) w' =>
-                                             match x with
-                                             | inl i' => Ri i' w' /\ Rv (i', w') (i, w)
-                                             | inr r' => Rr r' w'
-                                             end})>) ->
+                                                match x with
+                                                | inl i' => Ri i' w' /\ Rv (i', w') (i, w)
+                                                | inr r' => Rr r' w'
+                                                end})>) ->
       well_founded Rv ->
       Ri i w ->
-      <( {Itree.iter k i}, w |= AF done Rr )>.
+      <( {Ctree.iter k i}, w |= AF done Rr )>.
   Proof.      
     intros H WfR Hi.
     generalize dependent k.
@@ -404,7 +444,8 @@ Section CtlAfIter.
                                 end); auto.
     intros [i' | r] w'.
     - intros (Hi' & Hv) Hd.
-      apply af_tau.
+      apply af_brD.
+      intros _.
       remember (i', w') as y.
       replace i' with (fst y) by now subst.
       replace w' with (snd y) by now subst.      
@@ -414,7 +455,7 @@ Section CtlAfIter.
       + now apply can_step_ret.
       + intros t_ w_ TR_.
         inv Hd.
-        * apply ktrans_pure in TR_ as (-> & ->).
+        * apply ktrans_done in TR_ as (-> & ->).
           next; left.
           rewrite ctl_done.
           now constructor.
