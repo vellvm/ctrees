@@ -352,40 +352,6 @@ Proof.
     unfold cax; split; auto.
 Qed.
 
-(*| Induction lemmas |*)
-Lemma ctl_au_ind `{KMS: Kripke M W} X: 
-  forall (p q: ctlf W) (P : M X -> World W -> Prop),
-    (forall t w, <( t, w |= q )> -> P t w) -> (* base *)
-    (forall t w,
-        <( t, w |= p )> ->          (* [p] now*)
-        <( t, w |= AX (p AU q))> ->
-        cax true P t w ->
-        P t w) ->
-    forall t w, <( t, w |= p AU q )> -> P t w.
-Proof. intros; induction H1; auto. Qed.
-
-Lemma ctl_wu_ind `{KMS: Kripke M W} X: 
-  forall (p q: ctlf W) (P : M X -> World W -> Prop),
-    (forall t w, <( t, w |= q )> -> P t w) -> (* base *)
-    (forall t w,
-        <( t, w |= p )> ->          (* [p] now*)
-        <( t, w |= WX (p WU q))> ->
-        cax false P t w ->
-        P t w) ->
-    forall t w, <( t, w |= p WU q )> -> P t w.
-Proof. intros; induction H1; auto. Qed.
-
-Lemma ctl_eu_ind `{KMS: Kripke M W} X: 
-  forall (p q: ctlf W) (P : M X -> World W -> Prop),
-    (forall t w, <( t, w |= q )> -> P t w) -> (* base *)
-    (forall t w,
-        <( t, w |= p )> ->          (* [p] now*)
-        <( t, w |= EX (p EU q))> ->
-        cex P t w ->
-        P t w) ->
-    forall t w, <( t, w |= p EU q )> -> P t w.
-Proof. intros; induction H1; auto. Qed.
-  
 (*| Bot is false |*)
 Lemma ctl_sound `{KMS: Kripke M W} X: forall (t: M X) (w: World W),
     ~ <( t, w |= ⊥ )>.

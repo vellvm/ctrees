@@ -451,6 +451,57 @@ Section CtlEquations.
      - apply ctl_er_ex.
      - now rewrite ctl_or_idL.
    Qed.
+
+   (* LEF: The opposite direction does not seem provable at this level
+      of abstraction, I think it requires induction on arity of branches *)
+   Lemma ctl_afax_axaf: forall (p: ctlf W) (t: M X) w,
+       <( t, w |= AF AX p )> -> <( t, w |= AX AF p )>.
+   Proof.
+     intros * H.
+     induction H.
+     + destruct H. 
+       apply ctl_ax; split; auto.
+       intros t' w' TR.
+       apply ctl_af_ax.
+       left.
+       now apply H0.
+     + destruct H0, H1; clear H H1.
+       apply ctl_ax; split; auto.
+       intros t' w' TR.       
+       pose proof (H3 _ _ TR).
+       destruct H as [Hd Hs].
+       apply ctl_af_ax.
+       right.
+       now apply H3.
+   Qed.
+   
+   Lemma ctl_af_involutive: forall (p: ctlf W),
+       <( AF p )> ⩸ <( AF (AF p) )>.
+   Proof.
+     split; intros; induction H.
+     - apply ctl_af_ax; left.
+       now apply ctl_af_ax; left.
+     - destruct H0, H1; clear H1.
+       apply ctl_af_ax; right; split; auto.
+     - apply H.
+     - destruct H0, H1; clear H1 H.
+       apply ctl_af_ax; right; split; auto.
+   Qed.
+
+   Lemma ctl_ef_involutive: forall (p: ctlf W),
+       <( EF p )> ⩸ <( EF (EF p) )>.
+   Proof.
+     split; intros; induction H.
+     - apply ctl_ef_ex; left.
+       now apply ctl_ef_ex; left.
+     - destruct H1 as (t1 & w1 & TR1 & H1). 
+       apply ctl_ef_ex; right.
+       exists t1, w1; auto.
+     - apply H.
+     - destruct H1 as (t1 & w1 & TR1 & H1). 
+       apply ctl_ef_ex; right.
+       exists t1, w1; auto.
+   Qed.
    
    Lemma ctl_ag_involutive: forall (p: ctlf W),
        <( AG p )> ⩸ <( AG (AG p) )>.
