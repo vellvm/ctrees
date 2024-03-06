@@ -48,13 +48,20 @@ Pous'16 in order to be able to exploit symmetry arguments in proofs
     eexists; eexists; intuition; eauto.
   Qed.
 
-  #[global] Instance weq_ss : forall {E F C D X Y} `{B0 -< C} `{B0 -< D}, Proper (weq ==> weq) (@ss E F C D X Y _ _).
+  Lemma weq_ss_goal : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
+    Proper (weq ==> eq ==> eq ==> eq ==> flip impl) (@ss E F C D X Y _ _).
   Proof.
-    cbn. intros. split.
-    - intros. apply H2 in H3 as (? & ? & ? & ? & ?).
-      exists x0, x1. split. apply H3. split. apply H4. apply H1. apply H5.
-    - intros. apply H2 in H3 as (? & ? & ? & ? & ?).
-      exists x0, x1. split. apply H3. split. apply H4. apply H1. apply H5.
+    cbn. intros. subst.
+    apply H5 in H6 as (? & ? & ? & ? & ?).
+    exists x0, x1. split. apply H2. split. apply H3. apply H1. apply H4.
+  Qed.
+
+  #[global] Instance weq_ss : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
+    Proper (weq ==> weq) (@ss E F C D X Y _ _).
+  Proof.
+    cbn -[ss weq]. split; intro.
+    - eapply weq_ss_goal. symmetry. apply H1. all: auto.
+    - eapply weq_ss_goal. apply H1. all: auto.
   Qed.
 
 End StrongSim.
@@ -535,6 +542,15 @@ Proof.
     + now constructor.
     + constructor; auto.
       constructor; auto.
+Qed.
+
+Theorem is_update_val_rel_update_val_rel_eq {E X Y Z} :
+  forall (R : rel X Y),
+  @is_update_val_rel E E Z Z (update_val_rel eq R) eq eq.
+Proof.
+  red. intros. erewrite <- update_val_rel_eq; eauto. split; intro.
+  - now apply update_val_rel_update_val_rel.
+  - now apply update_val_rel_update_val_rel in H1.
 Qed.
 
 Definition lift_val_rel {E X Y} := @update_val_rel E E X Y eq.
