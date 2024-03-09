@@ -357,6 +357,22 @@ Proof.
   constructor. red in H. step. econstructor; eauto.
 Qed.
 
+#[global] Instance equ_Guard:
+  forall {E B : Type -> Type} {R : Type} `{B1 -< B},
+    Proper (equ eq ==> equ eq) (@Guard E B R _).
+Proof.
+  repeat intro.
+  unfold Guard; now setoid_rewrite H0.
+Qed.
+
+#[global] Instance equ_Step:
+  forall {E B : Type -> Type} {R : Type} `{B1 -< B},
+    Proper (equ eq ==> equ eq) (@Step E B R _).
+Proof.
+  repeat intro.
+  unfold Step; now setoid_rewrite H0.
+Qed.
+
 #[global] Instance equ_VisF {E B R X} (e : E X) :
   Proper (pointwise_relation _ (equ eq) ==> going (equ eq)) (@VisF E B R _ _ e).
 Proof.
@@ -1136,8 +1152,8 @@ Ltac ctree_head_in t h :=
       change (Guard t) with (brD branch1 (fun _ => t)) in h
   | Step ?t =>
       change (Step t) with (brS branch1 (fun _ => t)) in h
-  | stuck ?vis =>
-      change t with (brS branch0 (fun x : void => match x with end)) in h
+  | @stuck ?E ?B ?X ?H ?vis =>
+      change t with (br vis branch0 (fun x : void => match x with end) : ctree E B X) in h
   | @CTree.trigger ?E ?B ?R ?e =>
       change t with (Vis e (fun x => Ret x) : ctree E B R) in h
   | @CTree.branch ?E ?B ?vis ?X ?b =>
@@ -1148,7 +1164,7 @@ Ltac ctree_head_in t h :=
 Ltac inv_equ h :=
   match type of h with
   | ?t (≅?Q) ?u => ctree_head_in t h; ctree_head_in u h;
-      try solve [ step in h; inv h; (idtac || invert) ]
+      try solve [ step in h; inv h; (idtac || invert) | step in h; dependent induction h ]
   end;
   match type of h with
   | Ret _ (≅?Q) Ret _ =>

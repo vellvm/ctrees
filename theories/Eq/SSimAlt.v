@@ -346,6 +346,19 @@ Section Proof_Rules.
     do 3 eexists; intuition; etrans. now subs.
   Qed.
 
+  Lemma step_ss'_ret_l (x : X) (y : Y) (u u' : ctree F D Y) :
+    R stuckD stuckD ->
+    L (val x) (val y) ->
+    trans (val y) u u' ->
+    ss'_gen L R Reps (Ret x : ctree E C X) u.
+  Proof.
+    intros. cbn. intros.
+    apply trans_val_inv in H1 as ?. subs.
+    split; intros.
+    - inv_trans. subst. rewrite <- EQ in H. etrans.
+    - inv_equ.
+  Qed.
+
 (*|
  The vis nodes are deterministic from the perspective of the labeled
  transition system, stepping is hence symmetric and we can just recover

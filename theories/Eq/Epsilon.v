@@ -349,6 +349,27 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       eapply epsilon_transitive; eassumption.
     Qed.
 
+    Lemma epsilon_bind_inv {E C X Y} : forall t u (k : Y -> ctree E C X),
+      epsilon (t >>= k) u ->
+        (exists u', u ≅ u' >>= k /\ epsilon t u') \/
+        (exists v, epsilon t (Ret v) /\ epsilon (k v) u).
+    Proof.
+      intros. setoid_rewrite (ctree_eta t). setoid_rewrite (ctree_eta u).
+      red in H. remember (observe _) as ot.
+      assert (go ot ≅ t >>= k). { now rewrite Heqot, <- ctree_eta. }
+      genobs u ou. clear u Heqou Heqot.
+      revert t H0. induction H; intros.
+      - left. exists t0. rewrite <- H, H0, <- !ctree_eta. auto.
+      - setoid_rewrite (ctree_eta t0) in H0. destruct (observe t0) eqn:?; inv_equ.
+        + right. exists r. split; auto.
+          rewrite bind_ret_l in H0. rewrite <- H0. apply epsilon_br with (x := x). apply H.
+        + rewrite bind_br in H0. inv_equ.
+          setoid_rewrite <- ctree_eta in IHepsilon_.
+          apply IHepsilon_ in EQ. destruct EQ as [(? & ? & ?) | (? & ? & ?)].
+          * left. exists x0. split; auto. eapply epsilon_br; eassumption.
+          * right. exists x0. split; auto. eapply epsilon_br; eassumption.
+    Qed.
+
     Lemma epsilon_det_epsilon {E C X} `{Stuck: B0 -< C} `{Tau: B1 -< C} : forall (t t' : ctree E C X),
         epsilon_det t t' -> epsilon t t'.
     Proof.

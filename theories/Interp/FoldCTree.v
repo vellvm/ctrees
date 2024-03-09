@@ -14,6 +14,7 @@ From CTree Require Import
   Eq.Epsilon
   Eq.IterFacts
   Eq.SSimAlt
+  Misc.Pure
   Fold.
 
 Import CTreeNotations.
@@ -310,280 +311,167 @@ Module CounterExample.
 End CounterExample.
 
 (*|
-In order to recover the congruence of [sbisim] for [interp], we restrict ourselves to
-so-called "simple" handlers.
-|*)
-
-(* TODO move *)
-#[global] Instance equ_Guard:
-  forall {E B : Type -> Type} {R : Type} `{B1 -< B},
-    Proper (equ eq ==> equ eq) (@Guard E B R _).
-Proof.
-  repeat intro.
-  unfold Guard; now setoid_rewrite H0.
-Qed.
-
-Lemma void_unit_elim : @eq Type void unit -> False.
-Proof.
-  intros abs.
-  assert (forall x : unit, False) by (rewrite <- abs; intros []).
-  apply (H tt).
-Qed.
-
-Section is_simple.
-
-(*|
 Helper inductive: [transi h l t t'] judges that:
 t -obs e1 x1> -obs e2 x2> .. -obs en xn> -l> t'
 where forall i, [h ei -val xi> stuck]
 Spelled out: we absorb a sequence of transitions in [t] that will become invisible after interpretation, until we reach a visible one.
 |*)
-   Inductive transi {E C F X} (h : E ~> ctree F (B01 +' C)) :
-    @label F -> ctree E (B01 +' C) X -> ctree E (B01 +' C) X -> Prop :=
-  | transi_val : forall (x : X) t t',
-      trans (val x) t t' ->
-      transi h (val x) t t'
-  | transi_tau : forall t t',
-      trans tau t t' ->
-      transi h tau t t'
-  | transi_obs : forall Y (e : E Y) x l t t' t'',
-      trans (obs e x) t t' ->
-      epsilon_det t'' (Ret x) ->
-      trans l (h _ e) t'' ->
-      transi h l t t'
-  | transi_obs0 : forall Y (e : E Y) l x t t' t'',
-      trans (obs e x) t t' ->
-      transi h l t' t'' ->
-      trans (val x) (h _ e) stuckD ->
-      transi h l t t''.
+ Inductive transi {E C F X} (h : E ~> ctree F (B01 +' C)) :
+  @label F -> ctree E (B01 +' C) X -> ctree E (B01 +' C) X -> Prop :=
+| transi_val : forall (x : X) t t',
+    trans (val x) t t' ->
+    transi h (val x) t t'
+| transi_tau : forall t t',
+    trans tau t t' ->
+    transi h tau t t'
+| transi_obs : forall Y (e : E Y) x l t t' t'',
+    trans (obs e x) t t' ->
+    epsilon_det t'' (Ret x) ->
+    trans l (h _ e) t'' ->
+    transi h l t t'
+| transi_obs0 : forall Y (e : E Y) l x t t' t'',
+    trans (obs e x) t t' ->
+    transi h l t' t'' ->
+    trans (val x) (h _ e) stuckD ->
+    transi h l t t''.
 
-(*|
-A computation is [simple] all its transitions are either:
-- directly returning
-- or reducing in one step to something of the shape [Guard* (Ret r)]
-|*)
-  Class is_simple {E C X} (t : ctree E (B01 +' C) X) :=
-    is_simple' : (forall l t', trans l t t' -> is_val l) \/
-    (forall l t', trans l t t' -> exists r, epsilon_det t' (Ret r)).
+Section epsilon_interp_theory.
 
-(*|
-A computation is [vsimple] if it is syntactically:
-- a [Ret]
-- or a [trigger]
-|*)
-   Definition vsimple {E C X} (t : ctree E (B01 +' C) X) :=
-    (exists x, t ≅ Ret x) \/ exists f, t ≅ CTree.trigger f.
+  Lemma interp_productive {E C F X} (h : E ~> ctree F (B01 +' C)) : forall (t : ctree E (B01 +' C) X),
+      productive (interp h t) -> productive t.
+  Proof.
+    intros. inversion H;
+      subst;
+      rewrite unfold_interp in EQ;
+      rewrite (ctree_eta t);
+      destruct (observe t) eqn:?;
+        (try destruct vis);
+      (try step in EQ; inv EQ);
+      try now econstructor.
+  Qed.
 
-  Section is_simple_theory.
+  Lemma epsilon_interp : forall {E C F X}
+                          (h : E ~> ctree F (B01 +' C)) (t t' : ctree E (B01 +' C) X),
+      epsilon t t' -> epsilon (interp h t) (interp h t').
+  Proof.
+    intros. red in H. setoid_rewrite (ctree_eta t). setoid_rewrite (ctree_eta t').
+    genobs t ot. genobs t' ot'. clear t Heqot t' Heqot'.
+    induction H.
+    - constructor. rewrite H. reflexivity.
+    - rewrite unfold_interp. cbn. setoid_rewrite bind_br.
+      apply EpsilonBr with (x := x). rewrite bind_ret_l.
+      simpl. eapply EpsilonBr with (x:=tt). apply IHepsilon_.
+  Qed.
 
-    Context {E C : Type -> Type} {X : Type}.
+End epsilon_interp_theory.
 
-    #[global] Instance is_simple_equ :
-      Proper (equ eq ==> iff) (@is_simple E C X).
-    Proof.
-      cbn. intros. unfold is_simple. setoid_rewrite H. reflexivity.
-    Qed.
+Section transi_theory.
 
-    #[global] Instance is_simple_ret : forall r, is_simple (Ret r : ctree E (B01 +' C) X).
-    Proof.
-      cbn. red. intros. left. intros. inv_trans. subst. constructor.
-    Qed.
+  Lemma transi_brD {E C F X Y} (h : E ~> ctree F (B01 +' C)) :
+    forall l (t' : ctree E (B01 +' C) X) (c: (B01 +' C) Y) (k: Y -> ctree E (B01 +' C) X) (x: Y),
+      transi h l (k x) t' -> transi h l (BrD c k) t'.
+  Proof.
+    intros. inv H.
+    - apply transi_val. etrans.
+    - apply transi_tau. etrans.
+    - eapply transi_obs; etrans.
+    - eapply transi_obs0; etrans.
+  Qed.
 
-    #[global] Instance is_simple_guard_ret : forall r,
-        is_simple (Guard (Ret r) : ctree E (B01 +' C) X).
-    Proof.
-      cbn. red. intros. left. intros. inv_trans. subst. constructor.
-    Qed.
+  #[global] Instance transi_equ :
+    forall {E C F X} (h : E ~> ctree F (B01 +' C)) l,
+      Proper (equ eq ==> equ eq ==> flip impl) (@transi E C F X h l).
+  Proof.
+    cbn. intros.
+    revert x x0 H H0. induction H1; intros.
+    - apply transi_val. rewrite H0, H1. apply H.
+    - apply transi_tau. rewrite H0, H1. apply H.
+    - rewrite <- H2, <- H3 in *. eapply transi_obs; eauto.
+    - rewrite <- H2 in *. eapply transi_obs0; eauto.
+  Qed.
 
-    #[global] Instance is_simple_br : forall (c: (B01 +' C) X),
-        is_simple (branchD c : ctree E (B01 +' C) X).
-    Proof.
-      cbn. red. intros.
-      left. intros. apply trans_brD_inv in H as []. inv_trans. subst. constructor.
-    Qed.
+  #[global] Instance transi_equ' :
+    forall {E C F X} (h : E ~> ctree F (B01 +' C)) l,
+      Proper (equ eq ==> equ eq ==> impl) (@transi E C F X h l).
+  Proof.
+    cbn. intros. rewrite <- H, <- H0. apply H1.
+  Qed.
 
-    #[global] Instance is_simple_map :
-      forall {Y} (t : ctree E (B01 +' C) X) (f : X -> Y),
-      is_simple t -> is_simple (CTree.map f t).
-    Proof.
-      intros. destruct H.
-      - left. intros.
-        unfold CTree.map in H0. apply trans_bind_inv in H0 as ?.
-        destruct H1 as [(? & ? & ? & ?) | (? & ? & ?)].
-        + now apply H in H2.
-        + apply trans_ret_inv in H2 as []. now subst.
-      - right. intros.
-        apply trans_bind_inv in H0 as ?.
-        destruct H1 as [(? & ? & ? & ?) | (? & ? & ?)].
-        + apply H in H2 as []. exists (f x0). subs.
-          eapply Epsilon.epsilon_det_bind_ret_l. apply H2. reflexivity.
-        + apply H in H1 as []. inversion H1; inv_equ.
-          subst. step in H4. inversion H4. now apply void_unit_elim in H10.
-    Qed.
+  Lemma epsilon_transi {E C F X} (h : E ~> ctree F (B01 +' C)) :
+    forall l (t t' t'' : ctree E (B01 +' C) X), epsilon t t' -> transi h l t' t'' -> transi h l t t''.
+  Proof.
+    intros.
+    red in H. rewrite (ctree_eta t). rewrite (ctree_eta t') in H0.
+    genobs t ot. genobs t' ot'. clear t Heqot. clear t' Heqot'.
+    revert l t'' H0. induction H; intros.
+    - rewrite H. apply H0.
+    - eapply transi_brD.
+      setoid_rewrite <- ctree_eta in IHepsilon_.
+      apply IHepsilon_; apply H0.
+  Qed.
 
-    #[global] Instance is_simple_liftState {St} :
-      forall (t : ctree E (B01 +' C) X) (s : St),
-      is_simple t -> is_simple (Monads.liftState t s).
-    Proof.
-      intros. cbn. typeclasses eauto.
-    Qed.
+  Lemma transi_sbisim {E C F X} (h : E ~> ctree F (B01 +' C)) :
+    forall l (t t' u : ctree E (B01 +' C) X), transi h l t t' ->
+                                t ~ u ->
+                                exists u', transi h l u u' /\ t' ~ u'.
+  Proof.
+    intros. revert u H0.
+    induction H; intros.
+    - step in H0. destruct H0 as [? _]. apply H0 in H; destruct H as (? & ? & ? & ? & ?); subst.
+      eexists. split. apply transi_val. apply H. apply H1.
+    - step in H0. destruct H0 as [? _]. apply H0 in H. destruct H as (? & ? & ? & ? & ?); subst.
+      eexists. split. apply transi_tau. apply H. apply H1.
+    - step in H2. destruct H2 as [? _]. apply H2 in H. destruct H as (? & ? & ? & ? & ?); subst.
+      eexists. split. eapply transi_obs; eauto. apply H3.
+    - step in H2. destruct H2 as [? _]. apply H2 in H. destruct H as (? & ? & ? & ? & ?); subst.
+      apply IHtransi in H3 as (? & ? & ?).
+      eexists. split. eapply transi_obs0; eauto. apply H4.
+  Qed.
 
-    #[global] Instance is_simple_trigger :
-      forall (e : E X),
-      is_simple (CTree.trigger e : ctree E (B01 +' C) X).
-    Proof.
-      right. intros.
-      unfold CTree.trigger in H. inv_trans. subst.
-      exists x. now left.
-    Qed.
+  (*|
+  In order to recover the congruence of [sbisim] for [interp], we restrict ourselves to
+  so-called "simple" handlers.
+  |*)
 
-    Lemma is_simple_brD : forall {Y} (c: (B01 +' C) X) (k : X -> ctree E (B01 +' C) Y) x,
-        is_simple (BrD c k) -> is_simple (k x).
-    Proof.
-      intros. destruct H.
-      - left. intros. eapply H. etrans.
-      - right. intros. eapply H. etrans.
-    Qed.
-
-  End is_simple_theory.
-
-  Section epsilon_interp_theory.
-
-    Lemma interp_productive {E C F X} (h : E ~> ctree F (B01 +' C)) : forall (t : ctree E (B01 +' C) X),
-        productive (interp h t) -> productive t.
-    Proof.
-      intros. inversion H;
-        subst;
-        rewrite unfold_interp in EQ;
-        rewrite (ctree_eta t);
-        destruct (observe t) eqn:?;
-          (try destruct vis);
-        (try step in EQ; inv EQ);
-        try now econstructor.
-    Qed.
-
-    Lemma epsilon_interp : forall {E C F X}
-                            (h : E ~> ctree F (B01 +' C)) (t t' : ctree E (B01 +' C) X),
-        epsilon t t' -> epsilon (interp h t) (interp h t').
-    Proof.
-      intros. red in H. setoid_rewrite (ctree_eta t). setoid_rewrite (ctree_eta t').
-      genobs t ot. genobs t' ot'. clear t Heqot t' Heqot'.
-      induction H.
-      - constructor. rewrite H. reflexivity.
-      - rewrite unfold_interp. cbn. setoid_rewrite bind_br.
-        apply EpsilonBr with (x := x). rewrite bind_ret_l.
-        simpl. eapply EpsilonBr with (x:=tt). apply IHepsilon_.
-    Qed.
-
-  End epsilon_interp_theory.
-
-  Section transi_theory.
-
-    Lemma transi_brD {E C F X Y} (h : E ~> ctree F (B01 +' C)) :
-      forall l (t' : ctree E (B01 +' C) X) (c: (B01 +' C) Y) (k: Y -> ctree E (B01 +' C) X) (x: Y),
-        transi h l (k x) t' -> transi h l (BrD c k) t'.
-    Proof.
-      intros. inv H.
-      - apply transi_val. etrans.
-      - apply transi_tau. etrans.
-      - eapply transi_obs; etrans.
-      - eapply transi_obs0; etrans.
-    Qed.
-
-    #[global] Instance transi_equ :
-      forall {E C F X} (h : E ~> ctree F (B01 +' C)) l,
-        Proper (equ eq ==> equ eq ==> flip impl) (@transi E C F X h l).
-    Proof.
-      cbn. intros.
-      revert x x0 H H0. induction H1; intros.
-      - apply transi_val. rewrite H0, H1. apply H.
-      - apply transi_tau. rewrite H0, H1. apply H.
-      - rewrite <- H2, <- H3 in *. eapply transi_obs; eauto.
-      - rewrite <- H2 in *. eapply transi_obs0; eauto.
-    Qed.
-
-    #[global] Instance transi_equ' :
-      forall {E C F X} (h : E ~> ctree F (B01 +' C)) l,
-        Proper (equ eq ==> equ eq ==> impl) (@transi E C F X h l).
-    Proof.
-      cbn. intros. rewrite <- H, <- H0. apply H1.
-    Qed.
-
-    Lemma epsilon_transi {E C F X} (h : E ~> ctree F (B01 +' C)) :
-      forall l (t t' t'' : ctree E (B01 +' C) X), epsilon t t' -> transi h l t' t'' -> transi h l t t''.
-    Proof.
-      intros.
-      red in H. rewrite (ctree_eta t). rewrite (ctree_eta t') in H0.
-      genobs t ot. genobs t' ot'. clear t Heqot. clear t' Heqot'.
-      revert l t'' H0. induction H; intros.
-      - rewrite H. apply H0.
-      - eapply transi_brD.
-        setoid_rewrite <- ctree_eta in IHepsilon_.
-        apply IHepsilon_; apply H0.
-    Qed.
-
-    Lemma transi_sbisim {E C F X} (h : E ~> ctree F (B01 +' C)) :
-      forall l (t t' u : ctree E (B01 +' C) X), transi h l t t' ->
-                                  t ~ u ->
-                                  exists u', transi h l u u' /\ t' ~ u'.
-    Proof.
-      intros. revert u H0.
-      induction H; intros.
-      - step in H0. destruct H0 as [? _]. apply H0 in H; destruct H as (? & ? & ? & ? & ?); subst.
-        eexists. split. apply transi_val. apply H. apply H1.
-      - step in H0. destruct H0 as [? _]. apply H0 in H. destruct H as (? & ? & ? & ? & ?); subst.
-        eexists. split. apply transi_tau. apply H. apply H1.
-      - step in H2. destruct H2 as [? _]. apply H2 in H. destruct H as (? & ? & ? & ? & ?); subst.
-        eexists. split. eapply transi_obs; eauto. apply H3.
-      - step in H2. destruct H2 as [? _]. apply H2 in H. destruct H as (? & ? & ? & ? & ?); subst.
-        apply IHtransi in H3 as (? & ? & ?).
-        eexists. split. eapply transi_obs0; eauto. apply H4.
-    Qed.
-
-    Lemma transi_trans {E C F X} (h : E ~> ctree F (B01 +' C))
-      (Hh : forall X e, vsimple (h X e)) :
-      forall l (t t' : ctree E (B01 +' C) X),
-        transi h l t t' -> exists t0, trans l (interp h t) t0 /\ epsilon_det t0 (interp h t').
-    Proof.
-      intros. induction H.
-      - exists stuckD. apply trans_val_inv in H as ?.
-        apply trans_val_epsilon in H as [].
-        eapply epsilon_interp in H. rewrite interp_ret in H. setoid_rewrite H0.
-        setoid_rewrite interp_br. setoid_rewrite bind_br. setoid_rewrite br0_always_stuck.
-        eapply epsilon_trans in H; etrans.
-      - exists (Guard (interp h t')). split; [| eright; eauto; now left ].
-        apply trans_tau_epsilon in H as (? & ? & ? & ? & ? & ?).
-        eapply epsilon_interp in H.
-        rewrite H0.
-        eapply epsilon_trans; etrans.
-        setoid_rewrite interp_br. setoid_rewrite bind_br. setoid_rewrite bind_ret_l.
-        econstructor. reflexivity.
-      - exists (x <- t'';; Guard (interp h t')).
-        split. 2: { eapply epsilon_det_bind_ret_l; eauto. eright; eauto. }
-             apply trans_obs_epsilon in H as (? & ? & ?).
-        eapply epsilon_interp in H. eapply epsilon_trans; etrans.
-        setoid_rewrite interp_vis.
-        eapply trans_bind_l with (k := fun x => Guard (interp h (x0 x))) in H1.
-        setoid_rewrite epsilon_det_bind_ret_l_equ in H1 at 2; eauto.
-        now setoid_rewrite H2.
-        { intro. inv H3. apply trans_val_inv in H1. rewrite H1 in H0. inv H0. step in H3. inv H3. step in H4.
-          cbn in H4.
-          inv H4.
-          now apply void_unit_elim.
-        }
-      - destruct IHtransi as (? & ? & ?).
-        destruct (Hh Y e). 2: { destruct H4. rewrite H4 in H1. apply trans_vis_inv in H1 as (? & ? & ?). step in H1. inv H1. }
-                         destruct H4. rewrite H4 in H1. inv_trans. subst.
-        exists x0. split. 2: auto.
-        apply trans_obs_epsilon in H as (? & ? & ?). eapply epsilon_interp in H.
-        setoid_rewrite interp_vis in H. setoid_rewrite H4 in H. setoid_rewrite bind_ret_l in H.
-        eapply epsilon_trans; [apply H |]. setoid_rewrite <- H1. etrans.
-    Qed.
+  Lemma transi_trans {E C F X} (h : E ~> ctree F (B01 +' C))
+    (Hh : forall X e, vsimple (h X e)) :
+    forall l (t t' : ctree E (B01 +' C) X),
+      transi h l t t' -> exists t0, trans l (interp h t) t0 /\ epsilon_det t0 (interp h t').
+  Proof.
+    intros. induction H.
+    - exists stuckD. apply trans_val_inv in H as ?.
+      apply trans_val_epsilon in H as [].
+      eapply epsilon_interp in H. rewrite interp_ret in H. setoid_rewrite H0.
+      setoid_rewrite interp_br. setoid_rewrite bind_br. setoid_rewrite br0_always_stuck.
+      eapply epsilon_trans in H; etrans.
+    - exists (Guard (interp h t')). split; [| eright; eauto; now left ].
+      apply trans_tau_epsilon in H as (? & ? & ? & ? & ? & ?).
+      eapply epsilon_interp in H.
+      rewrite H0.
+      eapply epsilon_trans; etrans.
+      setoid_rewrite interp_br. setoid_rewrite bind_br. setoid_rewrite bind_ret_l.
+      econstructor. reflexivity.
+    - exists (x <- t'';; Guard (interp h t')).
+      split. 2: { eapply epsilon_det_bind_ret_l; eauto. eright; eauto. }
+           apply trans_obs_epsilon in H as (? & ? & ?).
+      eapply epsilon_interp in H. eapply epsilon_trans; etrans.
+      setoid_rewrite interp_vis.
+      eapply trans_bind_l with (k := fun x => Guard (interp h (x0 x))) in H1.
+      setoid_rewrite epsilon_det_bind_ret_l_equ in H1 at 2; eauto.
+      now setoid_rewrite H2.
+      { intro. inv H3. apply trans_val_inv in H1. rewrite H1 in H0. inv H0; inv_equ.
+      }
+    - destruct IHtransi as (? & ? & ?).
+      destruct (Hh Y e). 2: { destruct H4. rewrite H4 in H1. apply trans_vis_inv in H1 as (? & ? & ?). step in H1. inv H1. }
+                       destruct H4. rewrite H4 in H1. inv_trans. subst.
+      exists x0. split. 2: auto.
+      apply trans_obs_epsilon in H as (? & ? & ?). eapply epsilon_interp in H.
+      setoid_rewrite interp_vis in H. setoid_rewrite H4 in H. setoid_rewrite bind_ret_l in H.
+      eapply epsilon_trans; [apply H |]. setoid_rewrite <- H1. etrans.
+  Qed.
 
 
-  End transi_theory.
-
-End is_simple.
+End transi_theory.
 
 (** Various lemmas for the proof that interp preserves sbisim in some cases. *)
 Lemma interp_ret_inv {E F B X} (h : E ~> ctree F (B01 +' B)) :
@@ -637,8 +525,7 @@ Proof.
           edestruct IHtrans_. { apply is_simple_ret. } { rewrite <- ctree_eta, bind_ret_l, EQ. reflexivity. }
           destruct H0. exists x2. split; auto. right. destruct H2.
           { destruct H2 as (? & ? & ? & ? & ? & ?). inv_trans. subst.
-            inv H3. step in H2. inv H2. step in H5. inv H5.
-            exfalso; now apply void_unit_elim.
+            inv H3; inv_equ.
           }
           destruct H2 as (_ & _ & ? & ?). exists x0. split. etrans. split.
           ++ setoid_rewrite (ctree_eta (k0 x0)). rewrite Heqc0.
@@ -656,8 +543,7 @@ Proof.
         { rewrite <- ctree_eta. setoid_rewrite bind_br. setoid_rewrite bind_ret_l. unfold Guard in EQ. now rewrite EQ. }
         destruct H1.
         { destruct H1 as (? & ? & ? & ? & ? & ?). inv_trans. subst.
-          inv H2. step in H1. inv H1. step in H3. inv H3.
-          exfalso; now apply void_unit_elim.
+          inv H2; inv_equ.
         }
         destruct H1 as (? & ? & ? & ?).
         exists x1. split; auto. right. exists x0. split; etrans. split.
@@ -764,8 +650,7 @@ Proof.
    { etrans. }
   eapply trans_interp_inv_gen in H0; eauto. destruct H0 as (? & ? & ?).
   destruct H1 as [(? & ? & ? & ? & ? & ?) | (? & ? & ? & ?)].
-  - inv_trans. subst. inv H2. step in H1. inv H1. step in H3. inv H3.
-    exfalso; now apply void_unit_elim.
+  - inv_trans. subst. inv H2; inv_equ.
   - inv_trans. subst. eauto.
   - left. intros. inv_trans. subst. constructor.
 Qed.
@@ -804,8 +689,7 @@ Proof.
   + destruct H2 as (? & ? & ? & ? & ? & ?). rewrite H4 in H0. clear x H4.
     destruct H1 as [[] | []].
     * rewrite H1, bind_ret_l in H2. rewrite H1, bind_ret_l in cpy. inv_trans. subst.
-      inv H3. step in H2. inv H2. step in H4. inv H4.
-      exfalso; now apply void_unit_elim.
+      inv H3; inv_equ.
     * rewrite H1 in *. rewrite bind_trigger in H2. apply trans_vis_inv in H2 as (? & ? & ?). subst.
       (* todo lemma *)
       rewrite H2 in H3. inv H3. step in H4. inv H4.

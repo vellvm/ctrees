@@ -1501,6 +1501,16 @@ Proof.
     destruct TR as (? & ? & abs); inv abs.
 Qed.
 
+Lemma trans_branch :
+  forall {E B : Type -> Type} {X : Type} {H : B0 -< B} {Y : Type}
+    [l : label] [t t' : ctree E B X] (c : B Y) (k : Y -> ctree E B X) (x : Y),
+    trans l t t' -> k x ≅ t -> trans l (CTree.branch false c >>= k) t'.
+Proof.
+  intros.
+  setoid_rewrite bind_branch.
+  eapply trans_brD; eauto.
+Qed.
+
 (*|
 [wf_val] states that a [label] is well-formed:
 if it is a [val] it should be of the right type.

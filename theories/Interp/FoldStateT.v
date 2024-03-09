@@ -12,10 +12,12 @@ Import Basics.Monads.
 From CTree Require Import
      CTree
      Fold
+     FoldCTree
      Eq
      Eq.Epsilon
      Eq.SSimAlt
-     Eq.SBisimAlt.
+     Eq.SBisimAlt
+     Misc.Pure.
 
 Import SBisimNotations.
 Import MonadNotation.
@@ -447,18 +449,6 @@ End FoldBind.
 (* Stateful handlers [E ~> stateT S (itree F)] and morphisms
    [E ~> state S] define stateful itree morphisms
    [itree E ~> stateT S (itree F)]. *)
-From CTree Require Import FoldCTree.
-
-(* TODO MOVE *)
-Lemma trans_branch :
-  forall {E B : Type -> Type} {X : Type} {H : B0 -< B} {Y : Type}
-    [l : label] [t t' : ctree E B X] (c : B Y) (k : Y -> ctree E B X) (x : Y),
-    trans l t t' -> k x ≅ t -> trans l (CTree.branch false c >>= k) t'.
-Proof.
-  intros.
-  setoid_rewrite bind_branch.
-  eapply trans_brD; eauto.
-Qed.
 
 Section transi_state.
 
@@ -606,7 +596,7 @@ Section transi_state.
       setoid_rewrite interp_state_vis.
       eapply trans_bind_l with (k := fun sx => Guard (interp_state h (x0 (snd sx)) (fst sx))) in H1.
       setoid_rewrite epsilon_det_bind_ret_l_equ in H1 at 2; eauto. cbn in *. eapply H1.
-      { intro. inv H3. apply trans_val_inv in H1. rewrite H1 in H0. inv H0. step in H3. inv H3. step in H4. inv H4. auto using void_unit_elim. }
+      { intro. inv H3. apply trans_val_inv in H1. rewrite H1 in H0. inv H0; inv_equ. }
     - destruct IHtransi_state as (? & ? & ?).
       destruct (Hh Y e s).
       2: { destruct H4. rewrite H4 in H1. apply trans_vis_inv in H1 as (? & ? & ?). step in H1. inv H1. }
@@ -659,8 +649,7 @@ Section transi_state.
             { rewrite <- ctree_eta. setoid_rewrite bind_ret_l. setoid_rewrite EQ. reflexivity. }
             destruct H0. exists x2, x3. split; auto. right. destruct H2.
             { destruct H2 as (? & ? & ? & ? & ? & ?). inv_trans. subst.
-              inv H3. step in H2. inv H2. step in H5. inv H5.
-              exfalso; now apply void_unit_elim.
+              inv H3; inv_equ.
             }
             destruct H2 as (_ & _ & ? & ?). exists x0. split. etrans. split.
             ++setoid_rewrite (ctree_eta (k0 x0)). rewrite Heqc0.
@@ -679,8 +668,7 @@ Section transi_state.
           { rewrite <- ctree_eta. setoid_rewrite bind_br. setoid_rewrite bind_ret_l. now rewrite <- EQ. }
           destruct H1.
           { destruct H1 as (? & ? & ? & ? & ? & ?). inv_trans. subst.
-            inv H2. step in H1. inv H1. step in H3. inv H3.
-            exfalso; now apply void_unit_elim.
+            inv H2; inv_equ.
           }
           destruct H1 as (? & ? & ? & ?).
           exists x1, x2. split; auto. right. exists x0. split; etrans. split.
@@ -777,13 +765,12 @@ Section transi_state.
     { cbn. etrans. }
     eapply trans_interp_state_inv_gen in H0; eauto. destruct H0 as (? & ? & ? & ?).
     destruct H1 as [(? & ? & ? & ? & ? & ?) | (? & ? & ? & ?)].
-    - inv_trans. subst. inv H2. step in H1. inv H1. step in H3. inv H3.
-      exfalso; now apply void_unit_elim.
+    - inv_trans. subst. inv H2; inv_equ.
     - inv_trans. subst. eauto.
     - left. intros. inv_trans. subst. constructor.
   Qed.
 
-(** The main theorem stating that fold_state preserves sbisim. *)
+(** The main theorem stating that interp_state preserves sbisim. *)
 
   Theorem interp_state_sbisim_gen {Y} (Hh : forall X (e : _ X) s, vsimple (h e s)) :
     forall s (k k' : Y -> ctree E (B01 +' C) X) (pre pre' : ctree F (B01 +' D) Y),
@@ -819,8 +806,7 @@ Section transi_state.
     + destruct H2 as (? & ? & ? & ? & ? & ?). rewrite H4 in H0. clear x H4.
       destruct H1 as [[] | []].
       * rewrite H1, bind_ret_l in H2. rewrite H1, bind_ret_l in cpy. inv_trans. subst.
-        inv H3. step in H2. inv H2. step in H4. inv H4.
-        exfalso; now apply void_unit_elim.
+        inv H3; inv_equ.
       * rewrite H1 in *. rewrite bind_trigger in H2. apply trans_vis_inv in H2 as (? & ? & ?). subst.
         rewrite H2 in H3. inv H3. step in H4. inv H4.
         apply equ_br_invE in H5 as [_ ?].
@@ -880,9 +866,7 @@ Proof.
       eapply epsilon_det_bind with (k := fun x => Ret (tt, x)) in H2.
       rewrite bind_ret_l in H2. apply H2.
     + apply H in H1 as [].
-      inversion H1.
-      * inv_equ.
-      * subst. step in H4. inv H4. now apply void_unit_elim in H10.
+      inversion H1; inv_equ.
 Qed.
 
 Lemma interp_lift_handler {E F B C X} `{HasB: B -< C}
@@ -1019,7 +1003,6 @@ Proof.
       apply trans_bind_inv in TR as [(VAL & th & TRh & EQ) | (x & TRh & TR)].
       2: {
         apply Hh in TRh as []. inversion H; subst; inv_equ.
-        step in H1. inv H1. now apply void_unit_elim in H7.
       }
       apply Hh in TRh as ?. destruct H as [[st' x] EPS].
       simple eapply ssim_vis_l_inv in SIM.

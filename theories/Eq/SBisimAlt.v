@@ -351,6 +351,33 @@ Proof.
     now apply sbt'_flip.
 Qed.
 
+Lemma sbt'_sym_gen {E F B C X Y} `{HasB0: B0 -< C} RR R {HR: Symmetric R} (f : ctree E B X -> ctree F C Y) :
+  (forall (t u : ctree E B X),
+  R t u ->
+  SBisim'Notations.sbt' eq RR true (f t) (f u)) ->
+  (forall t u : ctree E B X,
+  R t u ->
+  forall side : bool,
+  SBisim'Notations.sbt' eq RR side (f t) (f u)).
+Proof.
+  intros. apply split_sbt'_eq. split.
+  - now apply H.
+  - apply H. now symmetry.
+Qed.
+
+Lemma sbt'_sym {E F B C X Y} `{HasB0: B0 -< B} `{HasB0': B0 -< C} RR
+  (f : ctree E B X -> ctree F C Y) :
+  (forall (t u : ctree E B X),
+  t ~ u ->
+  SBisim'Notations.sbt' eq RR true (f t) (f u)) ->
+  (forall t u : ctree E B X,
+  t ~ u ->
+  forall side : bool,
+  SBisim'Notations.sbt' eq RR side (f t) (f u)).
+Proof.
+  apply sbt'_sym_gen. typeclasses eauto.
+Qed.
+
 Section sbisim'_heterogenous_theory.
   Arguments label: clear implicits.
   Context {E F C D: Type -> Type} {X Y: Type}
@@ -852,6 +879,27 @@ Section upto.
           `{HasB1 : B1 -< C} `{HasB1' : B1 -< D}
           (L : hrel (@label E) (@label F)).
 
+  Program Definition ss_ctx3_l : mon (bool -> rel (ctree E C X) (ctree F D Y))
+    := {| body R b t u := b = true /\ ss L (fun t u => forall side, R side t u) t u |}.
+  Next Obligation.
+    split; auto. intros. apply H1 in H0 as (? & ? & ? & ? & ?). eauto 6.
+  Qed.
+
+  Lemma ss_st'_l : ss_ctx3_l <= t (@sb' E F C D X Y _ _ L).
+  Proof.
+    intro. apply Coinduction. cbn -[ss sb']. intros. destruct H as [-> ?].
+    apply sb'_true_ss'. split; intros.
+    - apply H in H1 as (? & ? & ? & ? & ?).
+      exists x, x0. split; auto. split; auto.
+      intros. apply (b_T (sb' L)). apply H2.
+    - exists a3. split; auto.
+      apply (fTf_Tf (sb' L)). cbn -[sb']. split; auto. intros.
+      eapply trans_brD in H1; auto. rewrite <- H0 in H1.
+      apply H in H1 as (? & ? & ? & ? & ?).
+      exists x0, x1. split; auto. split; auto. intros.
+      apply (b_T (sb' L)). apply H2.
+  Qed.
+
   (* Up-to guard *)
 
   Program Definition guard_ctx3_l : mon (bool -> rel (ctree E C X) (ctree F D Y))
@@ -917,10 +965,41 @@ Section upto.
       step. do 3 red. apply sb'_true_ss'. now apply IHepsilon_det.
   Qed.
 
+  Definition epsilon_ctx' {E C X} `{HasB1: B1 -< C} (R : ctree E C X -> Prop)
+    (t : ctree E C X) :=
+    forall t', epsilon t t' -> productive t' -> R t'.
+
+  Program Definition epsilon_ctx3_l : mon (bool -> rel (ctree E C X) (ctree F D Y))
+    := {| body R b t u := b = true /\ epsilon_ctx' (fun t => R b t u) t |}.
+  Next Obligation.
+    split; auto. intros ??. apply H1 in H0; auto.
+  Qed.
+
   Program Definition epsilon_ctx3_r : mon (bool -> rel (ctree E C X) (ctree F D Y))
     := {| body R b t u := b = true /\ epsilon_ctx (fun u => R b t u) u |}.
   Next Obligation.
     destruct H1 as (? & ? & ?). split; auto. red. eauto.
+  Qed.
+
+  Lemma epsilon_ctx3_l_sbisim' :
+    epsilon_ctx3_l <= t (@sb' E F C D X Y _ _ L).
+  Proof.
+    apply Coinduction. repeat red. intros.
+    destruct H as (-> & ?). red in H.
+    split; intros; try discriminate.
+    split; intros.
+    - specialize (H a1 ltac:(reflexivity) H1).
+      apply H in H2 as (? & ? & ? & ? & ?); auto.
+      eexists _, _. split; [apply H2 |].
+      split; auto.
+      intros. apply (id_T (sb' L)). apply H3.
+    - exists a2. split; auto.
+      apply (fT_T ss_st'_l). cbn -[sb']. split; auto.
+      intros. apply trans_epsilon in H2 as (? & ? & ? & ?).
+      eapply epsilon_br in H2. rewrite <- H1 in H2. apply H in H2; auto.
+      apply H2 in H4 as (? & ? & ? & ? & ?); auto.
+      eexists _, _. split; [apply H4 |]. split; auto.
+      intros. apply (id_T (sb' L)). apply H5.
   Qed.
 
   Lemma epsilon_ctx3_r_sbisim' :
@@ -954,27 +1033,6 @@ Section upto.
     split; auto. exists y. split; auto.
     apply (fbt_bt (epsilon_ctx3_r_sbisim')). cbn.
     split; auto. exists y0. split; auto. now apply epsilon_det_epsilon.
-  Qed.
-
-  Program Definition ss_ctx3_l : mon (bool -> rel (ctree E C X) (ctree F D Y))
-    := {| body R b t u := b = true /\ ss L (fun t u => forall side, R side t u) t u |}.
-  Next Obligation.
-    split; auto. intros. apply H1 in H0 as (? & ? & ? & ? & ?). eauto 6.
-  Qed.
-
-  Lemma ss_st'_l : ss_ctx3_l <= t (@sb' E F C D X Y _ _ L).
-  Proof.
-    intro. apply Coinduction. cbn -[ss sb']. intros. destruct H as [-> ?].
-    apply sb'_true_ss'. split; intros.
-    - apply H in H1 as (? & ? & ? & ? & ?).
-      exists x, x0. split; auto. split; auto.
-      intros. apply (b_T (sb' L)). apply H2.
-    - exists a3. split; auto.
-      apply (fTf_Tf (sb' L)). cbn -[sb']. split; auto. intros.
-      eapply trans_brD in H1; auto. rewrite <- H0 in H1.
-      apply H in H1 as (? & ? & ? & ? & ?).
-      exists x0, x1. split; auto. split; auto. intros.
-      apply (b_T (sb' L)). apply H2.
   Qed.
 
 End upto.
@@ -1320,24 +1378,16 @@ Proof.
   - apply H0.
 Qed.
 
-Theorem sbisim_sbisim' {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} :
-  forall L (t : ctree E C X) (t' : ctree F D Y), sbisim L t t' <-> sbisim' L t t'.
+Theorem gfp_sb'_ss_sbisim {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} :
+  forall L (t : ctree E C X) (u : ctree F D Y),
+  (ss L (sbisim L) t u -> gfp (sb' L) true t u) /\
+  (ss (flip L) (flip (sbisim L)) u t -> gfp (sb' L) false t u).
 Proof.
-  split; intro.
-  - revert t t' H.
-    assert (
-      forall (t : ctree E C X) (u : ctree F D Y),
-        (ss L (sbisim L) t u -> gfp (sb' L) true t u) /\
-        (ss (flip L) (flip (sbisim L)) u t -> gfp (sb' L) false t u)).
-    2: {
-      intros. step in H0. destruct H0.
-      apply H in H0, H1. intros []; auto.
-    }
-    coinduction R CH. intros. split; split.
-    2, 3: intro; discriminate. all: intros _; split; intros.
+    intros. revert t u. coinduction R CH. intros. split; split.
+    2, 3: intros; discriminate. all: intros _; split; intros.
     + apply H in H1. destruct H1 as (? & ? & ? & ? & ?).
       eexists _, _. split; [apply H1 |]. split; [| apply H3].
-      step in H2. destruct side; apply CH; apply H2.
+      step in H2. intro. destruct side; apply CH; apply H2.
     + subs. apply ss_brD_l_inv with (x := x) in H.
       exists u. split; [now left |]. now apply CH.
     + apply H in H1. destruct H1 as (? & ? & ? & ? & ?).
@@ -1345,6 +1395,22 @@ Proof.
       step in H2. destruct side; apply CH; apply H2.
     + subs. apply ss_brD_l_inv with (x := x) in H.
       exists t. split; [now left |]. now apply CH.
+Qed.
+
+Lemma gfp_sb'_true_ss_sbisim {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} :
+  forall L (t : ctree E C X) (u : ctree F D Y),
+  ss L (sbisim L) t u -> gfp (sb' L) true t u.
+Proof.
+  apply gfp_sb'_ss_sbisim.
+Qed.
+
+Theorem sbisim_sbisim' {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} :
+  forall L (t : ctree E C X) (t' : ctree F D Y), sbisim L t t' <-> sbisim' L t t'.
+Proof.
+  split; intro.
+  - intros [].
+    + eapply (proj1 (gfp_sb'_ss_sbisim _ _ _)). step in H. apply H.
+    + eapply (proj2 (gfp_sb'_ss_sbisim _ _ _)). step in H. apply H.
   - revert t t' H.
     coinduction R CH. intros. split; intros.
     + cbn. intros. apply trans_epsilon in H0 as (? & ? & ? & ?).
