@@ -290,11 +290,3 @@ Section is_simple_theory.
   Qed.
 
 End is_simple_theory.
-
-(*|
-A computation is [vsimple] if it is syntactically:
-- a [Ret]
-- or a [trigger]
-|*)
-Definition vsimple {E C X} (t : ctree E (B01 +' C) X) :=
-  (exists x, t ≅ Ret x) \/ exists f, t ≅ CTree.trigger f.
