@@ -1050,6 +1050,87 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma interp_state_sbisim_aux {E F B C X St}
+  `{HasB: B -< C} :
+  forall (h : E ~> stateT St (ctree F (B01 +' C))) (Hh : forall X e st, is_simple (h X e st))
+  (t u : ctree E (B01 +' B) X) st,
+  ss eq (sbisim eq) t u ->
+  gfp (sb' eq) true (interp_state h t st) (interp_state h u st).
+Proof.
+  intros h Hh. coinduction R CH. intros t u st SIM.
+  rewrite unfold_interp_state.
+  setoid_rewrite ctree_eta at 1 in SIM. destruct (observe t) eqn:?.
+  - (* Ret *)
+    apply ss_ret_l_inv in SIM as (? & ? & ? & ? & <-).
+    eapply trans_val_interp_state in H.
+    apply sb'_true_ss'. eapply step_ss'_ret_l; eauto.
+  - (* Vis *)
+    specialize (Hh _ e st). destruct Hh as [Hh | Hh].
+    + (* pure handler *)
+      eapply (fbt_bt (pure_bind_ctx3_l_sbisim' eq (P := fun x => trans (val x) (h X0 e st) stuckD))).
+      cbn. split; auto.
+      red. eexists _, _. split; [reflexivity |]. split. {
+        intros ?? TRh. apply Hh in TRh as ?.
+        eapply wf_val_is_val_inv in H. destruct H as (v & ?). 2: eapply wf_val_trans; eassumption.
+        subst. exists v. split; auto. apply trans_val_inv in TRh as ?. now subs.
+      }
+      intros [] ?. cbn.
+      cbn in SIM. specialize (SIM (obs e x) (k x) ltac:(etrans)).
+      destruct SIM as (? & ? & ? & ? & <-).
+      eapply (fbt_bt (epsilon_ctx3_r_sbisim' eq)). cbn. split; auto. red.
+      eexists. split.
+      * eapply trans_obs_interp_state_pure; eauto.
+      * apply step_sb'_guard. apply CH. step in H1. apply H1.
+    + apply (fbt_bt (ss_st'_l (L := eq))). split; auto.
+      cbn. intros l t' TR.
+      apply trans_bind_inv in TR as [(VAL & th & TRh & EQ) | (x & TRh & TR)].
+      2: {
+        apply Hh in TRh as []. inversion H; subst; inv_equ.
+      }
+      apply Hh in TRh as ?. destruct H as [[st' x] EPS].
+      simple eapply ss_vis_l_inv in SIM.
+      destruct SIM as (l' & u' & TR & SIM & <-).
+      exists l, (th;; Guard (interp_state h u' st')). setoid_rewrite EQ. clear t' EQ.
+      split; [| split; auto].
+      * cbn. apply (trans_obs_interp_state_step h st TR); auto. apply EPS.
+      * intros. cbn. rewrite epsilon_det_bind_ret_l_equ with (x := (st', x)); [| assumption].
+        apply sbt'_clo_bind_eq; eauto.
+        intros [] ?.
+        apply split_sbt'_eq.
+        apply split_sbisim_eq in SIM.
+        split; apply step_sb'_guard; apply CH; apply SIM.
+  - (* Br *)
+    unfold MonadBr_stateT, mbr, MonadBr_ctree. cbn. rewrite bind_bind, bind_branch.
+    destruct vis.
+    + (* BrS *)
+      apply step_sb'_brS_l. intros.
+      simple eapply ss_brS_l_inv in SIM as (? & u' & TR & SIM & <-).
+      exists tau, (Guard (interp_state h u' st)). split; [| split]; auto.
+      * now apply (trans_tau_interp_state h st TR).
+      * intros. step. rewrite bind_ret_l.
+        apply split_sbt'_eq. apply split_sbisim_eq in SIM.
+        split; apply step_sb'_guard; apply CH; apply SIM.
+    + (* BrD *)
+      apply step_sb'_brD_l. intros.
+      eapply ss_brD_l_inv in SIM.
+      step. rewrite bind_ret_l. apply step_sb'_brD_l. intros _.
+      cbn. apply CH. apply SIM.
+  Unshelve.
+  { cbn. intros. rewrite <- H1, <- H2. apply H3. }
+Qed.
+
+#[global] Instance interp_state_sbisim2 {E F B C X St}
+  `{HasB: B -< C} :
+  forall (h : E ~> stateT St (ctree F (B01 +' C))) (Hh : forall X e st, is_simple (h X e st)),
+  Proper (sbisim eq ==> eq ==> sbisim eq) (interp_state (C := B) h (T := X)).
+Proof.
+  cbn. intros. subst.
+  apply sbisim_sbisim'. intros [].
+  - apply interp_state_sbisim_aux; auto. step in H. apply H.
+  - apply st'_flip. cbn. simple apply interp_state_sbisim_aux; auto.
+    symmetry in H. step in H. apply H.
+Qed.
+
 Arguments get {S E C _}.
 Arguments put {S E C _}.
 Arguments run_state {S E C} [_] _ _.

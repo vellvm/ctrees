@@ -16,7 +16,8 @@ From CTree Require Import
      Utils
      Eq
      Eq.Epsilon
-     Eq.SSimAlt.
+     Eq.SSimAlt
+     Misc.Pure.
 
 From RelationAlgebra Require Export
      rel srel.
@@ -349,33 +350,6 @@ Proof.
     apply sbt'_flip. apply H.
   - destruct side; [apply H |].
     now apply sbt'_flip.
-Qed.
-
-Lemma sbt'_sym_gen {E F B C X Y} `{HasB0: B0 -< C} RR R {HR: Symmetric R} (f : ctree E B X -> ctree F C Y) :
-  (forall (t u : ctree E B X),
-  R t u ->
-  SBisim'Notations.sbt' eq RR true (f t) (f u)) ->
-  (forall t u : ctree E B X,
-  R t u ->
-  forall side : bool,
-  SBisim'Notations.sbt' eq RR side (f t) (f u)).
-Proof.
-  intros. apply split_sbt'_eq. split.
-  - now apply H.
-  - apply H. now symmetry.
-Qed.
-
-Lemma sbt'_sym {E F B C X Y} `{HasB0: B0 -< B} `{HasB0': B0 -< C} RR
-  (f : ctree E B X -> ctree F C Y) :
-  (forall (t u : ctree E B X),
-  t ~ u ->
-  SBisim'Notations.sbt' eq RR true (f t) (f u)) ->
-  (forall t u : ctree E B X,
-  t ~ u ->
-  forall side : bool,
-  SBisim'Notations.sbt' eq RR side (f t) (f u)).
-Proof.
-  apply sbt'_sym_gen. typeclasses eauto.
 Qed.
 
 Section sbisim'_heterogenous_theory.
@@ -823,24 +797,22 @@ Section Inversion_Rules.
 
   Lemma sb'_true_brD_l_inv {Z R} :
     forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y),
-    (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
     sb' L R true (BrD c k) u ->
     forall x, exists u', epsilon u u' /\ R true (k x) u'.
   Proof.
     intros.
-    pose proof (proj1 H0 eq_refl).
-    destruct H1 as [_ ?]. etrans.
+    pose proof (proj1 H eq_refl).
+    destruct H0 as [_ ?]. etrans.
   Qed.
 
   Lemma sb'_false_brD_l_inv {Z R} :
     forall (t : ctree E C X) (c : D Z) (k : Z -> ctree F D Y),
-    (Proper (eq ==> equ eq ==> equ eq ==> impl) R) ->
     sb' L R false t (BrD c k) ->
     forall x, exists t', epsilon t t' /\ R false t' (k x).
   Proof.
     intros.
-    pose proof (proj2 H0 eq_refl).
-    destruct H1 as [_ ?]. etrans.
+    pose proof (proj2 H eq_refl).
+    destruct H0 as [_ ?]. etrans.
   Qed.
 
   Lemma sbisim'_brD_l_inv {Z} c x (k : Z -> ctree E C X) (t' : ctree F D Y) :
@@ -849,7 +821,6 @@ Section Inversion_Rules.
   Proof.
     intros. step in H.
     eapply sb'_true_brD_l_inv with (x := x) in H as (? & ? & ?).
-    2: typeclasses eauto.
     step. split; intros; try discriminate.
     eapply step_ss'_epsilon_r; [| apply H].
     step in H0. now apply H0.
@@ -861,7 +832,6 @@ Section Inversion_Rules.
   Proof.
     intros. step in H.
     eapply sb'_false_brD_l_inv with (x := x) in H as (? & ? & ?).
-    2: typeclasses eauto.
     step. split; intros; try discriminate.
     eapply step_ss'_epsilon_r; [| apply H].
     step in H0. now apply H0.
@@ -965,14 +935,18 @@ Section upto.
       step. do 3 red. apply sb'_true_ss'. now apply IHepsilon_det.
   Qed.
 
-  Definition epsilon_ctx' {E C X} `{HasB1: B1 -< C} (R : ctree E C X -> Prop)
+  Definition pure_bind_ctx {E C X X0} `{HasB0: B0 -< C} `{HasB1: B1 -< C} (P : X0 -> Prop) (R : ctree E C X -> Prop)
     (t : ctree E C X) :=
-    forall t', epsilon t t' -> productive t' -> R t'.
+    exists (t0 : ctree E C X0) k0,
+      t ≅ CTree.bind t0 k0 /\
+      (forall l t', trans l t0 t' -> exists v, l = val v /\ P v) /\
+      forall x, P x -> R (k0 x).
 
-  Program Definition epsilon_ctx3_l : mon (bool -> rel (ctree E C X) (ctree F D Y))
-    := {| body R b t u := b = true /\ epsilon_ctx' (fun t => R b t u) t |}.
+  Program Definition pure_bind_ctx3_l {X0} (P : X0 -> Prop) : mon (bool -> rel (ctree E C X) (ctree F D Y))
+    := {| body R b t u := b = true /\ pure_bind_ctx P (fun t => R b t u) t |}.
   Next Obligation.
-    split; auto. intros ??. apply H1 in H0; auto.
+    split; auto. destruct H1 as (? & ? & ? & ? & ?).
+    red. eauto 7.
   Qed.
 
   Program Definition epsilon_ctx3_r : mon (bool -> rel (ctree E C X) (ctree F D Y))
@@ -981,25 +955,39 @@ Section upto.
     destruct H1 as (? & ? & ?). split; auto. red. eauto.
   Qed.
 
-  Lemma epsilon_ctx3_l_sbisim' :
-    epsilon_ctx3_l <= t (@sb' E F C D X Y _ _ L).
+  Lemma pure_bind_ctx3_l_sbisim' {X0} (P : X0 -> Prop) :
+    pure_bind_ctx3_l P <= t (@sb' E F C D X Y _ _ L).
   Proof.
-    apply Coinduction. repeat red. intros.
-    destruct H as (-> & ?). red in H.
-    split; intros; try discriminate.
-    split; intros.
-    - specialize (H a1 ltac:(reflexivity) H1).
-      apply H in H2 as (? & ? & ? & ? & ?); auto.
-      eexists _, _. split; [apply H2 |].
-      split; auto.
-      intros. apply (id_T (sb' L)). apply H3.
-    - exists a2. split; auto.
-      apply (fT_T ss_st'_l). cbn -[sb']. split; auto.
-      intros. apply trans_epsilon in H2 as (? & ? & ? & ?).
-      eapply epsilon_br in H2. rewrite <- H1 in H2. apply H in H2; auto.
-      apply H2 in H4 as (? & ? & ? & ? & ?); auto.
-      eexists _, _. split; [apply H4 |]. split; auto.
-      intros. apply (id_T (sb' L)). apply H5.
+    apply Coinduction. cbn -[sb']. intros R side t u PURE.
+    destruct PURE as (-> & PURE). apply sb'_true_ss'.
+    red in PURE. destruct PURE as (t0 & k & EQ0 & Ht0 & Hk). subs.
+    split.
+    - intros PROD l t' TR.
+      apply trans_bind_inv in TR as [(VAL & t'0 & TR0 & EQ) | (v & TR0 & TRk)].
+      + apply Ht0 in TR0 as (v & -> & _). exfalso; etrans.
+      + apply Ht0 in TR0 as ?. destruct H as (? & ? & Hv). apply val_eq_inv in H as <-.
+        apply Hk in TRk as (l' & u' & TRu & SIM & EQl); auto. 2: {
+          apply trans_val_epsilon in TR0 as [? _].
+          apply productive_epsilon in H1; [| now apply productive_bind in PROD].
+          now rewrite H1, bind_ret_l in PROD.
+        }
+        eexists _, _. repeat split; eauto. intros. apply (id_T (sb' L)). apply SIM.
+    - intros Z c k0 EQ z.
+      apply br_equ_bind in EQ as ?. destruct H as [(v & EQt0) | (k1 & EQt0 & EQk0)].
+      + rewrite EQt0, bind_ret_l in EQ. specialize (Hk v). rewrite EQ in Hk.
+        setoid_rewrite EQt0 in Ht0. clear t0 EQt0.
+        destruct (Ht0 _ _ (trans_ret v)) as (? & ? & Hv). apply val_eq_inv in H as <-.
+        specialize (Hk Hv).
+        apply sb'_true_brD_l_inv with (x := z) in Hk as (u' & EPS & SIM).
+        exists u'. split; auto. apply (id_T (sb' L)). apply SIM.
+      + exists u. split; auto.
+        eapply (fTf_Tf (sb' L)). cbn.
+        split; auto. red. exists (k1 z), k.
+        split; auto. split. {
+          intros ?? TR. eapply trans_brD in TR; [| reflexivity].
+          rewrite <- EQt0 in TR. now apply Ht0 in TR.
+        }
+        intros. apply (b_T (sb' L)). now apply Hk.
   Qed.
 
   Lemma epsilon_ctx3_r_sbisim' :

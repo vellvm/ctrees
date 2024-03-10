@@ -2280,14 +2280,26 @@ but we prove a counter-example for a ctree with a binary br.
     ss eq (st eq R) t u /\ ss eq (st eq R) u t.
   Proof.
     split; intro.
-    - destruct H. split; auto.
-      eapply weq_ss with (y := flip eq). { cbn. intros. split; intro; now subst. }
-      cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?).
-      unfold flip in H2, H3. symmetry in H2. etrans.
+    - split; [apply H |].
+      symmetry in H. apply H.
     - apply split_sb_eq. { apply H. }
       destruct H as [_ H].
       cbn. intros. apply H in H0 as (? & ? & ? & ? & ?).
       unfold flip in H1, H2. symmetry in H1. etrans.
+  Qed.
+
+  Lemma split_sbisim_eq : forall {E B X} `{HasB0: B0 -< B} (t u : ctree E B X),
+    t ~ u <->
+    ss eq (sbisim eq) t u /\ ss eq (sbisim eq) u t.
+  Proof.
+    split; intro.
+    - step in H. split; [apply H |].
+      symmetry in H. apply H.
+    - step. split; [apply H |].
+      destruct H as [_ ?].
+      eapply weq_ss with (y := eq). { cbn. split; auto. }
+      eapply (Hbody (ss eq)). 2: apply H.
+      cbn. intros. now symmetry.
   Qed.
 
   #[local] Definition t1 : ctree void1 (B0 +' B1 +' B2) unit :=
