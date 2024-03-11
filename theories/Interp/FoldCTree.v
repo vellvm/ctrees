@@ -28,40 +28,6 @@ Open Scope ctree_scope.
     For now, we simply specialize results to specific [M]s.
  *)
 
-Theorem ssim_interp_h {E F1 F2 C D1 D2 X Y}
-  `{HC1 : C -< D1} `{HC2 : C -< D2}
-  (Ldest : rel (@label F1) (@label F2)) :
-  forall (h : E ~> ctree F1 (B01 +' D1)) (h' : E ~> ctree F2 (B01 +' D2)),
-  (Ldest tau tau /\ forall (x : X), Ldest (val x) (val x)) ->
-  (forall {Z} (e : E Z), h _ e (≲update_val_rel Ldest (@eq Z)) h' _ e) ->
-  forall (x : Y) (k : Y -> ctree E (B01 +' C) X), interp h (k x) (≲Ldest) interp h' (k x).
-Proof.
-  intros.
-  eapply ssim_iter with (Ra := equ eq) (Rb := fun b b' => Ldest (val b) (val b')).
-  2, 4: auto. 1: red; reflexivity.
-  cbn. intros.
-  setoid_rewrite ctree_eta in H1.
-  destruct (observe a) eqn:?, (observe a') eqn:?; try now (step in H1; inv H1).
-  - step. apply step_ss_ret. constructor. cbn. step in H1. inv H1. apply H.
-  - unfold CTree.map.
-    apply equ_vis_invT in H1 as ?. subst.
-    eapply ssim_clo_bind_gen with (R0 := eq).
-    + red. reflexivity.
-    + eapply weq_ssim. apply update_val_rel_update_val_rel.
-      apply equ_vis_invE in H1 as [<- ?]. apply H0.
-    + intros. step. apply step_ss_ret. constructor.
-      apply equ_vis_invE in H1 as [<- ?]. subst. apply H1.
-  - unfold CTree.map. setoid_rewrite bind_branch.
-    apply equ_br_invT in H1 as ?. destruct H2 as [<- <-].
-    apply equ_br_invE in H1 as [<- ?].
-    destruct vis.
-    + step. apply step_ss_brS_id. intros.
-      step. apply step_ss_ret. constructor.
-      apply H1. right; etrans. apply H.
-    + step. apply step_ss_brD_id. intros.
-      apply step_ss_ret. constructor. apply H1.
-Qed.
-
 Section FoldCTree.
 
   Section With_Params.

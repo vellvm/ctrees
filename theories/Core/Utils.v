@@ -134,7 +134,7 @@ Ltac do_det :=
 
 #[global] Notation inhabited X := { x: X | True}.
 
-Definition sum_rel {A B1 B2} Ra Rb : rel (A + B1) (A + B2) :=
+Definition sum_rel {A1 A2 B1 B2} Ra Rb : rel (A1 + B1) (A2 + B2) :=
   fun ab ab' =>
     match ab, ab' with
     | inl a, inl a' => Ra a a'

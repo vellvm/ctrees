@@ -163,14 +163,14 @@ Qed.
 End TransIter.
 
 (* Thanks to SSimAlt, this proof does not need trans_iter_gen. *)
-Theorem ssim_iter_gen {E F C D A B B'}
+Theorem ssim_iter_gen {E F C D A A' B B'}
   `{HasB0 : B0 -< C} `{HasB1 : B1 -< C} `{HasB0' : B0 -< D} `{HasB1' : B1 -< D}
-  (L : rel (@label E) (@label F)) (Ra : relation A) (Rb : rel B B') L0
+  (L : rel (@label E) (@label F)) (Ra : rel A A') (Rb : rel B B') L0
   (HL0 : is_update_val_rel L (sum_rel Ra Rb) L0)
   (HRb : forall b b', Rb b b' <-> L (val b) (val b')) :
-  forall (step : A -> ctree E C (A + B)) (step' : A -> ctree F D (A + B')),
-  (forall a a' : A, Ra a a' -> step a (≲L0) step' a') ->
-  forall (t : ctree E C (A + B)) (t' : ctree F D (A + B')),
+  forall (step : A -> ctree E C (A + B)) (step' : A' -> ctree F D (A' + B')),
+  (forall a a', Ra a a' -> step a (≲L0) step' a') ->
+  forall (t : ctree E C (A + B)) (t' : ctree F D (A' + B')),
   t (≲L0) t' ->
   iter_gen step t (≲L) iter_gen step' t'.
 Proof.
@@ -226,13 +226,13 @@ Proof.
   - apply H0.
 Qed.
 
-Theorem ssim_iter {E F C D A B B'} `{B0 -< C} `{B1 -< C} `{B0 -< D} `{B1 -< D}
-  (L : rel (@label E) (@label F)) (Ra : relation A) (Rb : rel B B') L0
+Theorem ssim_iter {E F C D A A' B B'} `{B0 -< C} `{B1 -< C} `{B0 -< D} `{B1 -< D}
+  (L : rel (@label E) (@label F)) (Ra : rel A A') (Rb : rel B B') L0
   (HL0 : is_update_val_rel L (sum_rel Ra Rb) L0)
   (HRb : forall b b', Rb b b' <-> L (val b) (val b')) :
-  forall (step : A -> ctree E C (A + B)) (step' : A -> ctree F D (A + B')),
-  (forall a a' : A, Ra a a' -> step a (≲L0) step' a') ->
-  forall a a' : A, Ra a a' -> iter step a (≲L) iter step' a'.
+  forall (step : A -> ctree E C (A + B)) (step' : A' -> ctree F D (A' + B')),
+  (forall a a', Ra a a' -> step a (≲L0) step' a') ->
+  forall a a', Ra a a' -> iter step a (≲L) iter step' a'.
 Proof.
   repeat intro.
   rewrite !iter_iter_gen.

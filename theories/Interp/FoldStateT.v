@@ -15,6 +15,7 @@ From CTree Require Import
      FoldCTree
      Eq
      Eq.Epsilon
+     Eq.IterFacts
      Eq.SSimAlt
      Eq.SBisimAlt
      Misc.Pure.
@@ -475,6 +476,45 @@ Qed.
 
 End InterpState.
 
+Theorem ssim_interp_state_h {E F1 F2 C D1 D2 X St St'}
+  `{HC1 : C -< D1} `{HC2 : C -< D2}
+  (Ldest : rel (@label F1) (@label F2)) (Rs : rel St St') :
+  forall (h : E ~> stateT St (ctree F1 (B01 +' D1))) (h' : E ~> Monads.stateT St' (ctree F2 (B01 +' D2))),
+  (Ldest tau tau /\
+    forall (x : X) (st : St) (st' : St'),
+    Rs st st' ->
+    Ldest (val (st, x)) (val (st', x))) ->
+  (forall {Z} (e : E Z) st st',
+    Rs st st' ->
+    h _ e st (≲update_val_rel Ldest (fun '(s, z) '(s', z') => Rs s s' /\ @eq Z z z')) h' _ e st') ->
+  forall (t : ctree E (B01 +' C) X) st0 st'0,
+  Rs st0 st'0 ->
+  interp_state h t st0 (≲Ldest) interp_state h' t st'0.
+Proof.
+  intros * HL Hh * ST *.
+  unfold interp_state, interp, fold, Basics.iter, MonadIter_stateT0, Basics.iter, MonadIter_ctree.
+  eapply ssim_iter with (Ra := fun '(st, t) '(st', t') => Rs st st' /\ t ≅ t') (Rb := fun b b' => Ldest (val b) (val b')).
+  2, 4: auto. 1: red; reflexivity.
+  clear st0 st'0 ST t.
+  cbn. intros [st t] [st' t'] [ST EQ]. cbn.
+  setoid_rewrite ctree_eta in EQ.
+  destruct (observe t) eqn:?, (observe t') eqn:?; inv_equ.
+  - rewrite !bind_ret_l. apply ssim_ret. constructor. cbn. now apply HL.
+  - rewrite !bind_map.
+    eapply ssim_clo_bind_gen with (R0 := fun '(st, t) '(st', t') => Rs st st' /\ t = t').
+    + red. reflexivity.
+    + eapply weq_ssim. apply update_val_rel_update_val_rel.
+      now apply Hh.
+    + cbn. intros [] [] [? <-]. apply ssim_ret. constructor; cbn; auto.
+  - rewrite !bind_map, !bind_bind. setoid_rewrite bind_branch.
+    cbn. destruct vis0.
+    + apply ssim_brS_id. 2: { constructor; etrans. apply HL. }
+      intros. rewrite !bind_ret_l. apply ssim_ret.
+      constructor. cbn. auto.
+    + apply ssim_brD_id. intros. rewrite !bind_ret_l.
+      apply ssim_ret. constructor. cbn. auto.
+Qed.
+
 Definition lift_handler {E F B} (h : E ~> ctree F B) : E ~> Monads.stateT unit (ctree F B) :=
   fun _ e s => CTree.map (fun x => (tt, x)) (h _ e).
 
@@ -497,6 +537,8 @@ Proof.
       inversion H1; inv_equ.
 Qed.
 
+(* Results on interp_state can be transported to interp using interp_lift_handler. *)
+
 Lemma interp_lift_handler {E F B C X} `{HasB: B -< C}
   (h : E ~> ctree F (B01 +' C)) (t : ctree E (B01 +' B) X) :
   interp h t ≅ CTree.map (fun '(st, x) => x) (interp_state (lift_handler h) t tt).
@@ -516,6 +558,33 @@ Proof.
     rewrite map_guard.
     step. constructor. intros.
     apply CH.
+Qed.
+
+Theorem ssim_interp_h {E F1 F2 C D1 D2 X}
+  `{HC1 : C -< D1} `{HC2 : C -< D2}
+  (Ldest : rel (@label F1) (@label F2)) :
+  forall (h : E ~> ctree F1 (B01 +' D1)) (h' : E ~> ctree F2 (B01 +' D2)),
+  (Ldest tau tau /\ forall (x : X), Ldest (val x) (val x)) ->
+  (forall {Z} (e : E Z), h _ e (≲update_val_rel Ldest (@eq Z)) h' _ e) ->
+  forall (t : ctree E (B01 +' C) X),
+  interp h t (≲Ldest) interp h' t.
+Proof.
+  intros.
+  rewrite !interp_lift_handler.
+  unfold CTree.map. eapply ssim_clo_bind with (R0 := eq).
+  2: { intros [] ? <-. apply ssim_ret. apply H. }
+  eapply ssim_interp_state_h.
+  3: reflexivity.
+  - split. { constructor; etrans. apply H. }
+    intros ??? <-. now constructor.
+  - intros ???? <-.
+    eapply weq_ssim. apply update_val_rel_update_val_rel.
+    unfold lift_handler, CTree.map.
+    eapply ssim_clo_bind. {
+      eapply weq_ssim. apply update_val_rel_update_val_rel.
+      apply H0.
+    }
+    intros ?? <-. apply ssim_ret. now constructor.
 Qed.
 
 Lemma trans_val_interp_state {E F B C X St}
@@ -711,7 +780,8 @@ Proof.
       eexists. split.
       * eapply trans_obs_interp_state_pure; eauto.
       * apply step_sb'_guard. apply CH. step in H1. apply H1.
-    + apply (fbt_bt (ss_st'_l (L := eq))). split; auto.
+    + (* handler that takes exactly one transition *)
+      apply (fbt_bt (ss_st'_l (L := eq))). split; auto.
       cbn. intros l t' TR.
       apply trans_bind_inv in TR as [(VAL & th & TRh & EQ) | (x & TRh & TR)].
       2: {
