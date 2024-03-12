@@ -102,14 +102,26 @@ Section BasicLemmas.
   Proof.
     intros.
     next in H; destruct H.
-    next; split.
-    + apply can_step_brD in H as (j & Hd).
-      apply H0. (* LEF: all branches can step here *)
-    + intros.
-      setoid_rewrite ktrans_brD in H1.
-      rewrite pull2_iff in H1.
-      now apply H1 with i.
-  Qed.
+    setoid_rewrite ktrans_brD in H1.
+    rewrite pull2_iff in H1.
+    apply can_step_brD in H as (j & t' & w' & TR).
+    generalize dependent w.
+    revert i k.
+    induction n; intros.
+    + dependent destruction i; try solve [inv i];
+        dependent destruction j; try solve [inv j].
+      next; split.
+      * now (exists t', w').
+      * intros.
+        now apply H1 with Fin.F1.
+    + dependent destruction i; try solve [inv i];
+        dependent destruction j; try solve [inv j].
+      * next; split.
+        -- now (exists t', w').
+        -- intros.
+           now apply H1 with Fin.F1.
+      * edestruct IHn with (k:= fun i => k (Fin.FS i)) (i:=@Fin.F1 n); eauto.
+  Admitted.
 
   Lemma ax_stuck: forall w φ,
       <( {Ctree.stuck: ctree E X}, w |= AX φ )> ->
@@ -237,7 +249,7 @@ Section BindLemmas.
       <( t, w |= AX done R )> ->
       (forall x w, R x w -> <( {k x}, w |= AX φ )>) ->
       <( {x <- t ;; k x}, w |= AX φ )>.
-  Proof with auto with ctl.
+  Proof.
     intros.
     next; split.
     - apply can_step_bind_r with R.
@@ -267,4 +279,42 @@ Section BindLemmas.
           apply Ht'.
           now apply ktrans_to_finish_inv in TR_ as (_ & ->). 
   Qed.
+  Print Assumptions ax_bind_r.
 End BindLemmas.
+
+Section SyntacticLemmas.
+  Context {E: Type} {HE: Encode E} {X: Type} (R: X -> World E -> Prop).
+
+  Inductive AXDoneInd: ctree' E X -> World E -> Prop :=
+  | AXDonePure: forall x,
+    R x Pure ->
+    AXDoneInd (RetF x) Pure
+  | AXDoneFinish: forall e (v: encode e) x,
+    R x (Obs e v) ->
+    AXDoneInd (RetF x) (Obs e v)
+  | AXDoneBrD: forall n k w,
+    (forall i, AXDoneInd (observe (k i)) w) ->
+    AXDoneInd (BrF false n k) w.
+
+  Check Productive.
+  Lemma axdone_ind {HP: Productive E}: forall t w,
+      <( t, w |= AX done R )> -> AXDoneInd (observe t) w.
+  Proof.
+    intros.
+    rewrite ctree_eta in H.
+    desobs t.
+    - apply ax_done in H as (? & ?).
+      inv H; now constructor.
+    - destruct b.
+      + apply ax_brS in H as (? & ?).
+        specialize (H0 Fin.F1).
+        inv H0; inv H.
+      + constructor.
+        intros i.
+        admit.
+    - apply ax_vis in H as (? & ?).
+      + specialize (H0 (HP e)).
+        inv H0.
+      + exact (HP e).
+  Admitted.
+End SyntacticLemmas.

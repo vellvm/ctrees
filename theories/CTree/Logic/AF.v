@@ -285,24 +285,91 @@ Section CtlAfBind.
              now apply can_step_stuck in H0.
   Qed.
 
-  (* Here, the [not_done w] in the precondition to [k] is crucial,
-     we need to ensure [R] does not accept done states otherwise this breaks
-     the invariant of [t, w |= AX done R] *)
   Theorem af_bind_r{X Y}: forall (t: ctree E Y)
                             (k: Y -> ctree E X) w φ R,
       <( t, w |= AF AX done R )> ->
       (forall (y: Y) w, R y w -> not_done w -> <( {k y}, w |= AF now φ )>) ->
       <( {x <- t ;; k x}, w |= AF now φ )>.
   Proof.
+     intros * Haf.
+     revert X k.
+     induction Haf; intros; subst.
+     - (* MatchA *)
+       next in H.
+       destruct H.
+       destruct H as (t' & w' & TR).
+       cbn in TR.
+       assert(Hk: {φ w} + { ~ φ w }) by admit.
+       destruct Hk.
+       + next; left.
+         now apply ctl_now.
+       + next; right; next.
+         specialize (H1 _ _ TR).
+         cbn in H1.
+         split.
+         * (* not stuck *)
+           inv H1.
+           -- specialize (H0 _ _ H NotDonePure).
+              next in H0.
+              pose proof (ktrans_to_done_inv t t' w x TR) as (? & ->).
+              destruct H0.               
+              ++ contradiction.
+              ++ destruct H0.
+                 destruct H0 as (k_ & w_ & TR_).
+                 apply can_step_bind.                  
+                 right.
+                 rewrite H1 in TR.
+                 exists x, (Done x).
+                 split; [|split]; auto with ctl.
+                 now (exists k_, w_).
+           -- specialize (H0 _ _ H (NotDoneObs e v)).
+              next in H0.
+              pose proof (ktrans_to_finish_inv t t' w e v x TR) as (? & ->).
+              destruct H0.               
+              ++ contradiction.
+              ++ destruct H0.
+                 destruct H0 as (k_ & w_ & TR_).
+                 apply can_step_bind.                  
+                 right.
+                 rewrite H1 in TR.
+                 exists x, (Finish e v x).
+                 split; [|split]; auto with ctl.
+                 now (exists k_, w_).
+         * (* step *)
+           intros.
+           admit.
+    - (* StepA *)
+      destruct H0, H1; clear H H0.      
+      next; right; next; split.
+      + (* can_step *)
+        destruct H1 as (t' & w' & TR').
+        eapply can_step_bind_l with t' w'; auto.
+        eapply not_done_vis_af with (t:=t').
+        admit.
+      + (* AX AF *)
+        intros t_ w_ TR_.
+        apply ktrans_bind_inv in TR_ as
+            [(t' & TR' & Hd & ->) |
+              (x & w' & TR' & Hr & TRk)].
+        * now apply H4.
+        * specialize (H2 _ _ TR').
+          inv H2.
+          apply ctl_vis in H as (? & ? & -> & ?).
+          -- inv Hr.
+          -- destruct H0.
+             now apply can_step_stuck in H0.
+             
     intros * Haf.
+    destruct Haf.
     revert k.
     Opaque entailsF.
     induction Haf; intros; subst.
     - (* MatchA *)
+      admit.
+    -
       destruct H as [(t' & w' & TR') H].
-      cbn in TR'.
-      generalize dependent k.      
       cbn in *.
+      generalize dependent k.      
       setoid_rewrite (ctree_eta t).
       remember (observe t) as T.
       remember (observe t') as T'.
@@ -312,7 +379,10 @@ Section CtlAfBind.
       + (* BrD *)
         rewrite bind_br.
         apply af_brD. (* This lemma is very weak, it doesn't even guarantee a single step! *)
+        setoid_rewrite ktrans_brD in H.
+        rewrite pull2_iff in H.
         intros j.
+        next; right.
         admit.
       + (* BrS *)
         rewrite bind_br.
