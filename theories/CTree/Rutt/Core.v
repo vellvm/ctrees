@@ -11,126 +11,135 @@ From Coinduction Require Import
 From CTree Require Import
   CTree.Core.
 
+
 (*| Equivalence up to tau on ctrees |*)
-Section Rutt.
+Section Eutt.
   Context {E: Type} {HE: Encode E}
-    {X1 X2 : Type} (RE: forall (e1 e2: E), encode e1 -> encode e2 -> Prop)
-    (RR : X1 -> X2 -> Prop).
+    {X : Type} (RE: forall (e1 e2: E), encode e1 -> encode e2 -> Prop).
 
-  Inductive ruttF (eq : ctree E X1 -> ctree E X2 -> Prop) :
-    ctree' E X1 -> ctree' E X2 -> Prop :=
-    | RuttRet x y:
-      RR x y ->
-      ruttF eq (RetF x) (RetF y)
-    | RuttVis (e1 e2: E) (k1: encode e1 -> _) (k2: encode e2 -> _):
-      (forall x y, RE e1 e2 x y -> eq (k1 x) (k2 y)) ->
-      ruttF eq (VisF e1 k1) (VisF e2 k2)
-    | RuttTau t1 t2:
+  Inductive euttF (eq : ctree E X -> ctree E X -> Prop) :
+    ctree' E X -> ctree' E X -> Prop :=
+    | EuttRet x y:
+      x = y ->
+      euttF eq (RetF x) (RetF y)
+    | EuttVis (e1 e2: E) (k1: encode e1 -> _) (k2: encode e2 -> _):
+      (forall x y, eq_dep E encode e1 x e2 y -> eq (k1 x) (k2 y)) ->
+      euttF eq (VisF e1 k1) (VisF e2 k2)
+    | EuttTau t1 t2:
       eq t1 t2 ->
-      ruttF eq (TauF t1) (TauF t2)
-    | RuttTauL t1 t2:
-      ruttF eq (observe t1) t2 ->
-      ruttF eq (TauF t1) t2
-    | RuttTauR t1 t2:
-      ruttF eq t1 (observe t2) ->
-      ruttF eq t1 (TauF t2)            
-    | RuttBr {n} k1 k2:
+      euttF eq (TauF t1) (TauF t2)
+    | EuttTauL t1 t2:
+      euttF eq (observe t1) t2 ->
+      euttF eq (TauF t1) t2
+    | EuttTauR t1 t2:
+      euttF eq t1 (observe t2) ->
+      euttF eq t1 (TauF t2)            
+    | EuttBr {n} k1 k2:
       (forall (x: fin' n), eq (k1 x) (k2 x)) ->
-      ruttF eq (BrF n k1) (BrF n k2).
-  Hint Constructors ruttF: core.
+      euttF eq (BrF n k1) (BrF n k2).
+  Hint Constructors euttF: core.
 
-  Program Definition frutt: mon (ctree E X1 -> ctree E X2 -> Prop) :=
-    {|body eq t1 t2 :=  ruttF eq (observe t1) (observe t2) |}.
+  Program Definition feutt: mon (ctree E X -> ctree E X -> Prop) :=
+    {|body eq t1 t2 :=  euttF eq (observe t1) (observe t2) |}.
   Next Obligation.
     unfold pointwise_relation, Basics.impl,
       Proper, respectful.
     cbn; intros; dependent induction H0;
       rewrite <- ?x2, <- ?x1, <- ?x; eauto.
   Qed.
-End Rutt.
+End Eutt.
 
-Definition rutt {E} {HE:Encode E} {X1 X2} RR RE :=
-  (gfp (@frutt E HE X1 X2 RR RE)).
+Definition eutt {E} {HE:Encode E} {X} :=
+  (gfp (@feutt E HE X)).
 
-#[global] Hint Constructors ruttF: core.
+#[global] Hint Constructors euttF: core.
 
-Ltac fold_rutt_in H:=
+Ltac fold_eutt_in H:=
   multimatch type of H with
-  | context[gfp (@frutt ?E ?HE ?X1 ?X2 ?RR ?RE)] =>
-      fold (@rutt E HE X1 X2 RR RE) in H
+  | context[gfp (@feutt ?E ?HE ?X)] =>
+      fold (@eutt E HE X) in H
   end.
 
-Ltac fold_rutt :=
+Ltac fold_eutt :=
   match goal with
-  | |- context[gfp (@frutt ?E ?HE ?X1 ?X2 ?RR ?RE)] =>
-      fold (@rutt E HE X1 X2 RR RE)
+  | |- context[gfp (@feutt ?E ?HE ?X)] =>
+      fold (@eutt E HE X)
   end.
 
-Ltac __coinduction_rutt R H :=
-  unfold rutt; apply_coinduction; intros R H.
+Ltac __coinduction_eutt R H :=
+  unfold eutt; apply_coinduction; intros R H.
 
-Ltac __step_rutt := unfold rutt; step; fold_rutt.
+Ltac __step_eutt := unfold eutt; step; fold_eutt.
 
-#[global] Tactic Notation "step" := __step_rutt || step.
-#[global] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) := __coinduction_rutt R H.
+#[global] Tactic Notation "step" := __step_eutt || step.
+#[global] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) := __coinduction_eutt R H.
 
-Ltac __step_rutt_in H := unfold rutt in H; step in H; fold_rutt_in H.
+Ltac __step_eutt_in H := unfold eutt in H; step in H; fold_eutt_in H.
 
 #[global] Tactic Notation "step" "in" ident(H) :=
-  __step_rutt_in H || step in H.
+  __step_eutt_in H || step in H.
 
-Definition eq_enc{E} {HE: Encode E} (e1 e2: E) (x: encode e1) (y: encode e2): Prop := eq_dep E encode e1 x e2 y.
-Arguments eq_enc /.
 
-Check rutt.
-Infix "~" := (rutt eq_enc eq) (at level 70): ctree_scope.
+Infix "~" := eutt (at level 70): ctree_scope.
 
 (** The associated companions *)
-Notation rt RE RR  := (t (frutt RE RR)).
-Notation rT RE RR := (T (frutt RE RR)).
-Notation rbt RE RR := (bt (frutt RE RR)).
-Notation rbT RE RR := (bT (frutt RE RR)).
+Notation rt := (t feutt).
+Notation rT := (T feutt).
+Notation rbt := (bt feutt).
+Notation rbT := (bT feutt).
 
-Notation "t [≅] u" := (rt eq_enc eq _ t u) (at level 79): ctree_scope.
-Notation "t {≅} u" := (rbt eq_enc eq _ t u) (at level 79): ctree_scope.
-Notation "t {{≅}} u" := (ruttF eq_enc eq (rutt eq_enc) t u)
-                          (at level 79): ctree_scope.
+Notation "t [~] u" := (rt t u) (at level 79): ctree_scope.
+Notation "t {~} u" := (rbt t u) (at level 79): ctree_scope.
+Notation "t {~}} u" := (euttF eutt t u)
+                         (at level 79): ctree_scope.
 
-Section RuttHomogenousTheory.
-  Context {E: Type} {HE: Encode E} {X : Type}
-    (RE: forall (e1 e2: E), encode e1 -> encode e2 -> Prop) (RR: X -> X -> Prop).
-  Notation rT  := (T (frutt (E := E) (HE:=HE) (X1:=X) (X2:=X) RE RR)).
-  Notation rt  := (t (frutt (E := E) (HE:=HE) (X1:=X) (X2:=X) RE RR)).
-  Notation rbt := (bt (frutt (E := E) (HE:=HE) (X1:=X) (X2:=X) RE RR)).
+Section EuttHomogenousTheory.
+  Context {E: Type} {HE: Encode E} {X : Type}.
+  Notation rT  := (T (feutt (E := E) (HE:=HE) (X:=X))).
+  Notation rt  := (t (feutt (E := E) (HE:=HE) (X:=X))). 
+  Notation rbt := (bt (feutt (E := E) (HE:=HE) (X:=X))). 
 
   (** [const eq] is compatible: up-to reflexivity is valid *)
-  Lemma refl_t {HR: Reflexive RR}: const eq <= rt.
+  Lemma refl_t: const eq <= rt.
   Proof.
-    apply leq_t.  intro.
+    apply leq_t; intro.
     cbn.
     intros p ? <-.
     desobs p; auto.
     econstructor; intros.
-    
-  Admitted.
+    now dependent destruction H.
+  Qed.    
 
   (** [converse] is compatible: up-to symmetry is valid *)
-  Lemma converse_t {HR: Symmetric RR}: converse <= et.
+  Lemma converse_t: converse <= rt.
   Proof.
-    apply leq_t; intros S x y H; cbn. destruct H; auto.
+    apply leq_t; intros S x y H; cbn.
+    cbn in H.
+    dependent induction H; rewrite <- ?x, <- ?x1, <- ?x2; auto.
   Qed.
 
   (** [squaring] is compatible: up-to transitivity is valid *)
-  Lemma square_t {HR: Reflexive RR} {HT: Transitive RR}: square <= et.
+  Lemma square_t: square <= rt.
   Proof.
+    pose proof (refl_t); cbn in H; unfold pointwise_relation, impl in H.
     apply leq_t.
-    intros S x z [y xy yz]; cbn.
-    inversion xy; inversion yz; try (exfalso; congruence).
+    intros S x z [y xy yz]; cbn in *.
+    remember (observe x) as x'.
+    remember (observe y) as y'.
+    remember (observe z) as z'.
+    clear Heqx' x Heqy' y Heqz' z.
+    generalize dependent z'.    
+    induction xy; intros; subst; induction yz; subst; auto.
+    - constructor; intros.
+      specialize (H _ _ H0).
+      dependent destruction H0.
+    constructor.
+    
     - constructor.
       rewrite <-H0 in H2.
       rewrite H1, <-H4.
       now inversion H2.
-    - rewrite <- H0 in H2.
+    - constructor. 
       dependent destruction H2.
       eauto.
     - rewrite <- H0 in H2.
