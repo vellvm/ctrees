@@ -214,10 +214,129 @@ Section BasicLemmas.
 
 End BasicLemmas.
 
+Section AfDoneIndLemma.
+  Context {E: Type} {HE: Encode E} {X: Type}
+    (φ: X -> World E -> Prop).
+
+  (* t |= AF AX done R *)
+  Inductive AFDoneInd: ctree E X -> World E -> Prop :=
+  | AFDoneIndPure: forall t (x: X),
+      observe t = RetF x ->
+      φ x Pure ->
+      AFDoneInd t Pure
+  | AFDoneIndObs: forall t (e: E) (v: encode e) (x: X),
+      observe t = RetF x ->
+      φ x (Obs e v) ->
+      AFDoneInd t (Obs e v)
+  | AFDoneIndBrD: forall n t (k: fin' n -> _) w,
+      observe t = BrF false n k ->
+      (forall i, AFDoneInd (k i) w) ->
+      AFDoneInd t w
+  | AFDoneIndBrS: forall n t (k: fin' n -> _) w,
+      observe t = BrF true n k ->
+      (forall i, AFDoneInd (k i) w) ->
+      AFDoneInd t w
+  |AFDoneIndVis: forall (t: ctree E X) w e k (_: encode e),
+      observe t = VisF e k ->
+      not_done w ->
+      (forall (v: encode e), AFDoneInd (k v) (Obs e v)) ->
+      AFDoneInd t w.
+
+  Global Instance proper_equ_afdoneind:
+    Proper (equ eq ==> eq ==> iff) AFDoneInd.
+  Proof.
+    unfold Proper, respectful.
+    intros; subst; split; intros Hind.
+    - generalize dependent y.
+      induction Hind; intros.
+      + apply AFDoneIndPure with x; auto.
+        rewrite <- H.
+        unfold equ in H.
+        step in H1; cbn in H1; dependent destruction H1;
+          congruence.
+      + apply AFDoneIndObs with x; auto.
+        rewrite <- H.
+        step in H1; cbn in H1; dependent destruction H1;
+          congruence.
+      + step in H2; cbn in H2; rewrite H in H2.
+        dependent destruction H2.
+        apply AFDoneIndBrD with n k2; eauto.
+        intro i.
+        apply H1 with i, H2.
+      + unfold equ; step in H2; cbn in H2; rewrite H in H2.
+        dependent destruction H2.
+        eapply AFDoneIndBrS with n k2; auto.
+        intro i.
+        apply H1 with i, H2.
+      + unfold equ; step in H3; cbn in H3; rewrite H in H3.
+        dependent destruction H3.
+        eapply AFDoneIndVis with e k2; eauto.
+        intros v. apply H2, H3.
+    - generalize dependent x.
+      induction Hind; intros.
+      + apply AFDoneIndPure with x; auto.
+        rewrite <- H.
+        unfold equ in H.
+        step in H1; cbn in H1; dependent destruction H1;
+          congruence.
+      + apply AFDoneIndObs with x; auto.
+        rewrite <- H.
+        step in H1; cbn in H1; dependent destruction H1;
+          congruence.
+      + step in H2; cbn in H2; rewrite H in H2.
+        dependent destruction H2.
+        apply AFDoneIndBrD with n k1; eauto.
+        intro i.
+        apply H1 with i, H2.
+      + unfold equ; step in H2; cbn in H2; rewrite H in H2.
+        dependent destruction H2.
+        eapply AFDoneIndBrS with n k1; auto.
+        intro i.
+        apply H1 with i, H2.
+      + unfold equ; step in H3; cbn in H3; rewrite H in H3.
+        dependent destruction H3.
+        eapply AFDoneIndVis with e k1; eauto.
+        intros v. apply H2, H3.
+  Qed.
+  
+  Lemma afdoneind_stuck: forall w,
+      ~ (AFDoneInd Ctree.stuck w).
+  Proof.
+    intros * Hcontra.
+    Transparent Ctree.stuck.
+    dependent induction Hcontra; eauto.
+    cbn in x.
+    dependent destruction x.
+    apply H1; [exact Fin.F1 | reflexivity].
+  Qed.
+
+  Lemma afdone_ind {HP: Productive E}: forall (t: ctree E X) w,
+      <( t, w |= AF AX done φ )> ->
+      AFDoneInd t w.
+  Proof.
+    intros; induction H.
+    - (* Match *)
+      apply axdone_ind in H; auto.
+      rewrite ctree_eta.
+      remember (observe t) as T.
+      clear HeqT t.
+      induction H.
+      + apply AFDoneIndPure with x; auto.
+      + apply AFDoneIndObs with x; auto.
+      + apply AFDoneIndBrD with n k; auto.
+        intro i.
+        rewrite ctree_eta.
+        apply H0.
+    - (* Step *)
+      destruct H0, H1.
+      clear H H1.
+  Admitted.      
+
+End AfDoneIndLemma.
 
 Section CtlAfBind.
   Context {E: Type} {HE: Encode E}.
-
+  
   Opaque Ctree.stuck.
   Typeclasses Transparent equ.
   Theorem af_bind_pure{X Y}: forall (t: ctree E Y) (k: Y -> ctree E X) w,
@@ -288,124 +407,22 @@ Section CtlAfBind.
   Theorem af_bind_r{X Y}: forall (t: ctree E Y)
                             (k: Y -> ctree E X) w φ R,
       <( t, w |= AF AX done R )> ->
-      (forall (y: Y) w, R y w -> not_done w -> <( {k y}, w |= AF now φ )>) ->
+      (forall (y: Y) w, R y w -> not_done w ->
+                   <( {k y}, w |= AF now φ )>) ->
       <( {x <- t ;; k x}, w |= AF now φ )>.
   Proof.
-     intros * Haf.
-     revert X k.
-     induction Haf; intros; subst.
-     - (* MatchA *)
-       next in H.
-       destruct H.
-       destruct H as (t' & w' & TR).
-       cbn in TR.
-       assert(Hk: {φ w} + { ~ φ w }) by admit.
-       destruct Hk.
-       + next; left.
-         now apply ctl_now.
-       + next; right; next.
-         specialize (H1 _ _ TR).
-         cbn in H1.
-         split.
-         * (* not stuck *)
-           inv H1.
-           -- specialize (H0 _ _ H NotDonePure).
-              next in H0.
-              pose proof (ktrans_to_done_inv t t' w x TR) as (? & ->).
-              destruct H0.               
-              ++ contradiction.
-              ++ destruct H0.
-                 destruct H0 as (k_ & w_ & TR_).
-                 apply can_step_bind.                  
-                 right.
-                 rewrite H1 in TR.
-                 exists x, (Done x).
-                 split; [|split]; auto with ctl.
-                 now (exists k_, w_).
-           -- specialize (H0 _ _ H (NotDoneObs e v)).
-              next in H0.
-              pose proof (ktrans_to_finish_inv t t' w e v x TR) as (? & ->).
-              destruct H0.               
-              ++ contradiction.
-              ++ destruct H0.
-                 destruct H0 as (k_ & w_ & TR_).
-                 apply can_step_bind.                  
-                 right.
-                 rewrite H1 in TR.
-                 exists x, (Finish e v x).
-                 split; [|split]; auto with ctl.
-                 now (exists k_, w_).
-         * (* step *)
-           intros.
-           admit.
-    - (* StepA *)
-      destruct H0, H1; clear H H0.      
-      next; right; next; split.
-      + (* can_step *)
-        destruct H1 as (t' & w' & TR').
-        eapply can_step_bind_l with t' w'; auto.
-        eapply not_done_vis_af with (t:=t').
-        admit.
-      + (* AX AF *)
-        intros t_ w_ TR_.
-        apply ktrans_bind_inv in TR_ as
-            [(t' & TR' & Hd & ->) |
-              (x & w' & TR' & Hr & TRk)].
-        * now apply H4.
-        * specialize (H2 _ _ TR').
-          inv H2.
-          apply ctl_vis in H as (? & ? & -> & ?).
-          -- inv Hr.
-          -- destruct H0.
-             now apply can_step_stuck in H0.
-             
-    intros * Haf.
-    destruct Haf.
-    revert k.
-    Opaque entailsF.
-    induction Haf; intros; subst.
-    - (* MatchA *)
-      admit.
-    -
-      destruct H as [(t' & w' & TR') H].
-      cbn in *.
-      generalize dependent k.      
-      setoid_rewrite (ctree_eta t).
-      remember (observe t) as T.
-      remember (observe t') as T'.
-      clear t HeqT t' HeqT'.
-      generalize dependent R.
-      induction TR'; intros.
-      + (* BrD *)
-        rewrite bind_br.
-        apply af_brD. (* This lemma is very weak, it doesn't even guarantee a single step! *)
-        setoid_rewrite ktrans_brD in H.
-        rewrite pull2_iff in H.
-        intros j.
-        next; right.
-        admit.
-      + (* BrS *)
-        rewrite bind_br.
-        apply af_brS.
-        intros.
-        admit.
-      + (* Vis *)
-        admit.
-      + (* Ret, Pure *)
-        rewrite bind_ret_l.
-        apply H1; auto with ctl.
-        assert(TRr: ktrans_ (RetF x) Pure (observe Ctree.stuck) (Done x)) by auto with ctl.
-        specialize (H0 _ _ TRr).
-        now dependent destruction H0.
-      + (* Ret, Pure *)
-        rewrite bind_ret_l.
-        apply H1; auto with ctl.
-        assert(TRr: ktrans_ (RetF x) (Obs e v) (observe Ctree.stuck) (Finish e v x)) by auto with ctl.
-        specialize (H0 _ _ TRr).
-        now dependent destruction H0.
-    - (* StepA *)
-  Admitted.
-
+    intros * Haf Hk.
+    apply afdone_ind in Haf.
+    induction Haf; observe_equ H; rewrite Eqt.
+    - rewrite bind_ret_l; auto with ctl.
+    - rewrite bind_ret_l; auto with ctl.
+    - rewrite bind_br.
+      apply af_brD; eauto.
+    - rewrite bind_br.
+      apply af_brS; eauto.
+    - rewrite bind_vis.
+      apply af_vis; eauto.
+  Qed. 
 End CtlAfBind.
 
 Section CtlAfIter.

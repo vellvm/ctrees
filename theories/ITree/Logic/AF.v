@@ -297,6 +297,7 @@ Section AfDoneIndLemma.
       (forall (v: encode e), AFDoneInd (k v) (Obs e v)) ->
       AFDoneInd t w.
 
+
   Global Instance proper_equ_afdoneind:
     Proper (equ eq ==> eq ==> iff) AFDoneInd.
   Proof.
