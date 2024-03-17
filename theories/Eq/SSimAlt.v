@@ -792,7 +792,7 @@ Lemma sst'_clo_bind_eq {E C D: Type -> Type} {X X': Type}
 Proof.
   intros ? ?.
   eapply sst'_clo_bind_gen.
-  - apply is_update_val_rel_eq.
+  - apply update_val_rel_eq.
   - apply H.
   - intros. now subst.
 Qed.
@@ -835,7 +835,7 @@ Lemma ssbt'_clo_bind_eq {E C D: Type -> Type} {X X': Type}
 Proof.
   intros ? ?.
   eapply ssbt'_clo_bind_gen.
-  - apply is_update_val_rel_eq.
+  - apply update_val_rel_eq.
   - apply H.
   - intros. now subst.
 Qed.

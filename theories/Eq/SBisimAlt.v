@@ -341,15 +341,22 @@ Section sbisim'_homogenous_theory.
 
 End sbisim'_homogenous_theory.
 
-Lemma split_sbt'_eq : forall {E B X R} `{HasB0: B0 -< B} (t u : ctree E B X),
-  (forall side, sbt' eq R side t u) <->
-  sbt' eq R true t u /\ sbt' eq R true u t.
+Lemma split_sbt' : forall {E B X R L} `{SL: Symmetric _ L} `{HasB0: B0 -< B} (t u : ctree E B X),
+  (forall side, sbt' L R side t u) <->
+  sbt' L R true t u /\ sbt' L R true u t.
 Proof.
   intros. split; intros.
   - split; auto.
     apply sbt'_flip. apply H.
   - destruct side; [apply H |].
     now apply sbt'_flip.
+Qed.
+
+Lemma split_sbt'_eq : forall {E B X R} `{HasB0: B0 -< B} (t u : ctree E B X),
+  (forall side, sbt' eq R side t u) <->
+  sbt' eq R true t u /\ sbt' eq R true u t.
+Proof.
+  intros. apply split_sbt'.
 Qed.
 
 Section sbisim'_heterogenous_theory.
@@ -1227,7 +1234,7 @@ Lemma st'_clo_bind_eq {E C D: Type -> Type} {X X': Type}
 Proof.
   intros ? ?.
   eapply st'_clo_bind_gen.
-  - apply is_update_val_rel_eq.
+  - apply update_val_rel_eq.
   - apply H.
   - intros. now subst.
 Qed.
@@ -1270,7 +1277,7 @@ Lemma sbt'_clo_bind_eq {E C D: Type -> Type} {X X': Type}
 Proof.
   intros ? ?.
   eapply sbt'_clo_bind_gen.
-  - apply is_update_val_rel_eq.
+  - apply update_val_rel_eq.
   - apply H.
   - intros. now subst.
 Qed.
@@ -1313,7 +1320,7 @@ Lemma sbT'_clo_bind_eq {E C D: Type -> Type} {X X': Type}
 Proof.
   intros ? ?.
   eapply sbT'_clo_bind_gen.
-  - apply is_update_val_rel_eq.
+  - apply update_val_rel_eq.
   - apply H.
   - intros. now subst.
 Qed.

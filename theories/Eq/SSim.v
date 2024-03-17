@@ -48,40 +48,10 @@ Pous'16 in order to be able to exploit symmetry arguments in proofs
     eexists; eexists; intuition; eauto.
   Qed.
 
-  Lemma weq_ss_goal : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
-    Proper (weq ==> eq ==> eq ==> eq ==> flip impl) (@ss E F C D X Y _ _).
-  Proof.
-    cbn. intros. subst.
-    apply H5 in H6 as (? & ? & ? & ? & ?).
-    exists x0, x1. split. apply H2. split. apply H3. apply H1. apply H4.
-  Qed.
-
-  #[global] Instance weq_ss : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
-    Proper (weq ==> weq) (@ss E F C D X Y _ _).
-  Proof.
-    cbn -[ss weq]. split; intro.
-    - eapply weq_ss_goal. symmetry. apply H1. all: auto.
-    - eapply weq_ss_goal. apply H1. all: auto.
-  Qed.
-
 End StrongSim.
 
 Definition ssim {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck' : B0 -< D} L :=
   (gfp (@ss E F C D X Y _ _ L): hrel _ _).
-
-#[global] Instance weq_ssim : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
-  Proper (weq ==> weq) (@ssim E F C D X Y _ _).
-Proof.
-  intros. split.
-  - intro. unfold ssim.
-    epose proof (gfp_weq (ss x) (ss y)). lapply H3.
-    + intro. red in H4. cbn in H4. rewrite <- H4. unfold ssim in H2. apply H2.
-    + now rewrite H1.
-  - intro. unfold ssim.
-    epose proof (gfp_weq (ss x) (ss y)). lapply H3.
-    + intro. red in H4. cbn in H4. rewrite H4. unfold ssim in H2. apply H2.
-    + now rewrite H1.
-Qed.
 
 Module SSimNotations.
 
@@ -373,6 +343,58 @@ a valid enhancement to prove [equ].
 We now prove the same result, but for strong simulation.
 |*)
 
+Definition Lequiv {E F} X Y (L L' : rel (@label E) (@label F)) :=
+  forall l l', wf_val X l -> wf_val Y l' ->
+  L l l' <-> L' l l'.
+
+#[global] Instance weq_Lequiv : forall {E F} X Y,
+  subrelation weq (@Lequiv E F X Y).
+Proof.
+  red. red. intros. apply H.
+Qed.
+
+#[global] Instance Equivalence_Lequiv : forall {E F} X Y,
+  Equivalence (@Lequiv E F X Y).
+Proof.
+  split; cbn; intros.
+  - now apply weq_Lequiv.
+  - red. intros. red in H. rewrite H; auto.
+  - red. intros.
+    etransitivity. apply H; auto. apply H0; auto.
+Qed.
+
+#[global] Instance Lequiv_ss_goal : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
+  Proper (Lequiv X Y ==> leq) (@ss E F C D X Y _ _).
+Proof.
+  cbn. intros.
+  apply H2 in H3 as ?. destruct H4 as (? & ? & ? & ? & ?).
+  exists x0, x1. split; auto. split; auto. apply H1; etrans.
+Qed.
+
+#[global] Instance weq_ss : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
+  Proper (weq ==> weq) (@ss E F C D X Y _ _).
+Proof.
+  cbn -[ss weq]. split; intro.
+  - eapply Lequiv_ss_goal. apply weq_Lequiv. apply H1. auto.
+  - eapply Lequiv_ss_goal. apply weq_Lequiv. symmetry. apply H1. auto.
+Qed.
+
+#[global] Instance Lequiv_ssim : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
+  Proper (Lequiv X Y ==> leq) (@ssim E F C D X Y _ _).
+Proof.
+  cbn. intros.
+  - unfold ssim.
+    epose proof (gfp_leq (x := ss x) (y := ss y)). lapply H3.
+    + intro. red in H4. cbn in H4. apply H4. unfold ssim in H2. apply H2.
+    + now rewrite H1.
+Qed.
+
+#[global] Instance weq_ssim : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
+  Proper (weq ==> weq) (@ssim E F C D X Y _ _).
+Proof.
+  cbn -[ss weq]. intros. apply gfp_weq. now apply weq_ss.
+Qed.
+
 Section bind.
   Arguments label: clear implicits.
   Obligation Tactic := idtac.
@@ -444,11 +466,11 @@ Section bind.
   Qed.
 
   Definition is_update_val_rel (L0 : rel (@label E) (@label F)) : Prop :=
-    forall l1 l2, wf_val X l1 -> wf_val Y l2 -> (L0 l1 l2 <-> update_val_rel l1 l2).
+    Lequiv X Y update_val_rel L0.
 
   Theorem update_val_rel_correct : is_update_val_rel update_val_rel.
   Proof.
-    red. reflexivity.
+    red. red. reflexivity.
   Qed.
 
 (*|
@@ -506,27 +528,38 @@ and with the argument (pointwise) on the continuation.
 
 End bind.
 
-Theorem is_update_val_rel_eq {E X} : @is_update_val_rel E E X X eq eq eq.
+Theorem update_val_rel_eq {E X} : Lequiv X X (@update_val_rel E E X X eq eq) eq.
 Proof.
   split; intro.
-  - subst. destruct l2.
+  - inv H1; reflexivity.
+  - subst. destruct l'.
     + constructor; auto.
       all: intro; inv H1.
     + constructor; auto.
       all: intro; inv H1.
     + red in H. specialize (H X0 v eq_refl). subst.
       constructor. reflexivity.
-  - inv H1; reflexivity.
 Qed.
 
-Theorem update_val_rel_eq {E X} : forall l l', wf_val X l ->
-  @update_val_rel E E X X eq eq l l' <-> l = l'.
+#[global] Instance update_val_rel_Lequiv {E F X Y X' Y'} :
+  Proper (Lequiv X' Y' ==> weq ==> Lequiv X Y) (@update_val_rel E F X Y).
 Proof.
-  split; intro.
-  - destruct H0; now subst.
-  - subst. destruct l'.
-    3: { specialize (H X0 v eq_refl). subst. now left. }
-    all: constructor; auto; intro; inversion H0.
+  cbn. red. intros.
+  red in H. split; intro.
+  - inv H3.
+    + left. apply H0. auto.
+    + right; auto.
+      apply H; auto; now apply wf_val_nonval.
+  - inv H3.
+    + left. apply H0. auto.
+    + right; auto.
+      apply H; auto; now apply wf_val_nonval.
+Qed.
+
+#[global] Instance is_update_val_rel_Lequiv {E F X Y X' Y'} :
+  Proper (Lequiv X' Y' ==> weq ==> Lequiv X Y ==> flip impl) (@is_update_val_rel E F X Y).
+Proof.
+  cbn -[weq]. red. intros. red in H2. subst. now rewrite H, H0, H1.
 Qed.
 
 Theorem update_val_rel_update_val_rel {E F X0 X1 Y0 Y1}
@@ -546,11 +579,32 @@ Qed.
 
 Theorem is_update_val_rel_update_val_rel_eq {E X Y Z} :
   forall (R : rel X Y),
-  @is_update_val_rel E E Z Z (update_val_rel eq R) eq eq.
+  @Lequiv E E Z Z (@update_val_rel E E Z Z (update_val_rel eq R) eq) eq.
 Proof.
-  red. intros. erewrite <- update_val_rel_eq; eauto. split; intro.
-  - now apply update_val_rel_update_val_rel.
-  - now apply update_val_rel_update_val_rel in H1.
+  intros. rewrite update_val_rel_update_val_rel.
+  now rewrite update_val_rel_eq.
+Qed.
+
+#[global] Instance Symmetric_update_val_rel {E X} L R0 :
+  Symmetric L ->
+  Symmetric R0 ->
+  Symmetric (@update_val_rel E E X X L R0).
+Proof.
+  cbn. intros. destruct H1; constructor; auto.
+Qed.
+
+#[global] Instance Transitive_update_val_rel :
+  forall {E X} (L : relation (@label E)) (R0 : relation X),
+  Transitive L ->
+  Transitive R0 ->
+  Transitive (update_val_rel L R0).
+Proof.
+  red. intros. destruct y.
+  - inv H1. inv H2. constructor; auto. etransitivity; eassumption.
+  - inv H1. inv H2. constructor; auto. etransitivity; eassumption.
+  - inv H1; [| exfalso; etrans].
+    inv H2; [| exfalso; etrans].
+    invert. constructor. eauto.
 Qed.
 
 Definition lift_val_rel {E X Y} := @update_val_rel E E X Y eq.
@@ -597,7 +651,7 @@ Lemma sst_clo_bind_eq {E C D: Type -> Type} {X X': Type}
 Proof.
   intros ? ?.
   eapply sst_clo_bind_gen.
-  - apply is_update_val_rel_eq.
+  - apply update_val_rel_eq.
   - assumption.
   - intros. now subst.
 Qed.
@@ -641,7 +695,7 @@ Lemma ssbt_clo_bind_eq {E C D: Type -> Type} {X X': Type}
 Proof.
   intros ? ?.
   eapply ssbt_clo_bind_gen.
-  - apply is_update_val_rel_eq.
+  - apply update_val_rel_eq.
   - assumption.
   - intros. now subst.
 Qed.
@@ -691,7 +745,7 @@ And in particular, we can justify rewriting [≲] to the left of a [bind].
 #[global] Instance bind_sst_cong_gen {E C X X'} (RR: relation (ctree E C X')) `{HasStuck: B0 -< C}:
   Proper (ssim eq ==> pointwise_relation X (sst eq RR) ==> sst eq RR) (@bind E C X X').
 Proof.
-  repeat red; intros. now apply sst_clo_bind_eq.
+  cbn; intros. now apply sst_clo_bind_eq.
 Qed.
 
 #[global] Instance bind_ssim_cong_gen {E C X X'} `{HasStuck: B0 -< C}:

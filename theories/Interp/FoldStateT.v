@@ -493,7 +493,9 @@ Theorem ssim_interp_state_h {E F1 F2 C D1 D2 X St St'}
 Proof.
   intros * HL Hh * ST *.
   unfold interp_state, interp, fold, Basics.iter, MonadIter_stateT0, Basics.iter, MonadIter_ctree.
-  eapply ssim_iter with (Ra := fun '(st, t) '(st', t') => Rs st st' /\ t ≅ t') (Rb := fun b b' => Ldest (val b) (val b')).
+  eapply ssim_iter with
+    (Ra := fun '(st, t) '(st', t') => Rs st st' /\ t ≅ t')
+    (Rb := fun b b' => Ldest (val b) (val b')).
   2, 4: auto. 1: red; reflexivity.
   clear st0 st'0 ST t.
   cbn. intros [st t] [st' t'] [ST EQ]. cbn.
@@ -658,22 +660,26 @@ Qed.
 
 Import SSim'Notations.
 
-#[global] Instance interp_state_ssim {E F B C X St}
+#[global] Instance interp_state_ssim {E F B C X St} {R : relation X}
   `{HasB: B -< C} :
   forall (h : E ~> stateT St (ctree F (B01 +' C))) (Hh : forall X e st, is_simple (h X e st)),
-  Proper (ssim eq ==> eq ==> ssim eq) (interp_state (C := B) h (T := X)).
+  Proper (ssim (lift_val_rel R) ==> eq ==> ssim (lift_val_rel (@eq St * R)%signature))
+    (interp_state (C := B) h (T := X)).
 Proof.
   intros h Hh t u SIM st st' <-.
   rewrite ssim_ssim'.
   revert t u st SIM.
-  red. coinduction R CH. intros.
+  red. coinduction CR CH. intros.
   rewrite unfold_interp_state.
   setoid_rewrite ctree_eta at 1 in SIM. destruct (observe t) eqn:?.
   - (* Ret *)
-    apply ssim_ret_l_inv in SIM as (? & ? & ? & <-).
+    apply ssim_ret_l_inv in SIM as (? & ? & ? & ?).
+    apply update_val_rel_val_l in H0 as ?. destruct H1 as (? & -> & VAL).
     eapply trans_val_interp_state in H.
-    apply (fbt_bt (ss_sst' eq)).
-    eapply step_ss_ret_l_gen; eauto. typeclasses eauto.
+    apply (fbt_bt (ss_sst' (lift_val_rel _))).
+    eapply step_ss_ret_l_gen; eauto.
+    apply step_ssbt'_br_id. { intros []. } { constructor; etrans. } { typeclasses eauto. }
+    left. split; auto.
   - (* Vis *)
     specialize (Hh _ e st). destruct Hh as [Hh | Hh].
     + (* pure handler *)
@@ -690,35 +696,44 @@ Proof.
       }
       intros [st' x] _ TRh.
       simple eapply ssim_vis_l_inv in SIM.
-      destruct SIM as (l & u' & TR & SIM & <-).
-      eapply (fbt_bt (epsilon_ctx_r_ssim' eq)). cbn. red.
+      destruct SIM as (l & u' & TR & SIM & VAL).
+      apply update_val_rel_nonval_l in VAL; etrans. destruct VAL as (_ & <-).
+      eapply (fbt_bt (epsilon_ctx_r_ssim' _)). cbn. red.
       eexists. split.
       * eapply trans_obs_interp_state_pure; eauto.
       * apply step_ss'_guard. apply CH. apply SIM.
     + (* handler that takes exactly one transition *)
-      apply (fbt_bt (ss_sst' eq)). cbn. intros l t' TR.
+      apply (fbt_bt (ss_sst' _)). cbn. intros l t' TR.
       apply trans_bind_inv in TR as [(VAL & th & TRh & EQ) | (x & TRh & TR)].
       2: {
         apply Hh in TRh as []. inversion H; subst; inv_equ.
       }
       apply Hh in TRh as ?. destruct H as [[st' x] EPS].
       simple eapply ssim_vis_l_inv in SIM.
-      destruct SIM as (l' & u' & TR & SIM & <-).
+      destruct SIM as (l' & u' & TR & SIM & VAL').
+      apply update_val_rel_nonval_l in VAL'; etrans. destruct VAL' as (? & <-).
       exists l, (th;; Guard (interp_state h u' st')). subs.
       split; [| split; auto].
       * cbn. apply (trans_obs_interp_state_step h st TR); eauto.
       * rewrite epsilon_det_bind_ret_l_equ with (x := (st', x)).
-        apply ssbt'_clo_bind_eq; eauto.
-        intros []. apply step_ss'_guard. eauto. assumption.
+        eapply ssbt'_clo_bind. {
+          instantiate (1 := eq). eapply Lequiv_ssim. unfold lift_val_rel.
+          rewrite update_val_rel_update_val_rel. rewrite update_val_rel_eq. reflexivity.
+          reflexivity.
+        }
+        intros [] ? <-. apply step_ss'_guard. eauto. assumption.
+      * constructor; auto.
   - (* Br *)
     unfold MonadBr_stateT, mbr, MonadBr_ctree. cbn. rewrite bind_bind, bind_branch.
     destruct vis.
     + (* BrS *)
       apply step_ss'_brS_l. intros.
-      simple eapply ssim_brS_l_inv in SIM as (? & u' & TR & SIM & <-).
+      simple eapply ssim_brS_l_inv in SIM as (? & u' & TR & SIM & VAL).
+      apply update_val_rel_nonval_l in VAL as (_ & <-); etrans.
       exists tau, (Guard (interp_state h u' st)). split; [| split]; auto.
       * now apply (trans_tau_interp_state h st TR).
       * step. rewrite bind_ret_l. apply step_ss'_guard. apply CH. apply SIM.
+      * constructor; etrans.
     + (* BrD *)
       apply step_ss'_brD_l. intros.
       eapply ssim_brD_l_inv in SIM.
@@ -726,121 +741,161 @@ Proof.
       apply CH. apply SIM.
 Qed.
 
-#[global] Instance interp_state_ssim' {E F B X St} :
-  forall (h : E ~> stateT St (ctree F (B01 +' B))) (Hh : forall X e st, is_simple (h X e st)),
+#[global] Instance interp_state_ssim_eq {E F B C X St}
+  `{HasB: B -< C} :
+  forall (h : E ~> stateT St (ctree F (B01 +' C))) (Hh : forall X e st, is_simple (h X e st)),
   Proper (ssim eq ==> eq ==> ssim eq) (interp_state (C := B) h (T := X)).
 Proof.
-  cbn. intros. subst.
-  now apply interp_state_ssim.
+  intros h Hh t u SIM st st' <-.
+  eapply Lequiv_ssim with (x := lift_val_rel (@eq St * @eq X)%signature).
+  eassert (weq (@eq St * @eq X)%signature eq).
+  { cbn. unfold RelCompFun. intros [] []; cbn. split; [intros [] | intros [=]]; subst; auto. }
+  unfold lift_val_rel. rewrite H; auto. apply update_val_rel_eq.
+  eapply interp_state_ssim; auto.
+  eapply Lequiv_ssim. symmetry. apply update_val_rel_eq. apply SIM.
 Qed.
 
 (* The proof that interp preserves ssim reuses the interp_state proof. *)
 
-#[global] Instance interp_ssim {E F B C X} `{HasB: B -< C} :
+#[global] Instance interp_ssim_eq {E F B C X} `{HasB: B -< C} :
   forall (h : E ~> ctree F (B01 +' C)) (Hh : forall X e, is_simple (h X e)),
   Proper (ssim eq ==> ssim eq) (interp (B := B) h (T := X)).
 Proof.
   intros. cbn. intros.
   rewrite !interp_lift_handler.
   unfold CTree.map. apply ssim_clo_bind_eq.
-  refine (interp_state_ssim _ _ _ _); auto.
+  refine (interp_state_ssim_eq _ _ _ _); auto.
   reflexivity.
 Qed.
 
 (* Direct proof that interp_state preserves sbisim. *)
 
 Lemma interp_state_sbisim_aux {E F B C X St}
+  {R : relation X} {SYM : Symmetric R}
   `{HasB: B -< C} :
   forall (h : E ~> stateT St (ctree F (B01 +' C))) (Hh : forall X e st, is_simple (h X e st))
   (t u : ctree E (B01 +' B) X) st,
-  ss eq (sbisim eq) t u ->
-  gfp (sb' eq) true (interp_state h t st) (interp_state h u st).
+  ss (lift_val_rel R) (sbisim (lift_val_rel R)) t u ->
+  gfp (sb' (lift_val_rel (@eq St * R)%signature)) true
+    (interp_state h t st) (interp_state h u st).
 Proof.
-  intros h Hh. coinduction R CH. intros t u st SIM.
+  intros h Hh. coinduction CR CH. intros t u st SIM.
   rewrite unfold_interp_state.
   setoid_rewrite ctree_eta at 1 in SIM. destruct (observe t) eqn:?.
   - (* Ret *)
-    apply ss_ret_l_inv in SIM as (? & ? & ? & ? & <-).
+    apply ss_ret_l_inv in SIM as (? & ? & ? & ? & ?).
+    apply update_val_rel_val_l in H1 as ?. destruct H2 as (? & -> & VAL).
     eapply trans_val_interp_state in H.
     apply sb'_true_ss'. eapply step_ss'_ret_l; eauto.
+    intros. step. split; intros; apply ss'_stuck.
+    constructor. auto.
   - (* Vis *)
     specialize (Hh _ e st). destruct Hh as [Hh | Hh].
     + (* pure handler *)
-      eapply (fbt_bt (pure_bind_ctx3_l_sbisim' eq (P := fun x => trans (val x) (h X0 e st) stuckD))).
+      eapply (fbt_bt (pure_bind_ctx3_l_sbisim' (lift_val_rel _)
+        (P := fun x => trans (val x) (h X0 e st) stuckD))).
       cbn. split; auto.
       red. eexists _, _. split; [reflexivity |]. split. {
         intros ?? TRh. apply Hh in TRh as ?.
-        eapply wf_val_is_val_inv in H. destruct H as (v & ?). 2: eapply wf_val_trans; eassumption.
+        eapply wf_val_is_val_inv in H. destruct H as (v & ?).
+        2: eapply wf_val_trans; eassumption.
         subst. exists v. split; auto. apply trans_val_inv in TRh as ?. now subs.
       }
       intros [] ?. cbn.
       cbn in SIM. specialize (SIM (obs e x) (k x) ltac:(etrans)).
-      destruct SIM as (? & ? & ? & ? & <-).
-      eapply (fbt_bt (epsilon_ctx3_r_sbisim' eq)). cbn. split; auto. red.
+      destruct SIM as (? & ? & ? & ? & ?).
+      apply update_val_rel_nonval_l in H2 as ?; etrans. destruct H3 as (_ & <-).
+      eapply (fbt_bt (epsilon_ctx3_r_sbisim' _)). cbn. split; auto. red.
       eexists. split.
       * eapply trans_obs_interp_state_pure; eauto.
       * apply step_sb'_guard. apply CH. step in H1. apply H1.
     + (* handler that takes exactly one transition *)
-      apply (fbt_bt (ss_st'_l (L := eq))). split; auto.
-      cbn. intros l t' TR.
+      apply (fbt_bt (ss_st'_l (L := _))). split; auto.
+      cbn -[RelProd]. intros l t' TR.
       apply trans_bind_inv in TR as [(VAL & th & TRh & EQ) | (x & TRh & TR)].
       2: {
         apply Hh in TRh as []. inversion H; subst; inv_equ.
       }
       apply Hh in TRh as ?. destruct H as [[st' x] EPS].
       simple eapply ss_vis_l_inv in SIM.
-      destruct SIM as (l' & u' & TR & SIM & <-).
+      destruct SIM as (l' & u' & TR & SIM & ?).
+      apply update_val_rel_nonval_l in H as [_ <-]; etrans.
       exists l, (th;; Guard (interp_state h u' st')). setoid_rewrite EQ. clear t' EQ.
       split; [| split; auto].
       * cbn. apply (trans_obs_interp_state_step h st TR); auto. apply EPS.
-      * intros. cbn. rewrite epsilon_det_bind_ret_l_equ with (x := (st', x)); [| assumption].
-        apply sbt'_clo_bind_eq; eauto.
-        intros [] ?.
-        apply split_sbt'_eq.
-        apply split_sbisim_eq in SIM.
-        split; apply step_sb'_guard; apply CH; apply SIM.
+      * intros. cbn -[RelProd]. rewrite epsilon_det_bind_ret_l_equ with (x := (st', x)); [| assumption].
+        eapply sbt'_clo_bind. {
+          instantiate (1 := eq). revert side. apply sbisim_sbisim'.
+          eapply Lequiv_sbisim. unfold lift_val_rel.
+          rewrite update_val_rel_update_val_rel. rewrite update_val_rel_eq. reflexivity.
+          reflexivity.
+        }
+        intros [] ? <-.
+        eapply split_sbt'.
+        split. apply step_sb'_guard. apply CH. step in SIM. apply SIM.
+        apply step_sb'_guard. apply CH. symmetry in SIM. step in SIM. apply SIM.
+      * right; auto.
   - (* Br *)
-    unfold MonadBr_stateT, mbr, MonadBr_ctree. cbn. rewrite bind_bind, bind_branch.
+    unfold MonadBr_stateT, mbr, MonadBr_ctree. cbn -[RelProd]. rewrite bind_bind, bind_branch.
     destruct vis.
     + (* BrS *)
       apply step_sb'_brS_l. intros.
-      simple eapply ss_brS_l_inv in SIM as (? & u' & TR & SIM & <-).
+      simple eapply ss_brS_l_inv in SIM as (? & u' & TR & SIM & ?).
+      apply update_val_rel_nonval_l in H as [_ <-]; etrans.
       exists tau, (Guard (interp_state h u' st)). split; [| split]; auto.
       * now apply (trans_tau_interp_state h st TR).
       * intros. step. rewrite bind_ret_l.
-        apply split_sbt'_eq. apply split_sbisim_eq in SIM.
-        split; apply step_sb'_guard; apply CH; apply SIM.
+        eapply split_sbt'.
+        split; apply step_sb'_guard; apply CH; step in SIM.
+        apply SIM. symmetry in SIM. apply SIM.
+      * now right.
     + (* BrD *)
       apply step_sb'_brD_l. intros.
       eapply ss_brD_l_inv in SIM.
       step. rewrite bind_ret_l. apply step_sb'_brD_l. intros _.
       cbn. apply CH. apply SIM.
   Unshelve.
-  { cbn. intros. rewrite <- H1, <- H2. apply H3. }
+  { cbn. intros. rewrite <- H2, <- H3. apply H4. }
 Qed.
 
 #[global] Instance interp_state_sbisim {E F B C X St}
+  {R : relation X} {SYM : Symmetric R}
+  `{HasB: B -< C} :
+  forall (h : E ~> stateT St (ctree F (B01 +' C))) (Hh : forall X e st, is_simple (h X e st)),
+  Proper (sbisim (lift_val_rel R) ==> eq ==> sbisim (lift_val_rel (@eq St * R)%signature))
+    (interp_state (C := B) h (T := X)).
+Proof.
+  cbn -[RelProd]. intros. subst.
+  apply sbisim_sbisim'. intros [].
+  - apply interp_state_sbisim_aux; auto. step in H. apply H.
+  - eapply st'_flip. simple apply interp_state_sbisim_aux; auto.
+    symmetry in H. step in H. apply H.
+Qed.
+
+#[global] Instance interp_state_sbisim_eq {E F B C X St}
   `{HasB: B -< C} :
   forall (h : E ~> stateT St (ctree F (B01 +' C))) (Hh : forall X e st, is_simple (h X e st)),
   Proper (sbisim eq ==> eq ==> sbisim eq) (interp_state (C := B) h (T := X)).
 Proof.
-  cbn. intros. subst.
-  apply sbisim_sbisim'. intros [].
-  - apply interp_state_sbisim_aux; auto. step in H. apply H.
-  - apply st'_flip. cbn. simple apply interp_state_sbisim_aux; auto.
-    symmetry in H. step in H. apply H.
+  intros h Hh t u SIM st st' <-.
+  eapply Lequiv_sbisim with (x := lift_val_rel (@eq St * @eq X)%signature).
+  eassert (weq (@eq St * @eq X)%signature eq).
+  { cbn. unfold RelCompFun. intros [] []; cbn. split; [intros [] | intros [=]]; subst; auto. }
+  unfold lift_val_rel. rewrite H; auto. apply update_val_rel_eq.
+  eapply interp_state_sbisim; auto.
+  eapply Lequiv_sbisim. symmetry. apply update_val_rel_eq. apply SIM.
 Qed.
 
 (* The proof that interp preserves sbisim reuses the interp_state proof. *)
 
-#[global] Instance interp_sbisim {E F B C X} `{HasB: B -< C} :
+#[global] Instance interp_sbisim_eq {E F B C X} `{HasB: B -< C} :
   forall (h : E ~> ctree F (B01 +' C)) (Hh : forall X e, is_simple (h X e)),
   Proper (sbisim eq ==> sbisim eq) (interp (B := B) h (T := X)).
 Proof.
   intros. cbn. intros.
   rewrite !interp_lift_handler.
   unfold CTree.map. apply sbisim_clo_bind_eq.
-  refine (interp_state_sbisim _ _ _ _); auto.
+  refine (interp_state_sbisim_eq _ _ _ _); auto.
   reflexivity.
 Qed.
 

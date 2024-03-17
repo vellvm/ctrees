@@ -92,21 +92,21 @@ In the heterogeneous case, the relation is not symmetric.
     split; intros; [edestruct H0 as (? & ? & ?) | edestruct H1 as (? & ? & ?)]; eauto; eexists; eexists; intuition; eauto.
   Qed.
 
-  #[global] Instance weq_sb : Proper (weq ==> weq) sb.
+  #[global] Instance Lequiv_sb_goal :
+    Proper (Lequiv X Y ==> leq) sb.
   Proof.
-    split; intros.
-    - split.
-      + epose proof (weq_ss H). cbn in H1. setoid_rewrite <- H1. apply H0.
-      + cbn in H. assert (flip x == flip y).
-        { cbn. split; intro. apply H. apply H1. apply H. apply H1. }
-        epose proof (weq_ss H1).
-        cbn in H2. setoid_rewrite <- H2. apply H0.
-    - split.
-      + epose proof (weq_ss H). cbn in H1. setoid_rewrite H1. apply H0.
-      + cbn in H. assert (flip x == flip y).
-        { cbn. split; intro. apply H. apply H1. apply H. apply H1. }
-        epose proof (weq_ss H1).
-        cbn in H2. setoid_rewrite H2. apply H0.
+    cbn -[sb]. split.
+    - destruct H0 as [? _]. eapply Lequiv_ss_goal. apply H. apply H0.
+    - destruct H0 as [_ ?]. eapply Lequiv_ss_goal with (x := flip x).
+      red. cbn. intros. now apply H. apply H0.
+  Qed.
+
+  #[global] Instance weq_sb :
+    Proper (weq ==> weq) sb.
+  Proof.
+    cbn -[weq]. split; intro.
+    - eapply Lequiv_sb_goal. apply weq_Lequiv. apply H. auto.
+    - eapply Lequiv_sb_goal. apply weq_Lequiv. symmetry. apply H. auto.
   Qed.
 
 End StrongBisim.
@@ -114,18 +114,20 @@ End StrongBisim.
 Definition sbisim {E F C D X Y} `{HasStuck : B0 -< C} `{HasStuck': B0 -< D} L :=
   (gfp (@sb E F C D X Y _ _ L) : hrel _ _).
 
+#[global] Instance Lequiv_sbisim : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
+  Proper (Lequiv X Y ==> leq) (@sbisim E F C D X Y _ _).
+Proof.
+  cbn. intros.
+  - unfold sbisim.
+    epose proof (gfp_leq (x := sb x) (y := sb y)). lapply H3.
+    + intro. red in H4. cbn in H4. apply H4. unfold sbisim in H2. apply H2.
+    + now rewrite H1.
+Qed.
+
 #[global] Instance weq_sbisim : forall {E F C D X Y} `{B0 -< C} `{B0 -< D},
   Proper (weq ==> weq) (@sbisim E F C D X Y _ _).
 Proof.
-  intros. split.
-  - intro. unfold sbisim.
-    epose proof (gfp_weq (sb x) (sb y)). lapply H3.
-    + intro. red in H4. cbn in H4. rewrite <- H4. unfold sbisim in H2. apply H2.
-    + now rewrite H1.
-  - intro. unfold sbisim.
-    epose proof (gfp_weq (sb x) (sb y)). lapply H3.
-    + intro. red in H4. cbn in H4. rewrite H4. unfold sbisim in H2. apply H2.
-    + now rewrite H1.
+  cbn -[ss weq]. intros. apply gfp_weq. now apply weq_sb.
 Qed.
 
 (* This instance allows to use the symmetric tactic from coq-coinduction
@@ -710,7 +712,7 @@ Lemma st_clo_bind_eq {E C D: Type -> Type} {X X': Type}
 Proof.
   intros ? ?.
   eapply st_clo_bind_gen.
-  - apply is_update_val_rel_eq.
+  - apply update_val_rel_eq.
   - assumption.
   - intros. now subst.
 Qed.
@@ -754,7 +756,7 @@ Lemma sbt_clo_bind_eq {E C D: Type -> Type} {X X': Type}
 Proof.
   intros ? ?.
   eapply sbt_clo_bind_gen.
-  - apply is_update_val_rel_eq.
+  - apply update_val_rel_eq.
   - assumption.
   - intros. now subst.
 Qed.

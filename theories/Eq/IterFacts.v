@@ -212,15 +212,9 @@ Qed.
 Proof.
   repeat intro.
   eapply ssim_iter_gen with (L := eq) (L0 := eq) (Ra := eq) (Rb := eq).
-  - split; intro.
-    + subst. destruct l2.
-      * constructor; auto.
-        all: intro; inv H3.
-      * constructor; auto.
-        all: intro; inv H3.
-      * red in H. specialize (H1 X0 v eq_refl). subst.
-        constructor. destruct v; reflexivity.
-    + inv H3. 2: reflexivity. destruct v1, v2; inv H4; reflexivity.
+  - eassert (@weq (relation (X + Y)) _ (sum_rel eq eq) eq).
+    { cbn. intros [] []; cbn; split; intro; subst; try easy. now inv H1. now inv H1. }
+    rewrite H1; auto. apply update_val_rel_eq.
   - split; intro. now subst. now apply val_eq_inv in H1.
   - intros. subst. apply H.
   - apply H0.
