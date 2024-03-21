@@ -32,10 +32,10 @@ The [haction] data structure captures trivially this data.
 .. coq::
 |*)
 
-Variant haction {E C R} :=
-	| ARet    (r : R)
-	| ABr     (X : Type) (c : C X) (k : X -> ctree E C R)
-	| AVis    (X : Type) (e : E X) (k : X -> ctree E C R).
+Variant haction {E B X} :=
+	| ARet    (r : X)
+	| ABr     (Y : Type) (c : B Y) (k : Y -> ctree E B X)
+	| AVis    (Y : Type) (e : E Y) (k : Y -> ctree E B X).
 
 
 (*|
@@ -44,13 +44,13 @@ a none invisible br node.
 Notice that this computation may loop if the original computation
 admits a infinite branch of invisible brs.
 |*)
-Definition head {E C X} : ctree E C X -> ctree E C (@haction E C X) :=
-  cofix head(t : ctree E C X) :=
+Definition head {E F B C X} `{HasB: B -< C} : ctree E B X -> ctree F C (@haction E B X) :=
+  cofix head (t : ctree E B X) :=
     match observe t with
     | RetF x          => Ret (ARet x)
     | VisF e k        => Ret (AVis e k)
     | BrSF c k        => Ret (ABr c k)
-    | BrDF c k        => Br false c (fun x => head (k x))
+    | BrDF c k        => br false c (fun x => head (k x))
     end.
 
 Notation head_ t :=
@@ -58,28 +58,32 @@ Notation head_ t :=
   | RetF x            => Ret (ARet x)
   | VisF e k          => Ret (AVis e k)
   | BrSF c k      => Ret (ABr c k)
-  | BrDF c k      => Br false c (fun i => head (k i))
+  | BrDF c k      => br false c (fun x => head (k x))
   end.
 
-Lemma unfold_head {E C X} : forall (t : ctree E C X),
-    head t ≅ head_ t.
+Lemma unfold_head {E F B C X} `{HasB: B -< C} : forall (t : ctree E B X),
+    (head t : ctree F C _) ≅ head_ t.
 Proof.
   intros.
   now step.
 Qed.
+
+Section trans_head.
+
+Context {E F B C : Type -> Type} {X : Type}.
+Context `{B0 -< B} `{B0 -< C} `{B -< C}.
 
 (*|
 Transitions in a tree can always be reflected in their head-tree.
 The exact shape of the lemma depends on the nature of the transition.
 We wrap them together in [trans_head].
 |*)
-Lemma trans_head_obs {E C X} `{B0 -< C} : forall (t u : ctree E C X) Y (e : E Y) v,
+Lemma trans_head_obs {Y} : forall (t u : ctree E B X) (e : E Y) v,
     trans (obs e v) t u ->
-    exists (k : Y -> ctree E C X),
-      trans (val (AVis e k)) (head t) stuckD /\ u ≅ k v.
+    exists (k : Y -> ctree E B X),
+      trans (val (AVis e k)) (head t : ctree F C _) stuckD /\ u ≅ k v.
 Proof.
   intros * TR.
-
   remember (obs e v) as ob.
   setoid_rewrite (ctree_eta u).
   setoid_rewrite unfold_head.
@@ -97,10 +101,11 @@ Proof.
     rewrite <- ctree_eta; symmetry; assumption.
 Qed.
 
-Lemma trans_head_tau {E C R} `{B0 -< C} : forall (t u : ctree E C R),
+Lemma trans_head_tau :
+  forall (t u : ctree E B X),
     trans tau t u ->
-    exists X (c : C X) (k : X -> ctree E C R) x,
-      trans (val (ABr c k)) (head t) stuckD /\ u ≅ k x.
+    exists Y (c : B Y) (k : Y -> ctree E B X) x,
+      trans (val (ABr c k)) (head t : ctree F C _) stuckD /\ u ≅ k x.
 Proof.
   intros * TR.
   unfold trans in *.
@@ -115,14 +120,15 @@ Proof.
     eapply trans_brD with (x := y).
     apply IHTR.
     reflexivity.
-  - exists X,c,k,x; split.
+  - exists X0,c,k,x; split.
     constructor.
     rewrite <- ctree_eta; symmetry; assumption.
 Qed.
 
-Lemma trans_head_ret {E C X} `{B0 -< C} : forall (t u : ctree E C X) (v : X),
+Lemma trans_head_ret :
+  forall (t u : ctree E B X) (v : X),
     trans (val v) t u ->
-    trans (val (@ARet E C X v)) (head t) stuckD /\ u ≅ stuckD.
+    trans (val (@ARet E B X v)) (head t : ctree F C _) stuckD /\ u ≅ stuckD.
 Proof.
   intros * TR.
   unfold trans in *.
@@ -143,28 +149,28 @@ Proof.
     symmetry; rewrite brD0_always_stuck; reflexivity.
 Qed.
 
-Lemma trans_head : forall {E C X} `{HasStuck: B0 -< C} (t u : ctree E C X) l,
+Lemma trans_head : forall (t u : ctree E B X) l,
     trans l t u ->
     match l with
-    | tau => exists Y (c: C Y) (k : Y -> ctree E C X) x,
-        trans (val (ABr c k)) (head t) stuckD /\ u ≅ k x
-    | obs e v => exists (k : _ -> ctree E C X),
-        trans (val (AVis e k)) (head t) stuckD /\ u ≅ k v
-    | val v => trans (val (@ARet E C _ v)) (head t) stuckD /\ u ≅ stuckD
+    | tau => exists Y (c: B Y) (k : Y -> ctree E B X) x,
+        trans (val (ABr c k)) (head t : ctree F C _) stuckD /\ u ≅ k x
+    | obs e v => exists (k : _ -> ctree E B X),
+        trans (val (AVis e k)) (head t : ctree F C _) stuckD /\ u ≅ k v
+    | val v => trans (val (@ARet E B _ v)) (head t : ctree F C _) stuckD /\ u ≅ stuckD
     end.
 Proof.
   intros *; destruct l.
   apply trans_head_tau.
   apply trans_head_obs.
   intros A.
-  pose proof (trans_val_invT A); subst; apply trans_head_ret; assumption.
+  pose proof (trans_val_invT A) as <-; apply trans_head_ret; assumption.
 Qed.
 
 (*|
 The only transitions that the head-tree can take are value ones.
 |*)
-Lemma trans_head_inv {E C X} `{B0 -< C} : forall (P : ctree E C X) l u,
-    trans l (head P) u ->
+Lemma trans_head_inv : forall (P : ctree E B X) l u,
+    trans l (head P : ctree F C _) u ->
     is_val l.
 Proof.
   intros * TR.
@@ -195,8 +201,8 @@ Proof.
 Qed.
 
 Lemma trans_ARet :
-  forall {E C X} `{B0 -< C} r (p: ctree E C X) q,
-    trans (val (@ARet E C X r)) (head p) q ->
+  forall r (p: ctree E B X) q,
+    trans (val (@ARet E B X r)) (head p : ctree F C _) q ->
     trans (val r) p stuckD.
 Proof.
   intros * TR.
@@ -229,8 +235,8 @@ Proof.
 Qed.
 
 Lemma trans_ABr :
-  forall {E C R X} `{B0 -< C} (c : C X) k (p: ctree E C R) q,
-    trans (val (ABr c k)) (head p) q ->
+  forall (c : B X) k (p: ctree E B X) q,
+    trans (val (ABr c k)) (head p : ctree F C _) q ->
     forall i, trans tau p (k i).
 Proof.
   intros * TR.
@@ -264,8 +270,8 @@ Proof.
 Qed.
 
 Lemma trans_AVis :
-  forall {E C X Y} `{B0 -< C} (e : E Y) (p: ctree E C X) (k : Y -> ctree E C X) q,
-    trans (val (AVis e k)) (head p) q ->
+  forall {Y} (e : E Y) (p: ctree E B X) (k : Y -> ctree E B X) q,
+    trans (val (AVis e k)) (head p : ctree F C _) q ->
     forall i, trans (obs e i) p (k i).
 Proof.
   intros * TR.
@@ -298,6 +304,8 @@ Proof.
       inv REL.
 Qed.
 
+End trans_head.
+
 (*|
 [head] is a computation computing computations. It's therefore not as
 well-behaved w.r.t. to [equ] as usual: rewriting [equ eq] leads to [equ eq_haction]
@@ -327,8 +335,8 @@ Proof.
     constructor; intros; rewrite H; auto.
 Qed.
 
-#[global] Instance head_equ {E C X} :
-  Proper (equ eq ==> equ (eq_haction)) (@head E C X).
+#[global] Instance head_equ {E F B C X} `{HasB: B -< C} :
+  Proper (equ eq ==> equ (eq_haction)) (@head E F B C X _).
 Proof.
   unfold Proper, respectful.
   unfold equ; coinduction S CIH.
