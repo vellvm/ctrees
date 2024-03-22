@@ -25,7 +25,7 @@ Section Ctree.
   Variant ctreeF(ctree: Type): Type :=
     | RetF (x: X)
     | BrF {n} (k: fin' n -> ctree)
-    | TauF (t: ctree)
+    | GuardF (t: ctree)
     | VisF (e: E)(k: encode e -> ctree).
 
   #[projections(primitive)] CoInductive ctree: Type :=
@@ -41,7 +41,7 @@ Local Open Scope ctree_scope.
 Arguments ctree E {H} X. 
 Arguments ctreeF E {H} X.
 Arguments BrF {E H X} [ctree] n k.
-Arguments TauF {E H X} [ctree] t.
+Arguments GuardF {E H X} [ctree] t.
 Arguments RetF {E H X} [ctree] x.
 Arguments VisF {E H X} [ctree] e k.
 
@@ -53,7 +53,7 @@ Definition observe `{HE: Encode E} `(t : ctree E X) : ctree' E X := @_observe E 
 Notation Ret x        := (go (RetF x)).
 Notation Vis e k      := (go (VisF e k)).
 Notation Br n k     := (go (BrF n k)).
-Notation Tau t     := (go (TauF t)).
+Notation Guard t     := (go (GuardF t)).
 Notation step t     := (Br 0 (fun _ => t)).
 
 (* Use resum and resum_ret to map the events in an entree to another type *)
@@ -62,7 +62,7 @@ CoFixpoint resumCtree' {E1 E2 : Type} `{ReSumRet E1 E2}
   match ot with
   | RetF r => Ret r
   | BrF n k => Br n (fun i => resumCtree' (observe (k i)))
-  | TauF t => Tau (resumCtree' (observe t))
+  | GuardF t =>  Guard (resumCtree' (observe t))
   | VisF e k => Vis (resum e) (fun x => resumCtree' (observe (k (resum_ret e x))))
   end.
 
@@ -78,7 +78,7 @@ Module Ctree.
       match ot with
       | RetF r => k r
       | BrF n h => Br n (fun x => _subst (observe (h x)))
-      | TauF t => Tau (_subst (observe t))
+      | GuardF t => Guard (_subst (observe t))
       | VisF e k => Vis e (fun x => _subst (observe (k x)))
     end.
 
@@ -124,7 +124,7 @@ Module Ctree.
     map (fun _ => tt).
 
   (*| Run forever, do nothing |*)
-  CoFixpoint stuck `{HE: Encode E} {R} : ctree E R := Tau stuck.
+  CoFixpoint stuck `{HE: Encode E} {R} : ctree E R := Guard stuck.
   
   (*| Run forever, do tasteps |*)
   CoFixpoint spin `{HE: Encode E} {R} : ctree E R := step spin.
@@ -132,11 +132,12 @@ Module Ctree.
   (*| [iter] |*)
   Definition iter `{HE: Encode E} {R I: Type}
     (step : I -> ctree E (I + R)) : I -> ctree E R :=
-    cofix iter_ i := bind (step i) (fun lr =>
-                                      match lr with
-                                      | inl l => (Tau (iter_ l))
-                                      | inr r => Ret r
-                                      end).
+    cofix iter_ i := bind (step i)
+                       (fun lr =>
+                          match lr with
+                          | inl l => (Guard (iter_ l))
+                          | inr r => Ret r
+                          end).
 End Ctree.
 
 Ltac fold_bind :=

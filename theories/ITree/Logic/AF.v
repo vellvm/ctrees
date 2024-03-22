@@ -180,7 +180,7 @@ Section AfIndLemma.
      instead of two inductions on [cau] and [trans] *)
   Opaque Itree.stuck.
   Lemma af_afind : forall (t: itree E X) (w: World E),
-       cau true (fun _ _ => True) φ t w -> AFInd t w.
+       cau (fun _ _ => True) φ t w -> AFInd t w.
   Proof.
     intros; induction H.
     - now apply AFIndBase.
@@ -221,7 +221,7 @@ Section AfIndLemma.
     {HP: Proper (equ eq ==> eq ==> iff) φ}
     {TauInv: forall (t: itree E X) w, φ t w  -> φ (Tau t) w}
     : forall (t: itree E X) (w: World E),
-      AFInd t w -> cau true (fun _ _ => True) φ t w.
+      AFInd t w -> cau (fun _ _ => True) φ t w.
   Proof.
     intros; induction H.
     - now apply MatchA.

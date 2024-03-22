@@ -4,6 +4,7 @@ From Coq Require Import
   Classes.DecidableClass
   RelationPairs.  
 From Coq Require Export Program.Equality.
+From Coq Require Import Program.Tactics.
 
 From Coinduction Require Import coinduction.
 
@@ -139,3 +140,6 @@ Ltac invert :=
   | h : existT _ _ _ = existT _ _ _ |- _ => dependent induction h
   | h : existT _ _ = existT _ _ |- _ => dependent induction h
   end.
+
+Tactic Notation "hinduction" hyp(IND) "before" hyp(H)
+  := move IND before H; revert_until IND; induction IND.

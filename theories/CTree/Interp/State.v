@@ -53,9 +53,9 @@ Notation interp_state_ h t s :=
   (match observe t with
    | RetF r => Ret (r, s)
    | VisF e k => (runStateT (h e) s) >>=
-                  (fun '(x, s') => Tau (interp_state h (k x) s'))
-   | TauF t => Tau (interp_state h t s)
-   | BrF n k => Br n (fun xs => Tau (interp_state h (k xs) s))
+                  (fun '(x, s') => Guard (interp_state h (k x) s'))
+   | GuardF t => Guard (interp_state h t s)
+   | BrF n k => Br n (fun xs => Guard (interp_state h (k xs) s))
    end)%function.
 
 Lemma unfold_interp_state `{Encode E} `{Encode F} `(h: E ~> stateT W (ctree F))
@@ -115,13 +115,13 @@ Qed.
 Lemma interp_state_vis `{Encode E} `{Encode F} `(h: E ~> stateT W (ctree F)) {X}  
   (e : E) (k : encode e -> ctree E X) (w : W) :
   interp_state h (Vis e k) w ≅ runStateT (h e) w >>=
-    (fun '(x, w') => Tau (interp_state h (k x) w')).
+    (fun '(x, w') => Guard (interp_state h (k x) w')).
 Proof.
   rewrite unfold_interp_state; reflexivity.
 Qed.
 
 Lemma interp_state_trigger `{Encode E} `{Encode F} `(h: E ~> stateT W (ctree F)) (e : E) (w : W) :
-  interp_state h (Ctree.trigger e) w ≅ runStateT (h (resum e)) w >>= fun x => Tau (Ret x).
+  interp_state h (Ctree.trigger e) w ≅ runStateT (h (resum e)) w >>= fun x => Guard (Ret x).
 Proof.
   unfold Ctree.trigger.
   rewrite interp_state_vis.
@@ -134,12 +134,12 @@ Qed.
 
 Lemma interp_state_br `{Encode E} `{Encode F} `(h: E ~> stateT W (ctree F)) {X}
   (n : nat) (k : fin' n -> ctree E X) (w : W) :
-  interp_state h (Br n k) w ≅ Br n (fun x => Tau (interp_state h (k x) w)).
+  interp_state h (Br n k) w ≅ Br n (fun x => Guard (interp_state h (k x) w)).
 Proof. rewrite !unfold_interp_state; reflexivity. Qed.
 
 Lemma interp_state_tau `{Encode E} `{Encode F} `(h: E ~> stateT W (ctree F)) {X}
   (t : ctree E X) (w : W) :
-  interp_state h (Tau t) w ≅ Tau ((interp_state h t w)).
+  interp_state h (Guard t) w ≅ Guard ((interp_state h t w)).
 Proof. rewrite !unfold_interp_state; reflexivity. Qed.
 
 Lemma interp_state_ret_inv `{Encode E} `{Encode F}
@@ -181,12 +181,12 @@ Proof.
     step; econstructor; intros.
     apply IH.
   - rewrite interp_state_tau.
-    rewrite bind_tau.
+    rewrite bind_guard.
     constructor.
     apply IH.
   - rewrite interp_state_vis, bind_bind.
     upto_bind_equ; destruct x.
-    rewrite bind_tau.
+    rewrite bind_guard.
     constructor.
     apply IH.
 Qed.
@@ -196,7 +196,7 @@ Lemma interp_state_unfold_iter `{Encode E} `{Encode F}
   (k : I -> ctree E (I + R)) (i: I) (s: W) :
   interp_state h (Ctree.iter k i) s ≅ interp_state h (k i) s >>= fun '(x, s) =>
       match x with
-      | inl l => Tau (interp_state h (iter k l) s)
+      | inl l => Guard (interp_state h (iter k l) s)
       | inr r => Ret (r, s)
       end.
 Proof.

@@ -307,7 +307,7 @@ Qed.
 Lemma ctree_eta {E R} {HE: Encode E} (t : ctree E R) : t ≅ go (observe t).
 Proof. step; now cbn. Qed.
 
-Lemma unfold_stuck {E R} {HE: Encode E}: @stuck E _ R ≅ Tau stuck.
+Lemma unfold_stuck {E R} {HE: Encode E}: @stuck E _ R ≅ Guard stuck.
 Proof. exact (ctree_eta stuck). Qed.
 
 Lemma unfold_spin {E R} {HE: Encode E}: @spin E _ R ≅ step spin.
@@ -317,7 +317,7 @@ Notation bind_ t k :=
   match observe t with
   | RetF r => k%function r
   | VisF e ke => Vis e (fun x => bind (ke x) k)
-  | TauF t => Tau (bind t k)
+  | GuardF t => Guard (bind t k)
   | BrF n ke => Br n (fun x => bind (ke x) k)
   end (only parsing).
 
@@ -327,7 +327,7 @@ Proof. step; now cbn. Qed.
 Notation iter_ step i :=
   (lr <- step%function i;;
    match lr with
-   | inl l => Tau (iter step l)
+   | inl l => Guard (iter step l)
    | inr r => Ret r
    end)%ctree (only parsing).
 
@@ -401,12 +401,6 @@ Lemma bind_br {E n Y Z} {HE: Encode E} (k : fin' n -> ctree E Y) (g : Y -> ctree
   Br n k >>= g ≅ Br n (fun x => k x >>= g).
 Proof. now rewrite unfold_bind. Qed.
 
-Lemma bind_tau : forall {E X Y} {HE: Encode E} (t: ctree E X) (g: X -> ctree E Y),
-    Tau t >>= g ≅ Tau (t >>= g).
-Proof.
-  intros. rewrite unfold_bind. reflexivity. 
-Qed.
-
 Lemma bind_branch : forall {E n X} {HE: Encode E} (k : fin' n -> ctree E X),
     branch n >>= k ≅ Br n k.
 Proof.
@@ -414,8 +408,8 @@ Proof.
 Qed.
 
 Lemma bind_guard {E X Y} {HE: Encode E} (t : ctree E X) (g : X -> ctree E Y):
-  Tau t >>= g ≅ Tau (t >>= g).
-Proof. now rewrite bind_tau. Qed.
+  Guard t >>= g ≅ Guard (t >>= g).
+Proof. now rewrite unfold_bind. Qed.
 
 Lemma vis_equ_bind {E X Y} {HE: Encode E}:
   forall (t : ctree E X) (e : E) k (k' : encode e -> ctree E Y),
@@ -427,7 +421,7 @@ Proof.
   destruct (observe t) eqn:?.
   - left. exists x. rewrite ctree_eta, Heqc. reflexivity.
   - rewrite (ctree_eta t), Heqc, bind_br in H;step in H; inv H.
-  - rewrite (ctree_eta t), Heqc, bind_tau in H;step in H; inv H.
+  - rewrite (ctree_eta t), Heqc, bind_guard in H;step in H; inv H.
   - rewrite (ctree_eta t), Heqc, bind_vis in H.
     apply equ_vis_invT in H as ?; subst.
     destruct H0; subst.
@@ -454,24 +448,24 @@ Proof.
     + rewrite (ctree_eta t), Heqc.
       reflexivity.
     + cbn in H0. symmetry in H0. apply H0.
-  - rewrite (ctree_eta t), Heqc, bind_tau in H.
+  - rewrite (ctree_eta t), Heqc, bind_guard in H.
     step in H; cbn in H; dependent destruction H.
   - rewrite (ctree_eta t), Heqc, bind_vis in H. step in H. inv H.
 Qed.
 
 Lemma tau_equ_bind {E X Y} {HE: Encode E}:
   forall (t: ctree E Y) (k: Y -> ctree E X) t',
-    x <- t;; k x ≅ Tau t' ->
+    x <- t;; k x ≅ Guard t' ->
     (exists r, t ≅ Ret r) \/
-      exists t0, t ≅ Tau t0 /\ t' ≅ x <- t0 ;; k x.
+      exists t0, t ≅ Guard t0 /\ t' ≅ x <- t0 ;; k x.
 Proof.
   intros.
   destruct (observe t) eqn:?.
   - left; exists x; rewrite ctree_eta, Heqc; reflexivity.
   - rewrite (ctree_eta t), Heqc, bind_br in H.
     step in H; cbn in H; dependent destruction H.
-  - rewrite (ctree_eta t), Heqc, bind_tau in H.
-    pose proof (equ_tau_invE H).
+  - rewrite (ctree_eta t), Heqc, bind_guard in H.
+    pose proof (equ_guard_invE H).
     right. exists t0.
     split. 
     + rewrite (ctree_eta t), Heqc.
@@ -490,7 +484,7 @@ Proof.
   destruct (observe t) eqn:?.
   - rewrite bind_ret_l in H. eauto.
   - rewrite bind_br in H. step in H. inv H.
-  - rewrite bind_tau in H. step in H. inv H.
+  - rewrite bind_guard in H. step in H. inv H.
   - rewrite bind_vis in H. step in H. inv H.
 Qed.
 
@@ -522,7 +516,7 @@ Qed.
 
 (*| Forever |*)
 Lemma unfold_forever {E X} {HE: Encode E}: forall (k: X -> ctree E X)(i: X),
-    forever k i ≅ r <- k i ;; Tau (forever k r).
+    forever k i ≅ r <- k i ;; Guard (forever k r).
 Proof.
   intros k i.
   unfold forever, Classes.iter, MonadIter_ctree, Functor.fmap, Functor_ctree.
@@ -593,7 +587,7 @@ Ltac inv_equ h :=
       subst_hyp_in EQt h;
       apply equ_vis_invE in h as [EQe EQ];
       subst
-  | Tau _ ≅ Tau _ =>
+  | Guard _ ≅ Guard _ =>
       let EQt := fresh "EQt" in
       let EQ := fresh "EQ" in
       apply equ_br_invE in h as [EQt EQ];

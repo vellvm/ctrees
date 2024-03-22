@@ -29,7 +29,7 @@ Definition interp `{Encode E} {M : Type -> Type}
                 match observe t with
                 | RetF r => ret (inr r)
                 | BrF n k => bind (mbr n) (fun x => ret (inl (k x)))
-                | TauF t => ret (inl t)
+                | GuardF t => ret (inl t)
                 | VisF e k => bind (h e) (fun x => ret (inl (k x)))
                 end).
 
@@ -39,9 +39,9 @@ Arguments interp {E H M MM MI MB} h [X].
 Notation _interp h t :=
   (match observe t with
    | RetF r => Ret r
-   | TauF t => Tau (interp h t)
-   | BrF n k => Br n (fun x => Tau (interp h (k x)))
-   | VisF e k => h e >>= (fun x => Tau (interp h (k x)))
+   | GuardF t => Guard (interp h t)
+   | BrF n k => Br n (fun x => Guard (interp h (k x)))
+   | VisF e k => h e >>= (fun x => Guard (interp h (k x)))
   end).
 
 Local Typeclasses Transparent equ.

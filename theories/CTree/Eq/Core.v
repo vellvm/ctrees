@@ -25,9 +25,9 @@ Section Equ.
     | Eq_Vis (e: E) (k1 k2: encode e -> _):
       (forall x, eq (k1 x) (k2 x)) ->
       equF eq (VisF e k1) (VisF e k2)
-    | Eq_Tau t1 t2:
+    | Eq_Guard t1 t2:
       eq t1 t2 ->
-      equF eq (TauF t1) (TauF t2)
+      equF eq (GuardF t1) (GuardF t2)
     | Eq_Br {n} k1 k2:
       (forall (x: fin' n), eq (k1 x) (k2 x)) ->
       equF eq (BrF n k1) (BrF n k2).
@@ -273,7 +273,7 @@ Lemma bind_ret_ {E R S} {HE: Encode E} (r : R) (k : R -> ctree E S) :
 Proof. constructor; reflexivity. Qed.
 
 Lemma bind_guard_ {E R} {HE: Encode E} U t (k: U -> ctree E R) :
-  observing eq (Ctree.bind (Tau t) k) (Tau (Ctree.bind t k)).
+  observing eq (Ctree.bind (Guard t) k) (Guard (Ctree.bind t k)).
 Proof. constructor; reflexivity. Qed.
 
 Lemma bind_br_ {E R} {HE: Encode E} n U (bk: fin' n -> ctree E U) (k: U -> ctree E R) :
@@ -287,11 +287,11 @@ Lemma bind_vis_ {E R U} {HE: Encode E} (e: E) (ek: encode e -> ctree E U) (k: U 
 Proof. constructor; reflexivity. Qed.
 
 (** Unfolding lemma for [iter]. There is also a variant [unfold_iter]
-    without [Tau]. *)
+    without [Guard]. *)
 Lemma unfold_aloop_ {E X Y} {HE: Encode E} (f : X -> ctree E (X + Y)) (x : X) :
   observing eq
     (Ctree.iter f x)
-    (Ctree.bind (f x) (fun lr => on_left lr l (Tau (Ctree.iter f l)))).
+    (Ctree.bind (f x) (fun lr => on_left lr l (Guard (Ctree.iter f l)))).
 Proof. constructor; reflexivity. Qed.
 
 (** ** [going]: Lift relations through [go]. *)
@@ -456,8 +456,8 @@ Proof.
   auto.
 Qed.
 
-Lemma equ_tau_invE {E S} {HE: Encode E} {t1 t2: ctree E S}:
-  Tau t1 ≅ Tau t2 ->
+Lemma equ_guard_invE {E S} {HE: Encode E} {t1 t2: ctree E S}:
+  Guard t1 ≅ Guard t2 ->
   t1 ≅ t2.
 Proof.
   intros EQ; step in EQ; cbn in EQ.

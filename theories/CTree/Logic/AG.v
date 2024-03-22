@@ -9,8 +9,10 @@ From CTree Require Import
   Events.Core
   CTree.Core
   CTree.Equ
+  CTree.SBisim
   CTree.Logic.Trans
   CTree.Logic.CanStep
+  CTree.Logic.AX
   Logic.Ctl
   Logic.Kripke.
 
@@ -27,27 +29,24 @@ Section BasicLemmas.
       (vis_with φ w /\
          forall (v: encode e), <( {k v}, {Obs e v} |= AG vis φ )>) <->
         <( {Vis e k}, w |= AG vis φ )>.
-  Proof.
+  Proof with eauto with ctl.
     split; intros.
     - destruct H as (Hd & H).
       next; split.
-      + inv Hd.
+      + inv Hd...
         now apply ctl_now.
       + next; split; inv Hd.
-        * apply can_step_vis; auto with ctl.
+        * apply can_step_vis... 
         * intros.
-          apply ktrans_vis in H0 as (i & -> & <- & ?).
-          apply H.
+          apply ktrans_vis in H0 as (i & -> & <- & ?)...
     - next in H.
       destruct H.      
       next in H0.
       destruct H0.
       apply can_step_not_done in H0. 
-      split; auto.
+      split...
       intro v.
-      apply H1.
-      apply ktrans_vis.
-      exists v; auto.
+      apply H1, ktrans_vis...
   Qed.
   
   Lemma ag_br: forall n (k: fin' n -> ctree E X) w φ,
@@ -103,34 +102,12 @@ Section BasicLemmas.
     now apply can_step_stuck in H0.
   Qed.
 
-  
-  Inductive tau_clos_body `{Encode E} {X} (R: relation (ctree E X)): relation (ctree' E X) :=
-  | Tau_closL: forall (t: ctree E X) u,
-      tau_clos_body R (observe t) u ->
-      tau_clos_body R (TauF t) u
-  | Tau_closR: forall t (u : ctree E X),
-      tau_clos_body R t (observe u) ->
-      tau_clos_body R t (TauF u)
-  | Tau_closRec: forall t u,
-      R t u ->
-      tau_clos_body R (TauF t) (TauF u).
-
-  Program Definition tau_clos `{Encode E} {X}: mon (relation (ctree E X)) :=
-    {| body R t u:= @tau_clos_body H X R (observe t) (observe u) |}.
-  Next Obligation.
-    unfold impl; repeat red; intros.
-    induction H1.
-    - apply Tau_closL; auto.
-    - apply Tau_closR; eauto.
-    - apply Tau_closRec; eauto.
+  Lemma ag_guard: forall w φ (t: ctree E X),
+      <( {Guard t}, w |= AG φ )> <-> <( t, w |= AG φ )>.
+  Proof.
+    intros.
+    now rewrite sb_guard.
   Qed.
-
-  
-  Lemma tau_clos_car:
-    tau_clos_body <= cart.
-  Proof.    
-    
-    
 End BasicLemmas.  
 
 Section BindCtxUnary.
@@ -177,13 +154,11 @@ Section AGIndLemma.
   Context {E: Type} {HE: Encode E} {X: Type}.
   Notation MP := (rel (ctree E X) (World E)). 
   
-  (*| [t,w |= AG φ] is semantic and equivalent to [gfp AGCoindF φ t w] |*)
+  (*| [t,w |= AG φ] is equivalent to [gfp AGCoindF φ t w] |*)
   Inductive AGCoindF (R: MP -> MP) (φ: MP): ctree' E X -> World E -> Prop :=
-  | AGCoindTau: forall u w,
-      not_done w ->
-      R φ u w ->
-      φ (Tau u) w ->
-      AGCoindF R φ (TauF u) w
+  | AGCoindGuard: forall u w,
+      AGCoindF R φ (observe u) w ->
+      AGCoindF R φ (GuardF u) w
   | AGCoindVis: forall w e k (_: encode e),
       not_done w ->
       (forall (v: encode e), R φ (k v) (Obs e v)) ->
@@ -234,16 +209,20 @@ Ltac __step_agcoind_in H := unfold agcoind in H; step in H; fold_agcoind_in H.
 #[global] Tactic Notation "step" "in" ident(H) :=
   __step_agcoind_in H || step in H.
 
-Global Instance proper_equ_agcoind `{Encode E} {X} (φ: ctree E X -> World E -> Prop)
-  {HP: Proper (equ eq ==> eq ==> iff) φ}:
-  Proper (equ eq ==> eq ==> iff) (agcoind φ).
+Global Instance proper_equ_agcoind `{HE: Encode E} {X} (φ: ctlf E):
+  Proper (@equ E HE X X eq ==> eq ==> iff) (agcoind <( |- φ )>).
 Proof.
   unfold Proper, respectful.
-  split; subst; revert y0; generalize dependent y;  generalize dependent x;
-  coinduction R CIH; intros. 
-  - (* -> *) desobs y; observe_equ Heqt;
-               rewrite Eqt in H0; step in H0; cbn in H0; dependent destruction H0;
-               step in H1; cbn in H1; do 3 red; cbn.
+  split; subst; revert y0;
+    generalize dependent y; generalize dependent x;
+    coinduction R CIH; intros; step in H0.
+    rewrite (ctree_eta x), (ctree_eta y) in *.
+  
+  - (* -> *)
+    desobs y; observe_equ Heqt;
+      rewrite Eqt in H0; step in H0; cbn in H0;
+      dependent destruction H0;
+      step in H1; cbn in H1; do 3 red; cbn.
     + (* Ret *)
       rewrite <- x in H1.
       inv H1.
@@ -257,13 +236,13 @@ Proof.
       intro i.
       specialize (H0 i).
       eapply CIH with (k1 i); auto.
-    + (* Vis *)
+    + (* Guard *)
       rewrite Heqt.
       rewrite <- x in H1.
       inv H1.
-      apply AGCoindTau; auto.
+      apply AGCoindGuard; auto.
       eapply CIH with t1; eauto.
-      assert (HeqTau: Tau t1 ≅ Tau t) by (step; cbn; auto).
+      assert (HeqTau: Guard t1 ≅ Guard t) by (step; cbn; auto).
       now rewrite <- HeqTau.
     + rewrite Heqt.
       rewrite <- x in H1.
@@ -274,9 +253,11 @@ Proof.
       intro v.
       specialize (H0 v).
       eapply CIH with (k1 v); auto.
-  - (* <- *)  desobs x; observe_equ Heqt;
-               rewrite Eqt in H0; step in H0; cbn in H0; dependent destruction H0;
-               step in H1; cbn in H1; do 3 red; cbn.
+  - (* <- *)
+    desobs x; observe_equ Heqt;
+      rewrite Eqt in H0; step in H0; cbn in H0;
+      dependent destruction H0;
+      step in H1; cbn in H1; do 3 red; cbn.
     + rewrite <- x in H1.
       inv H1.
     + rewrite Heqt.
@@ -291,10 +272,10 @@ Proof.
     + rewrite Heqt.
       rewrite <- x in H1.
       inv H1.
-      apply AGCoindTau; auto.
+      apply AGCoindGuard; auto.
       eapply CIH with t2; eauto.
-      assert (HeqTau: Tau t ≅ Tau t2) by (step; cbn; auto).
-      now rewrite HeqTau.
+      assert (HeqGuard: Guard t ≅ Guard t2) by (step; cbn; auto).
+      now rewrite HeqGuard.
     + rewrite Heqt.
       rewrite <- x in H1.
       dependent destruction H1.
@@ -308,13 +289,10 @@ Qed.
 
 Section AGCoindProof.
   Context {E: Type} {HE: Encode E} {X: Type}.
-  Notation MP := (rel (ctree E X) (World E)).
-
-  Lemma ag_agcoind: forall (t: ctree E X) w φ
-                      {HP: Proper (equ eq ==> eq ==> iff) φ}
-                      {Hφ: forall t w, φ (Tau t) w <-> φ t w},
-      car φ (fun _ _ => False) t w -> agcoind φ t w.
-  Proof.
+  
+  Lemma ag_agcoind: forall (t: ctree E X) w φ,
+      car <( |- φ )> <( |- ⊥ )> t w -> agcoind <( |- φ )> t w.
+  Proof with eauto with ctl.
     coinduction R CIH.
     intros.
     step in H.
@@ -327,48 +305,62 @@ Section AGCoindProof.
     remember (observe t') as T'.
     clear HeqT t HeqT' t'.
     induction TR.
-    - (* Tau *)
-      apply AGCoindTau; auto.
+    - (* Guard *)
+      apply AGCoindGuard... 
       + now apply ktrans_not_done with t t' w'.
-      + apply CIH; auto.
+      + apply CIH... 
         step; apply RStepA.
-        * now apply Hφ.
+        * now rewrite sb_guard in H0. 
         * split. 
           -- now (exists t', w').
-          -- intros t_ w_ TR_; auto.
+          -- intros t_ w_ TR_... 
     - (* Br *)
-      apply AGCoindBr; auto.
-      intro j.
-      apply CIH; auto.
-      now apply H; econstructor.
+      apply AGCoindBr...
     - (* Vis *)
-      apply AGCoindVis; auto.
+      apply AGCoindVis...
     - (* Done *)
-      assert (TR: [Ret x, Pure] ↦ [stuck, Done x]) by now constructor.
+      assert (TR: [Ret x, Pure] ↦ [stuck, Done x])
+        by now constructor.
       specialize (H stuck (Done x) TR).
       step in H; cbn in H.
       dependent destruction H; try contradiction.
       destruct H2 as ((t' & w' & TR') & H').
       now apply ktrans_stuck in TR'.
     - (* Finish *)
-      assert (TR: [Ret x, Obs e v] ↦ [stuck, Finish e v x]) by now constructor.
+      assert (TR: [Ret x, Obs e v] ↦ [stuck, Finish e v x])
+        by now constructor.
       specialize (H stuck (Finish e v x) TR).
       step in H; cbn in H.
       dependent destruction H; try contradiction.
       destruct H2 as ((t' & w' & TR') & H').
       now apply ktrans_stuck in TR'.
   Qed.
-  
+
+  Typeclasses Transparent equ.
   Lemma ag_bind_l{Y}: forall (t: ctree E X) w (k: X -> ctree E Y) φ,
     <( t, w |= AG now φ )> ->
     <( {x <- t ;; k x} , w |= AG now φ )>.
   Proof.
-    cbn.
+    intro t.
+    setoid_rewrite (ctree_eta t).
+    intros; cbn.
     coinduction R CIH.
     intros.
     apply ag_agcoind in H; auto with typeclass_instances.
-    step in H; cbn in H; dependent destruction H.
-    - (* Tau *)
+    step in H; cbn in H; dependent destruction H; rewrite <- x in *.
+    - setoid_rewrite bind_guard in CIH.
+      rewrite sb_guard in CIH.
+      apply RStepA; auto.      
+      split.
+      + rewrite bind_guard.
+        rewrite sb_guard.
+        step in H0.
+        inv H0.
+      + rewrite bind_guard, sb_guard.
+        rewrite sb_guard in H1.
+        
+      setoid_rewrite bind_guard. in CIH. rewrite bind_guard. observe_equ x.
+      rewrite Eqt.
       apply RStepA; auto.
       split.
       + eapply can_step_bind_l with (w':=w); auto.

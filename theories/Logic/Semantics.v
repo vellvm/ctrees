@@ -28,15 +28,14 @@ Generalizable All Variables.
 
 (*| CTL logic based on kripke semantics |*)
 Section Ctl.
-  Context `{KMS: Kripke M W} {X: Type} (strong: bool).  
+  Context `{KMS: Kripke M W} {X: Type}.
   Notation MP := (M X -> World W -> Prop).
   Local Open Scope ctl_scope.
 
   (*| Shallow strong/weak forall [next] modality |*)
   Definition cax (p: MP) (t: M X) (w: World W): Prop :=    
-    (if strong then
-       can_step t w
-     else True) /\ forall t' w', [t,w] ↦ [t', w'] -> p t' w'.
+    can_step t w /\
+      forall t' w', [t,w] ↦ [t', w'] -> p t' w'.
   
   Definition cex(p: MP) (t: M X) (w: World W): Prop :=
     exists t' w', [t, w] ↦ [t', w'] /\ p t' w'.
@@ -158,13 +157,10 @@ Inductive ctlf (W: Type) `{HW: Encode W} : Type :=
   | COr     : ctlf -> ctlf -> ctlf
   | CImpl   : ctlf -> ctlf -> ctlf
   | CAX     : ctlf -> ctlf
-  | CWX     : ctlf -> ctlf     
   | CEX     : ctlf -> ctlf
   | CAU     : ctlf -> ctlf -> ctlf
-  | CWU     : ctlf -> ctlf -> ctlf
   | CEU     : ctlf -> ctlf -> ctlf
   | CAR     : ctlf -> ctlf -> ctlf
-  | CWR     : ctlf -> ctlf -> ctlf
   | CER     : ctlf -> ctlf -> ctlf.
 
 Arguments ctlf W {HW}.
@@ -177,14 +173,11 @@ Fixpoint entailsF `{KMS: Kripke M W} {X}
     | CAnd  φ ψ => fun t w => (entailsF φ t w) /\ (entailsF ψ t w)
     | COr   φ ψ => fun t w => (entailsF φ t w) \/ (entailsF ψ t w)
     | CImpl φ ψ => fun t w => (entailsF φ t w) -> (entailsF ψ t w)
-    | CAX   φ   => cax true (entailsF φ)
-    | CWX   φ   => cax false (entailsF φ)
+    | CAX   φ   => cax (entailsF φ)
     | CEX   φ   => cex (entailsF φ)
-    | CAU   φ ψ => cau true (entailsF φ) (entailsF ψ)
-    | CWU   φ ψ => cau false (entailsF φ) (entailsF ψ)
+    | CAU   φ ψ => cau (entailsF φ) (entailsF ψ)
     | CEU   φ ψ => ceu (entailsF φ) (entailsF ψ)
-    | CAR   φ ψ => gfp (car_ true) (entailsF φ) (entailsF ψ)
-    | CWR   φ ψ => gfp (car_ false) (entailsF φ) (entailsF ψ)
+    | CAR   φ ψ => gfp car_ (entailsF φ) (entailsF ψ)
     | CER   φ ψ => gfp cer_ (entailsF φ) (entailsF ψ)
     end.
 
@@ -229,22 +222,17 @@ Module CtlNotations.
   (* Temporal syntax: inductive *)
   Notation "'EX' p" := (CEX p) (in custom ctl at level 75): ctl_scope.
   Notation "'AX' p" := (CAX p) (in custom ctl at level 75): ctl_scope.
-  Notation "'WX' p" := (CWX p) (in custom ctl at level 75): ctl_scope.
 
   Notation "p 'EU' q" := (CEU p q) (in custom ctl at level 75): ctl_scope.
   Notation "p 'AU' q" := (CAU p q) (in custom ctl at level 75): ctl_scope.
-  Notation "p 'WU' q" := (CWU p q) (in custom ctl at level 75): ctl_scope.
   
   Notation "p 'ER' q" := (CER p q) (in custom ctl at level 75): ctl_scope.
   Notation "p 'AR' q" := (CAR p q) (in custom ctl at level 75): ctl_scope.
-  Notation "p 'WR' q" := (CWR p q) (in custom ctl at level 75): ctl_scope.
   
   Notation "'EF' p" := (CEU (CBase (fun _=> True)) p) (in custom ctl at level 74): ctl_scope.
   Notation "'AF' p" := (CAU (CBase (fun _=> True)) p) (in custom ctl at level 74): ctl_scope.
-  Notation "'WF' p" := (CWU (CBase (fun _=> True)) p) (in custom ctl at level 74): ctl_scope.
   Notation "'EG' p" := (CER p (CBase (fun _=>False))) (in custom ctl at level 74): ctl_scope.
   Notation "'AG' p" := (CAR p (CBase (fun _=>False))) (in custom ctl at level 74): ctl_scope.
-  Notation "'WG' p" := (CWR p (CBase (fun _=>False))) (in custom ctl at level 74): ctl_scope.
   
   (* Propositional syntax *)
   Notation "p '/\' q" := (CAnd p q) (in custom ctl at level 77, left associativity): ctl_scope.
@@ -255,20 +243,16 @@ Module CtlNotations.
   Notation "p '<->' q" := (CAnd (CImpl p q) (CImpl q p)) (in custom ctl at level 77): ctl_scope.
 
   (* Companion notations *)
-  Notation car := (gfp (car_ true)).
-  Notation cwr := (gfp (car_ false)).
+  Notation car := (gfp car_).
   Notation cer := (gfp cer_).
-  Notation cart := (t (car_ true)).
-  Notation cwrt := (t (car_ false)).
+  Notation cart := (t car_).
   Notation cert := (t cer_).
-  Notation carbt := (bt (car_ true)).
-  Notation cwrbt := (bt (car_ false)).
+  Notation carbt := (bt car_).
   Notation cerbt := (bt cer_).
-  Notation carT := (T (car_ true)).
-  Notation cwrT := (T (car_ false)).
+  Notation carT := (T car_).
   Notation cerT := (T cer_).
-  Notation carbT := (bT (car_ true)).
-  Notation cwrbT := (bT (car_ false)).
+  Notation carbT := (bT car_).
+  Notation cwrbT := (bT car_).
   Notation cerbT := (bT cer_).
   #[global] Hint Constructors ceu cau carF cerF: ctl.
 End CtlNotations.
@@ -316,14 +300,6 @@ Proof.
   - unfold entailsF, cax; split; eauto with ctl.
 Qed.
 
-Lemma ctl_wx `{KMS: Kripke M W} X: forall (t: M X) (w: World W) p,
-    <( t,w |= WX p )> <-> forall t' w', [t,w] ↦ [t',w'] -> <( t',w' |= p )>.
-Proof.
-  intros; split; intro H'; repeat destruct H'.
-  - apply H0. 
-  - unfold entailsF, cax; split; auto.
-Qed.
-
 Lemma ctl_ex `{KMS: Kripke M W} X: forall (t: M X) (w: World W) p,
     <( t,w |= EX p )> <-> exists t' w', [t,w] ↦ [t',w'] /\ <( t',w' |= p )>.
 Proof.
@@ -331,7 +307,7 @@ Proof.
   - now exists x, x0.
   - unfold entailsF, cex; exists x, x0; split; auto.
 Qed.
-Global Hint Resolve ctl_ax ctl_ex ctl_wx: ctl.
+Global Hint Resolve ctl_ax ctl_ex: ctl.
 
 (* [AX φ] is stronger than [EX φ] *)
 Lemma ctl_ax_ex `{KMS: Kripke M W} X: forall (t: M X) (w: World W) p,
@@ -358,19 +334,6 @@ Proof.
     now apply H3.
 Qed.
 
-(* [AF φ] is stronger than [WF φ] *)
-Lemma ctl_af_wf `{KMS: Kripke M W} X: forall (t: M X) (w: World W) p,
-    <( t, w |= AF p )> -> <( t, w |= WF p )>.
-Proof.
-  intros. 
-  unfold entailsF in H; induction H.
-  - now apply MatchA.
-  - destruct H0 as ((m' & ? & ?) & ?).
-    destruct H1 as ((? & ? & ?) & ?).
-    apply StepA; trivial.
-    unfold cax; split; auto.
-Qed.
-  
 (*| Bot is false |*)
 Lemma ctl_sound `{KMS: Kripke M W} X: forall (t: M X) (w: World W),
     ~ <( t, w |= ⊥ )>.

@@ -83,45 +83,29 @@ Section EquivSetoid.
       now (exists y', w_).
   Qed.
 
-  (*| At this point we start building the proof that [entailsF] is
-    a congruence with regards to [meq] |*)
-  Global Add Parametric Morphism: (fun _ (_: World W) => False)
-      with signature meq ==> eq ==> iff as fun_proper_false.
-  Proof. intros; split; contradiction. Qed.
-  
-  Global Add Parametric Morphism: (fun _ (_: World W) => True)
-      with signature meq  ==> eq ==> iff as fun_proper_true.
+  (*| Start building the proof that
+      [entailsF] is a congruence with regards to [meq] |*)
+  Global Add Parametric Morphism {φ: World W -> Prop}: (fun _ => φ)
+      with signature meq ==> eq ==> iff as fun_proper_now.
   Proof. intros; split; auto. Qed.
-
-  Global Add Parametric Morphism {φ: World W -> Prop}: (fun (t: M X) (w: World W) => φ w)
-      with signature meq ==> eq ==> iff as fun_proper_equ.
-  Proof. intros; split; intros; auto. Qed.
-
-  Global Add Parametric Morphism (p: World W -> Prop): <( |- {CBase p} )>
+  
+  Global Add Parametric Morphism p : <( |- {CBase p} )>
         with signature meq ==> eq ==> iff as now_proper_equ.
-  Proof. unfold entailsF; intros; eapply fun_proper_equ; eauto. Qed.
+  Proof.
+    unfold entailsF; intros; eapply fun_proper_now; eauto.
+  Qed.
 
-  Context {P: MP} {HP: Proper (meq ==> eq ==> iff) P} {strong: bool}.
-  Global Add Parametric Morphism: (cax strong P)
+  Context {P: MP} {HP: Proper (meq ==> eq ==> iff) P}.
+  Global Add Parametric Morphism: (cax P)
          with signature (meq ==> eq ==> iff) as proper_ax_equ.
   Proof.
-    intros x y Heqt w; split; intros [Hs HN]; destruct strong.
+    intros x y Heqt w; split; intros [Hs HN]. 
     - split; [now rewrite <- Heqt|].
       intros u z TR.
       ktrans_equ TR.
       apply HN in TR0.
       now rewrite EQ.
-    - split; trivial. 
-      intros u z TR.
-      ktrans_equ TR.
-      apply HN in TR0.
-      now rewrite EQ.
     - split; [now rewrite Heqt|].
-      intros u z TR.
-      ktrans_equ TR.
-      apply HN in TR0.
-      now rewrite EQ.
-    - split; trivial.
       intros u z TR.
       ktrans_equ TR.
       apply HN in TR0.
@@ -137,7 +121,7 @@ Section EquivSetoid.
   Qed.
 
   Context {Q: MP} {HQ: Proper (meq ==> eq ==> iff) Q}.
-  Global Add Parametric Morphism: (cau strong P Q)
+  Global Add Parametric Morphism: (cau P Q)
         with signature (meq ==> eq ==> iff) as proper_au_equ.
   Proof.
     intros x y EQ; split; intros * au.
@@ -145,32 +129,22 @@ Section EquivSetoid.
     - generalize dependent y.
       induction au; intros y EQ.
       + rewrite EQ in H; now apply MatchA.
-      + destruct strong; eapply StepA; try now rewrite <- EQ.
-        * destruct H0, H1; split; [ now rewrite <- EQ|].
-          intros y' w' TR.
-          ktrans_equ TR.
-          eapply H3; [apply TR0|].
-          now symmetry.
-        * destruct H0, H1; split; trivial.
-          intros y' w' TR.
-          ktrans_equ TR.
-          eapply H3; [apply TR0|].
-          now symmetry.
+      + eapply StepA; try now rewrite <- EQ.
+        destruct H0, H1; split; [ now rewrite <- EQ|].
+        intros y' w' TR.
+        ktrans_equ TR.
+        eapply H3; [apply TR0|].
+        now symmetry.
     (* <- *)
     - generalize dependent x.
       induction au; intros x EQ.
       + rewrite <- EQ in H; now apply MatchA.
-      + destruct strong; eapply StepA; try now rewrite EQ.
-        * destruct H0, H1; split; [now rewrite EQ|].
-          intros x' w' TR.
-          ktrans_equ TR.
-          eapply H3; [apply TR0|].
-          now symmetry.
-        * destruct H0, H1; split; trivial.
-          intros y' w' TR.
-          ktrans_equ TR.
-          eapply H3; [apply TR0|].
-          now symmetry.
+      + eapply StepA; try now rewrite EQ.
+        destruct H0, H1; split; [now rewrite EQ|].
+        intros x' w' TR.
+        ktrans_equ TR.
+        eapply H3; [apply TR0|].
+        now symmetry.
   Qed.
 
   Global Add Parametric Morphism: (ceu P Q)
@@ -224,27 +198,11 @@ Section EquivSetoid.
       + unfold cax; destruct H0 as [Hsm2 TR2]; split; cbn; cbn in Hsm2.
         * now rewrite Heq. 
         * intros t' w' TR.
-          eapply (f_Tf (car_ true)).
+          eapply (f_Tf car_). 
           ktrans_equ TR.
-          eapply mequ_clos_ctor with (t1:=z);eauto. 
+          eapply mequ_clos_ctor with (t1:=z); eauto. 
   Qed.
 
-  Lemma mequ_clos_cwr:
-    mequ_clos <= cwrt.
-  Proof.
-    apply Coinduction; cbn.
-    intros R p q t0 w0 [t1 w1 t2 w2 Heq -> ?]; inv HR. 
-    - apply RMatchA; now rewrite Heq.
-    - apply RStepA; intros.
-      + now rewrite Heq. 
-      + unfold cax; destruct H0 as [Hsm2 TR2]; split; cbn; cbn in Hsm2.
-        * trivial.
-        * intros t' w' TR.
-          eapply (f_Tf (car_ false)).
-          ktrans_equ TR.
-          eapply mequ_clos_ctor with (t1:=z);eauto. 
-  Qed.
-  
   Lemma mequ_clos_cer:
     mequ_clos <= cert.
   Proof.    
@@ -288,33 +246,6 @@ Section EquivSetoid.
     - eapply mequ_clos_ctor with (t1:=t'); eauto.
   Qed.      
 
-  Global Add Parametric Morphism RR: (cwrt RR P Q) with signature
-         (meq ==> eq ==> iff) as proper_wrt_equ.
-  Proof.
-    intros t t' Heqt w'; split; intro G; apply (ft_t mequ_clos_cwr).
-    - eapply mequ_clos_ctor with (t1:=t); eauto.
-      now symmetry.
-    - eapply mequ_clos_ctor with (t1:=t'); eauto.
-  Qed.
-  
-  Global Add Parametric Morphism RR f: (cwrT f RR P Q)
-         with signature (meq ==> eq ==> iff) as proper_wrT_equ.
-  Proof.
-    intros t t' Heqt w'; split; intro G; apply (fT_T mequ_clos_cwr).
-    - eapply mequ_clos_ctor with (t1:=t); eauto.
-      now symmetry.
-    - eapply mequ_clos_ctor with (t1:=t'); eauto.
-  Qed.
-  
-  Global Add Parametric Morphism: (cwr P Q)
-         with signature (meq ==> eq ==> iff) as proper_wr_equ.
-  Proof.
-    intros t t' Heqt w'; split; intro G; apply (ft_t mequ_clos_cwr).
-    - eapply mequ_clos_ctor with (t1:=t); eauto.
-      now symmetry.
-    - eapply mequ_clos_ctor with (t1:=t'); eauto.
-  Qed.
-  
   Global Add Parametric Morphism RR: (cert RR P Q)
          with signature (meq ==> eq ==> iff) as proper_ert_equ.
   Proof.
@@ -363,28 +294,19 @@ Proof.
       apply (IHφ1 _ _ Heq) in HI;
       apply (IHφ2 _ _ Heq); auto.
   - (* ax *)
-    refine (@proper_ax_equ W HW M K X meq Eqm KS (entailsF φ) _ _ _ _ Heq _ _ eq_refl).
-    unfold Proper, respectful; intros; subst; now apply IHφ.
-  - (* wx *)
-    refine (@proper_ax_equ W HW M K X meq Eqm KS (entailsF φ) _ _ _ _ Heq _ _ eq_refl).
+    refine (@proper_ax_equ W HW M K X meq Eqm KS (entailsF φ) _ _ _ Heq _ _ eq_refl).
     unfold Proper, respectful; intros; subst; now apply IHφ.
   - (* ex *)
     refine (@proper_ex_equ W HW M K X meq Eqm KS (entailsF φ) _ _ _ Heq _ _ eq_refl).
     unfold Proper, respectful; intros; subst; now apply IHφ.
   - (* au *)
-    refine (@proper_au_equ W HW M K X meq Eqm KS (entailsF φ1) _ _ (entailsF φ2) _ _ _ Heq _ _ eq_refl);
-      unfold Proper, respectful; intros; subst; auto.
-  - (* wu *)
-    refine (@proper_au_equ W HW M K X meq Eqm KS (entailsF φ1) _ _ (entailsF φ2) _ _ _ Heq _ _ eq_refl);
+    refine (@proper_au_equ W HW M K X meq Eqm KS (entailsF φ1) _ (entailsF φ2) _ _ _ Heq _ _ eq_refl);
       unfold Proper, respectful; intros; subst; auto.
   - (* eu *)
     refine (@proper_eu_equ W HW M K X meq Eqm KS (entailsF φ1) _ (entailsF φ2) _ _ _ Heq _ _ eq_refl);
       unfold Proper, respectful; intros; subst; auto.
   - (* ar *)
     refine (@proper_ar_equ W HW M K X meq Eqm KS (entailsF φ1) _ (entailsF φ2) _ _ _ Heq _ _ eq_refl);
-      unfold Proper, respectful; intros; subst; auto.
-  - (* wr *)
-    refine (@proper_wr_equ W HW M K X meq Eqm KS (entailsF φ1) _ (entailsF φ2) _ _ _ Heq _ _ eq_refl);
       unfold Proper, respectful; intros; subst; auto.
   - (* er *)
     refine (@proper_er_equ W HW M K X meq Eqm KS (entailsF φ1) _ (entailsF φ2) _ _ _ Heq _ _ eq_refl);

@@ -21,15 +21,15 @@ Ltac observe_equ H :=
   | observe ?t = BrF ?n ?k =>
       let Heq := fresh "Eqt" in
       assert (Heq: t ≅ Br n k) by (step; cbn; rewrite H; reflexivity)
-  | observe ?t = TauF ?t' =>
+  | observe ?t = GuardF ?t' =>
       let Heq := fresh "Eqt" in
-      assert (Heq: t ≅ Tau t') by (step; cbn; rewrite H; reflexivity)
+      assert (Heq: t ≅ Guard t') by (step; cbn; rewrite H; reflexivity)
   | observe ?t = VisF ?e ?k =>
       let Heq := fresh "Eqt" in
       assert (Heq: t ≅ Vis e k) by (step; cbn; rewrite H; reflexivity)
   | RetF ?x = observe ?t => symmetry in H; observe_equ H
   | VisF ?e ?k = observe ?t => symmetry in H; observe_equ H
-  | TauF ?t' = observe ?t => symmetry in H; observe_equ H
+  | GuardF ?t' = observe ?t => symmetry in H; observe_equ H
   | BrF ?n ?k = observe ?t => symmetry in H; observe_equ H
   | observe ?t = observe ?t' =>
       let Heq := fresh "Eqt" in        
