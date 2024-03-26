@@ -215,7 +215,14 @@ Proof.
   unfold Proper, respectful.
   split; subst; revert y0;
     generalize dependent y; generalize dependent x;
-    coinduction R CIH; intros; step in H0.
+    coinduction R CIH; intros; step in H0; step in H;
+    cbn in *; [
+      remember (observe x) as T; clear HeqT x
+    | remember (observe y) as T; clear HeqT y];
+    hinduction H0 before CIH; intros;
+    dependent destruction H.
+  - apply IHAGCoindF. unfold agcoind_; cbn.
+  -
     rewrite (ctree_eta x), (ctree_eta y) in *.
   
   - (* -> *)

@@ -1,35 +1,29 @@
 From CTree Require Import
-  KTree.Core
-  KTree.Trans
-  Logic.Kripke
+  CTree.Core
   Logic.Ctl
-  KTree.Events.Net.
+  Utils.Vectors
+  CTree.Events.Net.
 
 From Coq Require Import
-  List
   Fin
-  Classes.SetoidClass
-  Classes.SetoidDec.
-
-From RelationAlgebra Require Import rel srel monoid.
+  Classes.SetoidClass.
 
 Set Implicit Arguments.
 
-Import KTreeNotations ListNotations IOQueues CtlNotations.
-Local Open Scope ktree_scope.
-Local Open Scope list_scope.
+Import CTreeNotations CtlNotations.
+Local Open Scope ctree_scope.
+Local Open Scope fin_vector_scope.
 Local Open Scope ctl_scope.
 
 Section Election.
   Context (n: nat).
-  Notation uid := (uid n).
   Variant message :=
-    | Candidate (u: uid)
-    | Elected (u: uid).
+    | Candidate (u: fin' n)
+    | Elected (u: fin' n).
 
-  Notation netE := (netE n).
+  Notation netE := (netE n message).
 
-  Definition msg_id(m: message): uid :=
+  Definition msg_id(m: message): fin' n :=
     match m with
     | Candidate u => u
     | Elected u => u
@@ -42,31 +36,30 @@ Section Election.
     | _, _ => false
     end.
 
-  Definition proc(id: uid)(right: uid): ktree (netE message) unit :=
-    Ktree.iter
+  Definition proc(id right: fin' n): ctree netE unit :=
+    send right (Candidate id) ;;
+    Ctree.iter
       (fun _ =>
-         m <- recv id;;
+         m <- recv ;;
          match m with
          | Some (Candidate candidate) =>
              match Fin_compare candidate id with (* candidate < id *)
-             (* My [left] neighbor proposed a candidate, I support that candidate *)
-             | Gt => send id right (Candidate candidate) ;; Ret (inl tt)
-             (* My left neighbor proposed a candidate, I do not support him *)
+             (* [left] neighbor proposed candidate, support her. *)
+             | Gt => send right (Candidate candidate) ;; Ret (inl tt)
+             (* [left] neighbor proposed a candidate, do not support her. *)
              | Lt => Ret (inl tt)
-             (* I am the leader, but only I know *)
-             | Datatypes.Eq => send id right (Elected id) ;; Ret (inr tt)
+             (* I am the leader, but only I know. Tell everyone. *)
+             | Eq => send right (Elected id) ;; Ret (inr tt)
              end
          | Some (Elected x) =>
              (* I know [x] is the leader *)
-             send id right (Elected x) ;; Ret (inr tt)
+             send right (Elected x) ;; Ret (inr tt)
          | None => Ret (inl tt) (* Didn't receive anything *)
          end) tt.
-
-  Notation Qs := (list message * (list (uid * message)))%type  (only parsing).
-
-  Definition QS : EqType :=
-    {| type_of := Qs ; Eq := eq |}.
-
+  
+  
+  Definition get_right(m: nat)(Hlt: m <= n)(i: fin' m) -> fin' n :=
+    match 
   Lemma candidate_left_gt: forall id right left out,
       Fin_compare left id = Gt ->
       <( {(proc id right, ([Candidate left], out))} |= AF (now {fun '(inp', out') => inp' = [] /\ out' = out ++ [(id, Candidate left)]}) )>.
