@@ -92,21 +92,4 @@ Section Election.
 End Election.
 
 Definition election_s (n: nat) : (sys n message) :=
-  Vector.map (fun i => task_new (proc i)) (fin_all_v n).
-
-sschedule election_obs (election_sys n).
-
-  match n with
-  | 0 => {| prog := proc_spin (Fin.R n Fin.F1); mail := None |} :: Vector.nil
-  | S n' => {| prog := proc_spin i; mail := None |} :: mk_ring (SL i')
-    mk_ring Fin.F1 :=
-      
-    mk_ring (Fin.FS i') :=
-
-  }.
-                                              
-    match i with
-    | Fin.F1 => 
-    | Fin.FS i' => 
-    end.
-End Election.
+  Vector.map (fun i => task_new (proc_stuck i)) (fin_all_v n).

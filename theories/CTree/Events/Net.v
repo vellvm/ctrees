@@ -51,7 +51,7 @@ Module MessageOrderScheduler.
   Section ScheduleMsg.
     Context {n: nat} {T W: Type} (fobs: bool -> fin' n -> option T -> option W).
     Notation logE := (writerE W).
-    
+
     Equations schedule_one' (R: fin' n -> sys n T -> ctree logE void)
       (r: fin' n) (system: sys n T) : ctree logE void :=
       
@@ -87,6 +87,9 @@ Module MessageOrderScheduler.
             | None => R r
                        (system @ r do (fun t => umail None (uprog (k m) t)))
             end;
+          schedule_one' _ _ _ (RetF x) :=
+            i <- Ctree.unless (Fin.eq_dec r) ;; (* Pick any other [i] *)
+            R i system
         }.    
 
     CoFixpoint schedule_one(r: fin' n)(system: sys n T) :=
