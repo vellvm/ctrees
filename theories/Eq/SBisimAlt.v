@@ -1416,6 +1416,12 @@ Proof.
       step in H. apply (proj2 H) in H2 as (? & ? & ? & ? & ?); auto. eauto 6.
 Qed.
 
+Corollary sbisim_gfp_sb' {E F C D X Y} `{HasStuck: B0 -< C} `{HasStuck': B0 -< D} :
+  forall L side (t : ctree E C X) (t' : ctree F D Y), sbisim L t t' -> gfp (sb' L) side t t'.
+Proof.
+  intros. apply sbisim_sbisim' in H. apply H.
+Qed.
+
 (*
 Tactic Notation "__upto_bind_sbisim'" uconstr(R0) := TODO
 Tactic Notation "__upto_bind_eq_sbisim'" uconstr(R0) := TODO

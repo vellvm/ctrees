@@ -115,7 +115,7 @@ Tactic Notation "__step_equ" :=
   | |- context [@equ ?E ?B ?R1 ?R2 ?RR _ _] =>
       unfold equ;
       step;
-      fold (@equ E B R1 R2 RR)
+      fold_equ
   end.
 
 #[local] Tactic Notation "step" := __step_equ || step.
