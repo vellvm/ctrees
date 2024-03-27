@@ -142,6 +142,19 @@ Ltac __step_in_sbisim H :=
 
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || __step_in_ssim H || step in H.
 
+(*| Unary up-to-bisimulation enhancing function |*)
+Variant sbisim_clos1_body `{HE: Encode E} {X} {LE}
+  (R : ctree E X -> Prop) : ctree E X -> Prop :=
+    | Sbisim_clos1 : forall t t'
+                       (Sbisimt : t (~ LE) t')
+                       (HR : R t'),
+        @sbisim_clos1_body E HE X LE R t.
+
+Program Definition sbisim_clos1 `{HE: Encode E} {X} {LE}
+  : mon (ctree E X -> Prop) :=
+  {| body := @sbisim_clos1_body E HE X LE |}.
+Next Obligation. destruct H0; econstructor; eauto. Qed.
+
 (*|
   This section should describe lemmas proved for the
   heterogenous version of `ss`, parametric on
@@ -159,7 +172,7 @@ Section sbisim_heterogenous_theory.
   Local Notation sT  L := (coinduction.T (sb L)).
 
   (*| Strong bisimulation up-to [equ] is valid |*)
-  Lemma equ_clos_st : @equ_clos E F X Y HE HF <= (st L).
+  Lemma equ_clos2_st : @equ_clos2 E F X Y HE HF <= (st L).
   Proof.
     apply Coinduction; cbn.
     intros R x y [x' y' x'' y'' EQ' [Fwd Back] EQ'']; split.
@@ -187,72 +200,72 @@ Section sbisim_heterogenous_theory.
     Aggressively providing instances for rewriting [equ] under all [sb]-related
     contexts.
 |*)
-  #[global] Instance equ_clos_st_goal RR :
+  #[global] Instance equ_clos2_st_goal RR :
     Proper (@equ E HE X X eq ==> @equ F HF Y Y eq ==> flip impl) (st L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption.
+    apply (ft_t equ_clos2_st); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_clos_st_ctx RR :
+  #[global] Instance equ_clos2_st_ctx RR :
     Proper (@equ E HE X X eq ==> @equ F HF Y Y eq ==> impl) (st L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
+    apply (ft_t equ_clos2_st); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_clos_sT_goal RR f :
+  #[global] Instance equ_clos2_sT_goal RR f :
     Proper (equ eq ==> equ eq ==> flip impl) (sT L f RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption.
+    apply (fT_T equ_clos2_st); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_clos_sT_ctx RR f :
+  #[global] Instance equ_clos2_sT_ctx RR f :
     Proper (equ eq ==> equ eq ==> impl) (sT L f RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
+    apply (fT_T equ_clos2_st); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_clos_sbisim_goal :
+  #[global] Instance equ_clos2_sbisim_goal :
     Proper (equ eq ==> equ eq ==> flip impl) (sbisim L).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_st); econstructor; [eauto | | symmetry; eauto]; assumption.
+    apply (ft_t equ_clos2_st); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_clos_sbisim_ctx :
+  #[global] Instance equ_clos2_sbisim_ctx :
     Proper (equ eq ==> equ eq ==> impl) (sbisim L).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_st); econstructor; [symmetry; eauto | | eauto]; assumption.
+    apply (ft_t equ_clos2_st); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_ss_closed_goal {r} : Proper (@equ E HE X X eq ==> @equ F HF Y Y eq ==> flip impl) (ss L r).
+  #[global] Instance equ_ss_clos2_goal {r} : Proper (@equ E HE X X eq ==> @equ F HF Y Y eq ==> flip impl) (ss L r).
   Proof.
     intros t t' tt' u u' uu'; cbn; intros.
     rewrite tt' in H0. apply H in H0 as (? & ? & ? & ? & ?).
     eexists; eexists; eauto. rewrite uu'. eauto.
   Qed.
 
-  #[global] Instance equ_ss_closed_ctx {r} : Proper (@equ E HE X X eq ==> @equ F HF Y Y eq ==> impl) (ss L r).
+  #[global] Instance equ_ss_clos2_ctx {r} : Proper (@equ E HE X X eq ==> @equ F HF Y Y eq ==> impl) (ss L r).
   Proof.
     intros t t' tt' u u' uu'; intros.
     rewrite tt', uu'. reflexivity.
   Qed.
-
-  (*| Up-to-bisimulation enhancing function |*)
-  Variant sbisim_clos_body {LE LF}
+  
+  (*| Binary up-to-bisimulation enhancing function |*)
+  Variant sbisim_clos2_body {LE LF}
           (R : rel (ctree E X) (ctree F Y)) : (rel (ctree E X) (ctree F Y)) :=
-    | Sbisim_clos : forall t t' u' u
+    | Sbisim_clos2 : forall t t' u' u
                       (Sbisimt : t (~ LE) t')
                       (HR : R t' u')
                       (Sbisimu : u' (~ LF) u),
-        @sbisim_clos_body LE LF R t u.
+        @sbisim_clos2_body LE LF R t u.
 
-  Program Definition sbisim_clos {LE LF} : mon (rel (ctree E X) (ctree F Y)) :=
-    {| body := @sbisim_clos_body LE LF |}.
+  Program Definition sbisim_clos2 {LE LF} : mon (rel (ctree E X) (ctree F Y)) :=
+    {| body := @sbisim_clos2_body LE LF |}.
   Next Obligation. destruct H0; econstructor; eauto. Qed.
 
   
@@ -265,7 +278,7 @@ Section sbisim_heterogenous_theory.
     - apply H0; now (exists l, t'0).
   Qed.
 
-  Theorem sbisim_clos_upto R: @sbisim_clos eq eq R <= st L R.
+  Theorem sbisim_clos2_upto R: @sbisim_clos2 eq eq R <= st L R.
   Proof.
     apply leq_t.
     intros S t u HRel.
@@ -438,21 +451,21 @@ Aggressively providing instances for rewriting hopefully faster
 [sbisim] under all [sb]-related contexts (consequence of the transitivity
 of the companion).
 |*)
-  #[global] Instance sbisim_sbisim_closed_goal `{Transitive _ L} `{Symmetric _ L} :
+  #[global] Instance sbisim_sbisim_clos2_goal `{Transitive _ L} `{Symmetric _ L} :
     Proper (sbisim L ==> sbisim L ==> flip impl) (sbisim L).
   Proof.
     repeat intro.
     etransitivity; [etransitivity; eauto | symmetry; eassumption].
   Qed.
 
-  #[global] Instance sbisim_sbisim_closed_ctx `{Transitive _ L} `{Symmetric _ L} :
+  #[global] Instance sbisim_sbisim_clos2_ctx `{Transitive _ L} `{Symmetric _ L} :
     Proper (sbisim L ==> sbisim L ==> impl) (sbisim L).
   Proof.
     repeat intro.
     etransitivity; [symmetry; eassumption | etransitivity; eauto].
   Qed.
 
-  #[global] Instance sbisim_clos_st_goal `{Equivalence _ L} R:
+  #[global] Instance sbisim_clos2_st_goal `{Equivalence _ L} R:
     Proper (sbisim L ==> sbisim L ==> flip impl) (st L R).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 ?.
@@ -460,7 +473,7 @@ of the companion).
     auto.
   Qed.
 
-  #[global] Instance sbisim_clos_st_ctx `{Equivalence _ L} R :
+  #[global] Instance sbisim_clos2_st_ctx `{Equivalence _ L} R :
     Proper (sbisim L ==> sbisim L ==> impl) (st L R).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 ?.
@@ -468,7 +481,7 @@ of the companion).
     auto.
   Qed.
 
-  #[global] Instance sbisim_clos_sT_goal `{Equivalence _ L} R f :
+  #[global] Instance sbisim_clos2_sT_goal `{Equivalence _ L} R f :
     Proper (sbisim L ==> sbisim L ==> flip impl) (sT L f R).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 ?.
@@ -476,7 +489,7 @@ of the companion).
     auto.
   Qed.
 
-  #[global] Instance sbisim_clos_sT_ctx `{Equivalence _ L} R f :
+  #[global] Instance sbisim_clos2_sT_ctx `{Equivalence _ L} R f :
     Proper (sbisim L ==> sbisim L ==> impl) (sT L f R).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 ?.
@@ -541,7 +554,7 @@ The resulting enhancing function gives a valid up-to technique
         do 2 eexists. split.
         apply trans_bind_l; eauto.
         split; auto.
-        apply (fT_T equ_clos_st).
+        apply (fT_T equ_clos2_st).
         econstructor; [exact EQ | | reflexivity].
         apply (fTf_Tf (sb L)).
         apply in_bind_ctx; auto.
@@ -566,7 +579,7 @@ The resulting enhancing function gives a valid up-to technique
         do 2 eexists; split.
         apply trans_bind_l; eauto.
         split; auto.
-        apply (fT_T equ_clos_st).
+        apply (fT_T equ_clos2_st).
         symmetry in EQ.
         econstructor; [reflexivity | | exact EQ].
         apply (fTf_Tf (sb L)).
@@ -1144,18 +1157,6 @@ Section Sb_Proof_System.
     apply @step_sb_br_id; auto.
   Qed.
 
-  Lemma sb_unfold_forever: forall (k: X -> ctree E X)(i: X),
-      forever k i ~ r <- k i ;; forever k r.
-  Proof.
-    intros k i.
-    rewrite (ctree_eta (forever k i)).
-    unfold forever, Classes.iter, MonadIter_ctree.    
-    cbn.
-    rewrite <- ctree_eta.
-    rewrite unfold_iter, bind_map.
-    __upto_bind_eq_sbisim.
-    apply sb_guard.
-  Qed.
 
   Lemma sb_unfold_iter{I}: forall (step: I -> ctree E (I + X))(i: I),
       iter step i ~
@@ -1171,6 +1172,16 @@ Section Sb_Proof_System.
     destruct x.
     - apply sb_guard.
     - reflexivity.
+  Qed.
+
+  Lemma sb_unfold_forever{Y}: forall (k: Y -> ctree E Y)(i: Y),
+      forever X k i ~ r <- k i ;; forever X k r.
+  Proof.
+    intros k i.
+    unfold forever.
+    rewrite sb_unfold_iter.
+    rewrite bind_map.
+    reflexivity.
   Qed.
 
 End Sb_Proof_System.
@@ -1278,7 +1289,7 @@ Section StrongSimulations.
   Notation ssbt L := (coinduction.bt (ss L)).
   Notation ssT L := (coinduction.T (ss L)).
 
-  Lemma sbisim_clos_ss : @sbisim_clos E HE F HF X Y eq eq <= (sst L).
+  Lemma sbisim_clos2_ss : @sbisim_clos2 E HE F HF X Y eq eq <= (sst L).
   Proof.
     intro R1. apply Coinduction.
     cbn; intros Rs x y [z x' y' z' SBzx' x'y' SBy'z'].
@@ -1295,7 +1306,7 @@ Section StrongSimulations.
   Qed.
 
   (*| Instances for rewriting [sbisim] under all [ss]-related contexts |*)
-  #[global] Instance sbisim_eq_clos_ssim_goal:
+  #[global] Instance sbisim_eq_clos2_ssim_goal:
     Proper (sbisim eq ==> sbisim eq ==> flip impl) (ssim L).
   Proof.
     cbn.
@@ -1311,22 +1322,22 @@ Section StrongSimulations.
     symmetry in H4. eapply CH; eassumption.
   Qed.
 
-  #[global] Instance sbisim_eq_clos_ssim_ctx :
+  #[global] Instance sbisim_eq_clos2_ssim_ctx :
     Proper (sbisim eq ==> sbisim eq ==> impl) (ssim L).
   Proof.
-    repeat intro. symmetry in H, H0. eapply sbisim_eq_clos_ssim_goal; eauto.
+    repeat intro. symmetry in H, H0. eapply sbisim_eq_clos2_ssim_goal; eauto.
   Qed.
 
-  #[global] Instance sbisim_eq_clos_sst_goal RR :
+  #[global] Instance sbisim_eq_clos2_sst_goal RR :
     Proper (sbisim eq ==> sbisim eq ==> flip impl) (sst L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t sbisim_clos_ss). cbn.
+    apply (ft_t sbisim_clos2_ss). cbn.
     econstructor; eauto.
     now rewrite eq2.
   Qed.
 
-  #[global] Instance sbisim_eq_clos_sst_ctx RR :
+  #[global] Instance sbisim_eq_clos2_sst_ctx RR :
     Proper (sbisim eq ==> sbisim eq ==> impl) (sst L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 ?.
@@ -1334,16 +1345,16 @@ Section StrongSimulations.
     auto.
   Qed.
 
-  #[global] Instance sbisim_eq_clos_ssT_goal RR f :
+  #[global] Instance sbisim_eq_clos2_ssT_goal RR f :
     Proper (sbisim eq ==> sbisim eq ==> flip impl) (ssT L f RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T sbisim_clos_ss). cbn.
+    apply (fT_T sbisim_clos2_ss). cbn.
     econstructor; eauto.
     now rewrite eq2.
   Qed.
 
-  #[global] Instance sbisim_eq_clos_ssT_ctx RR f :
+  #[global] Instance sbisim_eq_clos2_ssT_ctx RR f :
     Proper (sbisim eq ==> sbisim eq ==> impl) (ssT L f RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 ?.

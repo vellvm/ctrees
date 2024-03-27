@@ -275,19 +275,32 @@ in order to establish "up-to equ" principles for other bisimulations, we define 
 associated enhancing function.
 |*)
 
-(*|
-Definition of the enhancing function
-|*)
-Variant equ_clos_body {E F X1 X2} {HE: Encode E} {HF: Encode F}
+(*| Unary enchancing function up-to-equ |*)
+Variant equ_clos1_body {E X} {HE: Encode E} R : (ctree E X -> Prop) :=
+  | Equ_clos1 : forall t t'
+                  (Equt : t ≅ t')
+                  (HR : R t'),
+      equ_clos1_body R t.
+
+Program Definition equ_clos1 {E X} {HE: Encode E} : mon (ctree E X -> Prop) :=
+  {| body := @equ_clos1_body E X HE |}.
+Next Obligation.
+  intros * ?? LE t EQ; inv EQ.
+  econstructor; eauto.
+  apply LE; auto.
+Qed.
+
+(*| Binary enchancing function up-to-equ |*)
+Variant equ_clos2_body {E F X1 X2} {HE: Encode E} {HF: Encode F}
   (R : rel (ctree E X1) (ctree F X2)) : (rel (ctree E X1) (ctree F X2)) :=
-  | Equ_clos : forall t t' u' u
+  | Equ_clos2 : forall t t' u' u
                  (Equt : t ≅ t')
                  (HR : R t' u')
                  (Equu : u' ≅ u),
-      equ_clos_body R t u.
+      equ_clos2_body R t u.
 
-Program Definition equ_clos {E F X1 X2} {HE: Encode E} {HF: Encode F}: mon (rel (ctree E X1) (ctree F X2)) :=
-  {| body := @equ_clos_body E F X1 X2 HE HF |}.
+Program Definition equ_clos2 {E F X1 X2} {HE: Encode E} {HF: Encode F}: mon (rel (ctree E X1) (ctree F X2)) :=
+  {| body := @equ_clos2_body E F X1 X2 HE HF |}.
 Next Obligation.
   unfold impl; repeat red; intros.
   inv H0; econstructor; eauto.
@@ -296,10 +309,10 @@ Qed.
 (*|
 Sufficient condition to prove compatibility only over the simulation
 |*)
-Lemma equ_clos_sym {E C X} : compat converse (@equ_clos E E C C X X).
+Lemma equ_clos2_sym {E C X} : compat converse (@equ_clos2 E E C C X X).
 Proof.
   intros R t u EQ; inv EQ.
-  apply Equ_clos with u' t'; intuition.
+  apply Equ_clos2 with u' t'; intuition.
 Qed.
 
 (*| Even eta-laws for coinductive data-structures are not valid w.r.t. to [eq]
@@ -515,14 +528,38 @@ Proof.
 Qed.
 
 (*| Forever |*)
-Lemma unfold_forever {E X} {HE: Encode E}: forall (k: X -> ctree E X)(i: X),
-    forever k i ≅ r <- k i ;; Guard (forever k r).
+Lemma unfold_forever {E X Y} {HE: Encode E}: forall (k: X -> ctree E X)(i: X),
+    forever Y k i ≅ r <- k i ;; Guard (forever Y k r).
 Proof.
   intros k i.
-  unfold forever, Classes.iter, MonadIter_ctree, Functor.fmap, Functor_ctree.
+  unfold forever. 
   rewrite unfold_iter.
   rewrite bind_map.
   reflexivity.
+Qed.
+
+(*| When |*)
+Lemma unfold_when {n E P} {HE: Encode E}: forall (p: fin' n -> {P} + {~P}),
+    when p ≅ i <- branch n;; if p i then Ret i else Guard (when p).
+Proof.
+  intros.
+  unfold when. 
+  rewrite unfold_iter.
+  rewrite bind_bind.
+  upto_bind_equ.
+  destruct (p x1); now rewrite bind_ret_l.
+Qed.
+
+(*| Unless |*)
+Lemma unfold_unless {n E P} {HE: Encode E}: forall (p: fin' n -> {P} + {~P}),
+    unless p ≅ i <- branch n;; if p i then Guard (unless p) else Ret i.
+Proof.
+  intros.
+  unfold unless.
+  rewrite unfold_iter.
+  rewrite bind_bind.
+  upto_bind_equ.
+  destruct (p x1); now rewrite bind_ret_l.
 Qed.
 
 Lemma br_equ': forall n (E: Type) {HE: Encode E} R (k k': fin' n -> ctree E R) Q,
@@ -541,8 +578,8 @@ Proof.
   exact (@br_equ' n E HE R k k' eq).
 Qed.
 
-#[global] Instance proper_equ_forever{E X} {HE: Encode E}:
-  Proper (pointwise_relation X (@equ E HE X X eq) ==> eq ==> @equ E HE X X eq) forever.
+#[global] Instance proper_equ_forever{E X Y} {HE: Encode E}:
+  Proper (pointwise_relation X (@equ E HE X X eq) ==> eq ==> @equ E HE Y Y eq) (forever Y).
 Proof.
   unfold Proper, respectful; intros; subst.
   revert y0; coinduction R CIH; intros.

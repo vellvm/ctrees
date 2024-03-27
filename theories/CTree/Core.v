@@ -126,7 +126,7 @@ Module Ctree.
   (*| Run forever, do nothing |*)
   CoFixpoint stuck `{HE: Encode E} {R} : ctree E R := Guard stuck.
   
-  (*| Run forever, do tasteps |*)
+  (*| Run forever, do tau steps |*)
   CoFixpoint spin `{HE: Encode E} {R} : ctree E R := step spin.
 
   (*| [iter] |*)
@@ -138,7 +138,29 @@ Module Ctree.
                           | inl l => (Guard (iter_ l))
                           | inr r => Ret r
                           end).
+
+  Definition forever `{HE: Encode E} {R: Type} (X: Type) (k: R -> ctree E R) (x: R) :=
+    iter (R:=X) (fun x => map inl (k x)) x.
+
+  (* Continue sampling until non-deterministic choice satisfies [P] *)
+  Definition when `{HE: Encode E} {n P} (f: fin' n -> {P} + {~ P}): ctree E (fin' n) :=
+    iter (fun _  => bind (branch n)
+                   (fun i =>
+                      if f i then
+                        Ret (inr i)
+                      else
+                        Ret (inl tt))) tt.
+  
+  (* Continue sampling until non-deterministic choice satisfies [~ P] *)
+  Definition unless `{HE: Encode E} {n P} (f: fin' n -> {P} + {~ P}): ctree E (fin' n) :=
+    iter (fun _  => bind (branch n)
+                   (fun i =>
+                      if f i then
+                        Ret (inl tt)
+                      else
+                        Ret (inr i))) tt.
 End Ctree.
+
 
 Ltac fold_bind :=
   repeat match goal with

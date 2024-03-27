@@ -214,7 +214,7 @@ Section ssim_heterogenous_theory.
   Notation ssT L := (coinduction.T (ss L)).
 
   (*| Strong simulation up-to [equ] is valid |*)
-  Lemma equ_clos_sst : equ_clos <= (sst L).
+  Lemma equ_clos2_sst : equ_clos2 <= (sst L).
   Proof.
     apply Coinduction; cbn.
     intros R x y [x' y' x'' y'' EQ' EQ''] l z x'z.
@@ -228,25 +228,25 @@ Section ssim_heterogenous_theory.
       econstructor; auto; auto.
   Qed.
 
-  #[global] Instance equ_clos_sst_goal {RR} :
+  #[global] Instance equ_clos2_sst_goal {RR} :
     Proper (equ eq ==> equ eq ==> flip impl) (sst L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
+    apply (ft_t equ_clos2_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_clos_sst_ctx {RR} :
+  #[global] Instance equ_clos2_sst_ctx {RR} :
     Proper (equ eq ==> equ eq ==> impl) (sst L RR).
   Proof.
     cbn; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst); econstructor; [symmetry; eauto | | eauto]; assumption.
+    apply (ft_t equ_clos2_sst); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
   #[global] Instance equ_ssbt_closed_goal {r} :
     Proper (equ eq ==> equ eq ==> flip impl) (ssbt L r).
   Proof.
     unfold Proper, respectful, impl, flip; intros.
-    apply (fbt_bt equ_clos_sst); econstructor; eauto.
+    apply (fbt_bt equ_clos2_sst); econstructor; eauto.
     now symmetry.
   Qed.
 
@@ -257,32 +257,32 @@ Section ssim_heterogenous_theory.
     now rewrite H, H0 in H1.
   Qed.
 
-  #[global] Instance equ_clos_ssT_goal RR f :
+  #[global] Instance equ_clos2_ssT_goal RR f :
     Proper (equ eq ==> equ eq ==> flip impl) (ssT L f RR).
   Proof.
     unfold Proper, respectful, impl, flip; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T equ_clos_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
+    apply (fT_T equ_clos2_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_clos_ssT_ctx RR f :
+  #[global] Instance equ_clos2_ssT_ctx RR f :
     Proper (equ eq ==> equ eq ==> impl) (ssT L f RR).
   Proof.
     unfold Proper, respectful, impl, flip; intros ? ? eq1 ? ? eq2 H.
-    apply (fT_T equ_clos_sst); econstructor; [symmetry; eauto | | eauto]; assumption.
+    apply (fT_T equ_clos2_sst); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_clos_ssim_goal :
+  #[global] Instance equ_clos2_ssim_goal :
     Proper (equ eq ==> equ eq ==> flip impl) (ssim L).
   Proof.
     unfold Proper, respectful, impl, flip; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
+    apply (ft_t equ_clos2_sst); econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
-  #[global] Instance equ_clos_ssim_ctx :
+  #[global] Instance equ_clos2_ssim_ctx :
     Proper (equ eq ==> equ eq ==> impl) (ssim L).
   Proof.
     unfold Proper, respectful, impl, flip; intros ? ? eq1 ? ? eq2 H.
-    apply (ft_t equ_clos_sst); econstructor; [symmetry; eauto | | eauto]; assumption.
+    apply (ft_t equ_clos2_sst); econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
   #[global] Instance equ_ss_closed_goal {r} :
@@ -439,7 +439,7 @@ Section ssim_heterogenous_bind.
       * now apply H. 
       * now apply H2.
     + split.
-      * apply (fT_T equ_clos_sst).
+      * apply (fT_T equ_clos2_sst).
         econstructor; [exact EQ | | reflexivity].
         apply (fTf_Tf (ss L)).
         apply in_bind_ctx; auto.

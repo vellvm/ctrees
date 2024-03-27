@@ -9,16 +9,6 @@ From CTree Require Import
   Utils.Utils
   Utils.Vectors.
 
-From ExtLib Require Import
-  Structures.Monads
-  Structures.MonadState
-  Data.Monads.StateMonad.
-
-From Coinduction Require Import lattice.
-
-Import ListNotations.
-Local Open Scope list_scope.
-
 Set Implicit Arguments.
 Generalizable All Variables.
 
@@ -45,3 +35,4 @@ End Messaging.
 
 Arguments Recv {n} {T}.
 Arguments Send {n} {T}.
+Arguments encode_netE {n} {T} /.

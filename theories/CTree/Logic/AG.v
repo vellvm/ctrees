@@ -150,6 +150,24 @@ Section BindCtxUnary.
    *)
 End BindCtxUnary.
 
+Section BindLemmas.
+  Context {E: Type} {HE: Encode E} {X: Type}.
+  
+  Lemma ag_bind_l{Y}: forall (t: ctree E X) w (k: X -> ctree E Y) φ,
+      <( t, w |= AG now φ )> -> (* Ignore [k] here, [t] will loop forever *)
+      <( {x <- t ;; k x} , w |= AG now φ )>.
+  Proof.
+  Admitted.
+
+  Lemma ag_bind_r{Y}: forall (t: ctree E Y) w (k: Y -> ctree E X) φ R,
+      <( t, w |= φ AU (AX done R) )> ->
+      (forall w (y: Y), R y w -> <( {k y}, w |= AG φ )>) ->
+      <( {x <- t ;; k x} , w |= AG φ )>.
+  Proof.
+  Admitted.
+End BindLemmas.
+  
+   
 Section AGIndLemma.
   Context {E: Type} {HE: Encode E} {X: Type}.
   Notation MP := (rel (ctree E X) (World E)). 

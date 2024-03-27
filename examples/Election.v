@@ -6,17 +6,20 @@ From CTree Require Import
 
 From Coq Require Import
   Fin
+  Vector
   Classes.SetoidClass.
 
 Set Implicit Arguments.
 
-Import CTreeNotations CtlNotations.
+Import VectorNotations CTreeNotations CtlNotations MessageOrderScheduler.
+Local Close Scope list_scope.
 Local Open Scope ctree_scope.
 Local Open Scope fin_vector_scope.
 Local Open Scope ctl_scope.
+Local Open Scope vector_scope.
 
 Section Election.
-  Context (n: nat).
+  Context {n: nat}.
   Variant message :=
     | Candidate (u: fin' n)
     | Elected (u: fin' n).
@@ -36,7 +39,18 @@ Section Election.
     | _, _ => false
     end.
 
-  Definition proc(id right: fin' n): ctree netE unit :=
+  Notation continue := (Ret (inl tt)).
+  Notation stop := (Ret (inr tt)).
+
+  (* Always terminates, conditional on receiving either:
+     1. (Candidate candidate), where candidate = id -- I received my own [id] back 
+     2. (Elected leader) -- Someone else was elected [leader]
+
+    If scheduled fairly, either 1, 2 should always eventually happen.
+    Should be WG provable.
+  *)
+  Definition proc(id: fin' n): ctree netE unit :=
+    let right := cycle id in
     send right (Candidate id) ;;
     Ctree.iter
       (fun _ =>
@@ -44,147 +58,55 @@ Section Election.
          match m with
          | Some (Candidate candidate) =>
              match Fin_compare candidate id with (* candidate < id *)
-             (* [left] neighbor proposed candidate, support her. *)
-             | Gt => send right (Candidate candidate) ;; Ret (inl tt)
+             (* [left] neighbor proposed candidate, support her to [right]. *)
+             | Gt => send right (Candidate candidate) ;; continue
              (* [left] neighbor proposed a candidate, do not support her. *)
-             | Lt => Ret (inl tt)
-             (* I am the leader, but only I know. Tell everyone. *)
-             | Eq => send right (Elected id) ;; Ret (inr tt)
+             | Lt => continue
+             (* I am the leader, but only I know. Tell my [right]. *)
+             | Eq => send right (Elected id) ;; stop
              end
-         | Some (Elected x) =>
-             (* I know [x] is the leader *)
-             send right (Elected x) ;; Ret (inr tt)
-         | None => Ret (inl tt) (* Didn't receive anything *)
+         | Some (Elected leader) =>
+             (* I am a follower and know the [leader] *)
+             send right (Elected leader) ;; stop
+         | None => continue (* Recv loop *)
          end) tt.
-  
-  
-  Definition get_right(m: nat)(Hlt: m <= n)(i: fin' m) -> fin' n :=
-    match 
-  Lemma candidate_left_gt: forall id right left out,
-      Fin_compare left id = Gt ->
-      <( {(proc id right, ([Candidate left], out))} |= AF (now {fun '(inp', out') => inp' = [] /\ out' = out ++ [(id, Candidate left)]}) )>.
-  Proof.
-    intros.
-    apply ctl_af_star_det.
-    apply trans_det.
-    eexists.
-    setoid_rewrite transF_trans_star_iff.
-    split.
-    exists 2.
-    Opaque Eq.
-    unfold proc.
-    simpl.
-    reflexivity.
-    cbn.
-    unfold Ktree.subst'.
 
-    reflexivity.
-    reflexivity.
-    cbn.
-    next.
-    right.
-    next.
-    intros [p' σ'] TRp.
-    cbn in TRp.
+  (* Should be AG provable because each process will spin after completion. *)
+  Definition proc_stuck(id: fin' n): ctree netE void :=
+    proc id ;; Ctree.stuck.
 
-(** Equivalence of queues.
-    Qs are pairwise either
-    1. equal (no diff)
-    2. their diff is messages from i -> j, where i < j
- *)
-Inductive qequiv(i: uid): list message -> list message -> Prop :=
-| QRefl: forall l,
-    qequiv i l l
-| QNoProgressL: forall h ts l,
-  msg_id h < i ->
-  qequiv i ts l ->
-  qequiv i (h::ts) l
-| QNoProgressR: forall h ts l,
-  msg_id h < i ->
-  qequiv i l ts ->
-  qequiv i l (h::ts).
-Hint Constructors qequiv: core.
+  (* Should be AG provable because each process will spin after completion. *)
+  Definition proc_spin(id: fin' n): ctree netE void :=
+    proc id ;; Ctree.spin.
 
-(** Lift an index relation [nat -> rel T] to a [nat -> rel (list T)] *)
-Inductive pairwisei T (p: nat -> T -> T -> Prop): nat -> list T -> list T -> Prop :=
-| QDone: pairwisei p 0 [] []
-| QStep: forall h h' ts ts' n,
-  p n h h' ->
-  pairwisei p n ts ts' ->
-  pairwisei p (S n) (h::ts) (h'::ts').
-Hint Constructors pairwisei: core.
+  (* Should be AG provable because every process restarts infinitely often *)
+  Definition proc_forever(id: fin' n): ctree netE void :=    
+    Ctree.forever void (fun _ => proc id) tt.
 
-(** Lists must be equal size *)
-Lemma pairwisei_length: forall T p n (l l': list T),
-    pairwisei p n l l' -> length l = length l'.
-Proof. induction 1; cbn; auto. Qed.
+  (* TODO: Schedule using [cycle] from [Utils.Vector] *)
+  (* Prove AG lemmas *)
 
-(** Now define equivalence of queues *)
-Definition qsequiv a b := pairwisei qequiv (length a) a b.
-Notation "a ⩸ b" := (qsequiv a b) (at level 52, left associativity).
-Hint Unfold qsequiv: core.
-Arguments qsequiv _ _ /.
-Ltac inv H := inversion H; subst; clear H.
+  (* Dummy observation; record [is_send] *)
+  Definition election_obs(is_send: bool)(i: fin' n)(mail: option message) : option unit :=
+    if is_send then Some tt else None.
+End Election.
 
-#[global] Instance Equivalence_qequiv n: Equivalence (qequiv n).
-Proof.
-  constructor; red.
-  - apply QRefl.
-  - induction 1; auto.
-  - intros.
-    generalize dependent x.
-    induction H0; intros; auto.
-    apply IHqequiv.
-    admit.
-Admitted.
+Definition election_s (n: nat) : (sys n message) :=
+  Vector.map (fun i => task_new (proc i)) (fin_all_v n).
 
-#[global] Instance Equivalence_qsequiv: Equivalence qsequiv.
-Proof.
-  constructor.
-  - red; induction x; auto.
-    unfold qsequiv; cbn.
-    apply QStep; auto.
-  - red; intros x y H. cbn in *.
-    assert(EqLen:length x = length y) by (now apply pairwisei_length in H).
-    rewrite <- EqLen; clear EqLen.
-    remember (length x).
-    induction H; cbn in *; auto.
-    apply QStep; auto.
-    inv Heqn.
-    now symmetry.
-  - red; intros.
-Admitted.
+sschedule election_obs (election_sys n).
 
-(** This the "no constraint" relation # of Event structures.
-    It means those messages have no causal order and could be scheduled in any way *)
-Reserved Notation "a # b" (at level 52, left associativity).
-Inductive netE_noconflict: forall {X Y}, netE message X -> netE message Y -> Prop :=
-| RecvAnyOrder: forall from to,
-    Recv from # Recv to
-| SendAnyOrder: forall from from' to to' m m',
-    Send from to m # Send from' to' m'
-where "a # b" := (netE_noconflict a b).
+  match n with
+  | 0 => {| prog := proc_spin (Fin.R n Fin.F1); mail := None |} :: Vector.nil
+  | S n' => {| prog := proc_spin i; mail := None |} :: mk_ring (SL i')
+    mk_ring Fin.F1 :=
+      
+    mk_ring (Fin.FS i') :=
 
-#[global] Instance Equivalence_netE {X}: Equivalence (@netE_noconflict X X).
-Proof.
-  constructor; red.
-  - intros.
-    constructor.
-Reserved Notation "a ⪯ b" (at level 52, left associativity).
-Inductive netE_order: netE message -> netE message -> Prop :=
-| SendRecvLt: forall from to m,
-    Send from to m ⪯ Recv to
-where "a ⪯ b" := (netE_order a b).
-
-
-    length qs = length qs' ->
-    Forall (fun '(l, l') =>
-              let d = diff l l' in
-              d = [] \/ Forall (fun msg => diff l l'combine qs qs'
-    Forall (fun l => forall i, In l i -> diff l l'
-    msg_id msg < i ->
-    qequiv l l'
-| NoMsg:
-| BadMsg:
-  msg_id
-  qequiv h :: ts h' :: ts'
+  }.
+                                              
+    match i with
+    | Fin.F1 => 
+    | Fin.FS i' => 
+    end.
+End Election.

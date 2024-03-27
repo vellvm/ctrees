@@ -1,11 +1,13 @@
 From Coq Require Import
-     Vector Fin.
+  Vector
+  Fin
+  Classes.SetoidClass.
+
 From Coq Require Import
      Program.Equality.
 
 From Coq Require
      List.
-
 
 From Equations Require Import Equations.
 
@@ -13,7 +15,56 @@ Import VectorNotations.
 Declare Scope fin_vector_scope.
 
 Notation vec n T := (Vector.t T n).
+Notation vec' n T := (vec (S n) T). 
 Notation fin := Fin.t.
+Notation fin' n := (fin (S n)).
+
+Fixpoint fin_max(n: nat): fin' n :=
+  match n with
+  | 0 => Fin.F1
+  | S n => Fin.FS (fin_max n)
+  end.
+
+Lemma fin_max_sanity{n}:
+  proj1_sig (to_nat (fin_max n)) = n.
+Proof.
+  induction n; cbn; auto.
+  destruct (to_nat (fin_max n)) eqn:Hm; cbn in *.
+  subst.
+  reflexivity.
+Qed.
+
+Program Definition cycle{n}(i: fin' n): fin' n :=
+  if Fin.eq_dec i (fin_max n) then
+    Fin.F1
+  else
+    (_ (Fin.FS i)).
+Next Obligation. exact i. Qed.
+
+Lemma next_sanity_max{n}: cycle (fin_max n) = Fin.F1.
+Proof.
+  unfold cycle.
+  destruct (Fin.eq_dec (fin_max n) (fin_max n)); auto.
+  exfalso; apply n0; reflexivity.
+Qed.
+
+Program Definition of_nat_lt' {n p: nat} (H: p < n): fin' n :=
+  (_ (Fin.of_nat_lt H)).
+Next Obligation.
+  destruct n.
+  - dependent destruction x.
+  - exact (Fin.FS x).
+Defined.
+
+Lemma next_sanity_lt (m n: nat) (Hm: m < n):
+    proj1_sig (to_nat (cycle (of_nat_lt' Hm))) <= n.
+Proof.
+  induction m; cbn; unfold of_nat_lt', of_nat_lt'_obligation_1; cbn.
+  - destruct n.
+    + inversion Hm.
+    + cbn.
+      admit.
+Admitted.
 
 Definition init T :=
   @Vector.caseS _ (fun n v => vec n T) (fun h n t => t).
@@ -70,6 +121,12 @@ Fixpoint fin_all (n : nat) : list (fin n) :=
   match n as n return list (fin n) with
   | 0 => List.nil
   | S n => List.cons (@F1 n) (List.map (@FS _) (fin_all n))
+  end%list.
+
+Fixpoint fin_all_v (n : nat) : vec' n (fin' n) :=
+  match n as n return vec' n (fin' n) with
+  | 0 => Vector.cons _ (F1) _ (@Vector.nil (fin' 0))
+  | S n => Vector.cons _ (@FS (S n) (@F1 n)) _ (Vector.map (@FS _) (fin_all_v n))
   end%list.
 
 Theorem fin_all_In : forall {n} (f : fin n),
@@ -145,9 +202,6 @@ Fixpoint list_unsnoc{A}(l: list A): option (A * list A) :=
       | None => Some (h, List.nil)
       end
   end.
-
-(*| Non-empty vector |*)
-Notation vec' n T := (vec (S n) T).
 
 (*| For a [vec n T] of size [n] return a list of 
   indices [fin n] for which [f: T -> bool] is satisfied |*)
