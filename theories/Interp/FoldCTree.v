@@ -310,6 +310,7 @@ Counter-example showing that interp does not preserve sbisim in the general case
 
 Module CounterExample.
 
+  Unset Automatic Proposition Inductives.
   Inductive VoidE : Type -> Type :=
   | voidE : VoidE void.
 

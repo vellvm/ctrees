@@ -1,6 +1,10 @@
 From ITree Require Import Basics Indexed.Sum.
 From CTree Require Import Core.Utils.
 
+Section Index.
+
+Unset Automatic Proposition Inductives.
+
 (*|
 Nullary arity, encoding stuck processes
 |*)
@@ -29,6 +33,8 @@ Variant Bn : Type -> Type := | branchn (n : nat) : Bn (fin n).
 Countable branching
 |*)
 Variant BN : Type -> Type := | branchN : BN nat.
+
+End Index.
 
 Notation B01 := (B0 +' B1).
 Notation B02 := (B0 +' B1 +' B2).
