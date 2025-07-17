@@ -12,7 +12,6 @@
     Basics
     BinNat
     BinNums
-    BinPosDef
     BinPos
     Bool
     Byte
@@ -39,6 +38,7 @@
     Interp
     ITreeDefinition
     List0
+    ListDef
     Logic
     MapDefault
     Maps
@@ -56,6 +56,7 @@
     Number
     OptionMonad
     PeanoNat
+    PosDef
     ReaderMonad
     Reducible
     RelDec
