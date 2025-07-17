@@ -6,7 +6,7 @@ This file reexports everything that's necessary to reason w.r.t.
 Tactics are redefined locally to support both relations.
 |*)
 
-From Coq Require Export Basics.
+From Stdlib Require Export Basics.
 
 From RelationAlgebra Require Export
      rel srel.

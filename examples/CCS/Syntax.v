@@ -8,7 +8,7 @@ No recursion nor replication at the moment, todo.
 .. coq:: none
 |*)
 
-From Coq Require Export
+From Stdlib Require Export
   List
   Strings.String.
 

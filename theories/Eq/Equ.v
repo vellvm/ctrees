@@ -2,7 +2,7 @@
 ==============================
 Syntactic equality over ctrees
 ==============================
-As always with coinductive structures in Coq, [eq] is too strong
+As always with coinductive structures in Rocq, [eq] is too strong
 to be usable. We hence define through this file [equ], a coinductive
 syntactic equality over the structure. [equ] enforces the trees to
 have the exact same shape, constructor by constructor.
@@ -14,7 +14,7 @@ that take internal non-determinism into account.
 
 .. coq:: none
 |*)
-From Coq Require Import RelationClasses Program.
+From Stdlib Require Import RelationClasses Program.
 
 From Coinduction Require Import all.
 
@@ -795,7 +795,7 @@ Open Scope ctree.
 
 (*|
 Even eta-laws for coinductive data-structures are not valid w.r.t. to [eq]
-in Coq. We however do recover them w.r.t. [equ].
+in Rocq. We however do recover them w.r.t. [equ].
 |*)
 Lemma ctree_eta_ {E B R} (t : ctree E B R) : t ≅ go (_observe t).
 Proof. step. reflexivity. Qed.

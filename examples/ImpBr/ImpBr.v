@@ -1,6 +1,6 @@
 Unset Universe Checking.
 
-From Coq Require Import
+From Stdlib Require Import
      Arith.PeanoNat
      Lists.List
      Strings.String

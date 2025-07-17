@@ -40,7 +40,7 @@ answered by [wtrans].
 
 .. coq::none
 |*)
-From Coq Require Import
+From Stdlib Require Import
   Lia
   Basics
   Fin

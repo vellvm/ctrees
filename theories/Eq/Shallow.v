@@ -18,7 +18,7 @@ From ITree Require Import
 From CTree Require Import
      CTree.
 
-From Coq Require Import
+From Stdlib Require Import
      Classes.RelationClasses
      Classes.Morphisms
      Setoids.Setoid

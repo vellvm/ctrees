@@ -13,7 +13,7 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
   - Yannick Zakowski
   - Steve Zdancewic
 - License: MIT License
-- Compatible Coq versions: 8.19
+- Compatible Rocq versions: 9.0
 - Additional dependencies:
   - dune
   - [Extlib](https://github.com/coq-community/coq-ext-lib)
@@ -22,7 +22,7 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
   - [Coinduction](https://github.com/damien-pous/coinduction)
   - [RelationAlgebra](https://github.com/damien-pous/relation-algebra)
   - [Alectryon](https://github.com/cpitclaudel/alectryon)
-- Coq namespace: `CTree`
+- Rocq namespace: `CTree`
 
 ## Building instructions
 

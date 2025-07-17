@@ -1,6 +1,6 @@
 Unset Universe Checking.
 
-From Coq Require Import Classes.RelationPairs.
+From Stdlib Require Import Classes.RelationPairs.
 
 From ExtLib Require Import
      Structures.Functor
