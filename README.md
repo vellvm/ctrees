@@ -1,7 +1,7 @@
 # Choice Trees
-[![Docker CI](https://github.com/vellvm/ctrees/workflows/Docker%20CI/badge.svg?branch=master)](https://github.com/vellvm/ctrees/actions?query=workflow:"Docker%20CI")
+[![Docker CI](https://github.com/vellvm/ctrees/workflows/Docker%20CI/badge.svg?branch=dev)](https://github.com/vellvm/ctrees/actions?query=workflow:"Docker%20CI")
 
-We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support for internal non-determinism.
+We develop a cousin of Interaction Trees, dubbed _Choice Trees_, with native support for non-determinism.
 
 ## Meta
 
@@ -13,7 +13,7 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
   - Yannick Zakowski
   - Steve Zdancewic
 - License: MIT License
-- Compatible Coq versions: 8.19
+- Compatible Rocq versions: 8.20
 - Additional dependencies:
   - dune
   - [Extlib](https://github.com/coq-community/coq-ext-lib)
@@ -21,8 +21,12 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
   - [Equations](https://github.com/mattam82/Coq-Equations)
   - [Coinduction](https://github.com/damien-pous/coinduction)
   - [RelationAlgebra](https://github.com/damien-pous/relation-algebra)
-  - [Alectryon](https://github.com/cpitclaudel/alectryon)
-- Coq namespace: `CTree`
+- Rocq namespace: `CTree`
+
+## Related papers
+
+- https://hal.science/hal-05154458
+- https://dl.acm.org/doi/10.1145/3571254 (old)
 
 ## Building instructions
 
@@ -30,12 +34,7 @@ We develop a cousin of Interaction Trees, dubbed _ctrees_ with native support fo
 
 Installing the opam dependencies
 ```shell
-opam install dune
-opam install coq-ext-lib
-opam install coq-itree
-opam install coq-relation-algebra
-opam install coq-coinduction
-opam install coq-equations
+opam install coq-ext-lib coq-itree coq-relation-algebra coq-coinduction coq-equations
 ```
 
 ### Obtaining the project

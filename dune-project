@@ -13,12 +13,22 @@
 (package
  (name coq-ctree)
  (synopsis "Library for representing recursive, non-deterministic and impure programs with equational reasoning")
- (version 0.1)
+ (version 2.0)
  (depends
-  (coq (= 8.20.1))
+  (coq (>= 8.20))
   (coq-ext-lib (>= 0.11.3))
   (coq-coinduction (= 1.20))
   (coq-relation-algebra (>= 1.7.11))
   (coq-equations (>= 1.2))
   (coq-itree (>= 5.0)))
+ (tags (
+   "category:CS/Semantics and Compilation/Semantics"
+   "category:CS/Concurrency/Theory of concurrent systems"
+   "keyword:simulation"
+   "keyword:bisimilarity"
+   "keyword:coinduction up-to"
+   "keyword:process algebra"
+   "keyword:cooperative multithreading"
+   "logpath:CTree"
+ ))
 )
