@@ -1,0 +1,111 @@
+{
+  "nodes": {
+    "coinduction-repo": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1758090858,
+        "narHash": "sha256-S/stL5bpJsJt+bvOg4F2b/WaEt5IDOop3ruBIbde9GI=",
+        "owner": "damien-pous",
+        "repo": "coinduction",
+        "rev": "a88f0f4f170dcb9b24e3d470c76801a765423598",
+        "type": "github"
+      },
+      "original": {
+        "owner": "damien-pous",
+        "repo": "coinduction",
+        "type": "github"
+      }
+    },
+    "flake-utils": {
+      "inputs": {
+        "systems": "systems"
+      },
+      "locked": {
+        "lastModified": 1731533236,
+        "narHash": "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "nix-filter": {
+      "locked": {
+        "lastModified": 1757882181,
+        "narHash": "sha256-+cCxYIh2UNalTz364p+QYmWHs0P+6wDhiWR4jDIKQIU=",
+        "owner": "numtide",
+        "repo": "nix-filter",
+        "rev": "59c44d1909c72441144b93cf0f054be7fe764de5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "nix-filter",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1760037539,
+        "narHash": "sha256-SIQSM0jvZS7YQ4G7N6crVASqmRzNfl2CgIrdsvhkRrk=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "bb1d6c1cee7e90ecb7c96488f37fa3405bda4c6a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "master",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "relation-algebra-repo": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1758092026,
+        "narHash": "sha256-RnY+a57KnStACteaT5dKQoCCH0qp7/W+4qoaApIilj0=",
+        "owner": "damien-pous",
+        "repo": "relation-algebra",
+        "rev": "062d5cf9468ce367fe11220b336dff254a51702b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "damien-pous",
+        "repo": "relation-algebra",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "coinduction-repo": "coinduction-repo",
+        "flake-utils": "flake-utils",
+        "nix-filter": "nix-filter",
+        "nixpkgs": "nixpkgs",
+        "relation-algebra-repo": "relation-algebra-repo"
+      }
+    },
+    "systems": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
