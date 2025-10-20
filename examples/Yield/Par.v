@@ -870,6 +870,9 @@ Section parallel.
               apply (f_equal p) in H0. rewrite Hpq in H0. contradiction.
         }
         apply visible_E_trans_schedule; eauto. auto.
+    - repeat red in Ht.
+
+apply trans_head_inv in Ht. trans_head_inv in Ht.
     - pose proof (trans_schedule_val_1 _ _ _ _ _ Ht). subst.
       pose proof (trans_val_inv Ht).
       pose proof (Hsb1 i). step in H0. destruct H0 as [Hf _].

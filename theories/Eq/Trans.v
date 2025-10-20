@@ -89,6 +89,7 @@ least annoying solution.
   Variant label : Type :=
     | τ
     | obs {X : Type} (e : E X) (v : X)
+    | obs_void (e : E void)
     | val {X : Type} (v : X).
 
   Variant is_val : label -> Prop :=
@@ -849,6 +850,7 @@ Proof.
   intros ? [] ? step; cbn in step.
   - intuition; try (eapply trans_ret in step; now apply step).
     inv H.
+  - eapply trans_ret_inv in step; intuition.
   - eapply trans_ret_inv in step; intuition.
   - eapply trans_ret_inv in step; intuition.
 Qed.
@@ -1624,18 +1626,29 @@ invert hypotheses involving [trans].
 #[local] Notation trans' l t u := (hrel_of (trans l) t u).
 
 Ltac inv_trans_one :=
+  let inv_trans_one_tau_r EQl :=
+    match type of EQl with
+    | τ     = τ => clear EQl
+    | val _   = τ => now inv EQl
+    | obs _ _ = τ => now inv EQl
+    | obs_void _ = τ => now inv EQl
+    | _ => idtac
+    end in
+  let inv_trans_one_val_r EQl :=
+    match type of EQl with
+    | val _   = val _ => apply val_eq_inv in EQl; try (inversion EQl; fail)
+    | τ     = val _ => now inv EQl
+    | obs _ _ = val _ => now inv EQl
+    | obs_void _ = val _ => now inv EQl
+    | _ => idtac
+    end in
   match goal with
 
   (* Ret *)
   | h : trans' _ (Ret ?x) _ |- _ =>
       let EQl := fresh "EQl" in
       apply trans_ret_inv in h as [?EQ EQl];
-      match type of EQl with
-      | val _   = val _ => apply val_eq_inv in EQl; try (inversion EQl; fail)
-      | τ     = val _ => now inv EQl
-      | obs _ _ = val _ => now inv EQl
-      | _ => idtac
-      end
+      inv_trans_one_val_r EQl
 
   (* Vis *)
   | h : trans' _ (Vis ?e ?k) _ |- _ =>
@@ -1650,6 +1663,7 @@ Ltac inv_trans_one :=
           subst_hyp_in EQt h;
           apply obs_eq_inv in EQl as [EQe EQv];
           try (inversion EQv; inversion EQe; fail)
+      | obs_void _   = obs _ _ => now inv EQl
       | val _   = obs _ _ => now inv EQl
       | τ     = obs _ _ => now inv EQl
       | _ => idtac
@@ -1659,57 +1673,32 @@ Ltac inv_trans_one :=
   | h : trans' _ (Step _) _ |- _ =>
       let EQl := fresh "EQl" in
       apply trans_step_inv in h as (?EQ & EQl);
-      match type of EQl with
-      | τ     = τ => clear EQl
-      | val _   = τ => now inv EQl
-      | obs _ _ = τ => now inv EQl
-      | _ => idtac
-      end
+      inv_trans_one_tau_r EQl
 
   (* BrS *)
   | h : trans' _ (BrS ?n ?k) _ |- _ =>
       let x := fresh "x" in
       let EQl := fresh "EQl" in
       apply trans_brS_inv in h as (x & ?EQ & EQl);
-      match type of EQl with
-      | τ     = τ => clear EQl
-      | val _   = τ => now inv EQl
-      | obs _ _ = τ => now inv EQl
-      | _ => idtac
-      end
+      inv_trans_one_tau_r EQl
 
   (* brS2 *)
   | h : trans' _ (brS2 _ _) _ |- _ =>
       let EQl := fresh "EQl" in
       apply trans_brS2_inv in h as (EQl & [?EQ | ?EQ]);
-      match type of EQl with
-      | τ     = τ => clear EQl
-      | val _   = τ => now inv EQl
-      | obs _ _ = τ => now inv EQl
-      | _ => idtac
-      end
+      inv_trans_one_tau_r EQl
 
   (* brS3 *)
   | h : trans' _ (brS3 _ _ _) _ |- _ =>
       let EQl := fresh "EQl" in
       apply trans_brS3_inv in h as (EQl & [?EQ | [?EQ | ?EQ]]);
-      match type of EQl with
-      | τ     = τ => clear EQl
-      | val _   = τ => now inv EQl
-      | obs _ _ = τ => now inv EQl
-      | _ => idtac
-      end
+      inv_trans_one_tau_r EQl
 
   (* brS4 *)
   | h : trans' _ (brS4 _ _ _ _) _ |- _ =>
       let EQl := fresh "EQl" in
       apply trans_brS4_inv in h as (EQl & [?EQ | [?EQ | [?EQ | ?EQ]]]);
-      match type of EQl with
-      | τ     = τ => clear EQl
-      | val _   = τ => now inv EQl
-      | obs _ _ = τ => now inv EQl
-      | _ => idtac
-      end
+      inv_trans_one_tau_r EQl
 
   (* Guard *)
   | h : trans' _ (Guard _) _ |- _ =>

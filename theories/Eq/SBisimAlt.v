@@ -780,6 +780,7 @@ Section Inversion_Rules.
     - apply trans_obs_epsilon in TR as (k' & EPS & EQ).
       setoid_rewrite EQ in H0.
       eauto 7 with trans.
+    - apply trans_obs_void_epsilon in TR; contradiction.
     - apply RV in H1 as [_ ?].
       pose proof (H1 (Is_val _)). inversion H2.
   Qed.

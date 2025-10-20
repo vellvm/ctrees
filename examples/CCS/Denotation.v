@@ -626,6 +626,9 @@ Proof.
     eapply trans_bind_r; eauto; cbn.
     constructor.
     rewrite Eqp; reflexivity.
+  - eapply @trans_head with (C:=ccsC) in TRp; try typeclasses eauto.
+    contradiction.
+    apply ccsE.
   - pose proof (trans_val_invT TRp); subst; easy.
 Qed.
 
@@ -648,6 +651,8 @@ Proof.
     eapply trans_bind_r; eauto; cbn.
     constructor.
     rewrite Eqq; reflexivity.
+  - eapply @trans_head with (C:=ccsC) in TRq; eauto; try typeclasses eauto.
+    contradiction.
   - pose proof (trans_val_invT TRq); subst; easy.
 Qed.
 
@@ -833,6 +838,7 @@ Proof.
     rewrite H0; econstructor; reflexivity.
   - eapply trans_bind_r; eauto. cbn.
     rewrite H0; econstructor; reflexivity.
+  - contradiction.
   - apply trans_val_invT in TR; subst; easy.
 Qed.
 
@@ -853,6 +859,7 @@ Proof.
     econstructor; rewrite H0; reflexivity.
   - eapply trans_bind_r; eauto. cbn.
     rewrite H0; econstructor; reflexivity.
+  - contradiction.
   - apply trans_val_invT in TR; subst; easy.
 Qed.
 

@@ -52,6 +52,7 @@ Definition γ : @label ccsE -> option action :=
         | val x => None
         | τ   => None
         | obs (Act a) _ => Some a
+        | obs_void _ => None
         end.
 
 Lemma are_opposite_op : forall a, are_opposite a (op a).
@@ -306,8 +307,10 @@ Lemma ιγ : forall l (t u : ccs),
     ι (γ l) = l.
 Proof.
   intros [] ? ? TR; cbn; auto.
-  destruct e,v; auto.
-  eapply trans_val_invT in TR; subst; destruct v.
+  - destruct e,v; auto.
+  - apply Head.trans_head_obs_void in TR.
+    contradiction.
+  - eapply trans_val_invT in TR; subst; destruct v.
 Qed.
 
 Lemma γι : forall l,

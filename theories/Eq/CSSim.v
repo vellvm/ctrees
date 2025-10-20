@@ -327,6 +327,7 @@ and with the argument (pointwise) on the continuation.
         destruct l''.
         do 2 eexists; apply trans_bind_l; eauto; intros abs; inv abs.
         do 2 eexists; apply trans_bind_l; eauto; intros abs; inv abs.
+        do 2 eexists; apply trans_bind_l; eauto; intros abs; inv abs.
         apply trans_val_invT in TR1 as ?. subst X0.
         apply trans_val_inv in TR1 as ?. rewrite H0 in TR1.
         pose proof TR1 as tmp.

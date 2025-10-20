@@ -359,7 +359,7 @@ on the setoid side.
     Lemma wbisim_etrans_back l: wbisimT ⋅ etrans l ≦ wtrans l ⋅ wbisimT.
     Proof.
       unfold etrans; destruct l.
-      2,3: apply @wbisim_trans_back.
+      2,3,4: apply @wbisim_trans_back.
       ra_normalise. rewrite wbisim_trans_back.
       unfold wtrans, etrans. ka.
     Qed.

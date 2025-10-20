@@ -114,6 +114,14 @@ Proof.
     rewrite <- ctree_eta; symmetry; assumption.
 Qed.
 
+Lemma trans_head_obs_void : forall (t u : ctree E B X) (e : E void),
+    ~ trans (obs_void e) t u.
+Proof.
+  intros * TR.
+  remember (obs_void e) as ob.
+  induction TR; try now inv Heqob.
+Qed.
+
 Lemma trans_head_tau :
   forall (t u : ctree E B X),
     trans τ t u ->
@@ -176,12 +184,14 @@ Lemma trans_head : forall (t u : ctree E B X) l,
         trans (val (AStep u')) (head t : ctree F C _) Stuck /\ u' ≅ u
     | obs e v => exists (k : _ -> ctree E B X),
         trans (val (AVis e k)) (head t : ctree F C _) Stuck /\ u ≅ k v
+    | obs_void e => False
     | val v => trans (val (@ARet E B _ v)) (head t : ctree F C _) Stuck /\ u ≅ Stuck
     end.
 Proof.
   intros *; destruct l.
   apply trans_head_tau.
   apply trans_head_obs.
+  apply trans_head_obs_void.
   intros A.
   pose proof (trans_val_invT A) as <-; apply trans_head_ret; assumption.
 Qed.

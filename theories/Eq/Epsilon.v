@@ -347,6 +347,16 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       - rewrite EQ in H1. inv_trans.
     Qed.
 
+    Lemma trans_obs_void_epsilon {E C X} : forall (t t' : ctree E C X) e,
+        ~ (trans (obs_void e) t t').
+    Proof.
+      intros * H. apply trans_epsilon in H as (? & ? & ? & ?).
+      inv H0.
+      - rewrite EQ in H1. inv_trans.
+      - rewrite EQ in H1. inv_trans.
+      - rewrite EQ in H1. inv_trans.
+    Qed.
+
     Lemma productive_epsilon {E C X} : forall (t t' : ctree E C X),
         productive t -> epsilon t t' -> t ≅ t'.
     Proof.

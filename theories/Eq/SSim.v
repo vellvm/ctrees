@@ -421,6 +421,8 @@ Proof.
       all: intro; inv H1.
     + constructor; auto.
       all: intro; inv H1.
+    + constructor; auto.
+      all: intro; inv H1.
     + red in H. specialize (H X0 v eq_refl). subst.
       constructor. reflexivity.
 Qed.
@@ -484,6 +486,7 @@ Qed.
   Transitive (update_val_rel L R0).
 Proof.
   red. intros. destruct y.
+  - inv H1. inv H2. constructor; auto. etransitivity; eassumption.
   - inv H1. inv H2. constructor; auto. etransitivity; eassumption.
   - inv H1. inv H2. constructor; auto. etransitivity; eassumption.
   - inv H1; [| exfalso; etrans].
