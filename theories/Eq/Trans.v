@@ -142,7 +142,21 @@ least annoying solution.
       inversion H.
   Qed.
 
-  
+  Lemma not_is_end_not_is_val (l : label) :
+    ~ is_end l -> ~ is_val l.
+  Proof.
+    intros.
+    unfold is_end in H.
+    tauto.
+  Qed.
+
+  Lemma not_is_end_not_is_die (l : label) :
+    ~ is_end l -> ~ is_die l.
+  Proof.
+    intros.
+    unfold is_end in H.
+    tauto.
+  Qed.  
 
   (*|
 The transition relation over [ctree]s.
@@ -420,6 +434,12 @@ Elimination rules for [trans]
 
 
 End Trans.
+
+#[global] Hint Resolve
+  not_is_end_not_is_val
+  not_is_end_not_is_die
+  : LABELS.
+
 
 Class Respects_val {E F} (L : rel (@label E) (@label F)) :=
   { respects_val:
@@ -863,6 +883,25 @@ useful.
     apply trans__val_inv in TR. rewrite ctree_eta. apply TR.
   Qed.
 
+  Lemma trans__die_inv {Y} :
+    forall (T U : ctree' E B X) (e : E Y) empty,
+      trans_ (die e empty) T U ->
+      go U ≅ Stuck.
+  Proof.
+    intros * TR.
+    remember (die e empty) as ox.
+    rewrite ctree_eta; induction TR; intros; auto; try now inv Heqox.
+  Qed.
+
+  Lemma trans_die_inv {Y} :
+    forall (t u : ctree E B X) (e : E Y) empty,
+      trans (die e empty) t u ->
+      u ≅ Stuck.
+  Proof.
+    intros * TR. cbn in TR. red in TR.
+    apply trans__die_inv in TR. rewrite ctree_eta. apply TR.
+  Qed.
+
   Lemma wtrans_val_inv : forall (x : X),
       wtrans (val x) u Stuck ->
       exists t, wtrans τ u t /\ trans (val x) t Stuck.
@@ -873,6 +912,18 @@ useful.
     apply wtrans_τ; auto.
     erewrite <- trans_val_inv; eauto.
   Qed.
+
+  Lemma wtrans_die_inv : forall Y (e : E Y) empty,
+      wtrans (die e empty) u Stuck ->
+      exists t, wtrans τ u t /\ trans (die e empty) t Stuck.
+  Proof.
+    intros * TR.
+    destruct TR as [t2 [t1 step1 step2] step3].
+    exists t1; split.
+    apply wtrans_τ; auto.
+    erewrite <- trans_die_inv; eauto.
+  Qed.
+
 
 End forward.
 
@@ -1100,7 +1151,7 @@ Lemma trans_bind_inv_aux {E B X Y} l T U :
     (~ (is_end l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
       (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u) \/
       (* t "dies", shouldn't have to continue into k *)
-      (exists Z (e : E Z) (empty: forall (z : Z), False), trans (die e empty) t Stuck).
+      (exists Z (e : E Z) (empty: forall (z : Z), False), trans (die e empty) t Stuck /\ u ≅ Stuck).
 Proof.
   intros TR; induction TR; intros.
 
@@ -1127,10 +1178,10 @@ Proof.
       exists x0; split; auto.
       apply (Transbr _ x); auto.
       right; right.
-      destruct H.
+      destruct H as (?&?&?).
       exists x0; auto.
       exists x1. exists x2.
-      apply (Transbr _ x); auto.
+      split; [apply (Transbr _ x); auto|auto].
 
   - symmetry in H; apply guard_equ_bind in H.
     destruct H as [(? & EQ & EQ') | (? & EQ & EQ')].
@@ -1145,11 +1196,12 @@ Proof.
       eexists; split.
       rewrite EQ; constructor; apply H1.
       auto.
-      destruct H as [(? & ? & ?) | (? & ? & ? & ?)].
+      destruct H as [(? & ? & ?) | (? & ? & ? & ? & ?)].
       * right; left; eexists; split; eauto.
         rewrite EQ; constructor.
         apply H.
       * right; right; eexists; eexists; eexists; eauto.
+        split; eauto.
         rewrite EQ; constructor.
         apply H.
   - symmetry in H0; apply step_equ_bind in H0.
@@ -1179,6 +1231,8 @@ Proof.
     + right; right.
       exists X0, e, empty.
       rewrite EQ.
+      symmetry in H0.
+      split; eauto.
       constructor.
   - symmetry in H; apply ret_equ_bind in H.
     destruct H as (? & EQ & EQ').
@@ -1189,8 +1243,9 @@ Qed.
 
 Lemma trans_bind_inv {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
   trans l (t >>= k) u ->
-  (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u).
+  (~ (is_end l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
+    (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u) \/
+    (exists Z (e : E Z) (empty: forall (z : Z), False), trans (die e empty) t Stuck /\ u ≅ Stuck).
 Proof.
   intros TR.
   eapply trans_bind_inv_aux.
@@ -1205,7 +1260,7 @@ Lemma trans_bind_inv_l {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : c
 Proof.
   intros TR.
   apply trans_bind_inv in TR.
-  destruct TR as [(? & ? & ? & ?) | (? & ? & ?)]; eauto.
+  destruct TR as [(? & ? & ? & ?) | [(? & ? & ?) | (? & ? & ? & ? & ?)]]; eauto.
 Qed.
 
 Lemma trans_bind_l {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B X) l :
@@ -1232,6 +1287,11 @@ Proof.
     rewrite H.
     rewrite (ctree_eta t0),x,<- ctree_eta.
     reflexivity.
+  - rewrite unfold_bind.
+    rewrite <- x0; cbn.
+    rewrite unfold_bind.
+    rewrite <- x; cbn.
+    constructor.
   - exfalso; eapply NOV; constructor.
 Qed.
 
@@ -1263,8 +1323,8 @@ Proof.
   apply trans_bind_inv in H0 as [].
   - destruct H0 as (? & ? & ? & ?).
     now apply H in H1.
-  - destruct H0 as (? & ? & ?).
-    now apply H in H0.
+  - destruct H0 as [(? & ? & ?) | (? & ? & ? & ? & ?)];
+      now apply H in H0.
 Qed.
 
 (*|
@@ -1274,24 +1334,27 @@ Forward and backward rules for [wtrans] w.r.t. [bind]
 
 Lemma etrans_bind_inv {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
   etrans l (t >>= k) u ->
-  (~ (is_val l) /\ exists t', etrans l t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), trans (val x) t Stuck /\ etrans l (k x) u).
+  (~ (is_end l) /\ exists t', etrans l t t' /\ u ≅ t' >>= k) \/
+    (exists (x : X), trans (val x) t Stuck /\ etrans l (k x) u) \/
+    (exists Z (e : E Z) (empty: forall (z : Z), False), trans (die e empty) t Stuck /\ u ≅ Stuck).
 Proof.
   intros TR.
   apply @etrans_case in TR as [ | (-> & ?)].
-  - apply trans_bind_inv in H as [[? (? & ? & ?)]|( ? & ? & ?)]; eauto.
-    left; split; eauto.
-    eexists; split; eauto; apply trans_etrans; auto.
-    right; eexists; split; eauto; apply trans_etrans; auto.
+  - apply trans_bind_inv in H as [[? (? & ? & ?)]|[( ? & ? & ?) | (? & ? & ? & ? & ?)]]; eauto.
+    + left; split; eauto with LABELS.
+      eexists; split; eauto; apply trans_etrans; auto.
+    + right; left; eexists; split; eauto; apply trans_etrans; auto.
+    + right; right; eauto.
   - left; split.
-    intros abs; inv abs.
+    intros abs; apply is_end_τ in abs; contradiction.
     exists t; split; auto using enil; symmetry; auto.
 Qed.
 
 Lemma transs_bind_inv {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) :
   (trans τ)^* (t >>= k) u ->
   (exists t', (trans τ)^* t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), wtrans (val x) t Stuck /\ (trans τ)^* (k x) u).
+    (exists (x : X), wtrans (val x) t Stuck /\ (trans τ)^* (k x) u) \/
+    (exists Z (e : E Z) (empty: forall (z : Z), False), wtrans (die e empty) t Stuck).
 Proof.
   intros [n TR].
   revert t k u TR.
@@ -1301,18 +1364,23 @@ Proof.
     exists 0%nat; reflexivity.
     symmetry; auto.
   - destruct TR as [t1 TR1 TR2].
-    apply trans_bind_inv in TR1 as [(_ & t2 & TR1 & EQ) | (x & TR1 & TR1')].
+    apply trans_bind_inv in TR1 as [(_ & t2 & TR1 & EQ) | [(x & TR1 & TR1') | (? & ? & ? & ? & ?)]].
     + rewrite EQ in TR2; clear t1 EQ.
-      apply IH in TR2 as [(t3 & TR2 & EQ')| (x & TR2 & TR3)].
+      apply IH in TR2 as [(t3 & TR2 & EQ')| [(x & TR2 & TR3) | (? & ? & ? & ?)]].
       * left; eexists; split; eauto.
         apply wtrans_τ; eapply wcons; eauto.
         apply wtrans_τ; auto.
-      * right; exists x; split; eauto.
+      * right; left; exists x; split; eauto.
         eapply wcons; eauto.
-    + right.
+      * right; right; exists x, x0, x1; eauto.
+        eapply wcons; eauto.
+    + right; left.
       exists x; split.
       apply trans_wtrans; auto.
       exists (S n), t1; auto.
+    + right; right.
+      exists x, x0, x1.
+      apply trans_wtrans; auto.
 Qed.
 
 (*|
@@ -1328,21 +1396,22 @@ the last visible state reached by [wtrans] and add a [trans (val _)] afterward.
 |*)
 Lemma wtrans_bind_inv {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
   wtrans l (t >>= k) u ->
-  (~ (is_val l) /\ exists t', wtrans l t t' /\ u ≅ t' >>= k) \/
+  (~ (is_end l) /\ exists t', wtrans l t t' /\ u ≅ t' >>= k) \/
     (exists (x : X), wtrans (val x) t Stuck /\ wtrans l (k x) u) \/
-    (exists (x : X) s, wtrans l t s /\ trans (val x) s Stuck /\ wtrans τ (k x) u).
+    (exists (x : X) s, wtrans l t s /\ trans (val x) s Stuck /\ wtrans τ (k x) u) \/
+    (exists Z (e : E Z) (empty: forall (z : Z), False) s, wtrans l t s /\ trans (die e empty) s Stuck).
 Proof.
   intros TR.
   destruct TR as [t2 [t1 step1 step2] step3].
-  apply transs_bind_inv in step1 as [(u1 & TR1 & EQ1)| (x & TR1 & TR1')].
+  apply transs_bind_inv in step1 as [(u1 & TR1 & EQ1)| [(x & TR1 & TR1') | (?&?&?&?)]].
   - rewrite EQ1 in step2; clear t1 EQ1.
-    apply etrans_bind_inv in step2 as [(H & u2 & TR2 & EQ2)| (x & TR2 & TR2')].
+    apply etrans_bind_inv in step2 as [(H & u2 & TR2 & EQ2)| [(x & TR2 & TR2')|(?&?&?&?&?)]].
     + rewrite EQ2 in step3; clear t2 EQ2.
-      apply transs_bind_inv in step3 as [(u3 & TR3 & EQ3)| (x & TR3 & TR3')].
+      apply transs_bind_inv in step3 as [(u3 & TR3 & EQ3)| [(x & TR3 & TR3')|(?&?&?&?)]].
       * left; split; auto.
         eexists; split; eauto.
         exists u2; auto; exists u1; auto.
-      * right; right.
+      * right; right; left.
         apply wtrans_val_inv in TR3 as (u3 & TR2' & TR2'').
         exists x, u3.
         split; [|split]; auto.
@@ -1350,8 +1419,35 @@ Proof.
         exists u2; [exists u1; assumption | ].
         apply wtrans_τ; apply wtrans_τ in TR1.
         eapply wconss; eauto.
+      * right; right; right.
+        eapply wtrans_die_inv in H0 as (u3 & TR2' & TR2'').
+        exists x, x0, x1, u3.
+        split; auto.
+        exists u2; [exists u1; assumption | ].
+        apply wtrans_τ; auto. 
     + right; left.
       exists x; split.
+      eexists; [eexists |]; eauto; apply wtrans_τ, wnil.
+      eexists; [eexists |]; eauto; apply wtrans_τ, wnil.
+    + rewrite H0 in step3.
+      apply wtrans_τ in step3.
+      eapply wtrans_is_stuck_inv in step3 as (?&?).
+      2: apply Stuck_is_stuck.
+
+      right; right; right.
+      
+
+      
+      exists x, x0, x1, u1; split; auto.
+      apply wtrans_τ.
+      eexists.
+      apply TR1.
+      eexists; [eexists |]; eauto; apply wtrans_τ, wnil.
+      eexists; [eexists |]; eauto; apply wtrans_τ, wnil.
+      rewrite
+      apply wtrans_τ. , wnil.
+      eexists.
+      split; eauto.
       eexists; [eexists |]; eauto; apply wtrans_τ, wnil.
       eexists; [eexists |]; eauto; apply wtrans_τ, wnil.
   - right; left.
