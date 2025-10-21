@@ -89,11 +89,16 @@ least annoying solution.
   Variant label : Type :=
     | τ
     | obs {X : Type} (e : E X) (v : X)
-    | obs_void (e : E void)
+    | die {X : Type} (e : E X) (empty : forall (x : X), False)
     | val {X : Type} (v : X).
 
   Variant is_val : label -> Prop :=
     | Is_val : forall X (x : X), is_val (val x).
+
+  Variant is_die : label -> Prop :=
+    | Is_die : forall {X} (e : E X) empty, is_die (die e empty).
+
+  Definition is_end (l : label) : Prop := is_val l \/ is_die l.
 
   Lemma is_val_τ : ~ is_val τ.
   Proof.
@@ -104,6 +109,40 @@ least annoying solution.
   Proof.
     intro H. inversion H.
   Qed.
+
+  Lemma is_val_die {X} (e : E X) empty : ~ is_val (die e empty).
+  Proof.
+    intro H. inversion H.
+  Qed.
+
+  Lemma is_die_τ : ~ is_die τ.
+  Proof.
+    intro H. inversion H.
+  Qed.
+
+  Lemma is_die_obs {X} (e : E X) x : ~ is_die (obs e x).
+  Proof.
+    intro H. inversion H.
+  Qed.
+
+  Lemma is_die_val {X} (x: X) : ~ is_die (val x).
+  Proof.
+    intro H. inversion H.
+  Qed.
+
+  Lemma is_end_τ : ~ is_end τ.
+  Proof.
+    intros [H | H];
+      inversion H.
+  Qed.
+
+  Lemma is_end_obs {X} (e : E X) x : ~ is_end (obs e x).
+  Proof.
+    intros [H | H];
+      inversion H.
+  Qed.
+
+  
 
   (*|
 The transition relation over [ctree]s.
@@ -131,6 +170,9 @@ node, labelling the transition by the returned value.
   | Transobs {X} (e : E X) k x t :
     k x ≅ t ->
     trans_ (obs e x) (VisF e k) (observe t)
+
+  | Transdie {X} (e : E X) k (empty : forall (x : X), False) :
+    trans_ (die e empty) (VisF e k) StuckF
 
   | Transval r :
     trans_ (val r) (RetF r) StuckF.
@@ -180,7 +222,8 @@ node, labelling the transition by the returned value.
    + FtoObs.
       econstructor.
       rewrite H; symmetry; step; auto.
-    + inv equ. eauto.
+   + inv equ. eauto.
+   + inv equ. eauto.
   Qed.
 
   #[local] Instance trans_equ_aux2 l :
@@ -203,6 +246,8 @@ node, labelling the transition by the returned value.
     + step in eqt; dependent induction eqt.
       econstructor.
       rewrite <- REL; eauto.
+    + step in eqt; dependent induction eqt.
+      econstructor.
     + step in eqt; dependent induction eqt.
       econstructor.
   Qed.
@@ -674,12 +719,12 @@ Structural rules
     rewrite ctree_eta, <- H2; auto.
   Qed.
 
-  Lemma trans_vis_inv : forall {Y} (e : E Y) k l (u : ctree E B X),
+  Lemma trans_vis_inv : forall {Y} (e : E Y) k l (u : ctree E B X) (y : Y),
       trans l (Vis e k) u ->
       exists x, u ≅ k x /\ l = obs e x.
   Proof.
-    intros * TR.
-    inv TR.
+    intros * y TR.
+    inv TR; try contradiction.
     dependent induction H3; eexists; split; eauto.
     rewrite ctree_eta, <- H4, <- ctree_eta; symmetry; auto.
   Qed.
@@ -1052,14 +1097,16 @@ Lemma trans_bind_inv_aux {E B X Y} l T U :
   forall (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y),
     go T ≅ t >>= k ->
     go U ≅ u ->
-    (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
-      (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u).
+    (~ (is_end l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
+      (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u) \/
+      (* t "dies", shouldn't have to continue into k *)
+      (exists Z (e : E Z) (empty: forall (z : Z), False), trans (die e empty) t Stuck).
 Proof.
   intros TR; induction TR; intros.
 
   - rewrite unfold_bind in H; setoid_rewrite (ctree_eta t0).
     desobs t0.
-    + right.
+    + right; left.
       exists r; split.
       constructor.
       rewrite <- H.
@@ -1071,18 +1118,23 @@ Proof.
     + step in H; dependent induction H.
     + step in H; dependent induction H.
       specialize (IHTR (k1 x) k0 u).
-      destruct IHTR as [(? & ? & ? & ?) | (? & ? & ?)]; auto.
+      destruct IHTR as [(? & ? & ? & ?) | [(? & ? & ?) | (? & ? & ?)]]; auto.
       rewrite <- ctree_eta, REL; reflexivity.
       left; split; eauto.
       exists x0; split; auto.
       apply (Transbr _ x); auto.
-      right.
+      right; left.
       exists x0; split; auto.
+      apply (Transbr _ x); auto.
+      right; right.
+      destruct H.
+      exists x0; auto.
+      exists x1. exists x2.
       apply (Transbr _ x); auto.
 
   - symmetry in H; apply guard_equ_bind in H.
     destruct H as [(? & EQ & EQ') | (? & EQ & EQ')].
-    + right.
+    + right; left.
       exists x; split; [rewrite EQ; constructor |].
       rewrite EQ'; auto.
       rewrite <- H0; constructor; auto.
@@ -1093,31 +1145,44 @@ Proof.
       eexists; split.
       rewrite EQ; constructor; apply H1.
       auto.
-      destruct H as (? & ? & ?).
-      right; eexists; split; eauto.
-      rewrite EQ; constructor.
-      apply H.
+      destruct H as [(? & ? & ?) | (? & ? & ? & ?)].
+      * right; left; eexists; split; eauto.
+        rewrite EQ; constructor.
+        apply H.
+      * right; right; eexists; eexists; eexists; eauto.
+        rewrite EQ; constructor.
+        apply H.
   - symmetry in H0; apply step_equ_bind in H0.
     destruct H0 as [(? & EQ & EQ') | (? & EQ & EQ')].
-    + right.
+    + right; left.
       exists x; split; [rewrite EQ; constructor |].
       rewrite EQ'; constructor.
       rewrite <- ctree_eta in H1; rewrite <- H1; auto.
-    + left; split; [apply is_val_τ |].
+    + left; split; [apply is_end_τ |].
       eexists; split; [rewrite EQ; constructor; reflexivity |].
       rewrite <- H1, <- ctree_eta, H, <-EQ'; auto.
   - symmetry in H0; apply vis_equ_bind in H0.
     destruct H0 as [(? & EQ & EQ') | (? & EQ & EQ')].
-    + right.
+    + right; left.
       exists x0; split; [rewrite EQ; constructor |].
       rewrite EQ'; constructor.
       rewrite <- ctree_eta in H1; rewrite <- H1; auto.
-    + left; split; [apply is_val_obs |].
+    + left; split; [apply is_end_obs |].
       eexists; split; [rewrite EQ; constructor; reflexivity |].
       rewrite <- H1, <- ctree_eta, <- H, <-EQ'; auto.
+  - symmetry in H; apply vis_equ_bind in H.
+    destruct H as [(? & EQ & EQ') | (? & EQ & EQ')].
+    + right; left.
+      exists x; split; [rewrite EQ; constructor |].
+      rewrite <- H0.
+      rewrite EQ'; constructor.
+    + right; right.
+      exists X0, e, empty.
+      rewrite EQ.
+      constructor.
   - symmetry in H; apply ret_equ_bind in H.
     destruct H as (? & EQ & EQ').
-    right.
+    right; left.
     exists x; split; [rewrite EQ; constructor |].
     rewrite EQ', <- H0; econstructor.
 Qed.
@@ -1631,7 +1696,7 @@ Ltac inv_trans_one :=
     | τ     = τ => clear EQl
     | val _   = τ => now inv EQl
     | obs _ _ = τ => now inv EQl
-    | obs_void _ = τ => now inv EQl
+    | die _ _ = τ => now inv EQl
     | _ => idtac
     end in
   let inv_trans_one_val_r EQl :=
@@ -1639,7 +1704,7 @@ Ltac inv_trans_one :=
     | val _   = val _ => apply val_eq_inv in EQl; try (inversion EQl; fail)
     | τ     = val _ => now inv EQl
     | obs _ _ = val _ => now inv EQl
-    | obs_void _ = val _ => now inv EQl
+    | die _ _ = val _ => now inv EQl
     | _ => idtac
     end in
   match goal with
@@ -1663,7 +1728,7 @@ Ltac inv_trans_one :=
           subst_hyp_in EQt h;
           apply obs_eq_inv in EQl as [EQe EQv];
           try (inversion EQv; inversion EQe; fail)
-      | obs_void _   = obs _ _ => now inv EQl
+      | die _ _   = obs _ _ => now inv EQl
       | val _   = obs _ _ => now inv EQl
       | τ     = obs _ _ => now inv EQl
       | _ => idtac
