@@ -739,14 +739,21 @@ Structural rules
     rewrite ctree_eta, <- H2; auto.
   Qed.
 
-  Lemma trans_vis_inv : forall {Y} (e : E Y) k l (u : ctree E B X) (y : Y),
+  Lemma trans_vis_inv :
+    forall {Y} (e : E Y) k l (u : ctree E B X),
       trans l (Vis e k) u ->
-      exists x, u ≅ k x /\ l = obs e x.
+      (exists x, u ≅ k x /\ l = obs e x) \/
+        (exists (empty : (forall (x : Y), False)), u ≅ Stuck /\ l = die e empty).
   Proof.
-    intros * y TR.
-    inv TR; try contradiction.
-    dependent induction H3; eexists; split; eauto.
-    rewrite ctree_eta, <- H4, <- ctree_eta; symmetry; auto.
+    intros * TR.
+    inv TR;
+      apply Eqdep.EqdepTheory.inj_pair2 in H2, H3; subst.
+    - left.
+      eexists; split; eauto.
+      rewrite ctree_eta, <- H4, <- ctree_eta; symmetry; auto.
+    - right.
+      exists empty0. split; eauto.
+      rewrite ctree_eta, <- H4; auto.
   Qed.
 
   Lemma trans_br_inv : forall {Y} l (c : B Y) k (u : ctree E B X),
@@ -1654,17 +1661,26 @@ Qed.
 
 Lemma trans_trigger_inv : forall {E B X Y} (e : E X) (k : X -> ctree E B Y) l u,
     trans l (trigger e >>= k) u ->
-    exists x, u ≅ k x /\ l = obs e x.
+    (exists x, u ≅ k x /\ l = obs e x) \/
+      (exists (empty : (forall (x : X), False)), u ≅ Stuck /\ l = die e empty).
 Proof.
   intros * TR.
   unfold trigger in TR.
   apply trans_bind_inv in TR.
-  destruct TR as [(? & ? & TR & ?) |(? & TR & ?)].
+  destruct TR as [(? & ? & TR & ?) | [(? & TR & ?) | (?&?&?&?)]].
   - apply trans_vis_inv in TR.
-    destruct TR as (? & ? & ->); eexists; split; eauto.
-    rewrite H0, H1, bind_ret_l; reflexivity.
+    destruct TR as [(? & ? & ->) | (?&?&?)].
+    + left.
+      eexists; split; eauto.
+      rewrite H0, H1, bind_ret_l; reflexivity.
+    + right.
+      exists x0.
+      rewrite H1, bind_stuck in H0.
+      split; auto.
   - apply trans_vis_inv in TR.
-    destruct TR as (? & ? & abs); inv abs.
+    destruct TR as [(? & ? & abs) | (?&?&abs)]; inv abs.
+  - 
+    exists x1; eauto.
 Qed.
 
 Lemma trans_branch :
