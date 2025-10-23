@@ -478,6 +478,15 @@ End Trans.
 #[global] Hint Constructors Seq : core.
 #[global] Hint Constructors transR : core.
 
+Ltac rem_weak_ t s :=
+  let tmp := fresh in
+  let name := fresh "EQ" in
+  remember t as s eqn:tmp;
+  assert (EQ: Seq s t) by (now subst);
+  clear tmp.
+  
+Tactic Notation "rem_weak" constr(t) "as" ident(s) := rem_weak_ t s.
+
 (* Class Respects_val {E F} (L : rel (@label E) (@label F)) := *)
 (*   { respects_val: *)
 (*     forall l l', *)
@@ -1124,8 +1133,8 @@ Section stuck.
     is_stuck (spin_gen x).
   Proof.
     red; intros * abs.
-    remember (α spin_gen x) as v.
-    assert (EQ: Seq v (α spin_gen x)) by (subst; reflexivity); clear Heqv; revert EQ.
+    rem_weak (α (@spin_gen E B X _ x)) as v.
+    revert EQ.
     cbn in abs; induction abs.
     3-6: intros EQ; inv EQ; rewrite EQ0 in H; step in H; inv H.
     - intros EQ; inv EQ.
@@ -1142,8 +1151,7 @@ Section stuck.
     is_stuck spin.
   Proof.
     red; intros * abs.
-    remember (α spin) as v.
-    assert (EQ: Seq v (α spin)) by (subst; reflexivity); clear Heqv; revert EQ.
+    rem_weak (α @spin E B X) as v; revert EQ.
     cbn in abs; induction abs.
     3-6: intros EQ; inv EQ; rewrite EQ0 in H; step in H; inv H.
     - intros EQ; inv EQ.
@@ -1246,116 +1254,112 @@ l <> val x -> trans l t u -> trans l (t >>= k) (u >>= k)
 trans (val x) t stuck -> trans l (k x) u -> trans l (bind t k) u.
 |*)
 
-(* CHECKPOINT: need to deal with the [ask] transition cleanly *)
 Lemma trans_bind_inv {E B X Y}
-  (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
+  (t : ctree E B X) (k : X -> ctree E B Y) u l :
   trans l (t >>= k) u ->
-  (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u).
+  (l = τ /\ exists t', trans l t (α t') /\ Seq u (α t' >>= k)) \/
+  (exists Z (e : E Z), l = ask e /\
+   exists (g : Z -> ctree E B X), trans l t (β e g) /\ Seq u (β e (fun x => g x >>= k))) \/
+  (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u).
 Proof.
   intros TR.
-  eapply trans_bind_inv_aux.
-  apply TR.
-  rewrite <- ctree_eta; reflexivity.
-  rewrite <- ctree_eta; reflexivity.
-Qed.
-
-
-
-Lemma trans_bind_inv_aux {E B X Y} l T U :
-  trans_ l T U ->
-  forall (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y),
-    go T ≅ t >>= k ->
-    go U ≅ u ->
-    (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
-      (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u).
-Proof.
-  intros TR; induction TR; intros.
-
-  - rewrite unfold_bind in H; setoid_rewrite (ctree_eta t0).
-    desobs t0.
-    + right.
+  rem_weak (α x <- t ;; k x) as ob.
+  revert t EQ.
+  induction TR.
+  - intros ? EQ.
+    inv EQ.
+    rewrite EQ0 in H.
+    apply br_equ_bind in H as [(r & EQ1 & EQ2) | (v & EQ1 & EQ2)].
+    + right; right.
       exists r; split.
-      constructor.
-      rewrite <- H.
-      apply (Transbr _ x); auto.
+      rewrite EQ1; auto.
+      rewrite EQ2.
+      apply trans_br with x.
       rewrite <- H0; auto.
-    + step in H; inv H.
-    + step in H; dependent induction H.
-    + step in H; dependent induction H.
-    + step in H; dependent induction H.
-    + step in H; dependent induction H.
-      specialize (IHTR (k1 x) k0 u).
-      destruct IHTR as [(? & ? & ? & ?) | (? & ? & ?)]; auto.
-      rewrite <- ctree_eta, REL; reflexivity.
-      left; split; eauto.
-      exists x0; split; auto.
-      apply (Transbr _ x); auto.
-      right.
-      exists x0; split; auto.
-      apply (Transbr _ x); auto.
-
-  - symmetry in H; apply guard_equ_bind in H.
-    destruct H as [(? & EQ & EQ') | (? & EQ & EQ')].
-    + right.
-      exists x; split; [rewrite EQ; constructor |].
-      rewrite EQ'; auto.
-      rewrite <- H0; constructor; auto.
-    + destruct (IHTR x k u).
-      rewrite EQ', <- ctree_eta; auto.
-      auto.
-      destruct H as (?& (? & ? & ?)); left; split; eauto.
-      eexists; split.
-      rewrite EQ; constructor; apply H1.
-      auto.
-      destruct H as (? & ? & ?).
-      right; eexists; split; eauto.
-      rewrite EQ; constructor.
-      apply H.
-  - symmetry in H0; apply step_equ_bind in H0.
-    destruct H0 as [(? & EQ & EQ') | (? & EQ & EQ')].
-    + right.
-      exists x; split; [rewrite EQ; constructor |].
-      rewrite EQ'; constructor.
-      rewrite <- ctree_eta in H1; rewrite <- H1; auto.
-    + left; split; [apply is_val_τ |].
-      eexists; split; [rewrite EQ; constructor; reflexivity |].
-      rewrite <- H1, <- ctree_eta, H, <-EQ'; auto.
-  - symmetry in H0; apply vis_equ_bind in H0.
-    destruct H0 as [(? & EQ & EQ') | (? & EQ & EQ')].
-    + right.
-      exists x0; split; [rewrite EQ; constructor |].
-      rewrite EQ'; constructor.
-      rewrite <- ctree_eta in H1; rewrite <- H1; auto.
-    + left; split; [apply is_val_obs |].
-      eexists; split; [rewrite EQ; constructor; reflexivity |].
-      rewrite <- H1, <- ctree_eta, <- H, <-EQ'; auto.
-  - symmetry in H; apply ret_equ_bind in H.
-    destruct H as (? & EQ & EQ').
-    right.
-    exists x; split; [rewrite EQ; constructor |].
-    rewrite EQ', <- H0; econstructor.
+    + edestruct IHTR as [H | [H | H]]; [rewrite H0, EQ2; reflexivity |..]; clear IHTR.
+      * destruct H as (-> & u' & EQ1' & EQ2').
+        left. split; auto.
+        eexists; split; [| eassumption]; rewrite EQ1; eauto.
+      * destruct H as (Z & e & -> & g & TR' & EQ).
+        right; left.
+        exists Z,e; split; auto; exists g; split; auto.
+        rewrite EQ1; eauto.
+      * destruct H as (y & TR' & TR'').
+        right; right.
+        exists y; split; auto.
+        rewrite EQ1; eauto.
+ 
+  - intros ? EQ.
+    inv EQ.
+    rewrite EQ0 in H.
+    apply guard_equ_bind in H as [(r & EQ1 & EQ2) | (v & EQ1 & EQ2)].
+    + right; right.
+      exists r; split.
+      rewrite EQ1; auto.
+      rewrite EQ2; auto.
+    + edestruct IHTR as [H | [H | H]]; [rewrite <- EQ2; reflexivity | ..]; clear IHTR.
+      * destruct H as (-> & u' & EQ1' & EQ2').
+        left. split; auto.
+        eexists; split; [| eassumption]; rewrite EQ1; auto.
+      * destruct H as (Z & e & -> & g & TR' & EQ).
+        right; left.
+        exists Z,e; split; auto; exists g; split; auto.
+        rewrite EQ1; auto.
+      * destruct H as (x & TR' & TR'').
+        right; right.
+        exists x; split; auto.
+        rewrite EQ1; auto.
+        
+  - intros ? EQ.
+    inv EQ.
+    rewrite EQ0 in H.
+    apply step_equ_bind in H as [(r & EQ1 & EQ2) | (v & EQ1 & EQ2)].
+    + right; right.
+      exists r; split.
+      rewrite EQ1; auto.
+      rewrite EQ2, H0; auto.
+    + left.
+      split; auto.
+      exists v; split.
+      rewrite EQ1; auto.
+      rewrite H0, <- EQ2; auto.
+      
+  - intros ? EQ.
+    inv EQ.
+    rewrite EQ0 in H.
+    apply vis_equ_bind in H as [(r & EQ1 & EQ2) | (v & EQ1 & EQ2)].
+    + right; right.
+      exists r; split.
+      rewrite EQ1; auto.
+      rewrite EQ2; auto.
+    + right; left.
+      exists X0, e; split; auto.
+      exists v; split.
+      rewrite EQ1; auto.
+      constructor.
+      intros ?.
+      rewrite EQ2; auto.
+       
+  - intros ? EQ.
+    inv EQ.
+       
+  - intros ? EQ.
+    inv EQ.
+    rewrite EQ0 in H.
+    apply ret_equ_bind in H as (r' & EQ1 & EQ2).
+    right; right.
+    exists r'; split.
+    rewrite EQ1; auto.
+    rewrite EQ2, H0; auto.
 Qed.
-
-Lemma trans_bind_inv {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
-  trans l (t >>= k) u ->
-  (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u).
-Proof.
-  intros TR.
-  eapply trans_bind_inv_aux.
-  apply TR.
-  rewrite <- ctree_eta; reflexivity.
-  rewrite <- ctree_eta; reflexivity.
-Qed.
-
+  
 Lemma trans_bind_inv_l {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
   trans l (t >>= k) u ->
   exists l' t', trans l' t t'.
 Proof.
   intros TR.
   apply trans_bind_inv in TR.
-  destruct TR as [(? & ? & ? & ?) | (? & ? & ?)]; eauto.
+  destruct TR as [(? & ? & ? & ?) | [(? & ? & ? & ? & ? & ?) | (? & ? & ?)]]; eauto.
 Qed.
 
 Lemma trans_bind_l {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B X) l :
@@ -1363,25 +1367,17 @@ Lemma trans_bind_l {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree
   trans l t u ->
   trans l (t >>= k) (u >>= k).
 Proof.
-  cbn; unfold transR; intros NOV TR.
+  cbn; intros NOV TR.
   dependent induction TR; cbn in *.
-  - rewrite unfold_bind, <- x.
-    cbn.
-    econstructor.
-    now apply IHTR.
-  - rewrite unfold_bind, <- x; cbn.
-    constructor.
+  - rewrite H, bind_br.
+    apply trans_br with x.
+    specialize (IHTR t' k u NOV eq_refl eq_refl).
+    now rewrite H0 in IHTR.
+  - rewrite H, bind_guard.
+    apply trans_guard.
     apply IHTR; auto.
-  - rewrite unfold_bind.
-    rewrite <- x0; cbn.
-    econstructor.
-    now rewrite <- H, (ctree_eta u0), x, <- ctree_eta.
-  - rewrite unfold_bind.
-    rewrite <- x1; cbn.
-    econstructor.
-    rewrite H.
-    rewrite (ctree_eta t0),x,<- ctree_eta.
-    reflexivity.
+  - rewrite H, bind_step.
+    rewrite H0; apply trans_step.
   - exfalso; eapply NOV; constructor.
 Qed.
 
@@ -1390,49 +1386,47 @@ Lemma trans_bind_r {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree
   trans l (k x) u ->
   trans l (t >>= k) u.
 Proof.
-  cbn; unfold transR; intros TR1.
-  genobs t ot.
-  remember (observe Stuck) as oc.
-  remember (val x) as v.
-  revert t x Heqot Heqoc Heqv.
-  induction TR1; intros; try (inv Heqv; fail).
-  - subst.
-    rewrite (ctree_eta t0), <- Heqot; cbn; econstructor.
+  cbn; intros TR1.
+  dependent induction TR1; cbn in *.
+  - intros TR2; rewrite H, bind_br.
+    apply trans_br with x0.
+    rewrite <- H0; eapply IHTR1; eauto.
+  - intros TR2; rewrite H, bind_guard.
+    apply trans_guard.
     eapply IHTR1; eauto.
-  - rewrite (ctree_eta t0), <- Heqot; cbn; econstructor.
-    eapply IHTR1; eauto.
-  - dependent induction Heqv.
-    rewrite (ctree_eta t), <- Heqot, unfold_bind; cbn; auto.
+  - intros TR2; rewrite H, bind_ret_l; auto.
 Qed.
 
-Lemma is_stuck_bind : forall {E B X Y}
-                        (t : ctree E B X) (k : X -> ctree E B Y),
+Lemma is_stuck_bind : forall {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y),
     is_stuck t -> is_stuck (bind t k).
 Proof.
   repeat intro.
-  apply trans_bind_inv in H0 as [].
-  - destruct H0 as (? & ? & ? & ?).
-    now apply H in H1.
-  - destruct H0 as (? & ? & ?).
-    now apply H in H0.
+  apply trans_bind_inv in H0 as [|[]].
+  - destruct H0 as (? & ? & TR & ?).
+    now apply H in TR.
+  - destruct H0 as (? & ? & ? & ? & TR & ?).
+    now apply H in TR.
+  - destruct H0 as (? & TR & ?).
+    now apply H in TR.
 Qed.
 
 (*|
 Forward and backward rules for [wtrans] w.r.t. [bind]
 -----------------------------------------------------
 |*)
-
-Lemma etrans_bind_inv {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
+(* CHECKPOINT: going good *)
+Lemma etrans_bind_inv {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) u l :
   etrans l (t >>= k) u ->
-  (~ (is_val l) /\ exists t', etrans l t t' /\ u ≅ t' >>= k) \/
-    (exists (x : X), trans (val x) t Stuck /\ etrans l (k x) u).
+  (~ (is_val l) /\ exists t', etrans l t (α t') /\ Seq u (t' >>= k)) \/
+  (exists (x : X), trans (val x) t Stuck /\ etrans l (k x) u).
 Proof.
   intros TR.
-  apply @etrans_case in TR as [ | (-> & ?)].
-  - apply trans_bind_inv in H as [[? (? & ? & ?)]|( ? & ? & ?)]; eauto.
-    left; split; eauto.
-    eexists; split; eauto; apply trans_etrans; auto.
-    right; eexists; split; eauto; apply trans_etrans; auto.
+  apply @etrans_case' in TR as [ | (-> & ?)].
+  - apply trans_bind_inv in H as [[? (? & ? & ?)]|[( ? & ? & ? & ? & ? & ?)|( ? & ? & ?)]]; eauto.
+    + subst; left; split; eauto using is_val_τ.
+      eexists; split; eauto; apply trans_etrans; auto.
+    + subst; right.
+      eexists; split; eauto. apply trans_etrans; auto.
   - left; split.
     intros abs; inv abs.
     exists t; split; auto using enil; symmetry; auto.
