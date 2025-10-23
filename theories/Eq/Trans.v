@@ -73,13 +73,29 @@ Section Trans.
 
   Context {E B : Type -> Type} {R : Type}.
 
-  Notation S' := (ctree' E B R).
-  Notation S  := (ctree  E B R).
-
+  Variant S := | Active (t : ctree E B R) | Passive {X} (e : E X) (k : X -> ctree E B R).
+  (* Notation S' := (ctree' E B R). *)
+  (* Notation S  := (ctree  E B R). *)
+  Variant Seq : S -> S -> Prop :=
+    | ActAct t u (EQ: equ eq t u) : Seq (Active t) (Active u)
+    | PasPas {X} e (k g : X -> _) (EQ: pointwise_relation _ (equ eq) k g) : Seq (Passive e k) (Passive e g)
+  .
+  Hint Constructors Seq : core.
+  #[global] Instance Seq_equiv : Equivalence Seq.
+  Proof.
+    constructor.
+    - intros []; auto.
+    - intros ? ? []; constructor; intros; now symmetry.
+    - intros ? ? ? EQ1 EQ2.
+      inv EQ1.
+      inv EQ2; constructor; intros; etransitivity; eauto.
+      dependent induction EQ2; constructor; intros; etransitivity; eauto.
+  Qed.
+  
   Definition SS : EqType :=
-    {| type_of := S ; Eq := equ eq |}.
+    {| type_of := S ; Eq := Seq |}.
 
-  (*|
+(*|
 The domain of labels of the LTS.
 Note that it could be typed more strongly: [val] labels can only
 be of type [R]. However typing it statically makes lemmas about
@@ -88,7 +104,8 @@ least annoying solution.
 |*)
   Variant label : Type :=
     | τ
-    | obs {X : Type} (e : E X) (v : X)
+    | ask {X : Type} (e : E X)
+    | rcv {X : Type} (e : E X) (v : X) (* Note: I think we need to remember which request led to the response for the bisimilarity to be right, but I am not 100% sure, [e] might be spurious *)
     | val {X : Type} (v : X).
 
   Variant is_val : label -> Prop :=
@@ -99,7 +116,12 @@ least annoying solution.
     intro H. inversion H.
   Qed.
 
-  Lemma is_val_obs {X} (e : E X) x : ~ is_val (obs e x).
+  Lemma is_val_ask {X} (e : E X) : ~ is_val (ask e).
+  Proof.
+    intro H. inversion H.
+  Qed.
+
+  Lemma is_val_rcv {X} (e : E X) (x : X) : ~ is_val (rcv e x).
   Proof.
     intro H. inversion H.
   Qed.
@@ -113,132 +135,211 @@ It can either:
 - stop at a sink (implemented as a [Stuck] node) by stepping from a [ret v]
 node, labelling the transition by the returned value.
 |*)
-  Inductive trans_ : label -> hrel S' S' :=
+  Inductive transR : label -> hrel S S :=
 
-  | Transbr {X} (c : B X) x k l t :
-    trans_ l (observe (k x)) t ->
-    trans_ l (BrF c k) t
+  | Transbr {X} (c : B X) x k l t t' u :
+    t  ≅ Br c k ->
+    t' ≅ k x ->
+    transR l (Active t') u ->
+    transR l (Active t) u
 
-  | Transguard t t' l :
-    trans_ l (observe t) t' ->
-    trans_ l (GuardF t) t'
+  | Transguard t t' u l :
+    t ≅ Guard t' ->
+    transR l (Active t') u ->
+    transR l (Active t) u
 
-  | Transtau t u :
-    u ≅ t ->
-    trans_ τ (StepF t) (observe u)
+  | Transstep t t' u :
+    t ≅ Step t' ->
+    u ≅ t' ->
+    transR τ (Active t) (Active u)
 
-  | Transobs {X} (e : E X) k x t :
+  | Transask {X} (e : E X) t k :
+    t ≅ Vis e k ->
+    transR (ask e) (Active t) (Passive e k)
+
+  | Transrcv {X} (e : E X) (x : X) k t :
     k x ≅ t ->
-    trans_ (obs e x) (VisF e k) (observe t)
+    transR (rcv e x) (Passive e k) (Active t)
 
-  | Transval r :
-    trans_ (val r) (RetF r) StuckF.
-  Hint Constructors trans_ : core.
+  | Transval r t u :
+    t ≅ Ret r ->
+    u ≅ Stuck ->
+    transR (val r) (Active t) (Active u).
+  Hint Constructors transR : core.
 
-  Definition transR l : hrel S S :=
-    fun u v => trans_ l (observe u) (observe v).
+  (* Definition transR l : hrel S S := *)
+  (*   fun u v => trans_ l (observe u) (observe v). *)
 
-  Ltac FtoObs :=
-    match goal with
-      |- trans_ _ _ ?t =>
-        change t with (observe {| _observe := t |})
-    end.
+  (* Ltac FtoObs := *)
+  (*   match goal with *)
+  (*     |- trans_ _ _ ?t => *)
+  (*       change t with (observe {| _observe := t |}) *)
+  (*   end. *)
 
-  #[local] Instance trans_equ_aux1 l t :
-    Proper (going (equ eq) ==> flip impl) (trans_ l t).
+  (* #[local] Instance trans_equ_aux1 l t : *)
+  (*   Proper (going (equ eq) ==> flip impl) (trans_ l t). *)
+  (* Proof. *)
+  (*   intros u u' equ; intros TR. *)
+  (*   inv equ; rename H into equ. *)
+  (*   step in equ. *)
+  (*   revert u equ. *)
+  (*   dependent induction TR; intros; subst; eauto. *)
+  (*   + inv equ. *)
+  (*     * rewrite H2; eauto. *)
+  (*     * FtoObs. *)
+  (*       constructor. *)
+  (*       rewrite <- H. *)
+  (*       apply observing_sub_equ; eauto. *)
+  (*     * FtoObs. *)
+  (*       constructor. *)
+  (*       rewrite <- H, REL. *)
+  (*       apply observing_sub_equ; eauto. *)
+  (*     * FtoObs. *)
+  (*       constructor. *)
+  (*       rewrite <- H, REL. *)
+  (*       apply observing_sub_equ; eauto. *)
+  (*     * FtoObs. *)
+  (*       constructor. *)
+  (*       rewrite <- H. *)
+  (*       step; rewrite <- H2; constructor; intros. *)
+  (*       auto. *)
+  (*     * FtoObs. *)
+  (*       constructor. *)
+  (*       rewrite <- H. *)
+  (*       step; rewrite <- H2; constructor; intros. *)
+  (*       auto. *)
+  (*  + FtoObs. *)
+  (*     econstructor. *)
+  (*     rewrite H; symmetry; step; auto. *)
+  (*   + inv equ. eauto. *)
+  (* Qed. *)
+
+  (* #[local] Instance trans_equ_aux2 l : *)
+  (*   Proper (going (equ eq) ==> going (equ eq) ==> impl) (trans_ l). *)
+  (* Proof. *)
+  (*   intros t t' eqt u u' equ TR. *)
+  (*   rewrite <- equ; clear u' equ. *)
+  (*   inv eqt; rename H into eqt. *)
+  (*   revert t' eqt. *)
+  (*   dependent induction TR; intros; auto. *)
+  (*   + step in eqt; dependent induction eqt. *)
+  (*     econstructor. *)
+  (*     apply IHTR. *)
+  (*     rewrite REL; reflexivity. *)
+  (*   + step in eqt; dependent induction eqt. *)
+  (*     econstructor. *)
+  (*     apply IHTR. rewrite REL; reflexivity. *)
+  (*   + step in eqt; dependent induction eqt. *)
+  (*     econstructor. rewrite H,REL; auto. *)
+  (*   + step in eqt; dependent induction eqt. *)
+  (*     econstructor. *)
+  (*     rewrite <- REL; eauto. *)
+  (*   + step in eqt; dependent induction eqt. *)
+  (*     econstructor. *)
+  (* Qed. *)
+
+  (* #[global] Instance trans_equ_ l : *)
+  (*   Proper (going (equ eq) ==> going (equ eq) ==> iff) (trans_ l). *)
+  (* Proof. *)
+  (*   intros ? ? eqt ? ? equ; split; intros TR. *)
+  (*   - eapply trans_equ_aux2; eauto. *)
+  (*   - symmetry in equ; symmetry in eqt; eapply trans_equ_aux2; eauto. *)
+  (* Qed. *)
+
+  #[global] Instance equ_Seq_active : Proper (equ eq ==> Seq) Active.
   Proof.
-    intros u u' equ; intros TR.
-    inv equ; rename H into equ.
-    step in equ.
-    revert u equ.
-    dependent induction TR; intros; subst; eauto.
-    + inv equ.
-      * rewrite H2; eauto.
-      * FtoObs.
-        constructor.
-        rewrite <- H.
-        apply observing_sub_equ; eauto.
-      * FtoObs.
-        constructor.
-        rewrite <- H, REL.
-        apply observing_sub_equ; eauto.
-      * FtoObs.
-        constructor.
-        rewrite <- H, REL.
-        apply observing_sub_equ; eauto.
-      * FtoObs.
-        constructor.
-        rewrite <- H.
-        step; rewrite <- H2; constructor; intros.
-        auto.
-      * FtoObs.
-        constructor.
-        rewrite <- H.
-        step; rewrite <- H2; constructor; intros.
-        auto.
-   + FtoObs.
-      econstructor.
-      rewrite H; symmetry; step; auto.
-    + inv equ. eauto.
+    now intros ?? EQ; constructor.
   Qed.
-
-  #[local] Instance trans_equ_aux2 l :
-    Proper (going (equ eq) ==> going (equ eq) ==> impl) (trans_ l).
+  
+  #[global] Instance equ_Seq_passive {X} (e : E X) : Proper (pointwise_relation X (equ eq) ==> Seq) (Passive e).
   Proof.
-    intros t t' eqt u u' equ TR.
-    rewrite <- equ; clear u' equ.
-    inv eqt; rename H into eqt.
-    revert t' eqt.
-    dependent induction TR; intros; auto.
-    + step in eqt; dependent induction eqt.
-      econstructor.
-      apply IHTR.
-      rewrite REL; reflexivity.
-    + step in eqt; dependent induction eqt.
-      econstructor.
-      apply IHTR. rewrite REL; reflexivity.
-    + step in eqt; dependent induction eqt.
-      econstructor. rewrite H,REL; auto.
-    + step in eqt; dependent induction eqt.
-      econstructor.
-      rewrite <- REL; eauto.
-    + step in eqt; dependent induction eqt.
-      econstructor.
-  Qed.
+    now intros ?? EQ; constructor.
+  Qed. 
 
-  #[global] Instance trans_equ_ l :
-    Proper (going (equ eq) ==> going (equ eq) ==> iff) (trans_ l).
+  #[global] Instance transR_equ_ l :
+    Proper (Seq ==> Seq ==> iff) (transR l).
   Proof.
-    intros ? ? eqt ? ? equ; split; intros TR.
-    - eapply trans_equ_aux2; eauto.
-    - symmetry in equ; symmetry in eqt; eapply trans_equ_aux2; eauto.
+    intros ?? EQ1 ?? EQ2; split; intros TR.
+    - revert y y0 EQ1 EQ2; dependent induction TR; intros y y0 EQ1 EQ2.
+      + inv EQ1.
+        econstructor 1.
+        rewrite <- EQ, H; reflexivity.
+        apply H0.
+        apply IHTR; auto.
+      + inv EQ1.
+        econstructor 2.
+        rewrite <- EQ, H; reflexivity.
+        apply IHTR; auto.
+      + inv EQ1; inv EQ2.
+        econstructor 3.
+        rewrite <- EQ , H; reflexivity.
+        rewrite <- EQ0, H0; reflexivity.
+      + inv EQ1. dependent induction EQ2.
+        econstructor 4.
+        rewrite <- EQ0,H.
+        step; constructor.
+        apply EQ.
+      + dependent induction EQ1; inv EQ2.
+        econstructor 5.
+        specialize (EQ x); rewrite <- EQ, H; auto.
+      + inv EQ1; inv EQ2.
+        econstructor 6.
+        rewrite <- EQ, H; reflexivity.
+        rewrite <- EQ0, H0; reflexivity.
+    - revert x x0 EQ1 EQ2; dependent induction TR; intros y y0 EQ1 EQ2.
+      + inv EQ1.
+        econstructor 1.
+        rewrite EQ, H; reflexivity.
+        apply H0.
+        apply IHTR; auto.
+      + inv EQ1.
+        econstructor 2.
+        rewrite EQ, H; reflexivity.
+        apply IHTR; auto.
+      + inv EQ1; inv EQ2.
+        econstructor 3.
+        rewrite EQ , H; reflexivity.
+        rewrite EQ0, H0; reflexivity.
+      + inv EQ1. dependent induction EQ2.
+        econstructor 4.
+        rewrite EQ0,H.
+        step; constructor.
+        intros ?; symmetry; apply EQ.
+      + dependent induction EQ1; inv EQ2.
+        econstructor 5.
+        specialize (EQ x); rewrite EQ, H, EQ0; auto.
+      + inv EQ1; inv EQ2.
+        econstructor 6.
+        rewrite EQ, H; reflexivity.
+        rewrite EQ0, H0; reflexivity.
   Qed.
-
+        
 (*|
-[equ] is congruent for [trans], we can hence build a [srel] and build our
+[equ] is congruent for [transR], we can hence build a [srel] and build our
 relations in this model to still exploit the automation from the [RelationAlgebra]
 library.
 |*)
-  #[global] Instance trans_equ l :
-    Proper (equ eq ==> equ eq ==> iff) (transR l).
+  #[global] Instance transR_equ l :
+    Proper (Seq ==> Seq ==> iff) (transR l).
   Proof.
-    intros ? ? eqt ? ? equ; unfold transR.
-    rewrite eqt, equ; reflexivity.
+    intros ? ? eqt ? ? equ.
+    inv eqt; inv equ.
+    all: now rewrite EQ, EQ0.
   Qed.
 
   Definition trans l : srel SS SS := {| hrel_of := transR l : hrel SS SS |}.
 
-  Lemma trans__trans : forall l t u,
-      trans_ l (observe t) (observe u) = trans l t u.
-  Proof.
-    reflexivity.
-  Qed.
+  (* Lemma trans__trans : forall l t u, *)
+  (*     trans_ l (observe t) (observe u) = trans l t u. *)
+  (* Proof. *)
+  (*   reflexivity. *)
+  (* Qed. *)
 
-  Lemma transR_trans : forall l (t t' : S),
-      transR l t t' = trans l t t'.
-  Proof.
-    reflexivity.
-  Qed.
+  (* Lemma transR_trans : forall l (t t' : S), *)
+  (*     transR l t t' = trans l t t'. *)
+  (* Proof. *)
+  (*   reflexivity. *)
+  (* Qed. *)
 
 (*|
 Extension of [trans] with its reflexive closure, labelled by [τ].
@@ -372,33 +473,38 @@ Elimination rules for [trans]
     eexists; apply wtrans_τ; eassumption.
   Qed.
 
-
 End Trans.
 
-Class Respects_val {E F} (L : rel (@label E) (@label F)) :=
-  { respects_val:
-    forall l l',
-      L l l' ->
-      is_val l <-> is_val l' }.
+#[global] Hint Constructors Seq : core.
+#[global] Hint Constructors transR : core.
 
-Class Respects_τ {E F} (L : rel (@label E) (@label F)) :=
-  { respects_τ: forall l l',
-      L l l' ->
-      l = τ <-> l' = τ }.
+(* Class Respects_val {E F} (L : rel (@label E) (@label F)) := *)
+(*   { respects_val: *)
+(*     forall l l', *)
+(*       L l l' -> *)
+(*       is_val l <-> is_val l' }. *)
 
-Definition eq_obs {E} (L : relation (@label E)) : Prop :=
-  forall X X' e e' (x : X) (x' : X'),
-    L (obs e x) (obs e' x') ->
-    obs e x = obs e' x'.
+(* Class Respects_τ {E F} (L : rel (@label E) (@label F)) := *)
+(*   { respects_τ: forall l l', *)
+(*       L l l' -> *)
+(*       l = τ <-> l' = τ }. *)
 
-#[global] Instance Respects_val_eq A: @Respects_val A A eq.
-split; intros; subst; reflexivity.
-Defined.
+(* Definition eq_obs {E} (L : relation (@label E)) : Prop := *)
+(*   forall X X' e e' (x : X) (x' : X'), *)
+(*     L (obs e x) (obs e' x') -> *)
+(*     obs e x = obs e' x'. *)
 
-#[global] Instance Respects_τ_eq A: @Respects_τ A A eq.
-split; intros; subst; reflexivity.
-Defined.
+(* #[global] Instance Respects_val_eq A: @Respects_val A A eq. *)
+(* split; intros; subst; reflexivity. *)
+(* Defined. *)
 
+(* #[global] Instance Respects_τ_eq A: @Respects_τ A A eq. *)
+(* split; intros; subst; reflexivity. *)
+(* Defined. *)
+
+Coercion Active : ctree >-> S.
+Notation "'α' t" := (Active t) (at level 100).
+Notation "'β' e" := (Passive e) (at level 0).
 (*|
 Backward reasoning for [trans]
 ------------------------------
@@ -412,58 +518,63 @@ Section backward.
 
 (*|
 Structural rules
+
+We essentially lift the constructors to the [trans] bundling, and
+eliminate on the way the noise from closing up everything to [equ eq].
 |*)
 
   Lemma trans_ret : forall (x : X),
       trans (E := E) (B := B) (val x) (Ret x) Stuck.
   Proof.
-    intros; constructor.
+    intros; constructor; auto.
   Qed.
 
-  Lemma trans_vis : forall {Y} (e : E Y) x (k : Y -> ctree E B X),
-      trans (obs e x) (Vis e k) (k x).
+  Lemma trans_ask : forall {Y} (e : E Y) (k : Y -> ctree E B X),
+      trans (ask e) (Vis e k) (β e k).
   Proof.
     intros; constructor; auto.
   Qed.
 
-  Lemma trans_br : forall {Y} l (t t' : ctree E B X) (c : B Y) k x,
-      trans l t t' ->
-      k x ≅ t ->
-      trans l (Br c k) t'.
+  Lemma trans_rcv : forall {Y} (e : E Y) (k : Y -> ctree E B X) y,
+      trans (rcv e y) (β e k) (k y).
   Proof.
-    intros * TR Eq.
-    apply Transbr with x.
-    rewrite Eq; auto.
+    intros; constructor; auto.
+  Qed.
+
+  Lemma trans_br : forall {Y} l (c : B Y) (k : Y -> ctree E B X) u y,
+      trans l (k y) u ->
+      trans l (Br c k) u.
+  Proof.
+    intros * TR.
+    eapply Transbr; [reflexivity| reflexivity |].
+    apply TR.
+  Qed.
+
+  Lemma trans_step : forall (t : ctree E B X),
+      trans τ (Step t) t.
+  Proof.
+    intros.
+    eapply Transstep; reflexivity.
+  Qed.
+
+  Lemma trans_guard : forall l (t : ctree E B X) u,
+      trans l t u ->
+      trans l (Guard t) u.
+  Proof.
+    intros * TR.
+    eapply Transguard; [reflexivity | auto].
   Qed.
 
   Lemma trans_brS : forall {Y} (c : B Y) (k : _ -> ctree E B X) x,
       trans τ (BrS c k) (k x).
   Proof.
     intros.
-    apply Transbr with x, Transtau.
-    reflexivity.
-  Qed.
-
-(*|
-Ad-hoc rules for pre-defined finite branching
-|*)
-
-  Variable (l : @label E) (t t' : ctree E B X).
-
-  Lemma trans_step :
-    trans τ (Step t) t.
-  Proof.
-    now econstructor.
-  Qed.
-
-  Lemma trans_guard :
-    trans l t t' ->
-    trans l (Guard t) t'.
-  Proof.
-    now econstructor.
+    apply trans_br with x, trans_step.
   Qed.
 
 End backward.
+
+#[global] Hint Resolve trans_br trans_guard trans_brS trans_step trans_ask trans_rcv trans_ret : core.
 
 Section BackwardBounded.
 
@@ -477,61 +588,48 @@ Section BackwardBounded.
     trans τ (brS2 t u) t.
   Proof.
     intros.
-    unfold brS2.
-    apply Transbr with true.
-    now constructor.
+    apply trans_br with true, trans_step.
   Qed.
 
   Lemma trans_brS22 :
     trans τ (brS2 t u) u.
   Proof.
     intros.
-    unfold brS2.
-    apply Transbr with false.
-    now constructor.
+    apply trans_br with false, trans_step.
   Qed.
 
-  Lemma trans_br21 :
-    trans l t t' ->
-    trans l (br2 t u) t'.
+  Lemma trans_br21 x :
+    trans l t x ->
+    trans l (br2 t u) x.
   Proof.
     intros * TR.
-    eapply trans_br with (x := true); eauto.
+    now apply trans_br with true.
   Qed.
 
-  Lemma trans_br22 :
-    trans l u u' ->
-    trans l (br2 t u) u'.
+  Lemma trans_br22 x :
+    trans l u x ->
+    trans l (br2 t u) x.
   Proof.
     intros * TR.
-    eapply trans_br with (x := false); eauto.
+    now apply trans_br with false.
   Qed.
 
   Lemma trans_brS31 :
     trans τ (brS3 t u v) t.
   Proof.
-    intros.
-    unfold brS3.
-    apply Transbr with t31.
-    now constructor.
+    now apply trans_br with t31.
   Qed.
 
   Lemma trans_brS32 :
     trans τ (brS3 t u v) u.
   Proof.
-    intros.
-    unfold brS3.
-    apply Transbr with t32.
-    now constructor.
+    now apply trans_br with t32.
   Qed.
 
   Lemma trans_brS33 :
     trans τ (brS3 t u v) v.
   Proof.
-    intros.
-    unfold brS3.
-    apply Transbr with t33.
-    now constructor.
+    now apply trans_br with t33.
   Qed.
 
   Lemma trans_br31 :
@@ -539,7 +637,7 @@ Section BackwardBounded.
     trans l (br3 t u v) t'.
   Proof.
     intros * TR.
-    eapply trans_br with (x := t31); eauto.
+    now apply trans_br with t31.
   Qed.
 
   Lemma trans_br32 :
@@ -547,7 +645,7 @@ Section BackwardBounded.
     trans l (br3 t u v) u'.
   Proof.
     intros * TR.
-    eapply trans_br with (x := t32); eauto.
+    now apply trans_br with t32.
   Qed.
 
   Lemma trans_br33 :
@@ -555,43 +653,31 @@ Section BackwardBounded.
     trans l (br3 t u v) v'.
   Proof.
     intros * TR.
-    eapply trans_br with (x := t33); eauto.
+    now apply trans_br with t33.
   Qed.
 
   Lemma trans_brS41 :
     trans τ (brS4 t u v w) t.
   Proof.
-    intros.
-    unfold brS4.
-    apply Transbr with t41.
-    now constructor.
+    eapply trans_br with t41; eauto.
   Qed.
 
   Lemma trans_brS42 :
     trans τ (brS4 t u v w) u.
   Proof.
-    intros.
-    unfold brS4.
-    apply Transbr with t42.
-    now constructor.
+    eapply trans_br with t42; eauto.
   Qed.
 
   Lemma trans_brS43 :
     trans τ (brS4 t u v w) v.
   Proof.
-    intros.
-    unfold brS4.
-    apply Transbr with t43.
-    now constructor.
+    eapply trans_br with t43; eauto.
   Qed.
 
   Lemma trans_brS44 :
     trans τ (brS4 t u v w) w.
   Proof.
-    intros.
-    unfold brS4.
-    apply Transbr with t44.
-    now constructor.
+    eapply trans_br with t44; eauto.
   Qed.
 
   Lemma trans_br41 :
@@ -599,7 +685,7 @@ Section BackwardBounded.
     trans l (br4 t u v w) t'.
   Proof.
     intros * TR.
-    eapply trans_br with (x := t41); eauto.
+    eapply trans_br with t41; eauto.
   Qed.
 
   Lemma trans_br42 :
@@ -607,7 +693,7 @@ Section BackwardBounded.
     trans l (br4 t u v w) u'.
   Proof.
     intros * TR.
-    eapply trans_br with (x := t42); eauto.
+    eapply trans_br with t42; eauto.
   Qed.
 
   Lemma trans_br43 :
@@ -615,7 +701,7 @@ Section BackwardBounded.
     trans l (br4 t u v w) v'.
   Proof.
     intros * TR.
-    eapply trans_br with (x := t43); eauto.
+    eapply trans_br with t43; eauto.
   Qed.
 
   Lemma trans_br44 :
@@ -623,7 +709,7 @@ Section BackwardBounded.
     trans l (br4 t u v w) w'.
   Proof.
     intros * TR.
-    eapply trans_br with (x := t44); eauto.
+    eapply trans_br with t44; eauto.
   Qed.
 
 End BackwardBounded.
@@ -651,52 +737,91 @@ Inverting equalities between labels
     now dependent induction EQ.
   Qed.
 
-  Lemma obs_eq_invT : forall X Y e1 e2 v1 v2, @obs E X e1 v1 = @obs E Y e2 v2 -> X = Y.
-    clear B. intros * EQ.
-    now dependent induction EQ.
-  Qed.
+  (* Lemma obs_eq_invT : forall X Y e1 e2 v1 v2, @obs E X e1 v1 = @obs E Y e2 v2 -> X = Y. *)
+  (*   clear B. intros * EQ. *)
+  (*   now dependent induction EQ. *)
+  (* Qed. *)
 
-  Lemma obs_eq_inv : forall X e1 e2 v1 v2, @obs E X e1 v1 = @obs E X e2 v2 -> e1 = e2 /\ v1 = v2.
-    clear B. intros * EQ.
-    now dependent induction EQ.
-  Qed.
+  (* Lemma obs_eq_inv : forall X e1 e2 v1 v2, @obs E X e1 v1 = @obs E X e2 v2 -> e1 = e2 /\ v1 = v2. *)
+  (*   clear B. intros * EQ. *)
+  (*   now dependent induction EQ. *)
+  (* Qed. *)
 
 (*|
 Structural rules
 |*)
 
-  Lemma trans_ret_inv : forall x l (t : ctree E B X),
-      trans l (Ret x) t ->
-      t ≅ Stuck /\ l = val x.
+  (* In the primed versions, [u] is left as an arbitrary S.
+     In the main version, we can only invert if we already know
+     that the resulting state is an active one.
+     (it is of course always one)
+   *) 
+  Lemma trans_ret_inv' : forall x l u,
+      trans l (Ret x : ctree E B X) u ->
+      Seq u (α Stuck) /\ l = val x.
   Proof.
-    intros * TR; inv TR; intuition.
-    rewrite ctree_eta, <- H2; auto.
+    intros * TR; inv TR; inv_equ.
+    intuition.
   Qed.
 
-  Lemma trans_vis_inv : forall {Y} (e : E Y) k l (u : ctree E B X),
+  Lemma trans_ret_inv : forall x l (u : ctree E B X),
+      trans l (Ret x) u ->
+      u ≅ Stuck /\ l = val x.
+  Proof.
+    intros * TR; inv TR; inv_equ.
+    intuition.
+  Qed.
+
+  Lemma trans_ask_inv' : forall {Y} (e : E Y) (k : _ -> ctree E B X) l u,
       trans l (Vis e k) u ->
-      exists x, u ≅ k x /\ l = obs e x.
+      Seq u (β e k) /\ l = ask e.
   Proof.
     intros * TR.
-    inv TR.
-    dependent induction H3; eexists; split; eauto.
-    rewrite ctree_eta, <- H4, <- ctree_eta; symmetry; auto.
+    inv TR; inv_equ.
+    split; auto.
+    constructor; intros ?; symmetry; eauto.
   Qed.
 
-  Lemma trans_br_inv : forall {Y} l (c : B Y) k (u : ctree E B X),
+  Lemma trans_ask_inv : forall {Y} (e : E Y) k l (u : ctree E B X),
+      trans l (Vis e k) u ->
+      Seq u (β e k) /\ l = ask e.
+  Proof.
+    intros * TR.
+    inv TR; inv_equ.
+  Qed.
+
+  Lemma trans_rcv_inv' : forall {Y} (e : E Y) (k : Y -> ctree E B X) l u,
+      trans l (β e k) u ->
+      exists x, Seq u (α k x) /\ l = rcv e x.
+  Proof.
+    intros * TR.
+    cbn in TR; dependent induction TR.
+    eexists; split; eauto.
+    constructor; symmetry; eauto.
+  Qed.
+
+  Lemma trans_rcv_inv : forall {Y} (e : E Y) (k : Y -> ctree E B X) l (u : ctree E B X),
+      trans l (β e k) u ->
+      exists x, u ≅ (k x) /\ l = rcv e x.
+  Proof.
+    intros * TR.
+    apply trans_rcv_inv' in TR as (? & ? & ?).
+    inv H; eauto.
+  Qed.
+
+  Lemma trans_br_inv : forall {Y} l (c : B Y) (k : _ -> ctree E B X) u,
       trans l (Br c k) u ->
       exists n, trans l (k n) u.
   Proof.
     intros * TR.
     cbn in *.
-    unfold transR in *.
-    cbn in TR |- *.
     match goal with
-    | h: trans_ _ ?x ?y |- _ =>
+    | h: transR _ ?x ?y |- _ =>
         remember x as ox; remember y as oy
     end.
     revert c k u Heqox Heqoy.
-    induction TR; intros; inv Heqox; eauto.
+    inv TR; intros; subst; inv Heqox; inv_equ. 
+    exists x; now rewrite H0, <- (EQ x) in H1.
   Qed.
 
   Lemma trans_guard_inv : forall l (t : ctree E B X) u,
@@ -704,16 +829,36 @@ Structural rules
       trans l t u.
   Proof.
     intros * TR.
-    now inv TR.
+    inv TR; inv_equ.
+    now rewrite H0.
   Qed.
 
-  Lemma trans_step_inv : forall l (t : ctree E B X) u,
+  Lemma trans_step_inv' : forall l (t : ctree E B X) u,
+      trans l (Step t) u ->
+      Seq u t /\ l = τ.
+  Proof.
+    intros * TR.
+    inv TR; inv_equ; split; auto.
+    now rewrite H0,H2.
+  Qed.
+
+  Lemma trans_step_inv : forall l (t u : ctree E B X),
       trans l (Step t) u ->
       u ≅ t /\ l = τ.
   Proof.
     intros * TR.
-    inv TR; split; auto.
-    rewrite <- H2. apply observe_equ_eq; auto.
+    apply trans_step_inv' in TR as [? ?]; split; auto.
+    now inv H.
+  Qed.
+
+  Lemma trans_brS_inv' : forall {Y} l (c : B Y) (k : _ -> ctree E B X) u,
+      trans l (BrS c k) u ->
+      exists n, Seq u (α (k n)) /\ l = τ.
+  Proof.
+    intros * TR.
+    eapply trans_br_inv in TR as [n ?].
+    apply trans_step_inv' in H as [? ?].
+    eauto.
   Qed.
 
   Lemma trans_brS_inv : forall {Y} l (c : B Y) k (u : ctree E B X),
@@ -721,18 +866,15 @@ Structural rules
       exists n, u ≅ k n /\ l = τ.
   Proof.
     intros * TR.
-    apply trans_br_inv in TR as [n ?].
-    inv H.
-    exists n; split; auto.
-    rewrite <- H3. apply observe_equ_eq; auto.
+    apply trans_brS_inv' in TR as (? & H & ?); inv H; eauto.
   Qed.
 
-  Lemma trans_stuck_inv : forall l (u : ctree E B X),
-      trans l Stuck u ->
+  Lemma trans_stuck_inv : forall l u,
+      trans l (Stuck : ctree E B X) u ->
       False.
   Proof.
     intros * TR.
-    inv TR.
+    cbn in TR; dependent induction TR; inv_equ.
   Qed.
 
 (*|
@@ -798,14 +940,16 @@ I'll skip them for now and introduce them if they turn out to be
 useful.
 |*)
 
-  Lemma trans__val_inv {Y} :
-    forall (T U : ctree' E B X) (x : Y),
-      trans_ (val x) T U ->
-      go U ≅ Stuck.
+  Lemma trans_val_inv' {Y} :
+    forall t u (x : Y),
+      trans (val x) t u ->
+      Seq u (α (Stuck : ctree E B X)).
   Proof.
     intros * TR.
     remember (val x) as ox.
-    rewrite ctree_eta; induction TR; intros; auto; try now inv Heqox.
+    revert x Heqox.
+    cbn in TR; induction TR; intros ? Heqox; try now inv Heqox.
+    all: eauto.
   Qed.
 
   Lemma trans_val_inv {Y} :
@@ -813,8 +957,7 @@ useful.
       trans (val x) t u ->
       u ≅ Stuck.
   Proof.
-    intros * TR. cbn in TR. red in TR.
-    apply trans__val_inv in TR. rewrite ctree_eta. apply TR.
+    now intros * TR; apply trans_val_inv' in TR; inv TR.
   Qed.
 
   Lemma wtrans_val_inv : forall (x : X),
@@ -825,7 +968,7 @@ useful.
     destruct TR as [t2 [t1 step1 step2] step3].
     exists t1; split.
     apply wtrans_τ; auto.
-    erewrite <- trans_val_inv; eauto.
+    erewrite <- trans_val_inv'; eauto.
   Qed.
 
 End forward.
@@ -835,11 +978,31 @@ End forward.
 ---------------
 |*)
 
+Lemma etrans_case' {E B X} : forall l t u,
+    etrans l t u ->
+    (trans l t u \/ (l = τ /\ @Seq E B X t u)).
+Proof.
+  intros [] * TR; cbn in *; intuition.
+Qed.
+
 Lemma etrans_case {E B X} : forall l (t u : ctree E B X),
     etrans l t u ->
     (trans l t u \/ (l = τ /\ t ≅ u)).
 Proof.
   intros [] * TR; cbn in *; intuition.
+  inv H; intuition.
+Qed.
+
+Lemma etrans_ret_inv' {E B X} : forall x l t,
+    etrans l (Ret x) t ->
+    (l = τ /\ @Seq E B X t (α Ret x)) \/ (l = val x /\ Seq t (α Stuck)).
+Proof.
+  intros ? [] ? step; cbn in step.
+  - intuition; try (eapply trans_ret in step; now apply step).
+    apply trans_ret_inv' in H; intuition.
+  - eapply trans_ret_inv' in step; intuition.
+  - eapply trans_ret_inv' in step; intuition.
+  - eapply trans_ret_inv' in step; intuition.
 Qed.
 
 Lemma etrans_ret_inv {E B X} : forall x l (t : ctree E B X),
@@ -848,7 +1011,9 @@ Lemma etrans_ret_inv {E B X} : forall x l (t : ctree E B X),
 Proof.
   intros ? [] ? step; cbn in step.
   - intuition; try (eapply trans_ret in step; now apply step).
-    inv H.
+    apply trans_ret_inv in H; intuition.
+    inv H; intuition.
+  - eapply trans_ret_inv in step; intuition.
   - eapply trans_ret_inv in step; intuition.
   - eapply trans_ret_inv in step; intuition.
 Qed.
@@ -876,6 +1041,16 @@ Section stuck.
     rewrite EQ in ABS; eapply ST; eauto.
   Qed.
 
+  Lemma etrans_is_stuck_inv' (v : ctree E B X) v' :
+    is_stuck v ->
+    etrans l v v' ->
+    l = τ /\ Seq v v'.
+  Proof.
+    intros * ST TR.
+    edestruct @etrans_case'; eauto.
+    apply ST in H; tauto.
+  Qed.
+
   Lemma etrans_is_stuck_inv (v v' : ctree E B X) :
     is_stuck v ->
     etrans l v v' ->
@@ -886,15 +1061,26 @@ Section stuck.
     apply ST in H; tauto.
   Qed.
 
+  Lemma transs_is_stuck_inv' (v : ctree E B X) v' :
+    is_stuck v ->
+    (trans τ)^* v v' ->
+    Seq v v'.
+  Proof.
+    intros * ST TR.
+    destruct TR as [[] TR].
+    inv TR; eauto.
+    destruct TR.
+    apply ST in H; tauto.
+  Qed.
+  
   Lemma transs_is_stuck_inv (v v' : ctree E B X) :
     is_stuck v ->
     (trans τ)^* v v' ->
     v ≅ v'.
   Proof.
     intros * ST TR.
-    destruct TR as [[] TR]; intuition.
-    destruct TR.
-    apply ST in H; tauto.
+    eapply transs_is_stuck_inv' in TR; eauto.
+    now inv TR.
   Qed.
 
   Lemma wtrans_is_stuck_inv :
@@ -904,11 +1090,13 @@ Section stuck.
   Proof.
     intros * ST TR.
     destruct TR as [? [? ?] ?].
-    apply transs_is_stuck_inv in H; auto.
-    rewrite H in ST; apply etrans_is_stuck_inv in H0 as [-> ?]; auto.
-    rewrite H0 in ST; apply transs_is_stuck_inv in H1; auto.
+    apply transs_is_stuck_inv' in H; auto.
+    inv H.
+    rewrite EQ in ST; apply etrans_is_stuck_inv' in H0 as [-> ?]; auto.
+    inv H.
+    rewrite EQ0 in ST; apply transs_is_stuck_inv in H1; auto.
     intuition.
-    rewrite H, H0; auto.
+    rewrite EQ, EQ0; auto.
   Qed.
 
   Lemma Stuck_is_stuck :
@@ -920,51 +1108,52 @@ Section stuck.
   Lemma br_void_is_stuck (c : B void) (k : void -> _) :
     is_stuck (Br c k).
   Proof.
-    red. intros. intro. inv H; destruct x.
+    red. intros * ?.
+    apply trans_br_inv in H as [[] ?].
   Qed.
 
   Lemma br_fin0_is_stuck (c : B (fin 0)) (k : fin 0 -> _) :
     is_stuck (Br c k).
   Proof.
-    red. intros. intro. inv H; now apply case0.
+    red. intros * ?. 
+    apply trans_br_inv in H as [? ?].
+    now apply case0.
   Qed.
 
   Lemma spinD_gen_is_stuck {Y} (x : B Y) :
     is_stuck (spin_gen x).
   Proof.
     red; intros * abs.
-    remember (spin_gen x) as v.
-    assert (EQ: v ≅ spin_gen x) by (subst; reflexivity); clear Heqv; revert EQ; rewrite ctree_eta.
-    induction abs; auto; try now (rewrite ctree_eta; intros abs; step in abs; inv abs).
-    - intros EQ; apply IHabs.
-      rewrite <- ctree_eta.
-      rewrite ctree_eta in EQ.
-      step in EQ; cbn in *.
-      dependent induction EQ; auto.
-    - intros EQ; apply IHabs.
-      rewrite <- ctree_eta.
-      rewrite ctree_eta in EQ.
-      step in EQ; cbn in *.
-      dependent induction EQ; auto.
+    remember (α spin_gen x) as v.
+    assert (EQ: Seq v (α spin_gen x)) by (subst; reflexivity); clear Heqv; revert EQ.
+    cbn in abs; induction abs.
+    3-6: intros EQ; inv EQ; rewrite EQ0 in H; step in H; inv H.
+    - intros EQ; inv EQ.
+      apply IHabs; constructor.
+      rewrite H0.
+      rewrite EQ0 in H; step in H; dependent induction H.
+      symmetry; apply REL.
+    - intros EQ; inv EQ.
+      apply IHabs; constructor.
+      rewrite EQ0 in H; step in H; dependent induction H.
   Qed.
 
   Lemma spin_is_stuck :
     is_stuck spin.
   Proof.
     red; intros * abs.
-    remember spin as v.
-    assert (EQ: v ≅ spin) by (subst; reflexivity); clear Heqv; revert EQ; rewrite ctree_eta.
-    induction abs; auto; try now (rewrite unfold_spin; intros abs; step in abs; inv abs).
-    - intros EQ; apply IHabs.
-      rewrite <- ctree_eta.
-      rewrite unfold_spin in EQ.
-      step in EQ.
-      dependent induction EQ; auto.
-    - intros EQ; apply IHabs.
-      rewrite <- ctree_eta.
-      rewrite unfold_spin in EQ.
-      step in EQ.
-      dependent induction EQ; auto.
+    remember (α spin) as v.
+    assert (EQ: Seq v (α spin)) by (subst; reflexivity); clear Heqv; revert EQ.
+    cbn in abs; induction abs.
+    3-6: intros EQ; inv EQ; rewrite EQ0 in H; step in H; inv H.
+    - intros EQ; inv EQ.
+      apply IHabs; constructor.
+      rewrite H0.
+      rewrite EQ0 in H; step in H; dependent induction H.
+    - intros EQ; inv EQ.
+      apply IHabs; constructor.
+      rewrite EQ0 in H; step in H; dependent induction H.
+      now rewrite <- REL.
   Qed.
 
   Lemma spinS_is_not_stuck :
@@ -973,7 +1162,7 @@ Section stuck.
     red; intros * abs.
     apply (abs τ spinS).
     rewrite ctree_eta at 1; cbn.
-    constructor; auto.
+    apply trans_step.
   Qed.
 
 End stuck.
@@ -993,7 +1182,16 @@ Section wtrans.
   Proof.
     intros * TR.
     eapply wcons; eauto.
-    apply trans_step.
+  Qed.
+
+  Lemma trans_τ_str_ret_inv' : forall x t,
+      (trans τ)^* (Ret x) t ->
+      @Seq E B X t (α Ret x).
+  Proof.
+    intros * [[|] step].
+    - cbn in *; now symmetry.
+    - destruct step.
+      apply trans_ret_inv' in H; intuition congruence.
   Qed.
 
   Lemma trans_τ_str_ret_inv : forall x (t : ctree E B X),
@@ -1001,9 +1199,9 @@ Section wtrans.
       t ≅ Ret x.
   Proof.
     intros * [[|] step].
-    - cbn in *; symmetry; eauto.
+    - inv step; now symmetry.
     - destruct step.
-      apply trans_ret_inv in H; intuition congruence.
+      apply trans_ret_inv' in H; intuition congruence.
   Qed.
 
   Lemma wtrans_ret_inv : forall x l (t : ctree E B X),
@@ -1012,28 +1210,30 @@ Section wtrans.
   Proof.
     intros * step.
     destruct step as [? [? step1 step2] step3].
-    apply trans_τ_str_ret_inv in step1.
+    apply trans_τ_str_ret_inv' in step1.
     rewrite step1 in step2; clear step1.
-    apply etrans_ret_inv in step2 as [[-> EQ] |[-> EQ]].
+    apply etrans_ret_inv' in step2 as [[-> EQ] |[-> EQ]].
     rewrite EQ in step3; apply trans_τ_str_ret_inv in step3; auto.
     rewrite EQ in step3.
     apply transs_is_stuck_inv in step3; [| apply Stuck_is_stuck].
     intuition.
   Qed.
 
-  Lemma wtrans_val_inv' : forall (x : X) (t v : ctree E B X),
-      wtrans (val x) t v ->
-      exists u, wtrans τ t u /\ trans (val x) u v /\ v ≅ Stuck.
+  Lemma wtrans_val_inv' : forall (x : X) t u,
+      wtrans (val x) t u ->
+      exists t', @wtrans E B X τ t t' /\ @trans E B X (val x) t' u /\ Seq u Stuck.
   Proof.
     intros * TR.
     destruct TR as [t2 [t1 step1 step2] step3].
-    pose proof trans_val_inv step2 as EQ.
-    rewrite EQ in step3, step2.
-    apply transs_is_stuck_inv in step3; auto using Stuck_is_stuck.
-    exists t1; repeat split.
-    apply wtrans_τ, step1.
-    rewrite <- step3; auto.
-    symmetry; auto.
+    exists t1; split.
+    apply wtrans_τ; auto.
+    clear step1.
+    pose proof trans_val_inv' step2.
+    rewrite H in step3.
+    apply transs_is_stuck_inv' in step3; auto using Stuck_is_stuck.
+    split; [| rewrite <- step3; auto].
+    rewrite H in step2. rewrite <- step3.
+    auto.
   Qed.
 
 End wtrans.
@@ -1045,6 +1245,23 @@ trans l (t >>= k) u -> (trans l t t' /\ u ≅ t' >>= k) \/ (trans (ret x) t stuc
 l <> val x -> trans l t u -> trans l (t >>= k) (u >>= k)
 trans (val x) t stuck -> trans l (k x) u -> trans l (bind t k) u.
 |*)
+
+(* CHECKPOINT: need to deal with the [ask] transition cleanly *)
+Lemma trans_bind_inv {E B X Y}
+  (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
+  trans l (t >>= k) u ->
+  (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
+    (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u).
+Proof.
+  intros TR.
+  eapply trans_bind_inv_aux.
+  apply TR.
+  rewrite <- ctree_eta; reflexivity.
+  rewrite <- ctree_eta; reflexivity.
+Qed.
+
+
+
 Lemma trans_bind_inv_aux {E B X Y} l T U :
   trans_ l T U ->
   forall (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y),
