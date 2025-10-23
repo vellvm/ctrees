@@ -1155,16 +1155,19 @@ Lemma trans_bind_inv_aux {E B X Y} l T U :
   forall (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y),
     go T ≅ t >>= k ->
     go U ≅ u ->
-    (~ (is_end l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
-      (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u) \/
+    (~ (is_val l) /\ exists t', trans l t t' /\ u ≅ t' >>= k) \/
+      (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u)
+        (exists (empty : (forall (x : Y), False)), u ≅ Stuck /\ l = die e empty).
+
+        (* \/
       (* t "dies", shouldn't have to continue into k *)
-      (exists Z (e : E Z) (empty: forall (z : Z), False), trans (die e empty) t Stuck /\ u ≅ Stuck /\ is_die l).
+      (exists Z (e : E Z) (empty: forall (z : Z), False), trans (die e empty) t Stuck /\ u ≅ Stuck /\ is_die l). *)
 Proof.
   intros TR; induction TR; intros.
 
   - rewrite unfold_bind in H; setoid_rewrite (ctree_eta t0).
     desobs t0.
-    + right; left.
+    + right.
       exists r; split.
       constructor.
       rewrite <- H.
@@ -1176,23 +1179,18 @@ Proof.
     + step in H; dependent induction H.
     + step in H; dependent induction H.
       specialize (IHTR (k1 x) k0 u).
-      destruct IHTR as [(? & ? & ? & ?) | [(? & ? & ?) | (? & ? & ?)]]; auto.
+      destruct IHTR as [(? & ? & ? & ?) | (? & ? & ?)]; auto.
       rewrite <- ctree_eta, REL; reflexivity.
       left; split; eauto.
       exists x0; split; auto.
       apply (Transbr _ x); auto.
-      right; left.
+      right.
       exists x0; split; auto.
       apply (Transbr _ x); auto.
-      right; right.
-      destruct H as (?&?&?).
-      exists x0; auto.
-      exists x1. exists x2.
-      split; [apply (Transbr _ x); auto|auto].
 
   - symmetry in H; apply guard_equ_bind in H.
     destruct H as [(? & EQ & EQ') | (? & EQ & EQ')].
-    + right; left.
+    + right.
       exists x; split; [rewrite EQ; constructor |].
       rewrite EQ'; auto.
       rewrite <- H0; constructor; auto.
@@ -1203,39 +1201,36 @@ Proof.
       eexists; split.
       rewrite EQ; constructor; apply H1.
       auto.
-      destruct H as [(? & ? & ?) | (? & ? & ? & ? & ?)].
-      * right; left; eexists; split; eauto.
-        rewrite EQ; constructor.
-        apply H.
-      * right; right; eexists; eexists; eexists; eauto.
-        split; eauto.
-        rewrite EQ; constructor.
-        apply H.
+      destruct H as (? & ? & ?).
+      right; eexists; split; eauto.
+      rewrite EQ; constructor.
+      apply H.
   - symmetry in H0; apply step_equ_bind in H0.
     destruct H0 as [(? & EQ & EQ') | (? & EQ & EQ')].
-    + right; left.
+    + right.
       exists x; split; [rewrite EQ; constructor |].
       rewrite EQ'; constructor.
       rewrite <- ctree_eta in H1; rewrite <- H1; auto.
-    + left; split; [apply is_end_τ |].
+    + left; split; [apply is_val_τ |].
       eexists; split; [rewrite EQ; constructor; reflexivity |].
       rewrite <- H1, <- ctree_eta, H, <-EQ'; auto.
   - symmetry in H0; apply vis_equ_bind in H0.
     destruct H0 as [(? & EQ & EQ') | (? & EQ & EQ')].
-    + right; left.
+    + right.
       exists x0; split; [rewrite EQ; constructor |].
       rewrite EQ'; constructor.
       rewrite <- ctree_eta in H1; rewrite <- H1; auto.
-    + left; split; [apply is_end_obs |].
+    + left; split; [apply is_val_obs |].
       eexists; split; [rewrite EQ; constructor; reflexivity |].
       rewrite <- H1, <- ctree_eta, <- H, <-EQ'; auto.
   - symmetry in H; apply vis_equ_bind in H.
     destruct H as [(? & EQ & EQ') | (? & EQ & EQ')].
-    + right; left.
+    + right.
       exists x; split; [rewrite EQ; constructor |].
       rewrite <- H0.
       rewrite EQ'; constructor.
-    + right; right.
+    + right.
+
       exists X0, e, empty.
       rewrite EQ.
       symmetry in H0.
