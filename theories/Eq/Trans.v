@@ -680,7 +680,7 @@ Structural rules
     intuition.
   Qed.
 
-  Lemma trans_ask_inv' : forall {Y} (e : E Y) (k : _ -> ctree E B X) l u,
+  Lemma trans_vis_inv' : forall {Y} (e : E Y) (k : _ -> ctree E B X) l u,
       trans l (Vis e k) u ->
       Seq u (β e k) /\ l = ask e.
   Proof.
@@ -690,7 +690,7 @@ Structural rules
     constructor; intros ?; symmetry; eauto.
   Qed.
 
-  Lemma trans_ask_inv : forall {Y} (e : E Y) k l (u : ctree E B X),
+  Lemma trans_vis_inv : forall {Y} (e : E Y) k l (u : ctree E B X),
       trans l (Vis e k) u ->
       Seq u (β e k) /\ l = ask e.
   Proof.
@@ -698,7 +698,7 @@ Structural rules
     inv TR; inv_equ.
   Qed.
 
-  Lemma trans_rcv_inv' : forall {Y} (e : E Y) (k : Y -> ctree E B X) l u,
+  Lemma trans_passive_inv' : forall {Y} (e : E Y) (k : Y -> ctree E B X) l u,
       trans l (β e k) u ->
       exists x, Seq u (α k x) /\ l = rcv e x.
   Proof.
@@ -708,12 +708,12 @@ Structural rules
     constructor; symmetry; eauto.
   Qed.
 
-  Lemma trans_rcv_inv : forall {Y} (e : E Y) (k : Y -> ctree E B X) l (u : ctree E B X),
+  Lemma trans_passive_inv : forall {Y} (e : E Y) (k : Y -> ctree E B X) l (u : ctree E B X),
       trans l (β e k) u ->
       exists x, u ≅ (k x) /\ l = rcv e x.
   Proof.
     intros * TR.
-    apply trans_rcv_inv' in TR as (? & ? & ?).
+    apply trans_passive_inv' in TR as (? & ? & ?).
     inv H; eauto.
   Qed.
 
@@ -1311,6 +1311,22 @@ Proof.
   - intros TR2; rewrite H, bind_ret_l; auto.
 Qed.
 
+Lemma trans_bind_r_ask {E B X Y Z} (t : ctree E B X) (k : X -> ctree E B Y) (e : E Z) (g : Z -> ctree E B Y) x :
+  trans (val x) t Stuck ->
+  trans (ask e) (k x) (β e g) ->
+  trans (ask e) (t >>= k) (β e g).
+Proof.
+  cbn; intros TR1.
+  dependent induction TR1; cbn in *.
+  - intros TR2; rewrite H, bind_br.
+    apply trans_br with x0.
+    rewrite <- H0; eapply IHTR1; eauto.
+  - intros TR2; rewrite H, bind_guard.
+    apply trans_guard.
+    eapply IHTR1; eauto.
+  - intros TR2; rewrite H, bind_ret_l; auto.
+Qed.
+
 Lemma is_stuck_bind : forall {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y),
     is_stuck t -> is_stuck (bind t k).
 Proof.
@@ -1544,6 +1560,13 @@ Proof.
     rewrite EQ in TRs.
     edestruct IH; eauto.
 Qed.
+ 
+Lemma wtrans_τ_active {E B X} (t : ctree E B X) u :
+  wtrans τ (α t) u ->
+  exists u', Seq u (α u').
+Proof.
+  intros TR; apply wtrans_τ in TR; eapply transs_τ_active; eauto.
+Qed.
   
 Lemma transs_bind_l {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B X) :
   (trans τ)^* t u ->
@@ -1599,10 +1622,11 @@ Proof.
   rewrite H. apply wnil.
 Qed.
 
-(* CHECKPOINT *)
-Lemma wtrans_case {E B X} (t u : ctree E B X) l:
+Lemma wtrans_case_active {E B X} (t u : ctree E B X) l:
   wtrans l t u ->
-  t ≅ u \/ (exists v, trans l t v /\ wtrans τ v u) \/ (exists v, trans τ t v /\ wtrans l v u).
+  (l = τ /\ t ≅ u) \/
+  (exists v, trans l t v /\ wtrans τ v u) \/
+  (exists v, trans τ t v /\ wtrans l v u).
 Proof.
   intros [t2 [t1 [n TR1] TR2] TR3].
   destruct n as [| n].
@@ -1613,6 +1637,7 @@ Proof.
     cbn in H; rewrite <- H in TR3.
     apply wtrans_τ in TR3.
     destruct TR3 as [[| n] ?]; eauto.
+    cbn in H0; inv H0; eauto.
     destruct H0 as [? ? ?]; right; left; eexists; split; eauto.
     apply wtrans_τ; exists n; auto.
   - destruct TR1 as [? ? ?].
@@ -1622,43 +1647,94 @@ Proof.
     exists n; eauto.
 Qed.
 
-Lemma wtrans_case' {E B X} (t u : ctree E B X) l:
-  wtrans l t u ->
-  match l with
-  | τ => (t ≅ u \/ exists v, trans τ t v /\ wtrans τ v u)
-  | _   => (exists v, trans l t v /\ wtrans τ v u) \/
-            (exists v, trans τ t v /\ wtrans l v u)
-  end.
+Lemma trans_rcv_inv {E B X Y} (e : E Y) (y : Y) u v :
+  trans (rcv e y) u v ->
+  exists (g : Y -> ctree E B X), Seq u (β e g) /\ Seq v (α g y).
 Proof.
-  intros [t2 [t1 [n TR1] TR2] TR3].
-  destruct n as [| n].
-  - apply wtrans_τ in TR3.
-    cbn in TR1; rewrite <- TR1 in TR2.
-    destruct l; eauto.
-    destruct TR2; eauto.
-    cbn in H; rewrite <- H in TR3.
-    apply wtrans_τ in TR3.
-    destruct TR3 as [[| n] ?]; eauto.
-    destruct H0 as [? ? ?]; right; eexists; split; eauto.
-    apply wtrans_τ; exists n; auto.
-  - destruct TR1 as [? ? ?].
-    destruct l; right.
-    all:eexists; split; eauto.
-    all:exists t2; [exists t1|]; eauto.
-          all:exists n; eauto.
+  intros TR.
+  remember (rcv e y).
+  revert e y Heql.
+  induction TR; intros * EQl; subst; auto; inv_equ.
+  - edestruct IHTR as (g & abs & ?); [reflexivity |].
+    inv abs.
+  - edestruct IHTR as (g & abs & ?); [reflexivity |].
+    inv abs.
+  - inv EQl.
+  - dependent induction EQl.
+    exists k; split; auto.
+    now rewrite <- H.
+  - inv EQl.
 Qed.
 
-Lemma wtrans_Stuck_inv {E B R} :
+Lemma trans_rcv_active {E B X Y} (e : E Y) (y : Y) (u : ctree E B X) v :
+  trans (rcv e y) (α u) v ->
+  False.
+Proof.
+  intros TR; pose proof trans_rcv_inv TR as (? & abs & ?); inv abs.
+Qed.
+
+Lemma wtrans_stuck {E B X} l t :
+  wtrans l (Stuck : ctree E B X) t ->
+  l = τ /\ Seq t (Stuck : ctree E B X).
+Proof.
+  intros WTR.
+  destruct l.
+  1: split; auto.
+  2-4:exfalso.
+  apply wtrans_τ in WTR as [[|n] WTR].
+  now symmetry.
+  exfalso; destruct WTR as [? TR WTR].
+  eapply trans_stuck_inv; eauto.
+  all: destruct WTR as [t2 [t1 TR1 TR2] TR3].
+  all: destruct TR1 as [[|n] TR1].
+  all: cbn in TR1; try (rewrite <- TR1 in TR2; eapply trans_stuck_inv; now eauto).
+  all: destruct TR1 as [? TR WTR]; eapply trans_stuck_inv; now apply TR.
+Qed.
+
+Lemma wtrans_stuck' {E B R} :
   forall (t : ctree E B R) l,
     wtrans l Stuck t ->
     match l with | τ => t ≅ Stuck | _ => False end.
 Proof.
   intros * TR.
-  apply wtrans_case' in TR.
-  destruct l; break; cbn in *.
-  symmetry; auto.
-  all: exfalso; eapply Stuck_is_stuck; now apply H.
+  pose proof wtrans_stuck TR as [-> EQ].
+  now inv EQ.
 Qed.
+
+Lemma wtrans_case_passive {E B X Y} (t : ctree E B X) (e : E Y) (g : Y -> ctree E B X) l:
+  wtrans l t (β e g) ->
+  (l = ask e /\ exists v h, wtrans τ t (α v) /\ trans (ask e) v (β e h) /\ Seq (β e h) (β e g)).  
+Proof.
+  intros [t2 [t1 TR1 TR2] TR3].
+  apply wtrans_τ in TR1.
+  pose proof wtrans_τ_active TR1 as [? EQ1].
+  rewrite EQ1 in *. 
+  destruct l.
+  - pose proof etrans_τ_active TR2 as [? EQ2].
+    rewrite EQ2 in *.
+    apply wtrans_τ in TR3.
+    pose proof wtrans_τ_active TR3 as [? EQ3].
+    inv EQ3.
+  - cbn in TR2.
+    pose proof trans_ask_passive TR2 as [h EQ].
+    rewrite EQ in *; clear t2 EQ.
+    clear t1 EQ1.
+    apply wtrans_τ in TR3.
+    pose proof passive_τ_wtrans TR3 as EQ.
+    dependent induction EQ.
+    split; auto.
+    exists x, h; split; auto.
+    split; auto.
+    now constructor.
+  - exfalso.
+    eapply trans_rcv_active; eauto.
+  - exfalso.
+    apply trans_val_inv' in TR2.
+    rewrite TR2 in TR3.
+    apply wtrans_τ in TR3.
+    apply wtrans_stuck in TR3 as [_ EQ].
+    inv EQ.
+Qed.  
 
 Lemma pwtrans_case {E B X} (t u : ctree E B X) l:
   pwtrans l t u ->
@@ -1682,48 +1758,114 @@ It's a bit annoying that we need two cases in this lemma, but if
 by taking the [Ret] in the prefix, but we cannot process it to
 reach [u] in the bound computation.
 |*)
-Lemma wtrans_bind_r {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) x l :
+
+Lemma wtrans_bind_r_τ {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) x :
   wtrans (val x) t Stuck ->
-  wtrans l (k x) u ->
-  (u ≅ k x \/ wtrans l (t >>= k) u).
+  wtrans τ (k x) u ->
+  (u ≅ k x \/ wtrans τ (t >>= k) u).
 Proof.
   intros TR1 TR2.
   apply wtrans_val_inv in TR1 as (t' & TR1 & TR1').
-  eapply wtrans_bind_l in TR1; [| intros abs; inv abs].
-  apply wtrans_case in TR2 as [? | [|]].
+  pose proof wtrans_τ_active TR1 as (a & EQa).
+  rewrite EQa in TR1.
+  eapply wtrans_bind_l_τ in TR1.
+  apply wtrans_case_active in TR2 as [[? ?] | [|(v & TR & WTR)]].
   - left; symmetry; assumption.
-  - right;eapply wconss; [apply TR1 | clear t TR1].
+  - right; eapply wconss; [apply TR1 | clear t TR1].
     destruct H as (? & ? & ?).
-    eapply trans_bind_r in TR1'; eauto.
-    eapply wsnocs; eauto.
-    apply trans_wtrans; auto.
-  - right;eapply wconss; [apply TR1 | clear t TR1].
-    destruct H as (? & ? & ?).
+    rewrite EQa in TR1'; clear t' EQa.
+    pose proof trans_τ_active H as [? EQ].
+    rewrite EQ in H,H0.
+    eapply trans_bind_r in H; [| eauto].
+    eapply wcons; eauto.
+  - right; eapply wconss; [apply TR1 | clear t TR1].
+    rewrite EQa in TR1'.
+    pose proof trans_τ_active TR as [? EQ].
+    rewrite EQ in TR,WTR.
     eapply trans_bind_r in TR1'; eauto.
     eapply wconss; [|eauto].
     apply trans_wtrans; auto.
 Qed.
 
-Lemma wtrans_bind_r' {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) x l :
+Lemma wtrans_bind_r_val {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) x (y : Y) :
   wtrans (val x) t Stuck ->
-  pwtrans l (k x) u ->
-  (wtrans l (t >>= k) u).
+  wtrans (val y) (k x) Stuck ->
+  wtrans (val y) (t >>= k) Stuck.
 Proof.
   intros TR1 TR2.
   apply wtrans_val_inv in TR1 as (t' & TR1 & TR1').
-  eapply wtrans_bind_l in TR1; [| intros abs; inv abs].
-  apply pwtrans_case in TR2 as [? | ].
-  - eapply wconss; [apply TR1 | clear t TR1].
-    destruct H as (? & ? & ?).
-    eapply trans_bind_r in TR1'; eauto.
-    eapply wsnocs; eauto.
-    apply trans_wtrans; auto.
-  - eapply wconss; [apply TR1 | clear t TR1].
-    destruct H as (? & ? & ?).
+  pose proof wtrans_τ_active TR1 as (a & EQa).
+  rewrite EQa in TR1, TR1'; clear t' EQa.
+  eapply wconss.
+  eapply wtrans_bind_l_τ, TR1.
+  clear t TR1.
+  apply wtrans_case_active in TR2 as [[abs ?] | [(v & TR & WTR)|(v & TR & WTR)]].
+  - inv abs.
+  - eapply wsnocs; eauto.
+    apply trans_wtrans.
+    pose proof trans_val_inv' TR as EQ; rewrite EQ in TR |-*.
+    eapply trans_bind_r; eauto.
+  - pose proof trans_τ_active TR as [? EQ].
+    rewrite EQ in TR,WTR.
     eapply trans_bind_r in TR1'; eauto.
     eapply wconss; [|eauto].
     apply trans_wtrans; auto.
 Qed.
+
+Lemma wtrans_bind_r_ask {E B X Y Z} (t : ctree E B X) (k : X -> ctree E B Y) (e : E Z) (u : Z -> ctree E B Y) x :
+  wtrans (val x) t Stuck ->
+  wtrans (ask e) (k x) (β e u) ->
+  wtrans (ask e) (t >>= k) (β e u).
+Proof.
+  intros TR1 TR2.
+  apply wtrans_val_inv in TR1 as (t' & TR1 & TR1').
+  apply wtrans_case_passive in TR2 as (_ & v & h & WTR & TR & EQ).
+  rewrite <- EQ.
+  clear u EQ.
+  pose proof wtrans_τ_active TR1 as [? EQ].
+  rewrite EQ in *; clear t' EQ.
+  eapply wconss.
+  eapply wtrans_bind_l_τ, TR1.
+  clear t TR1.
+  apply wtrans_case_active in WTR as [[_ EQ] | [(?v & TRv & WTRv) | (?v & TRv & WTRv)]].
+  - rewrite <- EQ in *.
+    clear v EQ.
+    apply trans_wtrans.
+    eapply trans_bind_r_ask; eauto.
+  - pose proof trans_τ_active TRv as [? EQ].
+    rewrite EQ in *; clear v0 EQ. 
+    eapply wcons.
+    eapply trans_bind_r; eauto.
+    eapply wconss; eauto.
+    now apply trans_wtrans.
+  - pose proof trans_τ_active TRv as [? EQ].
+    rewrite EQ in *; clear v0 EQ. 
+    eapply wcons.
+    eapply trans_bind_r; eauto.
+    eapply wconss; eauto.
+    now apply trans_wtrans.
+Qed.    
+
+(* Lemma wtrans_bind_r' {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) x l : *)
+(*   wtrans (val x) t Stuck -> *)
+(*   pwtrans l (k x) u -> *)
+(*   (wtrans l (t >>= k) u). *)
+(* Proof. *)
+(*   intros TR1 TR2. *)
+(*   apply wtrans_val_inv in TR1 as (t' & TR1 & TR1'). *)
+(*   eapply wtrans_bind_l in TR1; [| intros abs; inv abs]. *)
+(*   apply pwtrans_case in TR2 as [? | ]. *)
+(*   - eapply wconss; [apply TR1 | clear t TR1]. *)
+(*     destruct H as (? & ? & ?). *)
+(*     eapply trans_bind_r in TR1'; eauto. *)
+(*     eapply wsnocs; eauto. *)
+(*     apply trans_wtrans; auto. *)
+(*   - eapply wconss; [apply TR1 | clear t TR1]. *)
+(*     destruct H as (? & ? & ?). *)
+(*     eapply trans_bind_r in TR1'; eauto. *)
+(*     eapply wconss; [|eauto]. *)
+(*     apply trans_wtrans; auto. *)
+(* Qed. *)
 
 Lemma trans_val_invT {E B R R'} :
   forall (t u : ctree E B R) (v : R'),
@@ -1735,37 +1877,37 @@ Proof.
   induction TR; intros; auto; try now inv Heqov.
 Qed.
 
-Lemma wtrans_bind_lr {E B X Y} (t u : ctree E B X) (k : X -> ctree E B Y) (v : ctree E B Y) x l :
-  pwtrans l t u ->
-  wtrans (val x) u Stuck ->
-  pwtrans τ (k x) v ->
-  (wtrans l (t >>= k) v).
-Proof.
-  intros [t2 [t1 TR1 TR1'] TR1''] TR2 TR3.
-  exists (x <- t2;; k x).
-  - assert (~ is_val l).
-    {
-      destruct l; try now intros abs; inv abs.
-      exfalso.
-      pose proof (trans_val_invT TR1'); subst.
-      apply trans_val_inv in TR1'.
-      rewrite TR1' in TR1''.
-      apply transs_is_stuck_inv in TR1''; [| apply Stuck_is_stuck].
-      rewrite <- TR1'' in TR2.
-      apply wtrans_is_stuck_inv in TR2; [| apply Stuck_is_stuck].
-      destruct TR2 as [abs _]; inv abs.
-    }
-    eexists.
-    2:apply trans_etrans, trans_bind_l; eauto.
-    apply wtrans_τ; eapply wtrans_bind_l; [intros abs; inv abs| apply wtrans_τ; auto].
-  - apply wtrans_τ.
-    eapply wconss.
-    eapply wtrans_bind_l; [intros abs; inv abs| apply wtrans_τ; eauto].
-    eapply wtrans_bind_r'; eauto.
-Qed.
+(* Lemma wtrans_bind_lr {E B X Y} (t u : ctree E B X) (k : X -> ctree E B Y) (v : ctree E B Y) x l : *)
+(*   pwtrans l t u -> *)
+(*   wtrans (val x) u Stuck -> *)
+(*   pwtrans τ (k x) v -> *)
+(*   (wtrans l (t >>= k) v). *)
+(* Proof. *)
+(*   intros [t2 [t1 TR1 TR1'] TR1''] TR2 TR3. *)
+(*   exists (x <- t2;; k x). *)
+(*   - assert (~ is_val l). *)
+(*     { *)
+(*       destruct l; try now intros abs; inv abs. *)
+(*       exfalso. *)
+(*       pose proof (trans_val_invT TR1'); subst. *)
+(*       apply trans_val_inv in TR1'. *)
+(*       rewrite TR1' in TR1''. *)
+(*       apply transs_is_stuck_inv in TR1''; [| apply Stuck_is_stuck]. *)
+(*       rewrite <- TR1'' in TR2. *)
+(*       apply wtrans_is_stuck_inv in TR2; [| apply Stuck_is_stuck]. *)
+(*       destruct TR2 as [abs _]; inv abs. *)
+(*     } *)
+(*     eexists. *)
+(*     2:apply trans_etrans, trans_bind_l; eauto. *)
+(*     apply wtrans_τ; eapply wtrans_bind_l; [intros abs; inv abs| apply wtrans_τ; auto]. *)
+(*   - apply wtrans_τ. *)
+(*     eapply wconss. *)
+(*     eapply wtrans_bind_l; [intros abs; inv abs| apply wtrans_τ; eauto]. *)
+(*     eapply wtrans_bind_r'; eauto. *)
+(* Qed. *)
 
-Lemma trans_trigger : forall {E B X Y} (e : E X) x (k : X -> ctree E B Y),
-    trans (obs e x) (trigger e >>= k) (k x).
+Lemma trans_trigger : forall {E B X Y} (e : E X) (k : X -> ctree E B Y),
+    trans (ask e) (trigger e >>= k) (β e k).
 Proof.
   intros.
   unfold CTree.trigger.
@@ -1774,8 +1916,8 @@ Proof.
   constructor; auto.
 Qed.
 
-Lemma trans_trigger' : forall {E B X Y} (e : E X) x (t : ctree E B Y),
-    trans (obs e x) (trigger e;; t) t.
+Lemma trans_trigger' : forall {E B X Y} (e : E X) (t : ctree E B Y),
+    trans (ask e) (trigger e;; t) (β e (fun _ => t)).
 Proof.
   intros.
   unfold CTree.trigger.
@@ -1786,26 +1928,24 @@ Qed.
 
 Lemma trans_trigger_inv : forall {E B X Y} (e : E X) (k : X -> ctree E B Y) l u,
     trans l (trigger e >>= k) u ->
-    exists x, u ≅ k x /\ l = obs e x.
+    Seq u (β e k) /\ l = ask e.
 Proof.
   intros * TR.
   unfold trigger in TR.
-  apply trans_bind_inv in TR.
-  destruct TR as [(? & ? & TR & ?) |(? & TR & ?)].
-  - apply trans_vis_inv in TR.
-    destruct TR as (? & ? & ->); eexists; split; eauto.
-    rewrite H0, H1, bind_ret_l; reflexivity.
-  - apply trans_vis_inv in TR.
-    destruct TR as (? & ? & abs); inv abs.
+  rewrite bind_vis in TR.
+  apply trans_vis_inv' in TR as [EQ ->].
+  setoid_rewrite bind_ret_l in EQ.
+  split; auto.
 Qed.
 
 Lemma trans_branch :
   forall {E B : Type -> Type} {X : Type} {Y : Type}
     [l : label] [t t' : ctree E B X] (c : B Y) (k : Y -> ctree E B X) (x : Y),
-    trans l t t' -> k x ≅ t -> trans l (branch c >>= k) t'.
+    trans l (k x) t' ->
+    trans l (branch c >>= k) t'.
 Proof.
   intros.
-  setoid_rewrite bind_branch.
+  rewrite bind_branch.
   eapply trans_br; eauto.
 Qed.
 
@@ -1842,185 +1982,185 @@ Proof.
   specialize (H0 X0 x eq_refl). subst. eauto.
 Qed.
 
-(*| If the LTS has events of type [L +' R] then
-  it is possible to step it as either an [L] LTS
-  or [R] LTS ignoring the other.
-*)
-Section Coproduct.
-  Arguments label: clear implicits.
-  Context {L R C: Type -> Type} {X: Type}.
-  Notation S := (ctree (L +' R) C X).
-  Notation S' := (ctree' (L +' R) C X).
-  Notation SP := (SS -> label (L +' R) -> Prop).
+(* (*| If the LTS has events of type [L +' R] then *)
+(*   it is possible to step it as either an [L] LTS *)
+(*   or [R] LTS ignoring the other. *)
+(* *) *)
+(* Section Coproduct. *)
+(*   Arguments label: clear implicits. *)
+(*   Context {L R C: Type -> Type} {X: Type}. *)
+(*   Notation S := (ctree (L +' R) C X). *)
+(*   Notation S' := (ctree' (L +' R) C X). *)
+(*   Notation SP := (SS -> label (L +' R) -> Prop). *)
 
-  (* Skip an [R] event *)
-  Inductive srtrans_: rel S' S' :=
-  | IgnoreR {X} (e : R X) k x t :
-    srtrans_ (observe (k x)) t ->
-    srtrans_ (VisF (inr1 e) k) t.
+(*   (* Skip an [R] event *) *)
+(*   Inductive srtrans_: rel S' S' := *)
+(*   | IgnoreR {X} (e : R X) k x t : *)
+(*     srtrans_ (observe (k x)) t -> *)
+(*     srtrans_ (VisF (inr1 e) k) t. *)
 
-  (* Skip an [L] event *)
-  Inductive sltrans_: rel S' S' :=
-  | IgnoreL {X} (e : L X) k x t :
-    sltrans_ (observe (k x)) t ->
-    sltrans_ (VisF (inl1 e) k) t.
+(*   (* Skip an [L] event *) *)
+(*   Inductive sltrans_: rel S' S' := *)
+(*   | IgnoreL {X} (e : L X) k x t : *)
+(*     sltrans_ (observe (k x)) t -> *)
+(*     sltrans_ (VisF (inl1 e) k) t. *)
 
-  Hint Constructors srtrans_ sltrans_: core.
+(*   Hint Constructors srtrans_ sltrans_: core. *)
 
-  (* Make those relations that respect equality [srel] *)
-  Program Definition srtrans : srel SS SS :=
-    {| hrel_of := (fun (u v: SS) => srtrans_ (observe u) (observe v)) |}.
-  Next Obligation. split; induction 1; auto. Defined.
+(*   (* Make those relations that respect equality [srel] *) *)
+(*   Program Definition srtrans : srel SS SS := *)
+(*     {| hrel_of := (fun (u v: SS) => srtrans_ (observe u) (observe v)) |}. *)
+(*   Next Obligation. split; induction 1; auto. Defined. *)
 
-  Program Definition sltrans : srel SS SS :=
-    {| hrel_of := (fun (u v: SS) => sltrans_ (observe u) (observe v)) |}.
-  Next Obligation. split; induction 1; auto. Defined.
+(*   Program Definition sltrans : srel SS SS := *)
+(*     {| hrel_of := (fun (u v: SS) => sltrans_ (observe u) (observe v)) |}. *)
+(*   Next Obligation. split; induction 1; auto. Defined. *)
 
-  (*| Obs transition on the left, ignores right transitions and [τ] |*)
-  Definition ltrans {X}(l: L X)(x: X): srel SS SS :=
-    (trans τ ⊔ srtrans)^* ⋅ trans (obs (inl1 l) x) ⋅ (trans τ ⊔ srtrans)^*.
+(*   (*| Obs transition on the left, ignores right transitions and [τ] |*) *)
+(*   Definition ltrans {X}(l: L X)(x: X): srel SS SS := *)
+(*     (trans τ ⊔ srtrans)^* ⋅ trans (obs (inl1 l) x) ⋅ (trans τ ⊔ srtrans)^*. *)
 
-  (*| Obs transition on the right, ignores left transitions and [τ] |*)
-  Definition rtrans {X}(r: R X)(x: X): srel SS SS :=
-    (trans τ ⊔ sltrans)^* ⋅ trans (obs (inr1 r) x) ⋅ (trans τ ⊔ sltrans)^*.
+(*   (*| Obs transition on the right, ignores left transitions and [τ] |*) *)
+(*   Definition rtrans {X}(r: R X)(x: X): srel SS SS := *)
+(*     (trans τ ⊔ sltrans)^* ⋅ trans (obs (inr1 r) x) ⋅ (trans τ ⊔ sltrans)^*. *)
 
-End Coproduct.
+(* End Coproduct. *)
 
 (*|
 [inv_trans] is an helper tactic to automatically
 invert hypotheses involving [trans].
 |*)
 
-#[local] Notation trans' l t u := (hrel_of (trans l) t u).
+(* #[local] Notation trans' l t u := (hrel_of (trans l) t u). *)
 
-Ltac inv_trans_one :=
-  match goal with
+(* Ltac inv_trans_one := *)
+(*   match goal with *)
 
-  (* Ret *)
-  | h : trans' _ (Ret ?x) _ |- _ =>
-      let EQl := fresh "EQl" in
-      apply trans_ret_inv in h as [?EQ EQl];
-      match type of EQl with
-      | val _   = val _ => apply val_eq_inv in EQl; try (inversion EQl; fail)
-      | τ     = val _ => now inv EQl
-      | obs _ _ = val _ => now inv EQl
-      | _ => idtac
-      end
+(*   (* Ret *) *)
+(*   | h : trans' _ (Ret ?x) _ |- _ => *)
+(*       let EQl := fresh "EQl" in *)
+(*       apply trans_ret_inv in h as [?EQ EQl]; *)
+(*       match type of EQl with *)
+(*       | val _   = val _ => apply val_eq_inv in EQl; try (inversion EQl; fail) *)
+(*       | τ     = val _ => now inv EQl *)
+(*       | obs _ _ = val _ => now inv EQl *)
+(*       | _ => idtac *)
+(*       end *)
 
-  (* Vis *)
-  | h : trans' _ (Vis ?e ?k) _ |- _ =>
-      let EQl := fresh "EQl" in
-      apply trans_vis_inv in h as (?x & ?EQ & EQl);
-      match type of EQl with
-      | @obs _ ?X _ _ = obs _ _ =>
-          let EQt := fresh "EQt" in
-          let EQe := fresh "EQe" in
-          let EQv := fresh "EQv" in
-          apply obs_eq_invT in EQl as EQt;
-          subst_hyp_in EQt h;
-          apply obs_eq_inv in EQl as [EQe EQv];
-          try (inversion EQv; inversion EQe; fail)
-      | val _   = obs _ _ => now inv EQl
-      | τ     = obs _ _ => now inv EQl
-      | _ => idtac
-      end
+(*   (* Vis *) *)
+(*   | h : trans' _ (Vis ?e ?k) _ |- _ => *)
+(*       let EQl := fresh "EQl" in *)
+(*       apply trans_vis_inv in h as (?x & ?EQ & EQl); *)
+(*       match type of EQl with *)
+(*       | @obs _ ?X _ _ = obs _ _ => *)
+(*           let EQt := fresh "EQt" in *)
+(*           let EQe := fresh "EQe" in *)
+(*           let EQv := fresh "EQv" in *)
+(*           apply obs_eq_invT in EQl as EQt; *)
+(*           subst_hyp_in EQt h; *)
+(*           apply obs_eq_inv in EQl as [EQe EQv]; *)
+(*           try (inversion EQv; inversion EQe; fail) *)
+(*       | val _   = obs _ _ => now inv EQl *)
+(*       | τ     = obs _ _ => now inv EQl *)
+(*       | _ => idtac *)
+(*       end *)
 
-  (* Step *)
-  | h : trans' _ (Step _) _ |- _ =>
-      let EQl := fresh "EQl" in
-      apply trans_step_inv in h as (?EQ & EQl);
-      match type of EQl with
-      | τ     = τ => clear EQl
-      | val _   = τ => now inv EQl
-      | obs _ _ = τ => now inv EQl
-      | _ => idtac
-      end
+(*   (* Step *) *)
+(*   | h : trans' _ (Step _) _ |- _ => *)
+(*       let EQl := fresh "EQl" in *)
+(*       apply trans_step_inv in h as (?EQ & EQl); *)
+(*       match type of EQl with *)
+(*       | τ     = τ => clear EQl *)
+(*       | val _   = τ => now inv EQl *)
+(*       | obs _ _ = τ => now inv EQl *)
+(*       | _ => idtac *)
+(*       end *)
 
-  (* BrS *)
-  | h : trans' _ (BrS ?n ?k) _ |- _ =>
-      let x := fresh "x" in
-      let EQl := fresh "EQl" in
-      apply trans_brS_inv in h as (x & ?EQ & EQl);
-      match type of EQl with
-      | τ     = τ => clear EQl
-      | val _   = τ => now inv EQl
-      | obs _ _ = τ => now inv EQl
-      | _ => idtac
-      end
+(*   (* BrS *) *)
+(*   | h : trans' _ (BrS ?n ?k) _ |- _ => *)
+(*       let x := fresh "x" in *)
+(*       let EQl := fresh "EQl" in *)
+(*       apply trans_brS_inv in h as (x & ?EQ & EQl); *)
+(*       match type of EQl with *)
+(*       | τ     = τ => clear EQl *)
+(*       | val _   = τ => now inv EQl *)
+(*       | obs _ _ = τ => now inv EQl *)
+(*       | _ => idtac *)
+(*       end *)
 
-  (* brS2 *)
-  | h : trans' _ (brS2 _ _) _ |- _ =>
-      let EQl := fresh "EQl" in
-      apply trans_brS2_inv in h as (EQl & [?EQ | ?EQ]);
-      match type of EQl with
-      | τ     = τ => clear EQl
-      | val _   = τ => now inv EQl
-      | obs _ _ = τ => now inv EQl
-      | _ => idtac
-      end
+(*   (* brS2 *) *)
+(*   | h : trans' _ (brS2 _ _) _ |- _ => *)
+(*       let EQl := fresh "EQl" in *)
+(*       apply trans_brS2_inv in h as (EQl & [?EQ | ?EQ]); *)
+(*       match type of EQl with *)
+(*       | τ     = τ => clear EQl *)
+(*       | val _   = τ => now inv EQl *)
+(*       | obs _ _ = τ => now inv EQl *)
+(*       | _ => idtac *)
+(*       end *)
 
-  (* brS3 *)
-  | h : trans' _ (brS3 _ _ _) _ |- _ =>
-      let EQl := fresh "EQl" in
-      apply trans_brS3_inv in h as (EQl & [?EQ | [?EQ | ?EQ]]);
-      match type of EQl with
-      | τ     = τ => clear EQl
-      | val _   = τ => now inv EQl
-      | obs _ _ = τ => now inv EQl
-      | _ => idtac
-      end
+(*   (* brS3 *) *)
+(*   | h : trans' _ (brS3 _ _ _) _ |- _ => *)
+(*       let EQl := fresh "EQl" in *)
+(*       apply trans_brS3_inv in h as (EQl & [?EQ | [?EQ | ?EQ]]); *)
+(*       match type of EQl with *)
+(*       | τ     = τ => clear EQl *)
+(*       | val _   = τ => now inv EQl *)
+(*       | obs _ _ = τ => now inv EQl *)
+(*       | _ => idtac *)
+(*       end *)
 
-  (* brS4 *)
-  | h : trans' _ (brS4 _ _ _ _) _ |- _ =>
-      let EQl := fresh "EQl" in
-      apply trans_brS4_inv in h as (EQl & [?EQ | [?EQ | [?EQ | ?EQ]]]);
-      match type of EQl with
-      | τ     = τ => clear EQl
-      | val _   = τ => now inv EQl
-      | obs _ _ = τ => now inv EQl
-      | _ => idtac
-      end
+(*   (* brS4 *) *)
+(*   | h : trans' _ (brS4 _ _ _ _) _ |- _ => *)
+(*       let EQl := fresh "EQl" in *)
+(*       apply trans_brS4_inv in h as (EQl & [?EQ | [?EQ | [?EQ | ?EQ]]]); *)
+(*       match type of EQl with *)
+(*       | τ     = τ => clear EQl *)
+(*       | val _   = τ => now inv EQl *)
+(*       | obs _ _ = τ => now inv EQl *)
+(*       | _ => idtac *)
+(*       end *)
 
-  (* Guard *)
-  | h : trans' _ (Guard _) _ |- _ =>
-      apply trans_guard_inv in h
+(*   (* Guard *) *)
+(*   | h : trans' _ (Guard _) _ |- _ => *)
+(*       apply trans_guard_inv in h *)
 
-  (* Br *)
-  | h : trans' _ (Br ?n ?k) _ |- _ =>
-      let x := fresh "x" in
-      apply trans_br_inv in h as (x & ?TR)
+(*   (* Br *) *)
+(*   | h : trans' _ (Br ?n ?k) _ |- _ => *)
+(*       let x := fresh "x" in *)
+(*       apply trans_br_inv in h as (x & ?TR) *)
 
-  (* br2 *)
-  | h : trans' _ (br2 _ _) _ |- _ =>
-      apply trans_br2_inv in h as [?TR | ?TR]
+(*   (* br2 *) *)
+(*   | h : trans' _ (br2 _ _) _ |- _ => *)
+(*       apply trans_br2_inv in h as [?TR | ?TR] *)
 
-  (* br3 *)
-  | h : trans' _ (br3 _ _ _) _ |- _ =>
-      apply trans_br3_inv in h as [?TR | [?TR | ?TR]]
+(*   (* br3 *) *)
+(*   | h : trans' _ (br3 _ _ _) _ |- _ => *)
+(*       apply trans_br3_inv in h as [?TR | [?TR | ?TR]] *)
 
-  (* br4 *)
-  | h : trans' _ (br4 _ _ _ _) _ |- _ =>
-      apply trans_br4_inv in h as [?TR | [?TR | [?TR | ?TR]]]
+(*   (* br4 *) *)
+(*   | h : trans' _ (br4 _ _ _ _) _ |- _ => *)
+(*       apply trans_br4_inv in h as [?TR | [?TR | [?TR | ?TR]]] *)
 
-  (* Stuck *)
-  | h : trans' _ Stuck _ |- _ =>
-      exfalso; eapply Stuck_is_stuck; now apply h
-  (* (* stuckS *) *)
-  (* | h : trans' _ stuckS _ |- _ => *)
-  (*     exfalso; eapply stuckS_is_stuck; now apply h *)
+(*   (* Stuck *) *)
+(*   | h : trans' _ Stuck _ |- _ => *)
+(*       exfalso; eapply Stuck_is_stuck; now apply h *)
+(*   (* (* stuckS *) *) *)
+(*   (* | h : trans' _ stuckS _ |- _ => *) *)
+(*   (*     exfalso; eapply stuckS_is_stuck; now apply h *) *)
 
-  (* trigger *)
-  | h : trans' _ (CTree.bind (CTree.trigger ?e) ?t) _ |- _ =>
-      apply trans_trigger_inv in h as (?x & ?EQ & ?EQl)
+(*   (* trigger *) *)
+(*   | h : trans' _ (CTree.bind (CTree.trigger ?e) ?t) _ |- _ => *)
+(*       apply trans_trigger_inv in h as (?x & ?EQ & ?EQl) *)
 
-  end; try subs
-.
+(*   end; try subs *)
+(* . *)
 
-Ltac inv_trans := repeat inv_trans_one.
+(* Ltac inv_trans := repeat inv_trans_one. *)
 
 Create HintDb trans.
 #[global] Hint Resolve
- trans_ret trans_vis trans_brS trans_br
+ trans_ret trans_ask trans_brS trans_br
  trans_guard
  trans_br21 trans_br22
  trans_br31 trans_br32 trans_br33
@@ -2029,12 +2169,13 @@ Create HintDb trans.
  trans_brS21 trans_brS22
  trans_brS31 trans_brS32 trans_brS33
  trans_brS41 trans_brS42 trans_brS43 trans_brS44
- trans_trigger trans_bind_l trans_bind_r
+ trans_trigger trans_bind_l_τ trans_bind_l_ask trans_bind_r
   : trans.
 
 #[global] Hint Constructors is_val : trans.
 #[global] Hint Resolve
-  is_val_τ is_val_obs
+  is_val_τ
+  (* is_val_obs *)
   wf_val_val wf_val_nonval wf_val_trans : trans.
 
 Ltac etrans := eauto with trans.
