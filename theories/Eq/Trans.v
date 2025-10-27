@@ -384,6 +384,7 @@ Elimination rules for [trans]
 
 End Trans.
 
+#[global] Infix "⩸" := Seq (at level 10).
 #[global] Hint Constructors Seq : core.
 #[global] Hint Constructors transR : core.
 
@@ -396,29 +397,24 @@ Ltac rem_weak_ t s :=
   
 Tactic Notation "rem_weak" constr(t) "as" ident(s) := rem_weak_ t s.
 
-(* Class Respects_val {E F} (L : rel (@label E) (@label F)) := *)
-(*   { respects_val: *)
-(*     forall l l', *)
-(*       L l l' -> *)
-(*       is_val l <-> is_val l' }. *)
+Class Respects_val {E F} (L : rel (@label E) (@label F)) :=
+  { respects_val:
+    forall l l',
+      L l l' ->
+      is_val l <-> is_val l' }.
 
-(* Class Respects_τ {E F} (L : rel (@label E) (@label F)) := *)
-(*   { respects_τ: forall l l', *)
-(*       L l l' -> *)
-(*       l = τ <-> l' = τ }. *)
+Class Respects_τ {E F} (L : rel (@label E) (@label F)) :=
+  { respects_τ: forall l l',
+      L l l' ->
+      l = τ <-> l' = τ }.
 
-(* Definition eq_obs {E} (L : relation (@label E)) : Prop := *)
-(*   forall X X' e e' (x : X) (x' : X'), *)
-(*     L (obs e x) (obs e' x') -> *)
-(*     obs e x = obs e' x'. *)
+#[global] Instance Respects_val_eq A: @Respects_val A A eq.
+split; intros; subst; reflexivity.
+Defined.
 
-(* #[global] Instance Respects_val_eq A: @Respects_val A A eq. *)
-(* split; intros; subst; reflexivity. *)
-(* Defined. *)
-
-(* #[global] Instance Respects_τ_eq A: @Respects_τ A A eq. *)
-(* split; intros; subst; reflexivity. *)
-(* Defined. *)
+#[global] Instance Respects_τ_eq A: @Respects_τ A A eq.
+split; intros; subst; reflexivity.
+Defined.
 
 Coercion Active : ctree >-> S.
 Notation "'α' t" := (Active t) (at level 100).
@@ -1295,26 +1291,10 @@ Proof.
     apply trans_ask.
 Qed.
 
-Lemma trans_bind_r {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) x l :
+Lemma trans_bind_r {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) u x l :
   trans (val x) t Stuck ->
   trans l (k x) u ->
   trans l (t >>= k) u.
-Proof.
-  cbn; intros TR1.
-  dependent induction TR1; cbn in *.
-  - intros TR2; rewrite H, bind_br.
-    apply trans_br with x0.
-    rewrite <- H0; eapply IHTR1; eauto.
-  - intros TR2; rewrite H, bind_guard.
-    apply trans_guard.
-    eapply IHTR1; eauto.
-  - intros TR2; rewrite H, bind_ret_l; auto.
-Qed.
-
-Lemma trans_bind_r_ask {E B X Y Z} (t : ctree E B X) (k : X -> ctree E B Y) (e : E Z) (g : Z -> ctree E B Y) x :
-  trans (val x) t Stuck ->
-  trans (ask e) (k x) (β e g) ->
-  trans (ask e) (t >>= k) (β e g).
 Proof.
   cbn; intros TR1.
   dependent induction TR1; cbn in *.
@@ -1831,7 +1811,7 @@ Proof.
   - rewrite <- EQ in *.
     clear v EQ.
     apply trans_wtrans.
-    eapply trans_bind_r_ask; eauto.
+    eapply trans_bind_r; eauto.
   - pose proof trans_τ_active TRv as [? EQ].
     rewrite EQ in *; clear v0 EQ. 
     eapply wcons.
@@ -1868,8 +1848,8 @@ Qed.
 (* Qed. *)
 
 Lemma trans_val_invT {E B R R'} :
-  forall (t u : ctree E B R) (v : R'),
-    trans (val v) t u ->
+  forall t u (v : R'),
+    @trans E B R (val v) t u ->
     R = R'.
 Proof.
   intros * TR.
@@ -1965,8 +1945,8 @@ Proof.
   red. intros. subst. exfalso. apply H. constructor.
 Qed.
 
-Lemma wf_val_trans {E B X} (l : @label E) (t t' : ctree E B X) :
-  trans l t t' -> wf_val X l.
+Lemma wf_val_trans {E B X} (l : @label E) t t' :
+  @trans E B X l t t' -> wf_val X l.
 Proof.
   red. intros. subst.
   now apply trans_val_invT in H.

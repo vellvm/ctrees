@@ -38,7 +38,7 @@ Pous'16 in order to be able to exploit symmetry arguments in proofs
 |*)
   Program Definition ss {E F C D : Type -> Type} {X Y : Type}
     (L : rel (@label E) (@label F)) :
-    mon (ctree E C X -> ctree F D Y -> Prop) :=
+    mon (@S E C X -> @S F D Y -> Prop) :=
     {| body R t u :=
       forall l t', trans l t t' -> exists l' u', trans l' u u' /\ R t' u' /\ L l l'
     |}.
@@ -166,6 +166,22 @@ Section ssim_heterogenous_theory.
       rewrite <- Equu; auto.
   Qed.
 
+  #[global] Instance seq_clos_sst_goal {c: Chain (ss L)} :
+    Proper (Seq ==> Seq ==> flip impl) (`c).
+  Proof.
+    apply tower.
+    - intros ? INC t t' HP' ? ? HP'' ?? HP'''. 
+      red.
+      eapply INC; eauto.
+      apply leq_infx in HP'''.
+      now apply HP'''.
+    - intros ? INC  t t' EQt u u' EQu HS l v TR.
+      rewrite EQt in TR.
+      apply HS in TR as (l' & v' & ? & ? & ?).
+      exists l',v'; split; auto.
+      now rewrite EQu.
+  Qed.
+
   #[global] Instance equ_clos_sst_goal {c: Chain (ss L)} :
     Proper (equ eq ==> equ eq ==> flip impl) `c.
   Proof.
@@ -234,49 +250,54 @@ Section ssim_heterogenous_theory.
 
 End ssim_heterogenous_theory.
 
-Definition Lequiv {E F} X Y (L L' : rel (@label E) (@label F)) :=
-  forall l l', wf_val X l -> wf_val Y l' ->
-  L l l' <-> L' l l'.
-
-#[global] Instance weq_Lequiv : forall {E F} X Y,
-  subrelation weq (@Lequiv E F X Y).
-Proof.
-  red. red. intros. apply H.
-Qed.
-
-#[global] Instance Equivalence_Lequiv : forall {E F} X Y,
-  Equivalence (@Lequiv E F X Y).
-Proof.
-  split; cbn; intros.
-  - now apply weq_Lequiv.
-  - red. intros. red in H. rewrite H; auto.
-  - red. intros.
-    etransitivity. apply H; auto. apply H0; auto.
-Qed.
-
-#[global] Instance Lequiv_ss_goal : forall {E F C D X Y},
-  Proper (Lequiv X Y ==> leq) (@ss E F C D X Y).
-Proof.
-  cbn. intros.
-  apply H0 in H1 as ?. destruct H2 as (? & ? & ? & ? & ?).
-  exists x0, x1. split; auto. split; auto. apply H; etrans.
-Qed.
-
-#[global] Instance Lequiv_ssim : forall {E F C D X Y},
-  Proper (Lequiv X Y ==> leq) (@ssim E F C D X Y).
-Proof.
-  cbn. intros.
-  - unfold ssim.
-    epose proof (gfp_leq (x := ss x) (y := ss y)). lapply H1.
-    + intro. red in H2. cbn in H2. apply H2. unfold ssim in H0. apply H0.
-    + now rewrite H.
-Qed.
-
 #[global] Instance weq_ssim : forall {E F C D X Y},
   Proper (weq ==> weq) (@ssim E F C D X Y).
 Proof.
   cbn -[ss weq]. intros. apply gfp_weq. now apply weq_ss.
 Qed.
+
+Section LabelRelation.
+
+  Context {E F : Type -> Type} {X Y : Type}.
+
+  Variant build_rel
+    {RR: rel X Y}
+    {Rask: forall {X Y}, E X -> F Y -> Prop}
+    {Rrcv: forall {X Y} {e : E X} {f : F Y}, Rask e f -> X -> Y -> Prop}
+    : hrel (@label E) (@label F) :=
+    | rel_τ   : build_rel τ τ
+    | rel_ask {X Y} {e : E X} {f : F Y}: Rask e f -> build_rel (ask e) (ask f)
+    | rel_rcv {X Y} {e : E X} {f : F Y} x y
+        (Hrcv: forall (HR: Rask e f), Rrcv HR x y) :
+      build_rel (rcv e x) (rcv f y)
+    | rel_ret {x : X} {y : Y}:
+      RR x y -> build_rel (val x) (val y).
+  Arguments build_rel : clear implicits.
+  
+  Definition good_rel (L : hrel (@label E) (@label F)) RR Rask Rrcv :=
+    L == build_rel RR Rask Rrcv.
+
+  Lemma build_rel_val RR Rask Rrcv x y :
+    build_rel RR Rask Rrcv (val x) (val y) -> RR x y.
+  Proof.
+    now intros H; dependent induction H.
+  Qed.
+ 
+  Lemma build_rel_ask RR Rask Rrcv A B (e : E A) (f : F B) :
+    build_rel RR Rask Rrcv (ask e) (ask f) -> Rask _ _ e f.
+  Proof.
+    now intros H; dependent induction H.
+  Qed.
+  
+  Lemma build_rel_rcv RR Rask Rrcv A B (e : E A) (f : F B) a b HR : 
+    build_rel RR Rask Rrcv (rcv e a) (rcv f b) -> Rrcv _ _ e f HR a b.
+  Proof.
+    intros H; dependent induction H.
+    apply Hrcv.
+  Qed.
+  
+End LabelRelation.
+#[global] Hint Constructors build_rel : trans.
 
 (*|
 Up-to [bind] context simulations
@@ -285,129 +306,103 @@ We have proved in the module [Equ] that up-to bind context is
 a valid enhancement to prove [equ].
 We now prove the same result, but for strong simulation.
 |*)
-
+ 
 Section bind.
   Arguments label: clear implicits.
   Obligation Tactic := idtac.
 
   Context {E F C D: Type -> Type} {X X' Y Y': Type}
-    (L : hrel (@label E) (@label F)) (R0 : rel X Y).
-
-  (* Mix of R0 for val and L for tau/obs. *)
-  Variant update_val_rel : @label E -> @label F -> Prop :=
-  | update_Val (v1 : X) (v2 : Y) : R0 v1 v2 -> update_val_rel (val v1) (val v2)
-  | update_NonVal l1 l2 : ~is_val l1 -> ~is_val l2 -> L l1 l2 -> update_val_rel l1 l2
+    (L : hrel (@label E) (@label F))
+    (RR: rel X' Y')
+    (Rask: forall X Y, E X -> F Y -> Prop)
+    (Rrcv: forall X Y {e : E X} {f : F Y}, Rask _ _ e f -> X -> Y -> Prop)
+    (SS: rel X Y)
+    (L' : hrel (@label E) (@label F))
+    (HL  : good_rel L  RR Rask Rrcv)
+    (HL' : good_rel L' SS Rask Rrcv)
   .
 
-  Lemma update_val_rel_val : forall (v1 : X) (v2 : Y),
-    update_val_rel (val v1) (val v2) ->
-    R0 v1 v2.
-  Proof.
-    intros. remember (val v1) as l1. remember (val v2) as l2.
-    destruct H.
-    - apply val_eq_inv in Heql1, Heql2. now subst.
-    - subst. exfalso. now apply H.
-  Qed.
-
-  Lemma update_val_rel_val_l : forall (v1 : X) l2,
-    update_val_rel (val v1) l2 ->
-    exists v2 : Y, l2 = val v2 /\ R0 v1 v2.
-  Proof.
-    intros. remember (val v1) as l1. destruct H.
-    - apply val_eq_inv in Heql1. subst. eauto.
-    - subst. exfalso. apply H. constructor.
-  Qed.
-
-  Lemma update_val_rel_val_r : forall l1 (v2 : Y),
-    update_val_rel l1 (val v2) ->
-    exists v1 : X, l1 = val v1 /\ R0 v1 v2.
-  Proof.
-    intros. remember (val v2) as l2. destruct H.
-    - apply val_eq_inv in Heql2. subst. eauto.
-    - subst. exfalso. apply H0. constructor.
-  Qed.
-
-  Lemma update_val_rel_nonval_l : forall l1 l2,
-    update_val_rel l1 l2 ->
-    ~is_val l1 ->
-    ~is_val l2 /\ L l1 l2.
-  Proof.
-    intros. destruct H.
-    - exfalso. apply H0. constructor.
-    - auto.
-  Qed.
-
-  Lemma update_val_rel_nonval_r : forall l1 l2,
-    update_val_rel l1 l2 ->
-    ~is_val l2 ->
-    ~is_val l1 /\ L l1 l2.
-  Proof.
-    intros. destruct H.
-    - exfalso. apply H0. constructor.
-    - auto.
-  Qed.
-
-  #[global] Instance Respects_val_update_val_rel :
-    Respects_val update_val_rel.
-  Proof.
-    constructor. intros. destruct H.
-    - split; etrans.
-    - tauto.
-  Qed.
-
-  Definition is_update_val_rel (L0 : rel (@label E) (@label F)) : Prop :=
-    Lequiv X Y update_val_rel L0.
-
-  Lemma update_val_rel_correct : is_update_val_rel update_val_rel.
-  Proof.
-    red. red. reflexivity.
-  Qed.
+  Ltac refine_transition H :=
+    match type of H with
+    | hrel_of (trans τ) _ _ =>
+        let u  := fresh "u" in
+        let EQ := fresh "EQ" in
+        pose proof trans_τ_active H as [u EQ];
+        rewrite EQ in *;
+        match type of EQ with
+        | Seq ?a _ => try clear a EQ
+        end
+    | hrel_of (trans (ask ?e)) _ _ =>
+        let u  := fresh "u" in
+        let EQ := fresh "EQ" in
+        pose proof trans_ask_passive H as [u EQ];
+        rewrite EQ in *;
+        match type of EQ with
+        | Seq ?a _ => try clear a EQ
+        end
+    end.
 
 (*|
 Specialization of [bind_ctx] to a function acting with [ssim] on the bound value,
 and with the argument (pointwise) on the continuation.
 |*)
   Lemma bind_chain_gen
-    (RR : rel (label E) (label F))
-    (ISVR : is_update_val_rel RR)
     {R : Chain (@ss E F C D X' Y' L)} :
-    forall (t : ctree E C X) (t' : ctree F D Y) (k : X -> ctree E C X') (k' : Y -> ctree F D Y'),
-      ssim RR t t' ->
-      (forall x x', R0 x x' -> elem R (k x) (k' x')) ->
+    forall (t : ctree E C X) (t' : ctree F D Y)
+      (k : X -> ctree E C X') (k' : Y -> ctree F D Y'),
+      ssim L' t t' ->
+      (forall x y, SS x y -> elem R (k x) (k' y)) ->
       elem R (bind t k) (bind t' k').
   Proof.
     apply tower.
     - intros ? INC ? ? ? ? tt' kk' ? ?.
       apply INC. apply H. apply tt'.
       intros x x' xx'. apply leq_infx in H. apply H. now apply kk'.
-    - intros ? ? ? ? ? ? tt' kk'.
+    - clear R.
+      intros R ? ? ? ? ? tt' kk'.
       step in tt'.
       cbn; intros * STEP.
-      apply trans_bind_inv in STEP as [(?H & ?t' & STEP & EQ) | (v & STEPres & STEP)].
-      + apply tt' in STEP as (? & ? & ? & ? & ?).
+      apply trans_bind_inv in STEP as [(?H & ?t' & STEP & EQ) | [(Z & e & EQl & g & STEP & SEQ) | (v & STEPres & STEP)]].
+      + subst l.
+        apply tt' in STEP as (? & ? & STEP' & HSIM & HRL).
+        apply HL' in HRL; inv HRL.
+        refine_transition STEP'.
         do 2 eexists; split; [| split].
-        apply trans_bind_l; eauto.
-        * intro Hl. destruct Hl.
-          apply ISVR in H3; etrans.
-          inversion H3; subst. apply H0. constructor. apply H5. constructor.
+        apply trans_bind_l_τ; eauto.
         * rewrite EQ.
+          apply H; auto.
+          intros.
+          now apply (b_chain R), kk'.
+        * apply HL; etrans.
+      + subst l.
+        apply tt' in STEP as (? & ? & STEP' & HSIM & HRL).
+        apply HL' in HRL; dependent induction HRL.
+        refine_transition STEP'.
+        exists (ask f); eexists ; split; [| split].
+        eapply trans_bind_l_ask; eauto.
+        * rewrite SEQ.
+          apply (b_chain R).
+          intros ? ? STEP''.
+          pose proof trans_passive_inv' STEP'' as (a & EQ & ->).
+          rewrite EQ in STEP''.
+          assert (TR: trans (rcv e a) (β e g) (g a)) by etrans.
+          step in HSIM; apply HSIM in TR as (l' & u' & TR' & HSIM' & HRL').
+          pose proof trans_passive_inv' TR' as (b & EQ' & ->).
+          exists (rcv f b); eexists; split; eauto; split; cycle 1.
+          { apply HL. apply HL' in HRL'. constructor. dependent induction HRL'. auto. }
+          rewrite EQ.
           apply H.
-          apply H2.
-          intros * HR.
-          now apply (b_chain x), kk'.
-        * apply ISVR in H3; etrans.
-          destruct H3. exfalso. apply H0. constructor. eauto.
-      + apply tt' in STEPres as (u' & ? & STEPres & EQ' & ?).
-        apply ISVR in H0; etrans.
-        dependent destruction H0.
-        2 : exfalso; apply H0; constructor.
-        pose proof (trans_val_inv STEPres) as EQ.
-        rewrite EQ in STEPres.
-        specialize (kk' v v2 H0).
-        apply kk' in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
-        do 2 eexists; split.
+          rewrite EQ' in HSIM'; auto.
+          intros.
+          now apply (b_chain R), kk'.
+        * apply HL; etrans.
+      + apply tt' in STEPres as (? & ? & STEP' & HSIM & HRL).
+        apply HL' in HRL; dependent induction HRL.
+        apply (kk' v y) in STEP as (l' & u' & STEP'' & HSIM'' & HRL').
+        exists l'; eexists; split; eauto.
+        2:etrans.
         eapply trans_bind_r; eauto.
-        split; auto.
+        erewrite <- trans_val_inv'; eauto.
   Qed.
 
 End bind.
