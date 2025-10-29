@@ -37,7 +37,7 @@ Pous'16 in order to be able to exploit symmetry arguments in proofs
 (see [square_st] for an illustration).
 |*)
   Program Definition ss {E F C D : Type -> Type} {X Y : Type}
-    (L : rel (@label E) (@label F)) :
+    (L : rel (label E) (label F)) :
     mon (@S E C X -> @S F D Y -> Prop) :=
     {| body R t u :=
       forall l t', trans l t t' -> exists l' u', trans l' u u' /\ R t' u' /\ L l l'
@@ -108,7 +108,7 @@ Tactic Notation "__coinduction_ssim" simple_intropattern(r) simple_intropattern(
 
 Section ssim_homogenous_theory.
   Context {E B: Type -> Type} {X: Type}
-          {L: relation (@label E)}.
+          {L: relation (label E)}.
 
   Notation ss := (@ss E E B B X X).
 
@@ -140,7 +140,7 @@ Parametric theory of [ss] with heterogenous [L]
 Section ssim_heterogenous_theory.
   Arguments label: clear implicits.
   Context {E F C D: Type -> Type} {X Y: Type}
-          {L: rel (@label E) (@label F)}.
+          {L: rel (label E) (label F)}.
 
   Notation ss := (@ss E F C D X Y).
   Notation ssim  := (@ssim E F C D X Y).
@@ -256,48 +256,160 @@ Proof.
   cbn -[ss weq]. intros. apply gfp_weq. now apply weq_ss.
 Qed.
 
-Section LabelRelation.
-
+Section build_rel.
+  
   Context {E F : Type -> Type} {X Y : Type}.
 
   Variant build_rel
     {RR: rel X Y}
     {Rask: forall {X Y}, E X -> F Y -> Prop}
-    {Rrcv: forall {X Y} {e : E X} {f : F Y}, Rask e f -> X -> Y -> Prop}
-    : hrel (@label E) (@label F) :=
+    {Rrcv: forall {X Y} (e : E X) (f : F Y), X -> Y -> Prop}
+    : hrel (label E) (label F) :=
     | rel_τ   : build_rel τ τ
-    | rel_ask {X Y} {e : E X} {f : F Y}: Rask e f -> build_rel (ask e) (ask f)
+    | rel_ask {X Y} {e : E X} {f : F Y}
+        (HR : Rask e f) :
+      build_rel (ask e) (ask f)
     | rel_rcv {X Y} {e : E X} {f : F Y} x y
-        (Hrcv: forall (HR: Rask e f), Rrcv HR x y) :
+        (HR : Rrcv e f x y) :
       build_rel (rcv e x) (rcv f y)
     | rel_ret {x : X} {y : Y}:
       RR x y -> build_rel (val x) (val y).
-  Arguments build_rel : clear implicits.
+   Arguments build_rel : clear implicits.
   
-  Definition good_rel (L : hrel (@label E) (@label F)) RR Rask Rrcv :=
-    L == build_rel RR Rask Rrcv.
-
   Lemma build_rel_val RR Rask Rrcv x y :
     build_rel RR Rask Rrcv (val x) (val y) -> RR x y.
   Proof.
     now intros H; dependent induction H.
   Qed.
- 
+  
   Lemma build_rel_ask RR Rask Rrcv A B (e : E A) (f : F B) :
     build_rel RR Rask Rrcv (ask e) (ask f) -> Rask _ _ e f.
   Proof.
     now intros H; dependent induction H.
   Qed.
   
-  Lemma build_rel_rcv RR Rask Rrcv A B (e : E A) (f : F B) a b HR : 
-    build_rel RR Rask Rrcv (rcv e a) (rcv f b) -> Rrcv _ _ e f HR a b.
+  Lemma build_rel_rcv RR Rask Rrcv A B (e : E A) (f : F B) a b : 
+    build_rel RR Rask Rrcv (rcv e a) (rcv f b) -> Rrcv _ _ e f a b.
   Proof.
-    intros H; dependent induction H.
-    apply Hrcv.
+    now intros H; dependent induction H.
+  Qed.
+
+  Lemma build_rel_τ RR Rask Rrcv :
+    build_rel RR Rask Rrcv τ τ.
+  Proof.
+    constructor.
   Qed.
   
-End LabelRelation.
+End build_rel.
+
+Arguments build_rel {E F X Y} RR Rask Rrcv.
 #[global] Hint Constructors build_rel : trans.
+
+Section good_rel.
+
+  Context {E F : Type -> Type} {X Y : Type}.
+
+  Definition good_rel {E F X Y} (L : hrel (label E) (label F)) RR Rask Rrcv :=
+    L == @build_rel E F X Y RR Rask Rrcv.
+
+  Context {L : rel (label E) (label F)}.
+  Context {RR : rel X Y}
+    {Rask: forall {X Y}, E X -> F Y -> Prop}
+    {Rrcv: forall {X Y} (e : E X) (f : F Y), X -> Y -> Prop}.
+  
+  Lemma good_rel_val x y :
+    good_rel L RR Rask Rrcv ->
+    RR x y <-> L (val x) (val y).
+  Proof.
+    intros HL; split; intros H.
+    apply HL; etrans.
+    apply HL in H; eapply build_rel_val; eauto.
+  Qed.
+  
+  Lemma good_rel_ask A B (e : E A) (f : F B) :
+    good_rel L RR Rask Rrcv ->
+    Rask e f <-> L (ask e) (ask f).
+  Proof.
+    intros HL; split; intros H.
+    apply HL; etrans.
+    apply HL in H; eapply build_rel_ask; eauto.
+  Qed.
+    
+  Lemma good_rel_rcv A B (e : E A) (f : F B) a b : 
+    good_rel L RR Rask Rrcv ->
+    Rrcv e f a b <-> L (rcv e a) (rcv f b).
+  Proof.
+    intros HL; split; intros H.
+    apply HL; econstructor; intros; eauto.
+    apply HL in H; eapply build_rel_rcv; eauto.
+  Qed.
+  
+  Lemma good_rel_τ :
+    good_rel L RR Rask Rrcv ->
+    L τ τ.
+  Proof.
+    intros HL; apply HL; constructor.
+  Qed.
+  
+End good_rel.
+
+Variant upd_rel {E F X Y} (L : rel (label E) (label F)) (RR : rel X Y): label E -> label F -> Prop :=
+  | upd_val x y   : RR x y -> upd_rel L RR (val x) (val y)
+  | upd_lab l1 l2 : ~is_val l1 -> ~is_val l2 -> L l1 l2 -> upd_rel L RR l1 l2
+.
+
+#[global] Hint Constructors upd_rel : trans.
+
+Lemma upd_good_rel {E F X Y X' Y'}
+  (L : rel (label E) (label F)) (RR : rel X Y) Rask Rrcv
+  (SS : rel X' Y')
+  (HL: good_rel L RR Rask Rrcv) :
+  good_rel (upd_rel L SS) SS Rask Rrcv.
+Proof.
+  intros e f; split; intros H.
+  - inv H.
+    + etrans.
+    + apply HL in H2.
+      inv H2; etrans.
+      intuition.
+  - inv H; etrans.
+    all: constructor; etrans.
+    eapply good_rel_τ; eauto.
+    eapply good_rel_ask; eauto.
+    eapply good_rel_rcv; eauto.
+Qed.
+
+
+Variant eq1 {E} : forall [X Y : Type], rel (E X) (E Y) :=
+  | Eq1 X (e : E X) : eq1 e e.
+Variant eq2 {E} : forall [X Y : Type], E X -> E Y -> rel X Y :=
+  | Eq2 X (e : E X) x : eq2 e e x x.
+Hint Resolve Eq1 : trans.
+Hint Resolve Eq2 : trans.
+
+Definition Leq {E} (X : Type) : rel (label E) (label E) := @build_rel E E X X eq eq1 eq2.
+
+Definition Lvrel {E X Y} (RR : rel X Y) := @build_rel E E X Y RR eq1 eq2.
+
+Ltac refine_transition H :=
+  match type of H with
+  | hrel_of (trans τ) _ _ =>
+      let u  := fresh "u" in
+      let EQ := fresh "EQ" in
+      pose proof trans_τ_active H as [u EQ];
+      rewrite EQ in *;
+      match type of EQ with
+      | Seq ?a _ => try clear a EQ
+      end
+  | hrel_of (trans (ask ?e)) _ _ =>
+      let u  := fresh "u" in
+      let EQ := fresh "EQ" in
+      pose proof trans_ask_passive H as [u EQ];
+      rewrite EQ in *;
+      match type of EQ with
+      | Seq ?a _ => try clear a EQ
+      end
+  end.
 
 (*|
 Up-to [bind] context simulations
@@ -312,36 +424,15 @@ Section bind.
   Obligation Tactic := idtac.
 
   Context {E F C D: Type -> Type} {X X' Y Y': Type}
-    (L : hrel (@label E) (@label F))
+    (L : rel (label E) (label F))
     (RR: rel X' Y')
     (Rask: forall X Y, E X -> F Y -> Prop)
-    (Rrcv: forall X Y {e : E X} {f : F Y}, Rask _ _ e f -> X -> Y -> Prop)
+    (Rrcv: forall X Y (e : E X) (f : F Y), X -> Y -> Prop)
     (SS: rel X Y)
-    (L' : hrel (@label E) (@label F))
+    (L' : rel (label E) (label F))
     (HL  : good_rel L  RR Rask Rrcv)
     (HL' : good_rel L' SS Rask Rrcv)
   .
-
-  Ltac refine_transition H :=
-    match type of H with
-    | hrel_of (trans τ) _ _ =>
-        let u  := fresh "u" in
-        let EQ := fresh "EQ" in
-        pose proof trans_τ_active H as [u EQ];
-        rewrite EQ in *;
-        match type of EQ with
-        | Seq ?a _ => try clear a EQ
-        end
-    | hrel_of (trans (ask ?e)) _ _ =>
-        let u  := fresh "u" in
-        let EQ := fresh "EQ" in
-        pose proof trans_ask_passive H as [u EQ];
-        rewrite EQ in *;
-        match type of EQ with
-        | Seq ?a _ => try clear a EQ
-        end
-    end.
-
 (*|
 Specialization of [bind_ctx] to a function acting with [ssim] on the bound value,
 and with the argument (pointwise) on the continuation.
@@ -407,18 +498,48 @@ and with the argument (pointwise) on the continuation.
 
 End bind.
 
-Theorem update_val_rel_eq {E X} : Lequiv X X (@update_val_rel E E X X eq eq) eq.
+(*|
+Specializing the congruence principle for [≲]
+|*)
+Lemma ssim_clo_bind_gen E F C D X Y X' Y' L (RR : rel X' Y') Rask Rrcv (SS : rel X Y) L'
+  (HL  : good_rel L  RR Rask Rrcv)
+  (HL' : good_rel L' SS Rask Rrcv)
+  (t1 : ctree E C X) (t2: ctree F D Y)
+  (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y'):
+  ssim L' t1 t2 ->
+  (forall x y, SS x y -> ssim L (k1 x) (k2 y)) ->
+  ssim L (t1 >>= k1) (t2 >>= k2).
 Proof.
-  split; intro.
-  - inv H1; reflexivity.
-  - subst. destruct l'.
-    + constructor; auto.
-      all: intro; inv H1.
-    + constructor; auto.
-      all: intro; inv H1.
-    + red in H. specialize (H X0 v eq_refl). subst.
-      constructor. reflexivity.
+  intros.
+  eapply bind_chain_gen; eauto.
 Qed.
+
+Lemma ssim_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (label E) (label F)}
+      (R0 : rel X Y)
+      (t1 : ctree E C X) (t2: ctree F D Y)
+      (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y'):
+  t1 (≲update_val_rel L R0) t2 ->
+  (forall x y, R0 x y -> k1 x (≲L) k2 y) ->
+  t1 >>= k1 (≲L) t2 >>= k2.
+Proof.
+  intros.
+  eapply bind_chain_gen; eauto using update_val_rel_correct.
+Qed.
+
+Lemma ssim_clo_bind_eq {E C D: Type -> Type} {X X': Type}
+      (t1 : ctree E C X) (t2: ctree E D X)
+      (k1 : X -> ctree E C X') (k2 : X -> ctree E D X'):
+  t1 ≲ t2 ->
+  (forall x, k1 x ≲ k2 x) ->
+  t1 >>= k1 ≲ t2 >>= k2.
+Proof.
+  intros.
+  eapply bind_chain_gen; eauto.
+  - apply update_val_rel_eq.
+  - intros; subst. apply H0.
+Qed.
+
+
 
 #[global] Instance update_val_rel_Lequiv {E F X Y X' Y'} :
   Proper (Lequiv X' Y' ==> weq ==> Lequiv X Y) (@update_val_rel E F X Y).
@@ -442,7 +563,7 @@ Proof.
 Qed.
 
 Theorem update_val_rel_update_val_rel {E F X0 X1 Y0 Y1}
-    (L : rel (@label E) (@label F)) (R0 : rel X0 Y0) (R1 : rel X1 Y1) :
+    (L : rel (label E) (label F)) (R0 : rel X0 Y0) (R1 : rel X1 Y1) :
   update_val_rel (update_val_rel L R0) R1 == update_val_rel L R1.
 Proof.
   split; intro.
@@ -473,7 +594,7 @@ Proof.
 Qed.
 
 #[global] Instance Transitive_update_val_rel :
-  forall {E X} (L : relation (@label E)) (R0 : relation X),
+  forall {E X} (L : relation (label E)) (R0 : relation X),
   Transitive L ->
   Transitive R0 ->
   Transitive (update_val_rel L R0).
@@ -487,48 +608,6 @@ Proof.
 Qed.
 
 Definition lift_val_rel {E X Y} := @update_val_rel E E X Y eq.
-
-(*|
-Specializing the congruence principle for [≲]
-|*)
-Lemma ssim_clo_bind_gen {E F C D: Type -> Type} {X Y X' Y': Type}  {L : rel (@label E) (@label F)}
-      (R0 : rel X Y) L0
-      (HL0 : is_update_val_rel L R0 L0)
-      (t1 : ctree E C X) (t2: ctree F D Y)
-      (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y'):
-  ssim L0 t1 t2 ->
-  (forall x y, R0 x y -> ssim L (k1 x) (k2 y)) ->
-  ssim L (t1 >>= k1) (t2 >>= k2).
-Proof.
-  intros.
-  eapply bind_chain_gen; eauto.
-Qed.
-
-Lemma ssim_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
-      (R0 : rel X Y)
-      (t1 : ctree E C X) (t2: ctree F D Y)
-      (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y'):
-  t1 (≲update_val_rel L R0) t2 ->
-  (forall x y, R0 x y -> k1 x (≲L) k2 y) ->
-  t1 >>= k1 (≲L) t2 >>= k2.
-Proof.
-  intros.
-  eapply bind_chain_gen; eauto using update_val_rel_correct.
-Qed.
-
-Lemma ssim_clo_bind_eq {E C D: Type -> Type} {X X': Type}
-      (t1 : ctree E C X) (t2: ctree E D X)
-      (k1 : X -> ctree E C X') (k2 : X -> ctree E D X'):
-  t1 ≲ t2 ->
-  (forall x, k1 x ≲ k2 x) ->
-  t1 >>= k1 ≲ t2 >>= k2.
-Proof.
-  intros.
-  eapply bind_chain_gen; eauto.
-  - apply update_val_rel_eq.
-  - intros; subst. apply H0.
-Qed.
-
 (*|
 And in particular, we can justify rewriting [≲] to the left of a [bind].
 

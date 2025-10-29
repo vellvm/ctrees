@@ -20,6 +20,7 @@ Polymorphic Class MonadStuck (M : Type -> Type) : Type :=
   mstuck : forall X, M X.
 
 Notation rel X Y := (X -> Y -> Prop).
+Notation rel1 E F := (forall X Y, E X -> E Y -> Prop).
 
 Ltac invert :=
   match goal with

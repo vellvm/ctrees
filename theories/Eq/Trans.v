@@ -384,6 +384,7 @@ Elimination rules for [trans]
 
 End Trans.
 
+Arguments label : clear implicits.
 #[global] Infix "⩸" := Seq (at level 10).
 #[global] Hint Constructors Seq : core.
 #[global] Hint Constructors transR : core.
@@ -1920,7 +1921,7 @@ Qed.
 
 Lemma trans_branch :
   forall {E B : Type -> Type} {X : Type} {Y : Type}
-    [l : label] [t t' : ctree E B X] (c : B Y) (k : Y -> ctree E B X) (x : Y),
+    [l : label E] [t t' : ctree E B X] (c : B Y) (k : Y -> ctree E B X) (x : Y),
     trans l (k x) t' ->
     trans l (branch c >>= k) t'.
 Proof.
@@ -2155,7 +2156,8 @@ Create HintDb trans.
 #[global] Hint Constructors is_val : trans.
 #[global] Hint Resolve
   is_val_τ
-  (* is_val_obs *)
+  is_val_ask
+  is_val_rcv
   wf_val_val wf_val_nonval wf_val_trans : trans.
 
 Ltac etrans := eauto with trans.
