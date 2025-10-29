@@ -27,6 +27,124 @@ Set Implicit Arguments.
 (* TODO: Decide where to set this *)
 Arguments trans : simpl never.
 
+Section build_rel.
+  
+  Context {E F : Type -> Type} {X Y : Type}.
+
+  Record lrel :=
+    {
+      RR: rel X Y ;
+      Rask: forall [X Y], E X -> F Y -> Prop ;
+      Rrcv: forall [X Y] (e : E X) (f : F Y), X -> Y -> Prop ;
+    }.
+    
+  Variant build_rel {RL : lrel}
+   : hrel (label E) (label F) :=
+    | rel_τ   : build_rel τ τ
+    | rel_ask {X Y} {e : E X} {f : F Y}
+        (HR : Rask RL e f) :
+      build_rel (ask e) (ask f)
+    | rel_rcv {X Y} {e : E X} {f : F Y} x y
+        (HR : Rrcv RL e f x y) :
+      build_rel (rcv e x) (rcv f y)
+    | rel_ret {x : X} {y : Y}:
+      RR RL x y -> build_rel (val x) (val y).
+   Arguments build_rel : clear implicits.
+  
+  Lemma build_rel_val RL x y :
+    build_rel RL (val x) (val y) -> RR RL x y.
+  Proof.
+    now intros H; dependent induction H.
+  Qed.
+  
+  Lemma build_rel_ask RL A B (e : E A) (f : F B) :
+    build_rel RL (ask e) (ask f) -> Rask RL e f.
+  Proof.
+    now intros H; dependent induction H.
+  Qed.
+  
+  Lemma build_rel_rcv RL A B (e : E A) (f : F B) a b : 
+    build_rel RL (rcv e a) (rcv f b) -> Rrcv RL e f a b.
+  Proof.
+    now intros H; dependent induction H.
+  Qed.
+
+  Lemma build_rel_τ RL :
+    build_rel RL τ τ.
+  Proof.
+    constructor.
+  Qed.
+  
+End build_rel.
+
+Arguments lrel : clear implicits.
+Arguments build_rel {E F X Y} RL.
+#[global] Hint Constructors build_rel : trans.
+
+Definition upd_Lrel {E F X Y X' Y'} (RL : lrel E F X Y) (SS : rel X' Y') : lrel E F X' Y' :=
+  {|
+    RR   := SS ;
+    Rask := Rask RL ;
+    Rrcv := Rrcv RL
+  |}.
+
+Variant eq1 {E} : forall [X Y : Type], rel (E X) (E Y) :=
+  | Eq1 X (e : E X) : eq1 e e.
+Variant eq2 {E} : forall [X Y : Type], E X -> E Y -> rel X Y :=
+  | Eq2 X (e : E X) x : eq2 e e x x.
+Hint Resolve Eq1 : trans.
+Hint Resolve Eq2 : trans.
+
+Definition Leq {E} (X : Type) : lrel E E X X :=
+  {|
+    RR   := eq ;
+    Rask := eq1 ;
+    Rrcv := eq2
+  |}.
+
+Definition Lvrel {E X Y} (RR : rel X Y) : lrel E E X Y :=
+   {|
+    RR   := RR ;
+    Rask := eq1 ;
+    Rrcv := eq2
+  |}.
+
+Ltac ex  :=  eexists.
+Ltac ex2 := do 2 eexists.
+Ltac ex3 := do 3 eexists.
+Ltac split3 := split; [| split].
+Ltac edestruct3 H := edestruct H as (? & ? & ?).
+Ltac edestruct4 H := edestruct H as (? & ? & ? & ?).
+Ltac edestruct5 H := edestruct H as (? & ? & ? & ? & ?).
+
+Definition lequiv {E F X Y} : rel (lrel E F X Y) (lrel E F X Y) :=
+  fun L1 L2 => RR L1 == RR L2 /\ Rask L1 == Rask L2 /\ Rrcv L1 == Rrcv L2.
+#[global] Instance lequiv_equivalence {E F X Y} : Equivalence (@lequiv E F X Y).
+Proof.
+  constructor.
+  - split3; auto.
+  - intros ?? [? []]; split3; symmetry; auto.
+  - intros ??? [? []] [? []]; split3; etransitivity; eauto.
+Qed.
+
+#[global] Instance lequiv_build_rel {E F X Y} : Proper (lequiv ==> weq) (@build_rel E F X Y).
+Proof.
+  cbn; intros L1 L2 [EQ1 [EQ2 EQ3]] l1 l2; split; intros H.
+  - inv H; etrans.
+    constructor; now apply EQ2.
+    constructor; now apply EQ3.
+    constructor; now apply EQ1.
+  - inv H; etrans.
+    constructor; now apply EQ2.
+    constructor; now apply EQ3.
+    constructor; now apply EQ1.
+Qed.
+
+#[global] Instance lequiv_build_rel' {E F X Y} : Proper (lequiv ==> eq ==> eq ==> iff) (@build_rel E F X Y).
+Proof.
+  now cbn; intros; subst; eapply lequiv_build_rel.
+Qed.
+
 Section StrongSim.
 (*|
 The function defining strong simulations: [trans] plays must be answered
@@ -37,23 +155,28 @@ Pous'16 in order to be able to exploit symmetry arguments in proofs
 (see [square_st] for an illustration).
 |*)
   Program Definition ss {E F C D : Type -> Type} {X Y : Type}
-    (L : rel (label E) (label F)) :
+    (L : lrel E F X Y) :
     mon (@S E C X -> @S F D Y -> Prop) :=
     {| body R t u :=
-      forall l t', trans l t t' -> exists l' u', trans l' u u' /\ R t' u' /\ L l l'
+      forall l t', trans l t t' ->
+              exists l' u', trans l' u u' /\
+                       R t' u' /\
+                       build_rel L l l'
     |}.
   Next Obligation.
-    edestruct H0 as (u' & l' & ?); eauto.
-    eexists; eexists; intuition; eauto.
+    edestruct3 H0; eauto.
+    ex2; intuition; eauto.
   Qed.
 
-  #[global] Instance weq_ss : forall {E F C D X Y}, Proper (weq ==> weq) (@ss E F C D X Y).
+  #[global] Instance lequiv_ss : forall {E F C D X Y}, Proper (lequiv ==> weq) (@ss E F C D X Y).
   Proof.
-    cbn. intros. split.
-    - intros. apply H0 in H1 as (? & ? & ? & ? & ?).
-      exists x0, x1. intuition. now apply H.
-    - intros. apply H0 in H1 as (? & ? & ? & ? & ?).
-      exists x0, x1. intuition. now apply H.
+    cbn. intros * EQ *. split.
+    - intros. apply H in H0 as (? & ? & ? & ? & ?).
+      ex2; split3; eauto.
+      now rewrite <- EQ.
+     - intros. apply H in H0 as (? & ? & ? & ? & ?).
+      ex2; split3; eauto.
+      now rewrite EQ.
   Qed.
 
 End StrongSim.
@@ -63,10 +186,10 @@ Definition ssim {E F C D X Y} L :=
 
 Module SSimNotations.
 
-  Infix "≲" := (ssim eq) (at level 70).
+  Infix "≲" := (ssim Leq) (at level 70).
   Notation "t (≲ Q ) u" := (ssim Q t u) (at level 79).
   Notation "t '[≲' R ']' u" := (ss R (` _) t u) (at level 90, only printing).
-  Notation "t '[≲]' u" := (ss eq (` _) t u) (at level 90, only printing).
+  Notation "t '[≲]' u" := (ss Leq (` _) t u) (at level 90, only printing).
 
 End SSimNotations.
 
@@ -108,7 +231,7 @@ Tactic Notation "__coinduction_ssim" simple_intropattern(r) simple_intropattern(
 
 Section ssim_homogenous_theory.
   Context {E B: Type -> Type} {X: Type}
-          {L: relation (label E)}.
+          {L: lrel E E X X}.
 
   Notation ss := (@ss E E B B X X).
 
@@ -255,141 +378,6 @@ End ssim_heterogenous_theory.
 Proof.
   cbn -[ss weq]. intros. apply gfp_weq. now apply weq_ss.
 Qed.
-
-Section build_rel.
-  
-  Context {E F : Type -> Type} {X Y : Type}.
-
-  Variant build_rel
-    {RR: rel X Y}
-    {Rask: forall {X Y}, E X -> F Y -> Prop}
-    {Rrcv: forall {X Y} (e : E X) (f : F Y), X -> Y -> Prop}
-    : hrel (label E) (label F) :=
-    | rel_τ   : build_rel τ τ
-    | rel_ask {X Y} {e : E X} {f : F Y}
-        (HR : Rask e f) :
-      build_rel (ask e) (ask f)
-    | rel_rcv {X Y} {e : E X} {f : F Y} x y
-        (HR : Rrcv e f x y) :
-      build_rel (rcv e x) (rcv f y)
-    | rel_ret {x : X} {y : Y}:
-      RR x y -> build_rel (val x) (val y).
-   Arguments build_rel : clear implicits.
-  
-  Lemma build_rel_val RR Rask Rrcv x y :
-    build_rel RR Rask Rrcv (val x) (val y) -> RR x y.
-  Proof.
-    now intros H; dependent induction H.
-  Qed.
-  
-  Lemma build_rel_ask RR Rask Rrcv A B (e : E A) (f : F B) :
-    build_rel RR Rask Rrcv (ask e) (ask f) -> Rask _ _ e f.
-  Proof.
-    now intros H; dependent induction H.
-  Qed.
-  
-  Lemma build_rel_rcv RR Rask Rrcv A B (e : E A) (f : F B) a b : 
-    build_rel RR Rask Rrcv (rcv e a) (rcv f b) -> Rrcv _ _ e f a b.
-  Proof.
-    now intros H; dependent induction H.
-  Qed.
-
-  Lemma build_rel_τ RR Rask Rrcv :
-    build_rel RR Rask Rrcv τ τ.
-  Proof.
-    constructor.
-  Qed.
-  
-End build_rel.
-
-Arguments build_rel {E F X Y} RR Rask Rrcv.
-#[global] Hint Constructors build_rel : trans.
-
-Section good_rel.
-
-  Context {E F : Type -> Type} {X Y : Type}.
-
-  Definition good_rel {E F X Y} (L : hrel (label E) (label F)) RR Rask Rrcv :=
-    L == @build_rel E F X Y RR Rask Rrcv.
-
-  Context {L : rel (label E) (label F)}.
-  Context {RR : rel X Y}
-    {Rask: forall {X Y}, E X -> F Y -> Prop}
-    {Rrcv: forall {X Y} (e : E X) (f : F Y), X -> Y -> Prop}.
-  
-  Lemma good_rel_val x y :
-    good_rel L RR Rask Rrcv ->
-    RR x y <-> L (val x) (val y).
-  Proof.
-    intros HL; split; intros H.
-    apply HL; etrans.
-    apply HL in H; eapply build_rel_val; eauto.
-  Qed.
-  
-  Lemma good_rel_ask A B (e : E A) (f : F B) :
-    good_rel L RR Rask Rrcv ->
-    Rask e f <-> L (ask e) (ask f).
-  Proof.
-    intros HL; split; intros H.
-    apply HL; etrans.
-    apply HL in H; eapply build_rel_ask; eauto.
-  Qed.
-    
-  Lemma good_rel_rcv A B (e : E A) (f : F B) a b : 
-    good_rel L RR Rask Rrcv ->
-    Rrcv e f a b <-> L (rcv e a) (rcv f b).
-  Proof.
-    intros HL; split; intros H.
-    apply HL; econstructor; intros; eauto.
-    apply HL in H; eapply build_rel_rcv; eauto.
-  Qed.
-  
-  Lemma good_rel_τ :
-    good_rel L RR Rask Rrcv ->
-    L τ τ.
-  Proof.
-    intros HL; apply HL; constructor.
-  Qed.
-  
-End good_rel.
-
-Variant upd_rel {E F X Y} (L : rel (label E) (label F)) (RR : rel X Y): label E -> label F -> Prop :=
-  | upd_val x y   : RR x y -> upd_rel L RR (val x) (val y)
-  | upd_lab l1 l2 : ~is_val l1 -> ~is_val l2 -> L l1 l2 -> upd_rel L RR l1 l2
-.
-
-#[global] Hint Constructors upd_rel : trans.
-
-Lemma upd_good_rel {E F X Y X' Y'}
-  (L : rel (label E) (label F)) (RR : rel X Y) Rask Rrcv
-  (SS : rel X' Y')
-  (HL: good_rel L RR Rask Rrcv) :
-  good_rel (upd_rel L SS) SS Rask Rrcv.
-Proof.
-  intros e f; split; intros H.
-  - inv H.
-    + etrans.
-    + apply HL in H2.
-      inv H2; etrans.
-      intuition.
-  - inv H; etrans.
-    all: constructor; etrans.
-    eapply good_rel_τ; eauto.
-    eapply good_rel_ask; eauto.
-    eapply good_rel_rcv; eauto.
-Qed.
-
-
-Variant eq1 {E} : forall [X Y : Type], rel (E X) (E Y) :=
-  | Eq1 X (e : E X) : eq1 e e.
-Variant eq2 {E} : forall [X Y : Type], E X -> E Y -> rel X Y :=
-  | Eq2 X (e : E X) x : eq2 e e x x.
-Hint Resolve Eq1 : trans.
-Hint Resolve Eq2 : trans.
-
-Definition Leq {E} (X : Type) : rel (label E) (label E) := @build_rel E E X X eq eq1 eq2.
-
-Definition Lvrel {E X Y} (RR : rel X Y) := @build_rel E E X Y RR eq1 eq2.
 
 Ltac refine_transition H :=
   match type of H with
