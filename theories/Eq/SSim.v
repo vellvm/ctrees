@@ -27,6 +27,26 @@ Set Implicit Arguments.
 (* TODO: Decide where to set this *)
 Arguments trans : simpl never.
 
+Ltac refine_transition H :=
+  match type of H with
+  | hrel_of (trans τ) _ _ =>
+      let u  := fresh "u" in
+      let EQ := fresh "EQ" in
+      pose proof trans_τ_active H as [u EQ];
+      rewrite EQ in *;
+      match type of EQ with
+      | Seq ?a _ => try clear a EQ
+      end
+  | hrel_of (trans (ask ?e)) _ _ =>
+      let u  := fresh "u" in
+      let EQ := fresh "EQ" in
+      pose proof trans_ask_passive H as [u EQ];
+      rewrite EQ in *;
+      match type of EQ with
+      | Seq ?a _ => try clear a EQ
+      end
+  end.
+
 Section build_rel.
   
   Context {E F : Type -> Type} {X Y : Type}.
@@ -80,6 +100,7 @@ End build_rel.
 Arguments lrel : clear implicits.
 Arguments build_rel {E F X Y} RL.
 #[global] Hint Constructors build_rel : trans.
+Notation "↑ L" := (build_rel L) (at level 2).
 
 Definition upd_Lrel {E F X Y X' Y'} (RL : lrel E F X Y) (SS : rel X' Y') : lrel E F X' Y' :=
   {|
@@ -161,7 +182,7 @@ Pous'16 in order to be able to exploit symmetry arguments in proofs
       forall l t', trans l t t' ->
               exists l' u', trans l' u u' /\
                        R t' u' /\
-                       build_rel L l l'
+                       ↑ L l l'
     |}.
   Next Obligation.
     edestruct3 H0; eauto.
@@ -235,13 +256,13 @@ Section ssim_homogenous_theory.
 
   Notation ss := (@ss E E B B X X).
 
-  #[global] Instance refl_sst {LR: Reflexive L} {C: Chain (ss L)}: Reflexive `C.
+  #[global] Instance refl_sst {LR: Reflexive (↑ L)} {C: Chain (ss L)}: Reflexive `C.
   Proof.
     apply Reflexive_chain.
     cbn; eauto.
   Qed.
 
-  #[global] Instance square_sst {LT: Transitive L} {C: Chain (ss L)}: Transitive `C.
+  #[global] Instance square_sst {LT: Transitive (↑ L)} {C: Chain (ss L)}: Transitive `C.
   Proof.
     apply Transitive_chain.
     cbn. intros ????? xy yz.
@@ -252,7 +273,7 @@ Section ssim_homogenous_theory.
   Qed.
 
   (*| PreOrder |*)
-  #[global] Instance PreOrder_sst {LPO: PreOrder L} {C: Chain (ss L)}: PreOrder `C.
+  #[global] Instance PreOrder_sst {LPO: PreOrder (↑ L)} {C: Chain (ss L)}: PreOrder `C.
   Proof. split; typeclasses eauto. Qed.
 
 End ssim_homogenous_theory.
@@ -263,7 +284,7 @@ Parametric theory of [ss] with heterogenous [L]
 Section ssim_heterogenous_theory.
   Arguments label: clear implicits.
   Context {E F C D: Type -> Type} {X Y: Type}
-          {L: rel (label E) (label F)}.
+          {L: lrel E F X Y}.
 
   Notation ss := (@ss E F C D X Y).
   Notation ssim  := (@ssim E F C D X Y).
@@ -374,30 +395,10 @@ Section ssim_heterogenous_theory.
 End ssim_heterogenous_theory.
 
 #[global] Instance weq_ssim : forall {E F C D X Y},
-  Proper (weq ==> weq) (@ssim E F C D X Y).
+  Proper (lequiv ==> weq) (@ssim E F C D X Y).
 Proof.
-  cbn -[ss weq]. intros. apply gfp_weq. now apply weq_ss.
+  cbn -[ss weq]. intros. apply gfp_weq. now apply lequiv_ss.
 Qed.
-
-Ltac refine_transition H :=
-  match type of H with
-  | hrel_of (trans τ) _ _ =>
-      let u  := fresh "u" in
-      let EQ := fresh "EQ" in
-      pose proof trans_τ_active H as [u EQ];
-      rewrite EQ in *;
-      match type of EQ with
-      | Seq ?a _ => try clear a EQ
-      end
-  | hrel_of (trans (ask ?e)) _ _ =>
-      let u  := fresh "u" in
-      let EQ := fresh "EQ" in
-      pose proof trans_ask_passive H as [u EQ];
-      rewrite EQ in *;
-      match type of EQ with
-      | Seq ?a _ => try clear a EQ
-      end
-  end.
 
 (*|
 Up-to [bind] context simulations
@@ -412,15 +413,8 @@ Section bind.
   Obligation Tactic := idtac.
 
   Context {E F C D: Type -> Type} {X X' Y Y': Type}
-    (L : rel (label E) (label F))
-    (RR: rel X' Y')
-    (Rask: forall X Y, E X -> F Y -> Prop)
-    (Rrcv: forall X Y (e : E X) (f : F Y), X -> Y -> Prop)
-    (SS: rel X Y)
-    (L' : rel (label E) (label F))
-    (HL  : good_rel L  RR Rask Rrcv)
-    (HL' : good_rel L' SS Rask Rrcv)
-  .
+    (L : lrel E F X' Y')
+    (SS: rel X Y).
 (*|
 Specialization of [bind_ctx] to a function acting with [ssim] on the bound value,
 and with the argument (pointwise) on the continuation.
@@ -429,7 +423,7 @@ and with the argument (pointwise) on the continuation.
     {R : Chain (@ss E F C D X' Y' L)} :
     forall (t : ctree E C X) (t' : ctree F D Y)
       (k : X -> ctree E C X') (k' : Y -> ctree F D Y'),
-      ssim L' t t' ->
+      ssim (upd_Lrel L SS) t t' ->
       (forall x y, SS x y -> elem R (k x) (k' y)) ->
       elem R (bind t k) (bind t' k').
   Proof.
@@ -444,20 +438,20 @@ and with the argument (pointwise) on the continuation.
       apply trans_bind_inv in STEP as [(?H & ?t' & STEP & EQ) | [(Z & e & EQl & g & STEP & SEQ) | (v & STEPres & STEP)]].
       + subst l.
         apply tt' in STEP as (? & ? & STEP' & HSIM & HRL).
-        apply HL' in HRL; inv HRL.
+        inv HRL.
         refine_transition STEP'.
-        do 2 eexists; split; [| split].
+        ex2; split3.
         apply trans_bind_l_τ; eauto.
         * rewrite EQ.
           apply H; auto.
           intros.
           now apply (b_chain R), kk'.
-        * apply HL; etrans.
+        * etrans.
       + subst l.
         apply tt' in STEP as (? & ? & STEP' & HSIM & HRL).
-        apply HL' in HRL; dependent induction HRL.
+        dependent induction HRL.
         refine_transition STEP'.
-        exists (ask f); eexists ; split; [| split].
+        exists (ask f); ex; split3.
         eapply trans_bind_l_ask; eauto.
         * rewrite SEQ.
           apply (b_chain R).
@@ -467,16 +461,16 @@ and with the argument (pointwise) on the continuation.
           assert (TR: trans (rcv e a) (β e g) (g a)) by etrans.
           step in HSIM; apply HSIM in TR as (l' & u' & TR' & HSIM' & HRL').
           pose proof trans_passive_inv' TR' as (b & EQ' & ->).
-          exists (rcv f b); eexists; split; eauto; split; cycle 1.
-          { apply HL. apply HL' in HRL'. constructor. dependent induction HRL'. auto. }
+          exists (rcv f b); ex; split; eauto; split; cycle 1.
+          {dependent induction HRL'. etrans.}
           rewrite EQ.
           apply H.
           rewrite EQ' in HSIM'; auto.
           intros.
           now apply (b_chain R), kk'.
-        * apply HL; etrans.
+        * etrans.
       + apply tt' in STEPres as (? & ? & STEP' & HSIM & HRL).
-        apply HL' in HRL; dependent induction HRL.
+        dependent induction HRL.
         apply (kk' v y) in STEP as (l' & u' & STEP'' & HSIM'' & HRL').
         exists l'; eexists; split; eauto.
         2:etrans.
