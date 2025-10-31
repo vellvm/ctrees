@@ -26,10 +26,11 @@ Set Implicit Arguments.
 
 (* TODO: Decide where to set this *)
 Arguments trans : simpl never.
-
+(* check *)
+Notation htrans l u v := (hrel_of (trans l) u v) (only parsing).
 Ltac refine_transition H :=
   match type of H with
-  | hrel_of (trans τ) _ _ =>
+  | htrans τ _ _ =>
       let u  := fresh "u" in
       let EQ := fresh "EQ" in
       pose proof trans_τ_active H as [u EQ];
@@ -47,8 +48,11 @@ Ltac refine_transition H :=
       end
   end.
 
+(* Truc de ce genre c'est un Proper *)
+(* forall X Y (R : X -> Y -> Prop), equiv R (ret x) (ret y) -> R x y. *)
+
 Section build_rel.
-  
+
   Context {E F : Type -> Type} {X Y : Type}.
 
   Record lrel :=
@@ -57,9 +61,8 @@ Section build_rel.
       Rask: forall [X Y], E X -> F Y -> Prop ;
       Rrcv: forall [X Y] (e : E X) (f : F Y), X -> Y -> Prop ;
     }.
-    
-  Variant build_rel {RL : lrel}
-   : hrel (label E) (label F) :=
+  
+  Variant build_rel {RL : lrel} : hrel (label E) (label F) :=
     | rel_τ   : build_rel τ τ
     | rel_ask {X Y} {e : E X} {f : F Y}
         (HR : Rask RL e f) :
@@ -69,7 +72,7 @@ Section build_rel.
       build_rel (rcv e x) (rcv f y)
     | rel_ret {x : X} {y : Y}:
       RR RL x y -> build_rel (val x) (val y).
-   Arguments build_rel : clear implicits.
+  Arguments build_rel : clear implicits.
   
   Lemma build_rel_val RL x y :
     build_rel RL (val x) (val y) -> RR RL x y.
@@ -100,9 +103,11 @@ End build_rel.
 Arguments lrel : clear implicits.
 Arguments build_rel {E F X Y} RL.
 #[global] Hint Constructors build_rel : trans.
-Notation "↑ L" := (build_rel L) (at level 2).
+Coercion build_rel : lrel >-> hrel.
 
-Definition upd_Lrel {E F X Y X' Y'} (RL : lrel E F X Y) (SS : rel X' Y') : lrel E F X' Y' :=
+Definition upd_Lrel {E F X Y X' Y'}
+  (RL : lrel E F X Y)
+  (SS : rel X' Y') : lrel E F X' Y' :=
   {|
     RR   := SS ;
     Rask := Rask RL ;
@@ -183,7 +188,7 @@ Pous'16 in order to be able to exploit symmetry arguments in proofs
       forall l t', trans l t t' ->
               exists l' u', trans l' u u' /\
                        R t' u' /\
-                       ↑ L l l'
+                       L l l'
     |}.
   Next Obligation.
     edestruct3 H0; eauto.
@@ -259,13 +264,13 @@ Section ssim_homogenous_theory.
 
   Notation ss := (@ss E E B B X X).
 
-  #[global] Instance refl_sst {LR: Reflexive (↑ L)} {C: Chain (ss L)}: Reflexive `C.
+  #[global] Instance refl_sst {LR: Reflexive L} {C: Chain (ss L)}: Reflexive `C.
   Proof.
     apply Reflexive_chain.
     cbn; eauto.
   Qed.
 
-  #[global] Instance square_sst {LT: Transitive (↑ L)} {C: Chain (ss L)}: Transitive `C.
+  #[global] Instance square_sst {LT: Transitive L} {C: Chain (ss L)}: Transitive `C.
   Proof.
     apply Transitive_chain.
     cbn. intros ????? xy yz.
@@ -276,7 +281,7 @@ Section ssim_homogenous_theory.
   Qed.
 
   (*| PreOrder |*)
-  #[global] Instance PreOrder_sst {LPO: PreOrder (↑ L)} {C: Chain (ss L)}: PreOrder `C.
+  #[global] Instance PreOrder_sst {LPO: PreOrder L} {C: Chain (ss L)}: PreOrder `C.
   Proof. split; typeclasses eauto. Qed.
 
 End ssim_homogenous_theory.
@@ -389,42 +394,6 @@ Section ssim_heterogenous_theory.
     intros t t' tt' u u' uu'; cbn; intros.
     rewrite <- tt' in H0. apply H in H0 as (l' & ? & ? & ? & ?).
     ex2; eauto. rewrite <- uu'. eauto.
-  Qed.
-
-(*|
-  stuck ctrees can be simulated by anything.
-|*)
-  Lemma is_stuck_ss (R : rel _ _) (t : ctree E C X) (t': ctree F D Y):
-    is_stuck t -> ss L R t t'.
-  Proof.
-    repeat intro. now apply H in H0.
-  Qed.
-
-  Lemma is_stuck_ssim (t: ctree E C X) (t': ctree F D Y):
-    is_stuck t -> ssim L t t'.
-  Proof.
-    intros. step. now apply is_stuck_ss.
-  Qed.
-
-  Lemma Stuck_ss (R : rel _ _) (t : ctree F D Y) : ss L R Stuck t.
-  Proof.
-    repeat intro. now apply Stuck_is_stuck in H.
-  Qed.
-
-  Lemma Stuck_ssim (t : ctree F D Y) : ssim L Stuck t.
-  Proof.
-    intros. step. apply Stuck_ss.
-  Qed.
-
-  Lemma spin_ss (R : rel _ _) (t : ctree F D Y): ss L R spin t.
-  Proof.
-    repeat intro. now apply spin_is_stuck in H.
-  Qed.
-
-  Lemma spin_ssim : forall (t' : ctree F D Y),
-      ssim L spin t'.
-  Proof.
-    intros. step. apply spin_ss.
   Qed.
 
 End ssim_heterogenous_theory.
@@ -691,7 +660,11 @@ Ltac inv_trans_one :=
   | h : hrel_of (trans _) (α Br _ _) _ |- _ =>
       let TR := fresh "TR" in
       apply trans_br_inv in h as (?n & TR)
-                          
+
+  (* Guard *)
+  | h : hrel_of (trans _) (α Guard _) _ |- _ =>
+      apply trans_guard_inv in h
+                                 
   (* Vis *)
   | h : hrel_of (trans _) (α (Vis ?e ?k)) _ |- _ =>
       let EQl := fresh "EQl" in
@@ -715,25 +688,50 @@ Section Proof_Rules.
 
   Context {E F C D: Type -> Type} {X Y : Type}.
 
-  (* Lemma step_ss_ret_gen {Y F D} (x : X) (y : Y) R (L : lrel E F X Y) : *)
-  (*   R (α Stuck) (α Stuck) -> *)
-  (*   (Proper (Seq ==> Seq ==> impl) R) -> *)
-  (*   RR L x y -> *)
-  (*   ss L R (Ret x : ctree E C X) (Ret y : ctree F D Y). *)
-  (* Proof. *)
-  (*   intros Rstuck PROP Lval. *)
-  (*   cbn; intros ? ? TR. *)
-  (*   inv_trans. *)
-  (*   subst. ex2; intuition. *)
-  (*   now rewrite EQ. *)
-  (* Qed. *)
-  
-  Lemma ss_chain_stuck L {R : Chain (@ss E F C D X Y L)} :
-    `R Stuck Stuck.
+(*|
+Stuck ctrees can be simulated by anything.
+|*)
+  Lemma ss_is_stuck L R (t : ctree E C X) (t': ctree F D Y):
+    is_stuck t ->
+    ss L R t t'.
   Proof.
-    step. apply is_stuck_ss, Stuck_is_stuck.
+    repeat intro. now apply H in H0.
   Qed.
-  
+
+  Lemma ssim_is_stuck L (t: ctree E C X) (t': ctree F D Y):
+    is_stuck t ->
+    ssim L t t'.
+  Proof.
+    intros. step. now apply ss_is_stuck.
+  Qed.
+
+  Lemma ss_stuck L R (t : ctree F D Y) :
+    @ss E F C D X Y L R Stuck t.
+  Proof.
+    repeat intro. now apply Stuck_is_stuck in H.
+  Qed.
+
+  Lemma ssim_stuck L (t : ctree F D Y) :
+    @ssim E F C D X Y L Stuck t.
+  Proof.
+    intros. step. apply ss_stuck.
+  Qed.
+
+  Lemma ss_spin L R (t : ctree F D Y) :
+    @ss E F C D X Y L R spin t.
+  Proof.
+    repeat intro. now apply spin_is_stuck in H.
+  Qed.
+
+  Lemma ssim_spin L (t' : ctree F D Y) :
+      @ssim E F C D X Y  L spin t'.
+  Proof.
+    intros. step. apply ss_spin.
+  Qed.
+
+(*|
+Ret nodes
+|*)
   Lemma ss_ret (x : X) (y : Y) L
     {R : Chain (@ss E F C D X Y L)} :
     RR L x y ->
@@ -743,9 +741,9 @@ Section Proof_Rules.
     inv_trans. subst.
     ex2; intuition.
     rewrite EQ.
-    apply ss_chain_stuck.
+    step; apply ss_stuck.
   Qed.
-
+  
   Lemma ssim_ret (x : X) (y : Y) L :
     RR L x y ->
     ssim L (Ret x : ctree E C X) (Ret y : ctree F D Y).
@@ -759,7 +757,7 @@ Section Proof_Rules.
  transition system, stepping is hence symmetric and we can just recover
  the itree-style rule.
 |*)
-  Lemma step_ss_vis {Z Z'} (e : E Z) (f: F Z')
+  Lemma ss_vis {Z Z'} (e : E Z) (f: F Z')
     (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) L
     {R : Chain (@ss E F C D X Y L)}
     (HRask : Rask L e f)
@@ -785,35 +783,32 @@ Section Proof_Rules.
     (HRrcv : forall x, exists y, ssim L (k x) (k' y) /\ Rrcv L e f x y) :
     ssim L (Vis e k) (Vis f k').
   Proof.
-    intros. step. apply step_ss_vis; auto.
+    intros. step. apply ss_vis; auto.
   Qed.
 
-(*|
-  Same goes for visible tau nodes.
-|*)
-  Lemma ss_step 
-    (t: ctree E C X) (t': ctree F D Y) L
-    {R : Chain (@ss E F C D X Y L)} :
-    ` R t t' ->
-    ss L ` R (Step t) (Step t').
+  (* Useful special case: over the same type return type,
+     we usually pick the identity *)
+  Lemma ss_vis_id {Z} (e : E Z) (f: F Z)
+    (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) L
+    {R : Chain (@ss E F C D X Y L)} 
+    (HRask : Rask L e f)
+    (HRrcv : forall z, ` R (k z) (k' z) /\ Rrcv L e f z z) :
+    ss L ` R (Vis e k) (Vis f k').
   Proof.
-    intros HR ???; inv_trans; subst.
-    ex2; intuition.
-    now rewrite EQ.
-  Qed.
-
-  Lemma ssim_step
-    (t: ctree E C X) (t': ctree F D Y) L :
-    ssim L t t' ->
-    ssim L (Step t) (Step t').
-  Proof.
-    intros.
-    step. apply ss_step; auto.
+    eapply ss_vis; eauto.
   Qed.
   
+  Lemma ssim_vis_id {Z} (e : E Z) (f : F Z)
+    (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) L
+    (HRask : Rask L e f)
+    (HRrcv : forall x, ssim L (k x) (k' x) /\ Rrcv L e f x x) :
+    ssim L (Vis e k) (Vis f k').
+  Proof.
+    intros. step. now apply ss_vis_id.
+  Qed.
+
 (*|
-    For invisible nodes, the situation is different: we may kill them, but that execution
-    cannot act as going under the guard.
+Invisible nodes
 |*)
   (* Here we need a stronger lemma quantifying over arbitrary relations [R] and not just elements of the Chain in order to lift things to ssim as we don't unlock ssim in the structural subterm *)
   Lemma ss_br_l_gen {Z} (c : C Z)
@@ -847,66 +842,8 @@ Section Proof_Rules.
     specialize (H x). step in H. apply H.
   Qed.
 
-  (* CHECKPOINT  *)
-
-  
-  Lemma step_ss_ret_l_gen {Y F D} (x : X) (y : Y) (u u' : ctree F D Y) (L R : rel _ _) :
-    R Stuck Stuck ->
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    L (val x) (val y) ->
-    trans (val y) u u' ->
-    ss L R (Ret x : ctree E C X) u.
-  Proof.
-    intros. cbn. intros.
-    apply trans_val_inv in H2 as ?.
-    inv_trans. subst. setoid_rewrite EQ.
-    etrans.
-  Qed.
-
-  Lemma step_ss_ret_l {Y F D} (x : X) (y : Y) (u u' : ctree F D Y) (L : rel _ _)
-    {R : Chain (@ss E F C D X Y L)} :
-    L (val x) (val y) ->
-    trans (val y) u u' ->
-    ss L ` R (Ret x : ctree E C X) u.
-  Proof.
-    intros.
-    eapply step_ss_ret_l_gen; eauto.
-    - apply (b_chain R).
-      apply is_stuck_ss; apply Stuck_is_stuck.
-    - typeclasses eauto.
-  Qed.
-
-  Lemma step_ss_vis_id_gen {Y Z F D} (e : E Z) (f: F Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R L: rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    (forall x, R (k x) (k' x) /\ L (obs e x) (obs f x)) ->
-    ss L R (Vis e k) (Vis f k').
-  Proof.
-    intros. apply step_ss_vis_gen. { typeclasses eauto. }
-    eauto.
-  Qed.
-
-  Lemma step_ss_vis_id {Y Z F D} (e : E Z) (f: F Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (L : rel _ _)
-    {R : Chain (@ss E F C D X Y L)} :
-    (forall x, ` R (k x) (k' x) /\ L (obs e x) (obs f x)) ->
-    ss L ` R (Vis e k) (Vis f k').
-  Proof.
-    intros * EQ.
-    apply step_ss_vis_id_gen; auto.
-    typeclasses eauto.
-  Qed.
-
-  Lemma ssim_vis_id {Y Z F D} (e : E Z) (f: F Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (L : rel _ _) :
-    (forall x, ssim L (k x) (k' x) /\ L (obs e x) (obs f x)) ->
-    ssim L (Vis e k) (Vis f k').
-  Proof.
-    intros. step. now apply step_ss_vis_id.
-  Qed.
-
-  Lemma step_ss_br_r_gen {Y F D Z} (c : D Z) x
-        (k : Z -> ctree F D Y) (t: ctree E C X) (R L: rel _ _):
+  Lemma ss_br_r_gen {Z} (c : D Z) x
+    (k : Z -> ctree F D Y) (t: ctree E C X) R L:
     ss L R t (k x) ->
     ss L R t (Br c k).
   Proof.
@@ -915,175 +852,251 @@ Section Proof_Rules.
     exists x0; etrans.
   Qed.
 
-  Lemma step_ss_br_r {Y F D Z} (c : D Z) x
-        (k : Z -> ctree F D Y) (t: ctree E C X) (L: rel _ _)
+  Lemma ss_br_r {Z} (c : D Z) x
+        (k : Z -> ctree F D Y) (t: ctree E C X) L
         {R : Chain (@ss E F C D X Y L)} :
     ss L `R t (k x) ->
     ss L `R t (Br c k).
   Proof.
-    apply step_ss_br_r_gen.
+    apply ss_br_r_gen.
   Qed.
 
-  Lemma ssim_br_r {Y F D Z} (c : D Z) x
-        (k : Z -> ctree F D Y) (t: ctree E C X) (L: rel _ _):
+  Lemma ssim_br_r {Z} (c : D Z) x
+        (k : Z -> ctree F D Y) (t: ctree E C X) L :
     ssim L t (k x) ->
     ssim L t (Br c k).
   Proof.
-    intros. step. apply step_ss_br_r_gen with (x := x). now step in H.
+    intros. step. apply ss_br_r_gen with (x := x). now step in H.
   Qed.
 
-  Lemma step_ss_br_gen {Y F D n m} (a: C n) (b: D m)
-    (k : n -> ctree E C X) (k' : m -> ctree F D Y) (R L : rel _ _) :
+  Lemma ss_br_gen {A B} (c: C A) (d: D B)
+    (k : A -> ctree E C X) (k' : B -> ctree F D Y) R L :
     (forall x, exists y, ss L R (k x) (k' y)) ->
-    ss L R (Br a k) (Br b k').
+    ss L R (Br c k) (Br d k').
   Proof.
     intros EQs.
-    apply step_ss_br_l_gen.
+    apply ss_br_l_gen.
     intros. destruct (EQs x) as [x' ?].
-    now apply step_ss_br_r_gen with (x:=x').
+    now apply ss_br_r_gen with (x:=x').
   Qed.
 
-  Lemma step_ss_br {Y F D n m} (cn: C n) (cm: D m)
-    (k : n -> ctree E C X) (k' : m -> ctree F D Y) (L : rel _ _)
+  Lemma ss_br {A B} (c: C A) (d: D B)
+    (k : A -> ctree E C X) (k' : B -> ctree F D Y) L 
     {R : Chain (@ss E F C D X Y L)} :
     (forall x, exists y, ss L `R (k x) (k' y)) ->
-    ss L `R (Br cn k) (Br cm k').
+    ss L `R (Br c k) (Br d k').
   Proof.
-    apply step_ss_br_gen.
+    apply ss_br_gen.
   Qed.
 
-  Lemma ssim_br {Y F D n m} (cn: C n) (cm: D m)
-    (k : n -> ctree E C X) (k' : m -> ctree F D Y) (L : rel _ _) :
+  Lemma ssim_br {A B} (c: C A) (d: D B)
+    (k : A -> ctree E C X) (k' : B -> ctree F D Y) L :
     (forall x, exists y, ssim L (k x) (k' y)) ->
-    ssim L (Br cn k) (Br cm k').
+    ssim L (Br c k) (Br d k').
   Proof.
-    intros. step. apply step_ss_br_gen.
+    intros. step. apply ss_br_gen.
     intros. destruct (H x). step in H0. exists x0. apply H0.
   Qed.
 
-  Lemma step_ss_br_id_gen {Y F D n} (c: C n) (d: D n)
-        (k : n -> ctree E C X) (k' : n -> ctree F D Y)
-        (R L : rel _ _) :
-    (forall x, ss L R (k x) (k' x)) ->
-    ss L R (Br c k) (Br d k').
-  Proof.
-   intros; apply step_ss_br_gen.
-   eauto.
-  Qed.
-
-  Lemma step_ss_br_id {Y F D n} (c: C n) (d: D n)
-    (k : n -> ctree E C X) (k': n -> ctree F D Y) (L: rel _ _)
+  Lemma ss_br_id {A} (c: C A) (d: D A)
+    (k : A -> ctree E C X) (k': A -> ctree F D Y) L
     {R : Chain (@ss E F C D X Y L)} :
     (forall x, ss L `R (k x) (k' x)) ->
     ss L `R (Br c k) (Br d k').
   Proof.
-    intros; apply step_ss_br; eauto.
+    intros; apply ss_br; eauto.
   Qed.
 
-  Lemma ssim_br_id {Y F D n} (c: C n) (d: D n)
-    (k : n -> ctree E C X) (k': n -> ctree F D Y) (L: rel _ _) :
+  Lemma ssim_br_id {A} (c: C A) (d: D A)
+    (k : A -> ctree E C X) (k': A -> ctree F D Y) L :
     (forall x, ssim L (k x) (k' x)) ->
     ssim L (Br c k) (Br d k').
   Proof.
     intros. apply ssim_br. eauto.
   Qed.
 
-  Lemma step_ss_guard_gen {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (R L: rel _ _):
-    ss L R t t' ->
-    ss L R (Guard t) (Guard t').
-  Proof.
-    intros EQ.
-    intros ? ? TR; inv_trans; subst.
-    apply EQ in TR; destruct TR as (u' & ? & TR' & ? & EQ').
-    do 2 eexists; split.
-    constructor. apply TR'.
-    eauto.
-  Qed.
-
-  Lemma step_ss_guard_l_gen {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (R L: rel _ _):
+  Lemma ss_guard_l_gen 
+    (t: ctree E C X) (t': ctree F D Y) R L:
     ss L R t t' ->
     ss L R (Guard t) t'.
   Proof.
     intros EQ.
     intros ? ? TR; inv_trans; subst.
-    apply EQ in TR; destruct TR as (u' & ? & TR' & ? & EQ').
-    eauto.
+    apply EQ in TR; edestruct5 TR; eauto.
   Qed.
 
-  Lemma step_ss_guard_r_gen {Y F D}
-    (t: ctree E C X) (t': ctree F D Y) (R L: rel _ _):
+  Lemma ss_guard_l
+    (t: ctree E C X) (t': ctree F D Y) L
+    {R : Chain (@ss E F C D X Y L)} :
+    ss L `R t t' ->
+    ss L `R (Guard t) t'.
+  Proof.
+    intros; now apply ss_guard_l_gen.
+  Qed.
+
+  Lemma ssim_guard_l 
+    (t: ctree E C X) (t': ctree F D Y) L:
+    ssim L t t' ->
+    ssim L (Guard t) t'.
+  Proof.
+    intros; step; apply ss_guard_l; step in H; auto.
+  Qed.
+
+  Lemma ss_guard_r_gen 
+    (t: ctree E C X) (t': ctree F D Y) R L :
     ss L R t t' ->
     ss L R t (Guard t').
   Proof.
     intros EQ.
     intros ? ? TR; inv_trans; subst.
-    apply EQ in TR; destruct TR as (u' & ? & TR' & ? & EQ').
-    do 2 eexists; split.
-    constructor. apply TR'.
-    eauto.
+    apply EQ in TR; edestruct5 TR; eauto 7.
   Qed.
 
-  Lemma step_ss_guard_l {Y F D}
-    (t: ctree E C X) (t': ctree F D Y) (L: rel _ _)
-    {R : Chain (@ss E F C D X Y L)} :
-    ss L `R t t' ->
-    ss L `R (Guard t) t'.
-  Proof.
-    intros.
-    intros ? ? TR; inv_trans; subst.
-    apply H in TR as (? & ? & TR' & ?).
-    eauto.
-  Qed.
-
-  Lemma step_ss_guard_r {Y F D}
-    (t: ctree E C X) (t': ctree F D Y) (L: rel _ _)
+  Lemma ss_guard_r
+    (t: ctree E C X) (t': ctree F D Y) L
     {R : Chain (@ss E F C D X Y L)} :
     ss L `R t t' ->
     ss L `R t (Guard t').
   Proof.
-    intros.
-    intros ? ? TR; inv_trans; subst.
-    apply H in TR as (? & ? & TR' & ?).
-    do 2 eexists; split; [constructor; apply TR' |]; eauto.
+    now apply ss_guard_r_gen.
   Qed.
 
-  Lemma step_ss_guard {Y F D}
-    (t: ctree E C X) (t': ctree F D Y) (L: rel _ _)
-    {R : Chain (@ss E F C D X Y L)} :
-    ss L `R t t' ->
-    ss L `R (Guard t) (Guard t').
-  Proof.
-    intros.
-    intros ? ? TR; inv_trans; subst.
-    apply H in TR as (? & ? & TR' & ?).
-    do 2 eexists; split; [constructor; apply TR' |]; eauto.
-  Qed.
-
-  Lemma ssim_guard_l {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (L: rel _ _):
-    ssim L t t' ->
-    ssim L (Guard t) t'.
-  Proof.
-    intros; step; apply step_ss_guard_l; step in H; auto.
-  Qed.
-
-  Lemma ssim_guard_r {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (L: rel _ _):
+  Lemma ssim_guard_r 
+    (t: ctree E C X) (t': ctree F D Y) L :
     ssim L t t' ->
     ssim L t (Guard t').
   Proof.
-    intros; step; apply step_ss_guard_r; step in H; auto.
+    intros; step; apply ss_guard_r; step in H; auto.
   Qed.
 
-  Lemma ssim_guard {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (L: rel _ _):
+  Lemma ssim_guard 
+    (t: ctree E C X) (t': ctree F D Y) L :
     ssim L t t' ->
     ssim L (Guard t) (Guard t').
   Proof.
-    intros; step; apply step_ss_guard; step in H; auto.
+    intros.
+    now apply ssim_guard_l, ssim_guard_r.
   Qed.
+
+(*|
+Internal transitions
+|*)
+  Lemma ss_step 
+    (t: ctree E C X) (t': ctree F D Y) L
+    {R : Chain (@ss E F C D X Y L)} :
+    ` R t t' ->
+    ss L ` R (Step t) (Step t').
+  Proof.
+    intros HR ???; inv_trans; subst.
+    ex2; intuition.
+    now rewrite EQ.
+  Qed.
+
+  Lemma ssim_step
+    (t: ctree E C X) (t': ctree F D Y) L :
+    ssim L t t' ->
+    ssim L (Step t) (Step t').
+  Proof.
+    now intros; step; apply ss_step.
+  Qed.
+
+  Lemma ss_brS {Z Z'} (c : C Z) (c' : D Z')
+    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) L 
+    {R : Chain (@ss E F C D X Y L)} :
+    (forall x, exists y, ` R (k x) (k' y)) ->
+    ss L ` R (BrS c k) (BrS c' k').
+  Proof.
+    intros.
+    eapply ss_br.
+    intros x; specialize (H x) as [y ?].
+    exists y.
+    eapply ss_step; auto.
+  Qed.
+
+  Lemma ssim_brS {Z Z'} (c : C Z) (c' : D Z')
+    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) L :
+    (forall x, exists y, ssim L (k x) (k' y)) ->
+    ssim L (BrS c k) (BrS c' k').
+  Proof.
+    now intros; step; apply ss_brS.
+  Qed.
+
+  Lemma ss_brS_id {Z} (c : C Z) (d : D Z)
+    (k: Z -> ctree E C X) (k': Z -> ctree F D Y) L 
+    {R : Chain (@ss E F C D X Y L)} :
+    (forall x, `R (k x) (k' x)) ->
+    ss L ` R (BrS c k) (BrS d k').
+  Proof.
+    intros; apply ss_brS; eauto.
+  Qed.
+
+  Lemma ssim_brS_id {Z} (c : C Z) (d : D Z)
+    (k: Z -> ctree E C X) (k': Z -> ctree F D Y) L :
+    (forall x, ssim L (k x) (k' x)) ->
+    ssim L (BrS c k) (BrS d k').
+  Proof.
+    intros; apply ssim_brS; eauto.
+  Qed.
+
+(*|
+    Note that with visible schedules, an nary-spins refines another only
+    if it is empty, or if neither are empty.
+|*)
+  Lemma ssim_spinS_nonempty :
+    forall {Z Z'} L (x: Z) (y: Z') (c: C Z) (c': D Z'),
+      @ssim E F C D X Y L (spinS_gen c) (spinS_gen c').
+  Proof.
+    intros until L; intros x y.
+    coinduction S CIH.
+    intros * ?? TR.
+    rewrite ctree_eta in TR; cbn in TR.
+    inv_trans.
+    ex2; split3; subst; etrans.
+    rewrite ctree_eta; cbn; etrans.
+    now rewrite EQ.
+  Qed.
+
+  Lemma ssim_spinS_empty :
+    forall Z L (c: C False) (c': D Z),
+      @ssim E F C D X Y L (spinS_gen c) (spinS_gen c').
+  Proof.
+    intros.
+    eapply ssim_is_stuck.
+    intros ?? TR.
+    rewrite ctree_eta in TR; cbn in TR.
+    inv_trans.
+  Qed.
+
+
+  (* CHECKPOINT  *)
+
+
+  (* Seems useless, but used in a fold lemma. To double check *)
+  (* Lemma step_ss_ret_l_gen {Y F D} (x : X) (y : Y) (u u' : ctree F D Y) (L R : rel _ _) : *)
+  (*   R Stuck Stuck -> *)
+  (*   (Proper (equ eq ==> equ eq ==> impl) R) -> *)
+  (*   L (val x) (val y) -> *)
+  (*   trans (val y) u u' -> *)
+  (*   ss L R (Ret x : ctree E C X) u. *)
+  (* Proof. *)
+  (*   intros. cbn. intros. *)
+  (*   apply trans_val_inv in H2 as ?. *)
+  (*   inv_trans. subst. setoid_rewrite EQ. *)
+  (*   etrans. *)
+  (* Qed. *)
+
+  (* Lemma step_ss_ret_l {Y F D} (x : X) (y : Y) (u u' : ctree F D Y) (L : rel _ _) *)
+  (*   {R : Chain (@ss E F C D X Y L)} : *)
+  (*   L (val x) (val y) -> *)
+  (*   trans (val y) u u' -> *)
+  (*   ss L ` R (Ret x : ctree E C X) u. *)
+  (* Proof. *)
+  (*   intros. *)
+  (*   eapply step_ss_ret_l_gen; eauto. *)
+  (*   - apply (b_chain R). *)
+  (*     apply is_stuck_ss; apply Stuck_is_stuck. *)
+  (*   - typeclasses eauto. *)
+  (* Qed. *)
 
 (*|
     When matching visible brs one against another, in general we need to explain how
@@ -1091,107 +1104,23 @@ Section Proof_Rules.
     A useful special case is the one where the arity coincide and we simply use the identity
     in both directions. We can in this case have [n] rather than [2n] obligations.
 |*)
-  Lemma step_ss_brS_gen {Z Z' Y F D} (c : C Z) (d : D Z')
-        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R L: rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    (forall x, exists y, R (k x) (k' y)) ->
-    L τ τ ->
-    ss L R (BrS c k) (BrS d k').
-  Proof.
-    intros.
-    eapply step_ss_br_gen.
-    intros.
-    specialize (H0 x) as [y ?].
-    exists y.
-    eapply step_ss_step_gen; auto.
-  Qed.
-
-  Lemma step_ss_brS {Z Z' Y F D} (c : C Z) (c' : D Z')
-        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (L: rel _ _)
-        {R : Chain (@ss E F C D X Y L)} :
-    (forall x, exists y, (elem R) (k x) (k' y)) ->
-    L τ τ ->
-    ss L ` R (BrS c k) (BrS c' k').
-  Proof.
-    intros.
-    eapply step_ss_br.
-    intros x; specialize (H x) as [y ?].
-    exists y.
-    eapply step_ss_step; auto.
-  Qed.
-
-  Lemma ssim_brS {Z Z' Y F D} (c : C Z) (c' : D Z')
-        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (L: rel _ _) :
-    (forall x, exists y, ssim L (k x) (k' y)) ->
-    L τ τ ->
-    ssim L (BrS c k) (BrS c' k').
-  Proof.
-    intros.
-    apply ssim_br.
-    intros x; specialize (H x) as [y ?]; exists y.
-    apply step_ssim_step; auto.
-  Qed.
-
-  Lemma step_ss_brS_id_gen {Z Y D F} (c : C Z) (d: D Z)
-        (k: Z -> ctree E C X) (k': Z -> ctree F D Y) (R L : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    (forall x, R (k x) (k' x)) ->
-    L τ τ ->
-    ss L R (BrS c k) (BrS d k').
-  Proof.
-    intros; apply step_ss_brS_gen; eauto.
-  Qed.
-
-  Lemma step_ss_brS_id {Z Y D F} (c : C Z) (d : D Z)
-        (k: Z -> ctree E C X) (k': Z -> ctree F D Y) (L : rel _ _)
-        {R : Chain (@ss E F C D X Y L)} :
-    (forall x, `R (k x) (k' x)) ->
-    L τ τ ->
-    ss L ` R (BrS c k) (BrS d k').
-  Proof.
-    intros.
-    apply step_ss_brS; eauto.
-  Qed.
-
-  Lemma ssim_brS_id {Z Y D F} (c : C Z) (d : D Z)
-        (k: Z -> ctree E C X) (k': Z -> ctree F D Y) (L : rel _ _) :
-    (forall x, ssim L (k x) (k' x)) ->
-    L τ τ ->
-    ssim L (BrS c k) (BrS d k').
-  Proof.
-    intros.
-    apply ssim_brS; eauto.
-  Qed.
-
-(*|
-    Note that with visible schedules, nary-spins are equivalent only
-    if neither are empty, or if both are empty: they match each other's
-    τ challenge infinitely often.
-    With invisible schedules, they are always equivalent: neither of them
-    produce any challenge for the other.
-|*)
-  Lemma spinS_gen_nonempty : forall {Z X Y D F} {L: rel (label E) (label F)}
-                               (x: X) (y: Y)
-                               (c: C X) (c': D Y),
-      L τ τ ->
-      ssim L (@spinS_gen E C Z X c) (@spinS_gen F D Z Y c').
-  Proof.
-    intros until L; intros x y.
-    coinduction S CIH; simpl. intros ? ? ? ? ? TR;
-      rewrite ctree_eta in TR; cbn in TR.
-      apply trans_brS_inv in TR as (_ & EQ & ->).
-      eexists; eexists.
-      rewrite ctree_eta; cbn.
-      split; [econstructor|].
-      + exact y.
-      + constructor. reflexivity.
-      + rewrite EQ; eauto.
-  Qed.
-
 (*|
 Inversion principles
 --------------------
 |*)
+
+  Lemma ssim_stuck_rev L (t : ctree E C X) (u : ctree F D Y) :
+    is_stuck u ->
+    @ssim E F C D X Y  L t u ->
+    is_stuck t.
+  Proof.
+    intros IS SS l t' TR.
+    step in SS.
+    apply SS in TR.
+    edestruct5 TR.
+    eapply IS; eauto.
+  Qed.
+
   Lemma ssim_ret_inv {F D Y} {L: rel (label E) (label F)} (r1 : X) (r2 : Y) :
     ssim L (Ret r1 : ctree E C X) (Ret r2 : ctree F D Y) ->
     L (val r1) (val r2).

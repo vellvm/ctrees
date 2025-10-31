@@ -73,7 +73,9 @@ Section Trans.
 
   Context {E B : Type -> Type} {R : Type}.
 
-  Variant S := | Active (t : ctree E B R) | Passive {X} (e : E X) (k : X -> ctree E B R).
+  Variant S :=
+    | Active (t : ctree E B R)
+    | Passive {X} (e : E X) (k : X -> ctree E B R).
   (* Notation S' := (ctree' E B R). *)
   (* Notation S  := (ctree  E B R). *)
   Variant Seq : S -> S -> Prop :=
@@ -419,6 +421,7 @@ Defined.
 
 Coercion Active : ctree >-> S.
 Notation "'α' t" := (Active t) (at level 100).
+(* Out of curiosity: do coercion for β in rocq-elpi *)
 Notation "'β' e" := (Passive e) (at level 0).
 (*|
 Backward reasoning for [trans]
