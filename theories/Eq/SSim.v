@@ -24,30 +24,6 @@ Import CoindNotations.
 Import CTree.
 Set Implicit Arguments.
 
-(* TODO: Decide where to set this *)
-Arguments trans : simpl never.
-(* check *)
-Notation htrans l u v := (hrel_of (trans l) u v) (only parsing).
-Ltac refine_transition H :=
-  match type of H with
-  | htrans τ _ _ =>
-      let u  := fresh "u" in
-      let EQ := fresh "EQ" in
-      pose proof trans_τ_active H as [u EQ];
-      rewrite EQ in *;
-      match type of EQ with
-      | Seq ?a _ => try clear a EQ
-      end
-  | hrel_of (trans (ask ?e)) _ _ =>
-      let u  := fresh "u" in
-      let EQ := fresh "EQ" in
-      pose proof trans_ask_passive H as [u EQ];
-      rewrite EQ in *;
-      match type of EQ with
-      | Seq ?a _ => try clear a EQ
-      end
-  end.
-
 (* Truc de ce genre c'est un Proper *)
 (* forall X Y (R : X -> Y -> Prop), equiv R (ret x) (ret y) -> R x y. *)
 
@@ -134,14 +110,6 @@ Definition Lvrel {E X Y} (RR : rel X Y) : lrel E E X Y :=
     Rask := eq1 ;
     Rrcv := eq2
   |}.
-
-Ltac ex  :=  eexists.
-Ltac ex2 := do 2 eexists.
-Ltac ex3 := do 3 eexists.
-Ltac split3 := split; [| split].
-Ltac edestruct3 H := edestruct H as (? & ? & ?).
-Ltac edestruct4 H := edestruct H as (? & ? & ? & ?).
-Ltac edestruct5 H := edestruct H as (? & ? & ? & ? & ?).
 
 Definition lequiv {E F X Y} : rel (lrel E F X Y) (lrel E F X Y) :=
   fun L1 L2 => RR L1 == RR L2 /\ Rask L1 == Rask L2 /\ Rrcv L1 == Rrcv L2.
@@ -589,100 +557,8 @@ Ltac __eplay_ssim :=
 #[local] Tactic Notation "play" "in" ident(H) := __play_ssim_in H.
 #[local] Tactic Notation "eplay" := __eplay_ssim.
 
-(* Definition ss_ {E F C D X Y} (L : lrel E F X Y) *)
-(*   (R : rel S S) : rel (ctree E C X) (ctree F D Y) := *)
-(*   fun t u => ss L R (α t) (α u). *)
-
-(* Definition ssim_ {E F C D X Y} (L : lrel E F X Y): rel (ctree E C X) (ctree F D Y) := *)
-(*   fun t u => ssim L (α t) (α u). *)
-
-Lemma ask_invT : forall E X Y e1 e2, @ask E X e1 = @ask E Y e2 -> X = Y.
-  intros * EQ.
-  now dependent induction EQ.
-Qed.
-
-Lemma ask_inv : forall E X e1 e2, @ask E X e1 = @ask E X e2 -> e1 = e2.
-  intros * EQ.
-  now dependent induction EQ.
-Qed.
-
-Lemma rcv_invT : forall E X Y e1 e2 v1 v2, @rcv E X e1 v1 = @rcv E Y e2 v2 -> X = Y.
-  intros * EQ.
-  now dependent induction EQ.
-Qed.
-
-Lemma rcv_inv : forall E X e1 e2 v1 v2, @rcv E X e1 v1 = @rcv E X e2 v2 -> e1 = e2 /\ v1 = v2.
-  intros * EQ.
-  now dependent induction EQ.
-Qed.
-
-Ltac inv_label_eq EQl :=
-  match type of EQl with
-    | τ        = τ     =>
-        clear EQl
-    | val _   = val _ =>
-        apply val_eq_inv in EQl; try (inversion EQl; fail)
-    | ask _   = ask _ =>
-        let EQt := fresh "EQt" in
-        let EQe := fresh "EQe" in
-        apply ask_invT in EQl as EQt;
-        symmetry in EQt;
-        (* subst_hyp_in EQt h; *)
-        apply ask_inv in EQl as EQe;
-        try (inversion EQe; fail)
-    | rcv _ _ = rcv _ _ =>
-        let EQt := fresh "EQt" in
-        let EQt := fresh "EQv" in
-        let EQe := fresh "EQe" in
-        apply rcv_invT in EQl as EQt;
-        symmetry in EQt;
-        (* subst_hyp_in EQt h; *)
-        apply rcv_inv in EQl as [EQe EQv];
-        try (inversion EQe; inversion EQv; fail)
-    | _ => try now inv EQl
-  end.
-
-Ltac inv_trans_one :=
-  match goal with
-  (* Ret *)
-  | h : hrel_of (trans _) (α Ret _) _ |- _ =>
-      let EQl := fresh "EQl" in
-      (apply trans_ret_inv in h as [?EQ EQl] || apply trans_ret_inv' in h as [?EQ EQl]);
-      inv_label_eq EQl
-
-  (* Step *)
-  | h : hrel_of (trans _) (α Step _) _ |- _ =>
-      let EQl := fresh "EQl" in
-      apply trans_step_inv' in h as (?EQ & EQl);
-      inv_label_eq EQl
- 
-  (* Br *)
-  | h : hrel_of (trans _) (α Br _ _) _ |- _ =>
-      let TR := fresh "TR" in
-      apply trans_br_inv in h as (?n & TR)
-
-  (* Guard *)
-  | h : hrel_of (trans _) (α Guard _) _ |- _ =>
-      apply trans_guard_inv in h
-                                 
-  (* Vis *)
-  | h : hrel_of (trans _) (α (Vis ?e ?k)) _ |- _ =>
-      let EQl := fresh "EQl" in
-      apply trans_vis_inv' in h as (?EQ & EQl);
-      inv_label_eq EQl
-                   
-  (* Passive *)
-  | h : hrel_of (trans _) (β ?e ?k) _ |- _ =>
-      let EQl := fresh "EQl" in
-      apply trans_passive_inv' in h as (?x & ?EQ & EQl);
-      inv_label_eq EQl
-      
-  end.
-
-Ltac inv_trans := repeat inv_trans_one.
-  
-Notation ssim_ L t u := (ssim L (α t) (α u)).
-Notation ss_ L t u := (ss L _ (α t) (α u)).
+(* Notation ssim_ L t u := (ssim L (α t) (α u)). *)
+(* Notation ss_ L t u := (ss L _ (α t) (α u)). *)
 
 Section Proof_Rules.
 
@@ -1067,7 +943,6 @@ Internal transitions
     inv_trans.
   Qed.
 
-
   (* CHECKPOINT  *)
 
 
@@ -1098,12 +973,6 @@ Internal transitions
   (*   - typeclasses eauto. *)
   (* Qed. *)
 
-(*|
-    When matching visible brs one against another, in general we need to explain how
-    we map the branches from the left to the branches to the right.
-    A useful special case is the one where the arity coincide and we simply use the identity
-    in both directions. We can in this case have [n] rather than [2n] obligations.
-|*)
 (*|
 Inversion principles
 --------------------
