@@ -1505,8 +1505,8 @@ Proof.
   apply trans_bind_l_ask; auto.
 Qed.
 
-Lemma trans_τ_active {E B X} (t : ctree E B X) u :
-  trans τ (α t) u ->
+Lemma trans_τ_inv {E B X} t u :
+  @trans E B X τ t u ->
   exists u', Seq u (α u').
 Proof.
   intros TR; cbn in TR; dependent induction TR.
@@ -1516,17 +1516,17 @@ Proof.
   - eauto.
 Qed.
  
-Lemma etrans_τ_active {E B X} (t : ctree E B X) u :
+Lemma etrans_τ_inv {E B X} (t : ctree E B X) u :
   etrans τ (α t) u ->
   exists u', Seq u (α u').
 Proof.
   intros [TR | TR].
-  - eapply trans_τ_active; eauto.
+  - eapply trans_τ_inv; eauto.
   - cbn in *; exists t; rewrite TR; auto.
 Qed.
 
-Lemma trans_ask_passive {E B X Y} (t : ctree E B X) (e : E Y) u :
-  trans (ask e) (α t) u ->
+Lemma trans_ask_inv {E B X Y} t (e : E Y) u :
+  @trans E B X (ask e) t u ->
   exists g, Seq u (β e g).
 Proof.
   intros TR; cbn in TR; dependent induction TR.
@@ -1536,11 +1536,11 @@ Proof.
   - eauto.
 Qed.
   
-Lemma etrans_ask_active {E B X Y} (t : ctree E B X) (e : E Y) u :
+Lemma etrans_ask_inv {E B X Y} (t : ctree E B X) (e : E Y) u :
   etrans (ask e) (α t) u ->
   exists g, Seq u (β e g).
 Proof.
-  intros TR; eapply trans_ask_passive; eauto.
+  intros TR; eapply trans_ask_inv; eauto.
 Qed.
 
 Lemma transs_τ_passive {E B X Y} e (g : X -> ctree E B Y) u :
@@ -1560,7 +1560,7 @@ Proof.
   induction n as [| n IH]; intros t TR.
   - cbn in TR; exists t; symmetry; eauto.
   - destruct TR as [? TR TRs].
-    eapply trans_τ_active in TR as [u' EQ].
+    eapply trans_τ_inv in TR as [u' EQ].
     rewrite EQ in TRs.
     edestruct IH; eauto.
 Qed.
@@ -1581,7 +1581,7 @@ Proof.
   induction n as [| n IH].
   - cbn; intros; exists 0%nat; cbn; inv TR; rewrite EQ; auto.
   - intros t u [v TR1 TR2].
-    pose proof trans_τ_active TR1 as (v' & EQv).
+    pose proof trans_τ_inv TR1 as (v' & EQv).
     rewrite EQv in TR1,TR2.
     apply IH in TR2.
     eapply wtrans_τ, wcons.
@@ -1596,7 +1596,7 @@ Proof.
   intros [t2 [t1 TR1 TR2] TR3].
   pose proof transs_τ_active TR1 as (x & EQx).
   rewrite EQx in TR1,TR2.
-  pose proof etrans_τ_active TR2 as (y & EQy).
+  pose proof etrans_τ_inv TR2 as (y & EQy).
   rewrite EQy in TR2,TR3.
   pose proof transs_τ_active TR3 as (z & EQz).
   eexists; [eexists |].
@@ -1612,7 +1612,7 @@ Proof.
   intros [t2 [t1 TR1 TR2] TR3].
   pose proof transs_τ_active TR1 as (x & EQx).
   rewrite EQx in TR1,TR2.
-  pose proof etrans_ask_active TR2 as (y & EQy).
+  pose proof etrans_ask_inv TR2 as (y & EQy).
   rewrite EQy in TR2,TR3.
   pose proof transs_τ_passive TR3 as EQz.
   eexists; [eexists |].
@@ -1670,7 +1670,7 @@ Proof.
   - inv EQl.
 Qed.
 
-Lemma trans_rcv_active {E B X Y} (e : E Y) (y : Y) (u : ctree E B X) v :
+Lemma trans_rcv_active_inv {E B X Y} (e : E Y) (y : Y) (u : ctree E B X) v :
   trans (rcv e y) (α u) v ->
   False.
 Proof.
@@ -1714,13 +1714,13 @@ Proof.
   pose proof wtrans_τ_active TR1 as [? EQ1].
   rewrite EQ1 in *. 
   destruct l.
-  - pose proof etrans_τ_active TR2 as [? EQ2].
+  - pose proof etrans_τ_inv TR2 as [? EQ2].
     rewrite EQ2 in *.
     apply wtrans_τ in TR3.
     pose proof wtrans_τ_active TR3 as [? EQ3].
     inv EQ3.
   - cbn in TR2.
-    pose proof trans_ask_passive TR2 as [h EQ].
+    pose proof trans_ask_inv TR2 as [h EQ].
     rewrite EQ in *; clear t2 EQ.
     clear t1 EQ1.
     apply wtrans_τ in TR3.
@@ -1731,7 +1731,7 @@ Proof.
     split; auto.
     now constructor.
   - exfalso.
-    eapply trans_rcv_active; eauto.
+    eapply trans_rcv_active_inv; eauto.
   - exfalso.
     apply trans_val_inv' in TR2.
     rewrite TR2 in TR3.
@@ -1778,13 +1778,13 @@ Proof.
   - right; eapply wconss; [apply TR1 | clear t TR1].
     destruct H as (? & ? & ?).
     rewrite EQa in TR1'; clear t' EQa.
-    pose proof trans_τ_active H as [? EQ].
+    pose proof trans_τ_inv H as [? EQ].
     rewrite EQ in H,H0.
     eapply trans_bind_r in H; [| eauto].
     eapply wcons; eauto.
   - right; eapply wconss; [apply TR1 | clear t TR1].
     rewrite EQa in TR1'.
-    pose proof trans_τ_active TR as [? EQ].
+    pose proof trans_τ_inv TR as [? EQ].
     rewrite EQ in TR,WTR.
     eapply trans_bind_r in TR1'; eauto.
     eapply wconss; [|eauto].
@@ -1809,7 +1809,7 @@ Proof.
     apply trans_wtrans.
     pose proof trans_val_inv' TR as EQ; rewrite EQ in TR |-*.
     eapply trans_bind_r; eauto.
-  - pose proof trans_τ_active TR as [? EQ].
+  - pose proof trans_τ_inv TR as [? EQ].
     rewrite EQ in TR,WTR.
     eapply trans_bind_r in TR1'; eauto.
     eapply wconss; [|eauto].
@@ -1836,13 +1836,13 @@ Proof.
     clear v EQ.
     apply trans_wtrans.
     eapply trans_bind_r; eauto.
-  - pose proof trans_τ_active TRv as [? EQ].
+  - pose proof trans_τ_inv TRv as [? EQ].
     rewrite EQ in *; clear v0 EQ. 
     eapply wcons.
     eapply trans_bind_r; eauto.
     eapply wconss; eauto.
     now apply trans_wtrans.
-  - pose proof trans_τ_active TRv as [? EQ].
+  - pose proof trans_τ_inv TRv as [? EQ].
     rewrite EQ in *; clear v0 EQ. 
     eapply wcons.
     eapply trans_bind_r; eauto.
@@ -2038,20 +2038,20 @@ derive information on the active/passive status of its destination state.
 
 Currently very partial
 |*)
-Ltac refine_transition H :=
-  match type of H with
-  | htrans τ _ _ =>
+Ltac refine_trans :=
+  match goal with
+  | h : htrans τ _ _ |- _ =>
       let u  := fresh "u" in
       let EQ := fresh "EQ" in
-      pose proof trans_τ_active H as [u EQ];
+      pose proof trans_τ_inv h as [u EQ];
       rewrite EQ in *;
       match type of EQ with
       | Seq ?a _ => try clear a EQ
       end
-  | htrans (ask ?e) _ _ =>
+  | h : htrans (ask ?e) _ _ |- _ =>
       let u  := fresh "u" in
       let EQ := fresh "EQ" in
-      pose proof trans_ask_passive H as [u EQ];
+      pose proof trans_ask_inv h as [u EQ];
       rewrite EQ in *;
       match type of EQ with
       | Seq ?a _ => try clear a EQ
@@ -2086,7 +2086,7 @@ Ltac inv_label_eq EQl :=
         (* subst_hyp_in EQt h; *)
         apply rcv_inv in EQl as [EQe EQv];
         try (inversion EQe; inversion EQv; fail)
-    | _ => try now inv EQl
+    | _ => subst; try now inv EQl
   end.
 
 Ltac inv_trans_one :=
@@ -2094,13 +2094,17 @@ Ltac inv_trans_one :=
   (* Ret *)
   | h : htrans _ (α Ret _) _ |- _ =>
       let EQl := fresh "EQl" in
-      (apply trans_ret_inv in h as [?EQ EQl] || apply trans_ret_inv' in h as [?EQ EQl]);
+      let EQ  := fresh "EQ" in
+      (apply trans_ret_inv in h as [EQ EQl] || apply trans_ret_inv' in h as [EQ EQl]);
+      try rewrite EQ in *;
       inv_label_eq EQl
 
   (* Step *)
   | h : htrans _ (α Step _) _ |- _ =>
       let EQl := fresh "EQl" in
-      apply trans_step_inv' in h as (?EQ & EQl);
+      let EQ  := fresh "EQ" in
+      apply trans_step_inv' in h as (EQ & EQl);
+      try rewrite EQ in *;
       inv_label_eq EQl
  
   (* Br *)
@@ -2115,15 +2119,19 @@ Ltac inv_trans_one :=
   (* Vis *)
   | h : htrans _ (α (Vis ?e ?k)) _ |- _ =>
       let EQl := fresh "EQl" in
-      apply trans_vis_inv' in h as (?EQ & EQl);
+      let EQ  := fresh "EQ" in
+      apply trans_vis_inv' in h as (EQ & EQl);
+      try rewrite EQ in *;
       inv_label_eq EQl
                    
   (* Passive *)
   | h : htrans _ (β ?e ?k) _ |- _ =>
       let EQl := fresh "EQl" in
-      apply trans_passive_inv' in h as (?x & ?EQ & EQl);
+      let EQ  := fresh "EQ" in
+      apply trans_passive_inv' in h as (?x & EQ & EQl);
+      try rewrite EQ in *;
       inv_label_eq EQl
-      
+
   end.
 
 Ltac inv_trans := repeat inv_trans_one.

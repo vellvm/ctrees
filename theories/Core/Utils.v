@@ -1,4 +1,5 @@
 #[global] Set Warnings "-intuition-auto-with-star".
+#[global] Set Warnings "-warn-library-file-stdlib-vector".
 
 From Stdlib Require Import Fin.
 From Stdlib Require Export Program.Equality.

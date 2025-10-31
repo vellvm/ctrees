@@ -24,9 +24,6 @@ Import CoindNotations.
 Import CTree.
 Set Implicit Arguments.
 
-(* Truc de ce genre c'est un Proper *)
-(* forall X Y (R : X -> Y -> Prop), equiv R (ret x) (ret y) -> R x y. *)
-
 Section build_rel.
 
   Context {E F : Type -> Type} {X Y : Type}.
@@ -81,7 +78,7 @@ Arguments build_rel {E F X Y} RL.
 #[global] Hint Constructors build_rel : trans.
 Coercion build_rel : lrel >-> hrel.
 
-Definition upd_Lrel {E F X Y X' Y'}
+Definition upd_rel {E F X Y X' Y'}
   (RL : lrel E F X Y)
   (SS : rel X' Y') : lrel E F X' Y' :=
   {|
@@ -110,6 +107,12 @@ Definition Lvrel {E X Y} (RR : rel X Y) : lrel E E X Y :=
     Rask := eq1 ;
     Rrcv := eq2
   |}.
+
+Ltac invL :=
+  match goal with
+  h: build_rel _ _ _ |- _ => dependent induction h
+  | h: upd_rel _ _ _ _ |- _ => dependent induction h
+  end.
 
 Definition lequiv {E F X Y} : rel (lrel E F X Y) (lrel E F X Y) :=
   fun L1 L2 => RR L1 == RR L2 /\ Rask L1 == Rask L2 /\ Rrcv L1 == Rrcv L2.
@@ -395,7 +398,7 @@ and with the argument (pointwise) on the continuation.
     {R : Chain (@ss E F C D X' Y' L)} :
     forall (t : ctree E C X) (t' : ctree F D Y)
       (k : X -> ctree E C X') (k' : Y -> ctree F D Y'),
-      ssim (upd_Lrel L SS) t t' ->
+      ssim (upd_rel L SS) t t' ->
       (forall x y, SS x y -> ` R (k x) (k' y)) ->
       ` R (bind t k) (bind t' k').
   Proof.
@@ -411,7 +414,7 @@ and with the argument (pointwise) on the continuation.
       + subst l.
         apply tt' in STEP as (? & ? & STEP' & HSIM & HRL).
         inv HRL.
-        refine_transition STEP'.
+        refine_trans.
         ex2; split3.
         apply trans_bind_l_τ; eauto.
         * rewrite EQ.
@@ -421,8 +424,8 @@ and with the argument (pointwise) on the continuation.
         * etrans.
       + subst l.
         apply tt' in STEP as (? & ? & STEP' & HSIM & HRL).
-        dependent induction HRL.
-        refine_transition STEP'.
+        invL.
+        refine_trans.
         exists (ask f); ex; split3.
         eapply trans_bind_l_ask; eauto.
         * rewrite SEQ.
@@ -434,7 +437,7 @@ and with the argument (pointwise) on the continuation.
           step in HSIM; apply HSIM in TR as (l' & u' & TR' & HSIM' & HRL').
           pose proof trans_passive_inv' TR' as (b & EQ' & ->).
           exists (rcv f b); ex; split; eauto; split; cycle 1.
-          {dependent induction HRL'. etrans.}
+          { invL; etrans. }
           rewrite EQ.
           apply H.
           rewrite EQ' in HSIM'; auto.
@@ -442,7 +445,7 @@ and with the argument (pointwise) on the continuation.
           now step; apply kk'.
         * etrans.
       + apply tt' in STEPres as (? & ? & STEP' & HSIM & HRL).
-        dependent induction HRL.
+        invL.
         apply (kk' v y) in STEP as (l' & u' & STEP'' & HSIM'' & HRL').
         exists l'; eexists; split; eauto.
         2:etrans.
@@ -486,7 +489,7 @@ Specializations to the gfp
     L (SS : rel X Y) 
     (t1 : ctree E C X) (t2: ctree F D Y)
     (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y'):
-    t1 (≲ upd_Lrel L SS) t2 ->
+    t1 (≲ upd_rel L SS) t2 ->
     (forall x y, SS x y -> k1 x (≲ L) k2 y) ->
     t1 >>= k1 (≲ L) t2 >>= k2.
   Proof.
@@ -544,8 +547,8 @@ Ltac __play_ssim := step; cbn; intros ? ? ?TR.
 
 Ltac __play_ssim_in H :=
   step in H;
-  cbn in H; edestruct H as (? & ? & ?TR & ?EQ & ?HL);
-  clear H; [etrans |].
+  cbn in H; edestruct H as (? & ? & ?TR & ?SS & ?HL);
+  clear H; [etrans |]; fold_ssim.
 
 Ltac __eplay_ssim :=
   match goal with
@@ -940,11 +943,8 @@ Internal transitions
     eapply ssim_is_stuck.
     intros ?? TR.
     rewrite ctree_eta in TR; cbn in TR.
-    inv_trans.
+    now inv_trans.
   Qed.
-
-  (* CHECKPOINT  *)
-
 
   (* Seems useless, but used in a fold lemma. To double check *)
   (* Lemma step_ss_ret_l_gen {Y F D} (x : X) (y : Y) (u u' : ctree F D Y) (L R : rel _ _) : *)
@@ -976,230 +976,149 @@ Internal transitions
 (*|
 Inversion principles
 --------------------
+Question: are the principles useful over [ss] as well?
 |*)
-
-  Lemma ssim_stuck_rev L (t : ctree E C X) (u : ctree F D Y) :
-    is_stuck u ->
-    @ssim E F C D X Y  L t u ->
+  
+  Lemma ssim_stuck_inv L (t : ctree E C X) (u : ctree F D Y)
+    (IS : is_stuck u)
+    (SS :@ssim E F C D X Y  L t u) :
     is_stuck t.
   Proof.
-    intros IS SS l t' TR.
+    intros l t' TR.
     step in SS.
     apply SS in TR.
     edestruct5 TR.
     eapply IS; eauto.
   Qed.
 
-  Lemma ssim_ret_inv {F D Y} {L: rel (label E) (label F)} (r1 : X) (r2 : Y) :
-    ssim L (Ret r1 : ctree E C X) (Ret r2 : ctree F D Y) ->
+  Lemma ssim_ret_l_inv L :
+    forall r (u : ctree F D Y)
+      (SS : @ssim E F C D X Y L (Ret r) u),
+      exists r' u', trans (val r') u u' /\ RR L r r'.
+  Proof.
+    intros. step in SS.
+    edestruct5 SS; etrans.
+    invL.
+    ex2; split; etrans.
+  Qed.
+ 
+  Lemma ssim_ret_inv L (r1 : X) (r2 : Y)
+    (SS : @ssim E F C D X Y L (Ret r1) (Ret r2)) :
     L (val r1) (val r2).
   Proof.
-    intro.
     eplay.
-    inv_trans; subst; assumption.
-  Qed.
-
-  Lemma ss_ret_l_inv {F D Y L R} :
-    forall r (u : ctree F D Y),
-    ss L R (Ret r : ctree E C X) u ->
-    exists l' u', trans l' u u' /\ R Stuck u' /\ L (val r) l'.
-  Proof.
-    intros. apply H; etrans.
-  Qed.
-
-  Lemma ssim_ret_l_inv {F D Y L} :
-    forall r (u : ctree F D Y),
-    ssim L (Ret r : ctree E C X) u ->
-    exists l' u', trans l' u u' /\ L (val r) l'.
-  Proof.
-    intros. step in H.
-    apply ss_ret_l_inv in H as (? & ? & ? & ? & ?). etrans.
-  Qed.
-
-  Lemma ssim_vis_inv_type {D Y X1 X2}
-    (e1 : E X1) (e2 : E X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree E D Y) (x1 : X1):
-    ssim eq (Vis e1 k1) (Vis e2 k2) ->
-    X1 = X2.
-  Proof.
-    intros.
-    step in H; cbn in H.
-    edestruct H as (? & ? & ? & ? & ?).
-    etrans.
-    inv_trans; subst; auto.
-    eapply obs_eq_invT; eauto.
-    Unshelve.
-    exact x1.
-  Qed.
-
-  Lemma ssbt_vis_inv {F D Y X1 X2} {L: rel (label E) (label F)}
-    (e1 : E X1) (e2 : F X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree F D Y) (x : X1)
-    {R : Chain (@ss E F C D X Y L)} :
-    ss L (elem R) (Vis e1 k1) (Vis e2 k2) ->
-    (exists y, L (obs e1 x) (obs e2 y))  /\ (forall x, exists y, ` R (k1 x) (k2 y)).
-  Proof.
-    intros.
-    split; intros; edestruct H as (? & ? & ? & ? & ?);
-      etrans; subst;
-      inv_trans; subst; eexists; auto.
-    - now eapply H2.
-    - now apply H1.
-  Qed.
-
-  Lemma ssim_vis_inv {F D Y X1 X2} {L: rel (label E) (label F)}
-        (e1 : E X1) (e2 : F X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree F D Y) (x : X1):
-    ssim L (Vis e1 k1) (Vis e2 k2) ->
-    (exists y, L (obs e1 x) (obs e2 y)) /\ (forall x, exists y, ssim L (k1 x) (k2 y)).
-  Proof.
-    intros.
-    split.
-      - eplay.
-        inv_trans; subst; exists x2; eauto.
-      - intros y.
-        step in H.
-        cbn in H.
-        edestruct H as (l' & u' & TR & IN & HL).
-        apply trans_vis with (x := y).
-        inv_trans.
-        eexists.
-        apply IN.
-  Qed.
-
-  Lemma ss_vis_l_inv {F D Y Z L R} :
-    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
-    ss L R (Vis e k) u ->
-    exists l' u', trans l' u u' /\ R (k x) u' /\ L (obs e x) l'.
-  Proof.
-    intros. apply H; etrans.
-  Qed.
-
-  Lemma ssim_vis_l_inv {F D Y Z L} :
-    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
-    ssim L (Vis e k) u ->
-    exists l' u', trans l' u u' /\ ssim L (k x) u' /\ L (obs e x) l'.
-  Proof.
-    intros. step in H.
-    now simple apply ss_vis_l_inv with (x := x) in H.
-  Qed.
-
-  Lemma ss_step_inv {F D Y} {L: rel (label E) (label F)} {R : Chain (@ss E F C D X Y L)}
-        (t1 : ctree E C X) (t2 : ctree F D Y) :
-    ss L (elem R) (Step t1) (Step t2) ->
-    (elem R t1 t2).
-  Proof.
-    intros EQ.
-    edestruct EQ as (l & t & TR & REL & HL); etrans.
     now inv_trans.
   Qed.
 
-  Lemma ssim_step_inv {F D Y} {L: rel (label E) (label F)}
-        (t1 : ctree E C X) (t2 : ctree F D Y) :
-    ssim L (Step t1) (Step t2) ->
+  Lemma ssim_vis_inv {X1 X2} L
+    (e : E X1) (f : F X2)
+    (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree F D Y)
+    (SS : ssim L (Vis e k1) (Vis f k2)) :
+    Rask L e f /\
+      (forall x, exists y, Rrcv L e f x y /\ ssim L (k1 x) (k2 y)).
+  Proof.
+    eplay; inv_trans; invL.
+    split; auto.
+    intros x.
+    unshelve eplay; [exact x |].
+    invL.
+    inv_trans.
+    dependent destruction EQl.
+    ex; split; eauto.
+  Qed.
+
+  Lemma ssim_vis_l_inv {Z L} :
+    forall (e : E Z) (k : Z -> ctree E C X) u,
+    @ssim E F C D X Y L (Vis e k) u ->
+    exists Z' (f : F Z') k',
+      trans (ask f) u (β f k') /\
+      Rask L e f /\
+      forall x, exists y, ssim L (k x) (k' y) /\ Rrcv L e f x y.
+  Proof.
+    intros.
+    eplay; invL; refine_trans.
+    ex3; split3; etrans.
+    intros z.
+    unshelve eplay; [eassumption |]; inv_trans; invL.
+    ex; split; etrans.
+  Qed.
+
+  Lemma ssim_guard_l_inv L (t1 : ctree E C X) (t2 : ctree F D Y) :
+    ssim L (Guard t1) t2 ->
     ssim L t1 t2.
   Proof.
-    intros EQ. step in EQ. now apply ss_step_inv.
+    intros SS; play; eplay.
+    ex2; split3; etrans.
   Qed.
 
-  Lemma ss_step_l_inv {F D Y L R} :
-    forall (t : ctree E C X) (u : ctree F D Y),
-    ss L R (Step t) u ->
-    exists l' u', trans l' u u' /\ R t u' /\ L τ l'.
+  Lemma ssim_guard_r_inv L (t1 : ctree E C X) (t2 : ctree F D Y) :
+    ssim L t1 (Guard t2) ->
+    ssim L t1 t2.
   Proof.
-    etrans.
+    intros SS; play; eplay; inv_trans.
+    ex2; split3; etrans.
   Qed.
 
-  Lemma ssim_step_l_inv {F D Y L} :
-    forall (t : ctree E C X) (u : ctree F D Y),
-    Step t (≲L) u ->
-    exists l' u', trans l' u u' /\ t (≲L) u' /\ L τ l'.
+  Lemma ssim_guard_inv L (t1 : ctree E C X) (t2 : ctree F D Y) :
+    ssim L (Guard t1) (Guard t2) ->
+    ssim L t1 t2.
   Proof.
-    intros. step in H. etrans.
+    intros.
+    now apply ssim_guard_r_inv, ssim_guard_l_inv.
   Qed.
 
-  Lemma ssbt_brS_inv {F D Y} {L: rel (label E) (label F)} {R : Chain (@ss E F C D X Y L)}
-        n m (cn: C n) (cm: D m) (k1 : n -> ctree E C X) (k2 : m -> ctree F D Y) :
-    ss L (elem R) (BrS cn k1) (BrS cm k2) ->
-    (forall i1, exists i2, elem R (k1 i1) (k2 i2)).
-  Proof.
-    intros EQ i1.
-    edestruct EQ as (l & t & TR & REL & HL); etrans.
-    inv_trans. subst. eauto.
-  Qed.
-
-  Lemma ssim_brS_inv {F D Y} {L: rel (label E) (label F)}
-        n m (cn: C n) (cm: D m) (k1 : n -> ctree E C X) (k2 : m -> ctree F D Y) :
-    ssim L (BrS cn k1) (BrS cm k2) ->
-    (forall i1, exists i2, ssim L (k1 i1) (k2 i2)).
-  Proof.
-    intros EQ i1.
-    eplay.
-    subst; inv_trans.
-    eexists; eauto.
-  Qed.
-
-  Lemma ss_brS_l_inv {F D Y Z L R} :
-    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
-    ss L R (BrS c k) u ->
-    exists l' u', trans l' u u' /\ R (k x) u' /\ L τ l'.
-  Proof.
-    intros. apply H; etrans.
-  Qed.
-
-  Lemma ssim_brS_l_inv {F D Y Z L} :
-    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
-    ssim L (BrS c k) u ->
-    exists l' u', trans l' u u' /\ ssim L (k x) u' /\ L τ l'.
-  Proof.
-    intros. step in H.
-    now simple apply ss_brS_l_inv with (x := x) in H.
-  Qed.
-
-  Lemma ss_br_l_inv {F D Y} {L: rel (label E) (label F)}
-        n (c: C n) (t : ctree F D Y) (k : n -> ctree E C X) R:
-    ss L R (Br c k) t ->
-    forall x, ss L R (k x) t.
-  Proof.
-    cbn. intros.
-    eapply trans_br in H0; [| reflexivity].
-    apply H in H0 as (? & ? & ? & ? & ?); subst.
-    eauto.
-  Qed.
-
-  Lemma ssim_br_l_inv {F D Y} {L: rel (label E) (label F)}
-        n (c: C n) (t : ctree F D Y) (k : n -> ctree E C X):
+  Lemma ssim_br_l_inv L Z
+    (c: C Z) (t : ctree F D Y) (k : Z -> ctree E C X):
     ssim L (Br c k) t ->
     forall x, ssim L (k x) t.
   Proof.
-    intros. step. step in H. eapply ss_br_l_inv. apply H.
+    intros; play; eplay; eauto.
   Qed.
 
-  Lemma ss_guard_l_inv {F D Y} {L: rel (label E) (label F)}
-    (t : ctree E C X) (u : ctree F D Y) R:
-    ss L R (Guard t) u ->
-    ss L R t u.
-  Proof.
-    cbn. intros.
-    eapply trans_guard in H0.
-    apply H in H0 as (? & ? & ? & ? & ?); subst.
-    eauto.
-  Qed.
-
-  Lemma ssim_guard_l_inv {F D Y} {L: rel (label E) (label F)}
-    (t : ctree E C X) (u : ctree F D Y):
-    ssim L (Guard t) u ->
-    ssim L t u.
-  Proof.
-    intros. step. step in H. eapply ss_guard_l_inv. apply H.
-  Qed.
-
-  (* This one isn't very convenient... *)
-  Lemma ssim_br_r_inv {F D Y} {L: rel (label E) (label F)}
-        n (c: D n) (t : ctree E C X) (k : n -> ctree F D Y):
-    ssim L t (Br c k) ->
+  Lemma ssim_br_r_inv L Z
+    (d: D Z) (t : ctree E C X) (k : Z -> ctree F D Y):
+    ssim L t (Br d k) ->
     forall l t', trans l t t' ->
-    exists l' x t'' , trans l' (k x) t'' /\ L l l' /\ (ssim L t' t'').
+    exists x l' u', trans l' (k x) u' /\
+               ssim L t' u' /\
+               L l l'.
   Proof.
-    cbn. intros. step in H. apply H in H0 as (? & ? & ? & ? & ?); subst. inv_trans.
-    do 3 eexists; eauto.
+    intros SS * TR.
+    eplay; inv_trans.
+    ex3; split3; eauto.
+  Qed.
+
+  Lemma ssim_step_inv L (t1 : ctree E C X) (t2 : ctree F D Y) :
+    ssim L (Step t1) (Step t2) ->
+    ssim L t1 t2.
+  Proof.
+    intros; eplay; inv_trans; etrans.
+  Qed.
+
+  Lemma ssim_step_l_inv L (t1 : ctree E C X) (t2 : ctree F D Y) :
+    ssim L (Step t1) t2 ->
+    exists t2', trans τ t2 t2' /\ ssim L t1 t2'.
+  Proof.
+    intros; eplay; invL; refine_trans.
+    ex; split; etrans.
+  Qed.
+
+  Lemma ssim_brS_inv L
+    A B (c: C A) (d: D B) (k1 : A -> ctree E C X) (k2 : B -> ctree F D Y) :
+    ssim L (BrS c k1) (BrS d k2) ->
+    forall i1, exists i2, ssim L (k1 i1) (k2 i2).
+  Proof.
+    intros EQ i1.
+    eplay; invL; inv_trans; eauto.
+  Qed.
+
+  Lemma ssim_brS_l_inv L
+    A (c: C A) (k1 : A -> ctree E C X) (t2 : ctree F D Y) :
+    ssim L (BrS c k1) t2 ->
+    forall i, exists t2', trans τ t2 t2' /\ ssim L (k1 i) t2'.
+  Proof.
+    intros EQ i1.
+    eplay; invL; inv_trans; eauto.
   Qed.
 
 End Proof_Rules.
