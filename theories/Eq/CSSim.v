@@ -25,16 +25,13 @@ Import CoindNotations.
 Import CTree.
 Set Implicit Arguments.
 
-(* TODO: Decide where to set this *)
-Arguments trans : simpl never.
-
 Section CompleteStrongSim.
 
 (*|
 Complete strong simulation [css].
 |*)
   Program Definition css {E F C D : Type -> Type} {X Y : Type}
-    (L : rel (@label E) (@label F)) : mon (ctree E C X -> ctree F D Y -> Prop) :=
+    (L : lrel E F X Y) : mon (@S E C X -> @S F D Y -> Prop) :=
     {| body R t u :=
         ss L R t u /\ (forall l u', trans l u u' -> exists l' t', trans l' t t')
     |}.
@@ -95,25 +92,46 @@ Ltac __step_in_cssim H :=
 Import CTreeNotations.
 Import EquNotations.
 
+Ltac __play_cssim := step; cbn; split; [intros ? ? ?TR | etrans].
+
+Ltac __play_cssim_in H :=
+  step in H;
+  cbn in H; edestruct H as [(? & ? & ?TR & ?EQ & ?HL) ?PROG];
+  clear H; [etrans |].
+
+Ltac __eplay_cssim :=
+  match goal with
+  | h : @cssim ?E ?F ?C ?D ?X ?Y _ _ ?L |- _ =>
+      __play_cssim_in h
+  end.
+
+#[local] Tactic Notation "play" := __play_cssim.
+#[local] Tactic Notation "play" "in" ident(H) := __play_cssim_in H.
+#[local] Tactic Notation "eplay" := __eplay_cssim.
+
+Definition sub_lrel {E B X Y} (L L' : lrel E B X Y) : Prop :=
+  RR L <= RR L' /\ Rask L <= Rask L' /\ Rrcv L <= Rrcv L'.
+
+Lemma cssim_subrelation {E F C D X Y} :
+  Proper (sub_lrel ==> leq) (@cssim E F C D X Y).
+Proof.
+  step in CSS.
+  simpl; split; intros; cbn in H0; destruct H0 as [H0' H0''].
+  - cbn in H0'; apply H0' in H1 as (? & ? & ? & ? & ?);
+      apply H in H2. exists x, x0. auto.
+  - apply H0'' in H1 as (? & ? & ?).
+    do 2 eexists; apply H0.
+Qed.
+
+ 
 Section cssim_homogenous_theory.
 
-  Context {E B : Type -> Type} {X : Type}
-          {L: relation (@label E)}.
+  Context {E B : Type -> Type} {X : Type}.
 
   Notation css := (@css E E B B X X).
   Notation cssim  := (@cssim E E B B X X).
 
-  Lemma cssim_subrelation : forall (t t' : ctree E B X) L',
-      subrelation L L' -> cssim L t t' -> cssim L' t t'.
-  Proof.
-    intros. revert t t' H0. coinduction R CH.
-    intros. step in H0. simpl; split; intros; cbn in H0; destruct H0 as [H0' H0''].
-    - cbn in H0'; apply H0' in H1 as (? & ? & ? & ? & ?);
-        apply H in H2. exists x, x0. auto.
-    - apply H0'' in H1 as (? & ? & ?).
-      do 2 eexists; apply H0.
-  Qed.
-
+    
 (*|
     Various results on reflexivity and transitivity.
 |*)
@@ -397,23 +415,6 @@ Proof.
   - split; subst; auto.
     apply H0.
 Qed.
-
-Ltac __play_cssim := step; cbn; split; [intros ? ? ?TR | etrans].
-
-Ltac __play_cssim_in H :=
-  step in H;
-  cbn in H; edestruct H as [(? & ? & ?TR & ?EQ & ?HL) ?PROG];
-  clear H; [etrans |].
-
-Ltac __eplay_cssim :=
-  match goal with
-  | h : @cssim ?E ?F ?C ?D ?X ?Y _ _ ?L |- _ =>
-      __play_cssim_in h
-  end.
-
-#[local] Tactic Notation "play" := __play_cssim.
-#[local] Tactic Notation "play" "in" ident(H) := __play_cssim_in H.
-#[local] Tactic Notation "eplay" := __eplay_cssim.
 
 Section Proof_Rules.
   Arguments label: clear implicits.

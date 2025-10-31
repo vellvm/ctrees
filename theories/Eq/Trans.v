@@ -2160,3 +2160,140 @@ Create HintDb trans.
 Ltac etrans := eauto with trans.
 #[global] Arguments trans : simpl never.
 
+
+(*|
+Structured relations on labels
+|*)
+
+Section build_rel.
+
+  Context {E F : Type -> Type} {X Y : Type}.
+
+  Record lrel :=
+    {
+      RR: rel X Y ;
+      Rask: forall [X Y], E X -> F Y -> Prop ;
+      Rrcv: forall [X Y] (e : E X) (f : F Y), X -> Y -> Prop ;
+    }.
+  
+  Variant build_rel {RL : lrel} : hrel (label E) (label F) :=
+    | rel_τ   : build_rel τ τ
+    | rel_ask {X Y} {e : E X} {f : F Y}
+        (HR : Rask RL e f) :
+      build_rel (ask e) (ask f)
+    | rel_rcv {X Y} {e : E X} {f : F Y} x y
+        (HR : Rrcv RL e f x y) :
+      build_rel (rcv e x) (rcv f y)
+    | rel_ret {x : X} {y : Y}:
+      RR RL x y -> build_rel (val x) (val y).
+  Arguments build_rel : clear implicits.
+  
+  Lemma build_rel_val RL x y :
+    build_rel RL (val x) (val y) -> RR RL x y.
+  Proof.
+    now intros H; dependent induction H.
+  Qed.
+  
+  Lemma build_rel_ask RL A B (e : E A) (f : F B) :
+    build_rel RL (ask e) (ask f) -> Rask RL e f.
+  Proof.
+    now intros H; dependent induction H.
+  Qed.
+  
+  Lemma build_rel_rcv RL A B (e : E A) (f : F B) a b : 
+    build_rel RL (rcv e a) (rcv f b) -> Rrcv RL e f a b.
+  Proof.
+    now intros H; dependent induction H.
+  Qed.
+
+  Lemma build_rel_τ RL :
+    build_rel RL τ τ.
+  Proof.
+    constructor.
+  Qed.
+  
+End build_rel.
+
+Arguments lrel : clear implicits.
+Arguments build_rel {E F X Y} RL.
+#[global] Hint Constructors build_rel : trans.
+Coercion build_rel : lrel >-> hrel.
+
+Definition upd_rel {E F X Y X' Y'}
+  (RL : lrel E F X Y)
+  (SS : rel X' Y') : lrel E F X' Y' :=
+  {|
+    RR   := SS ;
+    Rask := Rask RL ;
+    Rrcv := Rrcv RL
+  |}.
+
+Variant eq1 {E} : forall [X Y : Type], rel (E X) (E Y) :=
+  | Eq1 X (e : E X) : eq1 e e.
+Variant eq2 {E} : forall [X Y : Type], E X -> E Y -> rel X Y :=
+  | Eq2 X (e : E X) x : eq2 e e x x.
+Hint Resolve Eq1 : trans.
+Hint Resolve Eq2 : trans.
+
+Definition Leq {E} {X : Type} : lrel E E X X :=
+  {|
+    RR   := eq ;
+    Rask := eq1 ;
+    Rrcv := eq2
+  |}.
+
+Definition Lvrel {E X Y} (RR : rel X Y) : lrel E E X Y :=
+   {|
+    RR   := RR ;
+    Rask := eq1 ;
+    Rrcv := eq2
+  |}.
+
+Ltac invL :=
+  match goal with
+  h: build_rel _ _ _ |- _ => dependent induction h
+  | h: upd_rel _ _ _ _ |- _ => dependent induction h
+  end.
+
+Definition lequiv {E F X Y} : rel (lrel E F X Y) (lrel E F X Y) :=
+  fun L1 L2 => RR L1 == RR L2 /\ Rask L1 == Rask L2 /\ Rrcv L1 == Rrcv L2.
+
+#[global] Instance lequiv_equivalence {E F X Y} : Equivalence (@lequiv E F X Y).
+Proof.
+  constructor.
+  - split3; auto.
+  - intros ?? [? []]; split3; symmetry; auto.
+  - intros ??? [? []] [? []]; split3; etransitivity; eauto.
+Qed.
+
+#[global] Instance lequiv_build_rel {E F X Y} : Proper (lequiv ==> weq) (@build_rel E F X Y).
+Proof.
+  cbn; intros L1 L2 [EQ1 [EQ2 EQ3]] l1 l2; split; intros H.
+  - inv H; etrans.
+    constructor; now apply EQ2.
+    constructor; now apply EQ3.
+    constructor; now apply EQ1.
+  - inv H; etrans.
+    constructor; now apply EQ2.
+    constructor; now apply EQ3.
+    constructor; now apply EQ1.
+Qed.
+
+#[global] Instance lequiv_build_rel' {E F X Y} : Proper (lequiv ==> eq ==> eq ==> iff) (@build_rel E F X Y).
+Proof.
+  now cbn; intros; subst; eapply lequiv_build_rel.
+Qed.
+
+Definition sub_lrel {E F X Y} (L L' : lrel E F X Y) : Prop :=
+  RR L <= RR L' /\ Rask L <= Rask L' /\ Rrcv L <= Rrcv L'.
+
+Lemma sub_lrel_subrel {E F X Y} :
+  Proper (sub_lrel ==> leq) (@build_rel E F X Y).
+Proof.
+  intros L L' (SUB1 & SUB2 & SUB3) ?? HL.
+  inv HL; etrans.
+  now constructor; apply SUB2.
+  now constructor; apply SUB3.
+  now constructor; apply SUB1.
+Qed.
+ 
