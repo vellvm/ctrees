@@ -504,17 +504,29 @@ Stuck ctrees can be simulated by anything.
 
 (*|
 Ret nodes
+
+Note: the general formulation (over any well-behaved realtion rather than elements of the chain) is necessary for br nodes, but also useful to reuse in [css] (where the relation will be an element of the css chain).
 |*)
+  Lemma ss_ret_gen (x : X) (y : Y) L R :
+    R (α Stuck) (α Stuck) ->
+    (Proper (Seq ==> Seq ==> impl) R) ->
+    RR L x y ->
+    ss L R (Ret x : ctree E C X) (Ret y : ctree F D Y).
+  Proof.
+    intros HS HP HR l u TR.
+    inv_trans. subst.
+    ex2; intuition.
+    now rewrite EQ.
+  Qed.
+  
   Lemma ss_ret (x : X) (y : Y) L
     {R : Chain (@ss E F C D X Y L)} :
     RR L x y ->
     ss L `R (Ret x : ctree E C X) (Ret y : ctree F D Y).
   Proof.
-    intros HR l u TR.
-    inv_trans. subst.
-    ex2; intuition.
-    rewrite EQ.
+    apply ss_ret_gen.
     step; apply ss_stuck.
+    typeclasses eauto.
   Qed.
   
   Lemma ssim_ret (x : X) (y : Y) L :

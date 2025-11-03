@@ -102,7 +102,7 @@ Ltac do_det :=
       clear RWTdet H'
   end.
 
-#[global] Notation inhabited X := { x: X | True}.
+(* #[global] Notation inhabited X := { x: X | True}. *)
 
 Definition sum_rel {A1 A2 B1 B2} Ra Rb : rel (A1 + B1) (A2 + B2) :=
   fun ab ab' =>
