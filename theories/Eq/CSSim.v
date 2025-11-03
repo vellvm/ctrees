@@ -34,7 +34,7 @@ Complete strong simulation [css].
   Program Definition css {E F C D : Type -> Type} {X Y : Type}
     (L : lrel E F X Y) : mon (@S E C X -> @S F D Y -> Prop) :=
     {| body R t u :=
-        ss L R t u /\ (forall l u', trans l u u' -> not_stuck t)
+        ss L R t u /\ (not_stuck u -> not_stuck t)
     |}.
   Next Obligation.
     split; eauto. intros.
@@ -139,10 +139,9 @@ Section cssim_homogenous_theory.
       destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
       destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
       eauto 8.
-    - intros ?? xx'.
-      destruct (yz' _ _ xx') as (l'' & z' & zz').
-      destruct (xy' _ _ zz') as (l' & y' & yy').
-      eauto 8.
+    - intros ns.
+      destruct (yz' ns) as (l'' & z' & zz').
+      edestruct xy' as (l' & y' & yy'); eauto.
   Qed.
 
   (*| PreOrder |*)
@@ -197,14 +196,16 @@ Section cssim_heterogenous_theory.
       econstructor; eauto.
       apply leq_infx in H.
       now apply H.
-    - intros a b ?? [x' y' x'' y'' EQ' [SIM COMP]].
-      split; intros ?? tr.
-      + rewrite EQ' in tr.
+    - intros a b ?? [x' y' x'' y'' EQ' [SIM LIVE]].
+      split.
+      + intros ?? tr.
+        rewrite EQ' in tr.
         edestruct SIM as (l' & ? & ? & ? & ?); eauto.
         exists l',x0; intuition.
         rewrite <- Equu; auto.
-      + rewrite <- Equu in tr.
-        edestruct COMP as (l' & ? & ?); eauto.
+      + intros ns.
+        rewrite <- Equu in ns.
+        edestruct LIVE as (l' & ? & ?); eauto.
         setoid_rewrite EQ'. eauto.
    Qed.
 
@@ -220,8 +221,8 @@ Section cssim_heterogenous_theory.
     - intros ? INC t t' EQt u u' EQu [HS PROG].
       split.
       now rewrite EQu, EQt.
-      intros l v TR.
-      rewrite EQu in TR.
+      intros ns.
+      rewrite EQu in ns.
       edestruct PROG as (? & ? & ?); eauto.
       ex2; rewrite EQt; eauto.
   Qed.
@@ -251,12 +252,12 @@ Section cssim_heterogenous_theory.
       now apply HP'''.
     - intros ? INC  t t' EQt u u' EQu [HS PROG]; split.
       now rewrite <- EQt, <- EQu.
-      intros l v TR.
-      rewrite <- EQu in TR.
+      intros ns.
+      rewrite <- EQu in ns.
       edestruct PROG as (? & ? & ?); eauto.
       ex2; rewrite <- EQt; eauto.
   Qed.
- 
+
   #[global] Instance seq_css_ctx {r} :
     Proper (Seq ==> Seq ==> impl) (css L r).
   Proof.
@@ -312,7 +313,7 @@ and with the argument (pointwise) on the continuation.
       apply INC. apply H. apply tt'.
       intros x x' xx'. split. apply leq_infx in H. apply H. now apply kk'.
       edestruct kk'; eauto.
-      
+
     - intros ? ? ? ? ? ? tt' kk'.
       step in tt'.
       destruct tt' as [tt tt'].
@@ -361,14 +362,12 @@ and with the argument (pointwise) on the continuation.
           {
             step in HSIM.
             destruct HSIM as [HSIM' PROD].
-            intros * TR.
+            intros (? & ? & TR).
             pose proof trans_passive_inv' TR as (y & EQ & EQ').
-            specialize (PROD (rcv f y) (u y)).
             destruct PROD as (?l' & ?t' & ?TR').
-            etrans.
+            exists (rcv f y); eauto.
             pose proof trans_passive_inv' TR' as (z & EQz & EQz').
             exists (rcv e z).
-            ex.
             etrans.
           }
           
@@ -380,9 +379,9 @@ and with the argument (pointwise) on the continuation.
           eapply trans_bind_r; eauto.
           erewrite <- trans_val_inv'; eauto.
  
-      + intros * STEP.
+      + intros (? & ? & STEP).
         apply trans_bind_inv_l in STEP as (l' & t2' & STEP).
-        apply tt' in STEP as (l'' & ? & STEP').
+        destruct tt' as (l'' & ? & STEP'); eauto.
         destruct l''.
         refine_trans; ex2; apply trans_bind_l_τ; etrans.
         refine_trans; ex2; eapply trans_bind_l_ask; etrans.

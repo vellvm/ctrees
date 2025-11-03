@@ -2128,9 +2128,9 @@ derive information on the active/passive status of its destination state.
 
 Currently very partial
 |*)
-Ltac refine_trans :=
-  match goal with
-  | h : htrans τ _ _ |- _ =>
+Ltac refine_trans_in h :=
+  match type of h with
+  | htrans τ _ _ =>
       let u  := fresh "u" in
       let EQ := fresh "EQ" in
       pose proof trans_τ_inv h as [u EQ];
@@ -2138,7 +2138,7 @@ Ltac refine_trans :=
       match type of EQ with
       | Seq ?a _ => try clear a EQ
       end
-  | h : htrans (ask ?e) _ _ |- _ =>
+  | htrans (ask ?e) _ _ =>
       let u  := fresh "u" in
       let EQ := fresh "EQ" in
       pose proof trans_ask_inv h as [u EQ];
@@ -2147,6 +2147,12 @@ Ltac refine_trans :=
       | Seq ?a _ => try clear a EQ
       end
   end.
+
+Tactic Notation "refine_trans" :=
+  match goal with
+  | h : htrans _ _ _ |- _ => refine_trans_in h
+  end.
+Tactic Notation "refine_trans" "in" ident(h) := refine_trans_in h.
 
 (*|
 [inv_trans] is an helper tactic to automatically
