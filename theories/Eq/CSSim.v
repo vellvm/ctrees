@@ -102,11 +102,11 @@ Ltac __play_cssim := step; cbn; split; [intros ? ? ?TR | etrans].
 Ltac __play_cssim_in H :=
   step in H;
   cbn in H; edestruct H as [(? & ? & ?TR & ?EQ & ?HL) ?PROG];
-  clear H; [etrans |].
+  clear H; [etrans |]; fold_cssim.
 
 Ltac __eplay_cssim :=
   match goal with
-  | h : @cssim ?E ?F ?C ?D ?X ?Y _ _ ?L |- _ =>
+  | h : @cssim ?E ?F ?C ?D ?X ?Y ?L ?u ?v |- _ =>
       __play_cssim_in h
   end.
 
@@ -445,7 +445,7 @@ Specialization: equality on external calls, equality everywhere
 (*|
 Specializations to the gfp
 |*)
-  Lemma ssim_bind_gen E F C D X Y X' Y'
+  Lemma cssim_bind_gen E F C D X Y X' Y'
     L (SS : rel X Y) 
     (t1 : ctree E C X) (t2: ctree F D Y)
     (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y'):
@@ -457,7 +457,7 @@ Specializations to the gfp
     eapply bind_chain_gen; eauto.
   Qed.
 
-  Lemma ssim_bind E C D X Y X' Y'
+  Lemma cssim_bind E C D X Y X' Y'
     (RR : rel X' Y') (SS : rel X Y) 
     (t1 : ctree E C X) (t2: ctree E D Y)
     (k1 : X -> ctree E C X') (k2 : Y -> ctree E D Y'):
@@ -469,7 +469,7 @@ Specializations to the gfp
     eapply bind_chain_gen; eauto.
   Qed.
 
-  Lemma ssim_bind_eq {E C D: Type -> Type} {X X': Type}
+  Lemma cssim_bind_eq {E C D: Type -> Type} {X X': Type}
     (t1 : ctree E C X) (t2: ctree E D X)
     (k1 : X -> ctree E C X') (k2 : X -> ctree E D X'):
     t1 ⪅ t2 ->
@@ -477,7 +477,7 @@ Specializations to the gfp
     t1 >>= k1 ⪅ t2 >>= k2.
   Proof.
     intros.
-    eapply ssim_bind; eauto.
+    eapply cssim_bind; eauto.
     intros ?? ->; auto.
   Qed.
 
@@ -788,24 +788,23 @@ Invisible nodes
     now apply css_guard_r_gen.
   Qed.
 
-  Lemma ssim_guard_r 
+  Lemma cssim_guard_r 
     (t: ctree E C X) (t': ctree F D Y) L :
-    ssim L t t' ->
-    ssim L t (Guard t').
+    cssim L t t' ->
+    cssim L t (Guard t').
   Proof.
-    intros; step; apply ss_guard_r; step in H; auto.
+    intros; step; apply css_guard_r; step in H; auto.
   Qed.
 
-  Lemma ssim_guard 
+  Lemma cssim_guard 
     (t: ctree E C X) (t': ctree F D Y) L :
-    ssim L t t' ->
-    ssim L (Guard t) (Guard t').
+    cssim L t t' ->
+    cssim L (Guard t) (Guard t').
   Proof.
     intros.
-    now apply ssim_guard_l, ssim_guard_r.
+    now apply cssim_guard_l, cssim_guard_r.
   Qed.
 
-  (* CHECK *)
 (*|
 Internal transitions
 |*)
@@ -815,9 +814,10 @@ Internal transitions
     ` R t t' ->
     css L ` R (Step t) (Step t').
   Proof.
-    intros HR ???; inv_trans; subst.
-    ex2; intuition.
-    now rewrite EQ.
+    intros HR; split.
+    - apply ss_step_gen; auto.
+      typeclasses eauto.
+    - eauto. 
   Qed.
 
   Lemma cssim_step
@@ -828,20 +828,21 @@ Internal transitions
     now intros; step; apply css_step.
   Qed.
 
-  Lemma css_brS {Z Z'} (c : C Z) (c' : D Z')
+  Lemma css_brS {Z Z'} `{Inhabited Z} (c : C Z) (c' : D Z')
     (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) L 
     {R : Chain (@css E F C D X Y L)} :
     (forall x, exists y, ` R (k x) (k' y)) ->
     css L ` R (BrS c k) (BrS c' k').
   Proof.
-    intros.
+    intros * SIM.
     eapply css_br.
-    intros x; specialize (H x) as [y ?].
+    exists inhabitant; eauto.
+    intros x; specialize (SIM x) as [y ?].
     exists y.
     eapply css_step; auto.
   Qed.
 
-  Lemma cssim_brS {Z Z'} (c : C Z) (c' : D Z')
+  Lemma cssim_brS {Z Z'} `{Inhabited Z} (c : C Z) (c' : D Z')
     (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) L :
     (forall x, exists y, cssim L (k x) (k' y)) ->
     cssim L (BrS c k) (BrS c' k').
@@ -849,7 +850,7 @@ Internal transitions
     now intros; step; apply css_brS.
   Qed.
 
-  Lemma css_brS_id {Z} (c : C Z) (d : D Z)
+  Lemma css_brS_id {Z} `{Inhabited Z} (c : C Z) (d : D Z)
     (k: Z -> ctree E C X) (k': Z -> ctree F D Y) L 
     {R : Chain (@css E F C D X Y L)} :
     (forall x, `R (k x) (k' x)) ->
@@ -858,7 +859,7 @@ Internal transitions
     intros; apply css_brS; eauto.
   Qed.
 
-  Lemma cssim_brS_id {Z} (c : C Z) (d : D Z)
+  Lemma cssim_brS_id {Z} `{Inhabited Z} (c : C Z) (d : D Z)
     (k: Z -> ctree E C X) (k': Z -> ctree F D Y) L :
     (forall x, cssim L (k x) (k' x)) ->
     cssim L (BrS c k) (BrS d k').
@@ -866,711 +867,191 @@ Internal transitions
     intros; apply cssim_brS; eauto.
   Qed.
 
-
-  
-  Lemma step_css_ret_gen {Y F D}(x : X) (y : Y) (R L : rel _ _) :
-    R Stuck Stuck ->
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    L (val x) (val y) ->
-    css L R (Ret x : ctree E C X) (Ret y : ctree F D Y).
+(*|
+    Note that with visible schedules, an nary-spins refines another only
+    if it is empty, or if neither are empty.
+|*)
+  Lemma cssim_spinS_nonempty :
+    forall {Z Z'} L (x: Z) (y: Z') (c: C Z) (c': D Z'),
+      @cssim E F C D X Y L (spinS_gen c) (spinS_gen c').
   Proof.
-    intros Rstuck PROP Lval.
+    intros until L; intros x y.
+    coinduction S CIH.
     split.
-    cbn; intros ? ? TR; inv_trans; subst;
-      cbn; eexists; eexists; intuition; etrans;
+    - intros * ?? TR.
+      rewrite ctree_eta in TR; cbn in TR.
+      inv_trans.
+      ex2; split3; subst; etrans.
+      rewrite ctree_eta; cbn; etrans.
       now rewrite EQ.
-    intros; do 2 eexists; etrans.
-  Qed.
-
-  Lemma step_css_ret {Y F D} (x : X) (y : Y) (L : rel _ _)
-    {R : Chain (@css E F C D X Y L)} :
-    L (val x) (val y) ->
-    css L `R (Ret x : ctree E C X) (Ret y : ctree F D Y).
-  Proof.
-    intros.
-    apply step_css_ret_gen.
-    - apply (b_chain R).
-      split.
-      apply is_stuck_ss; apply Stuck_is_stuck.
-      intros * abs; apply trans_stuck_inv in abs; easy.
-    - typeclasses eauto.
-    - apply H.
-  Qed.
-
-  Lemma step_css_ret_l_gen {Y F D} (x : X) (y : Y) (u u' : ctree F D Y) (L R : rel _ _) :
-    R Stuck Stuck ->
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    L (val x) (val y) ->
-    trans (val y) u u' ->
-    css L R (Ret x : ctree E C X) u.
-  Proof.
-    intros.
-    apply trans_val_inv in H2 as ?.
-    split.
-    - cbn. intros.
-      inv_trans.
-      subst; setoid_rewrite EQ.
-      etrans.
     - intros.
-      do 2 eexists.
-      etrans.
-  Qed.
-
-  Lemma step_css_ret_l {Y F D} (x : X) (y : Y) (u u' : ctree F D Y) (L : rel _ _)
-    {R : Chain (@css E F C D X Y L)} :
-    L (val x) (val y) ->
-    trans (val y) u u' ->
-    css L ` R (Ret x : ctree E C X) u.
-  Proof.
-    intros.
-    eapply step_css_ret_l_gen; eauto.
-    - apply (b_chain R).
-      split.
-      apply is_stuck_ss; apply Stuck_is_stuck.
-      intros * abs; apply trans_stuck_inv in abs; easy.
-    - typeclasses eauto.
-  Qed.
-
-  Lemma cssim_ret {Y F D} (x : X) (y : Y) (L : rel _ _) :
-    L (val x) (val y) ->
-    cssim L (Ret x : ctree E C X) (Ret y : ctree F D Y).
-  Proof.
-    intros. step. now apply step_css_ret.
-  Qed.
-
-(*|
- The vis nodes are deterministic from the perspective of the labeled
- transition system, stepping is hence symmetric and we can just recover
- the itree-style rule.
-|*)
-  Lemma step_css_vis_gen {Y Z Z' F D} (e : E Z) (f: F Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R L: rel _ _) :
-    inhabited Z ->
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    (forall x, exists y, R (k x) (k' y) /\ L (obs e x) (obs f y)) ->
-    css L R (Vis e k) (Vis f k').
-  Proof.
-    intros.
-    split.
-    - apply step_ss_vis_gen; auto.
-    - intros * tr; inv_trans; subst.
-      do 2 eexists. etrans.
-      Unshelve.
-      apply X0.
-  Qed.
-
-  Lemma step_css_vis {Y Z Z' F D} (e : E Z) (f: F Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (L : rel _ _)
-    {R : Chain (@css E F C D X Y L)} :
-    inhabited Z ->
-    (forall x, exists y, ` R (k x) (k' y) /\ L (obs e x) (obs f y)) ->
-    css L ` R (Vis e k) (Vis f k').
-  Proof.
-    intros * INH EQ.
-    apply step_css_vis_gen; auto.
-    typeclasses eauto.
-  Qed.
-
-  Lemma cssim_vis {Y Z Z' F D} (e : E Z) (f: F Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (L : rel _ _) :
-    inhabited Z ->
-    (forall x, exists y, cssim L (k x) (k' y) /\ L (obs e x) (obs f y)) ->
-    cssim L (Vis e k) (Vis f k').
-  Proof.
-    intros. step. apply step_css_vis; auto.
-  Qed.
-
-  Lemma step_css_vis_id_gen {Y Z F D} (e : E Z) (f: F Z)
-    (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (R L: rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    (forall x, R (k x) (k' x) /\ L (obs e x) (obs f x)) ->
-    css L R (Vis e k) (Vis f k').
-  Proof.
-    intros.
-    split.
-    - apply step_ss_vis_id_gen; auto.
-    - intros * tr; inv_trans; subst.
-      do 2 eexists. etrans.
-      Unshelve. apply x.
-  Qed.
-
-  Lemma step_css_vis_id {Y Z F D} (e : E Z) (f: F Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (L : rel _ _)
-    {R : Chain (@css E F C D X Y L)} :
-    (forall x, ` R (k x) (k' x) /\ L (obs e x) (obs f x)) ->
-    css L ` R (Vis e k) (Vis f k').
-  Proof.
-    intros * EQ.
-    apply step_css_vis_id_gen; auto.
-    typeclasses eauto.
-  Qed.
-
-  Lemma cssim_vis_id {Y Z F D} (e : E Z) (f: F Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) (L : rel _ _) :
-    (forall x, cssim L (k x) (k' x) /\ L (obs e x) (obs f x)) ->
-    cssim L (Vis e k) (Vis f k').
-  Proof.
-    intros. step. now apply step_css_vis_id.
-  Qed.
-
-(*|
-  Same goes for visible tau nodes.
-|*)
-  Lemma step_css_step_gen {Y F D}
-        (t : ctree E C X) (t': ctree F D Y) (R L: rel _ _):
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    L τ τ ->
-    (R t t') ->
-    css L R (Step t) (Step t').
-  Proof.
-    intros PR ? EQs.
-    split.
-    - apply step_ss_step_gen; auto.
-    - intros * TR; inv_trans; subst; etrans.
-  Qed.
-
-  Lemma step_css_step {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (L : rel _ _)
-        {R : Chain (@css E F C D X Y L)} :
-    (` R t t') ->
-    L τ τ ->
-    css L ` R (Step t) (Step t').
-  Proof.
-    intros.
-    apply step_css_step_gen; auto.
-    typeclasses eauto.
-  Qed.
-
-  Lemma cssim_step {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (L : rel _ _) :
-    (cssim L t t') ->
-    L τ τ ->
-    cssim L (Step t) (Step t').
-  Proof.
-    intros.
-    step. apply step_css_step; auto.
-  Qed.
-
-(*|
-    For invisible nodes, the situation is different: we may kill them, but that execution
-    cannot act as going under the guard.
-|*)
-  Lemma step_css_br_l_gen {Y F D Z} (c : C Z)
-        (k : Z -> ctree E C X) (t': ctree F D Y) (R L: rel _ _):
-    inhabited Z ->
-    (forall x, css L R (k x) t') ->
-    css L R (Br c k) t'.
-  Proof.
-    intros [? _] EQs.
-    split.
-    - apply step_ss_br_l_gen; auto. apply EQs.
-    - intros * TR.
-      unshelve edestruct EQs as [_ ?]; eauto.
-      apply H in TR.
-      destruct TR as (? & ? & ?).
-      etrans.
-  Qed.
-
-  Lemma step_css_br_l {Y F D Z} (c : C Z)
-    (k : Z -> ctree E C X) (t: ctree F D Y) (L: rel _ _)
-    {R : Chain (@css E F C D X Y L)} :
-    inhabited Z ->
-    (forall x,  css L (elem R) (k x) t) ->
-    css L ` R (Br c k) t.
-  Proof.
-    intros [? _] EQs.
-    split.
-    - apply step_ss_br_l_gen; auto. apply EQs.
-    - intros * TR.
-      unshelve edestruct EQs as [_ ?]; eauto.
-      apply H in TR.
-      destruct TR as (? & ? & ?).
-      etrans.
-  Qed.
-
-  Lemma cssim_br_l {Y F D Z} (c : C Z)
-    (k : Z -> ctree E C X) (t: ctree F D Y) (L: rel _ _):
-    inhabited Z ->
-    (forall x, cssim L (k x) t) ->
-    cssim L (Br c k) t.
-  Proof.
-    intros. step. apply step_css_br_l_gen; auto. intros.
-    specialize (H x). step in H. apply H.
-  Qed.
-
-  (* This does not hold without assuming explicit progress on the left side.
-     Indeed, if [k x] is stuck, [t] would be stuck as well.
-     But then [Br c k] could be able to step, contradicting the completeness.
-   *)
-   Lemma step_css_br_r_gen {Y F D Z} (c : D Z)
-    (t : ctree E C X) (k : Z -> ctree F D Y) (R L: rel _ _) z :
-    (exists l t', trans l t t') ->
-    css L R t (k z) ->
-    css L R t (Br c k).
-  Proof.
-    intros TR [SIM COMP].
-    split.
-    - eapply step_ss_br_r_gen; eauto.
-    - intros; auto.
-  Qed.
-
-  Lemma step_css_br_r {Y F D Z} (c : D Z) x
-    (k : Z -> ctree F D Y) (t: ctree E C X) (L: rel _ _)
-    {R : Chain (@css E F C D X Y L)} :
-    (exists l t', trans l t t') ->
-    css L (elem R) t (k x) ->
-    css L ` R t (Br c k).
-  Proof.
-    intros TR SIM.
-    split.
-    - eapply step_ss_br_r_gen; apply SIM.
-    - auto.
-  Qed.
-
-  Lemma cssim_br_r {Y F D Z} (c : D Z) x
-    (k : Z -> ctree F D Y) (t: ctree E C X) (L: rel _ _):
-    (exists l t', trans l t t') ->
-    cssim L t (k x) ->
-    cssim L t (Br c k).
-  Proof.
-    intros. step.
-    apply (@step_css_br_r_gen Y F D Z c t k (cssim L) L x); auto.
-    step in H0; auto.
-  Qed.
-
-  Lemma step_css_br_gen {Y F D n m} (a: C n) (b: D m)
-    (k : n -> ctree E C X) (k' : m -> ctree F D Y) (R L : rel _ _) :
-    (exists x l t', trans l (k x) t') ->
-    (forall x, exists y, css L R (k x) (k' y)) ->
-    css L R (Br a k) (Br b k').
-  Proof.
-    intros [? PROG] EQs.
-    split.
-    - apply step_ss_br_gen; auto. intros y. destruct (EQs y).
-      exists x0; apply H.
-    - intros * TR.
-      destruct PROG as (? & ? & TR').
-      do 2 eexists; econstructor; apply TR'.
-  Qed.
-
-  Lemma step_css_br {Y F D n m} (cn: C n) (cm: D m)
-    (k : n -> ctree E C X) (k' : m -> ctree F D Y) (L : rel _ _)
-    {R : Chain (@css E F C D X Y L)} :
-    (exists x l t', trans l (k x) t') ->
-    (forall x, exists y, css L (elem R) (k x) (k' y)) ->
-    css L `R (Br cn k) (Br cm k').
-  Proof.
-    intros.
-    apply step_css_br_gen; auto.
-  Qed.
-
-  Lemma cssim_br {Y F D n m} (cn: C n) (cm: D m)
-    (k : n -> ctree E C X) (k' : m -> ctree F D Y) (L : rel _ _) :
-    (exists x l t', trans l (k x) t') ->
-    (forall x, exists y, cssim L (k x) (k' y)) ->
-    cssim L (Br cn k) (Br cm k').
-  Proof.
-    intros. step. apply step_css_br; auto.
-    intros. destruct (H0 x). step in H1. exists x0. apply H1.
-  Qed.
-
-  Lemma step_css_br_id_gen {Y F D Z} (c: C Z) (d: D Z)
-        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y)
-        (R L : rel _ _) :
-    (forall x, css L R (k x) (k' x)) ->
-    css L R (Br c k) (Br d k').
-  Proof.
-    intros EQs.
-    split.
-    - apply step_ss_br_id_gen; auto. intros y. destruct (EQs y).
-      apply H.
-    - intros * TR.
-      apply trans_br_inv in TR as [x TR].
-      apply EQs in TR as (l' & t & TR).
-      do 2 eexists; econstructor; apply TR.
-  Qed.
-
-  Lemma step_css_br_id {Y F D n} (c: C n) (d: D n)
-    (k : n -> ctree E C X) (k': n -> ctree F D Y) (L: rel _ _)
-    {R : Chain (@css E F C D X Y L)} :
-    (forall x, css L (elem R) (k x) (k' x)) ->
-    css L ` R (Br c k) (Br d k').
-  Proof.
-    intros.
-    apply step_css_br_id_gen; eauto.
-  Qed.
-
-  Lemma cssim_br_id {Y F D n} (c: C n) (d: D n)
-    (k : n -> ctree E C X) (k': n -> ctree F D Y) (L: rel _ _) :
-    (forall x, cssim L (k x) (k' x)) ->
-    cssim L (Br c k) (Br d k').
-  Proof.
-    intros. step. apply step_css_br_id; eauto.
-    intros. apply (gfp_pfp (css L)). apply H.
-  Qed.
-
-  Lemma step_css_guard_gen {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (R L: rel _ _):
-    css L R t t' ->
-    css L R (Guard t) (Guard t').
-  Proof.
-    intros EQ.
-    split.
-    - apply step_ss_guard_gen; apply EQ.
-    - intros.
-      inv_trans.
-      apply EQ in H as (? & ? & ?).
-      etrans.
-  Qed.
-
-  Lemma step_css_guard_l {Y F D}
-    (t: ctree E C X) (t': ctree F D Y) (L: rel _ _)
-    {R : Chain (@css E F C D X Y L)} :
-    css L `R t t' ->
-    css L `R (Guard t) t'.
-  Proof.
-    intros EQ.
-    split.
-    - intros ? ? TR; inv_trans; subst.
-      apply EQ in TR as (? & ? & TR' & ?).
+      rewrite ctree_eta; cbn.
       eauto.
-    - intros.
-      apply EQ in H as (? & ? & ?).
-      etrans.
-  Qed.
-
-  Lemma step_css_guard_r {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (L: rel _ _)
-        {R : Chain (@css E F C D X Y L)} :
-    css L `R t t' ->
-    css L `R t (Guard t').
-  Proof.
-    intros EQ.
-    split.
-    - intros ? ? TR; inv_trans; subst.
-      apply EQ in TR as (? & ? & TR' & ?).
-      do 2 eexists; split; eauto.
-      etrans.
-    - intros.
-      inv_trans.
-      apply EQ in H as (? & ? & ?).
-      etrans.
-  Qed.
-
-  Lemma step_css_guard {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (L: rel _ _)
-        {R : Chain (@css E F C D X Y L)} :
-    css L `R t t' ->
-    css L `R (Guard t) (Guard t').
-  Proof.
-    intros.
-    now apply step_css_guard_gen.
-  Qed.
-
-  Lemma cssim_guard_l {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (L: rel _ _):
-    cssim L t t' ->
-    cssim L (Guard t) t'.
-  Proof.
-    intros; step; apply step_css_guard_l; step in H; auto.
-  Qed.
-
-  Lemma cssim_guard_r {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (L: rel _ _):
-    cssim L t t' ->
-    cssim L t (Guard t').
-  Proof.
-    intros; step; apply step_css_guard_r; step in H; auto.
-  Qed.
-
-  Lemma cssim_guard {Y F D}
-        (t: ctree E C X) (t': ctree F D Y) (L: rel _ _):
-    cssim L t t' ->
-    cssim L (Guard t) (Guard t').
-  Proof.
-    intros; step; apply step_css_guard; step in H; auto.
-  Qed.
-
-(*|
-    When matching visible brs one against another, in general we need to explain how
-    we map the branches from the left to the branches to the right.
-    A useful special case is the one where the arity coincide and we simply use the identity
-    in both directions. We can in this case have [n] rather than [2n] obligations.
-|*)
-  Lemma step_css_brS_gen {Z Z' Y F D} (c : C Z) (d : D Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R L: rel _ _) :
-    inhabited Z ->
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    (forall x, exists y, R (k x) (k' y)) ->
-    L τ τ ->
-    css L R (BrS c k) (BrS d k').
-  Proof.
-    intros INH HP REL HL.
-    eapply step_css_br_gen.
-    destruct INH as [z _].
-    exists z; etrans.
-    intros.
-    specialize (REL x) as [y ?].
-    exists y.
-    eapply step_css_step_gen; auto.
-  Qed.
-
-  Lemma step_css_brS {Z Z' Y F D} (c : C Z) (c' : D Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (L: rel _ _)
-    {R : Chain (@css E F C D X Y L)} :
-    inhabited Z ->
-    (forall x, exists y, `R (k x) (k' y)) ->
-    L τ τ ->
-    css L `R (BrS c k) (BrS c' k').
-  Proof.
-    intros INH REL HL.
-    destruct INH as [z _].
-    eapply step_css_br.
-    exists z; etrans.
-    intros x; specialize (REL x) as [y ?].
-    exists y.
-    eapply step_css_step; auto.
-  Qed.
-
-  Lemma cssim_brS {Z Z' Y F D} (c : C Z) (c' : D Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (L: rel _ _) :
-    inhabited Z ->
-    (forall x, exists y, cssim L (k x) (k' y)) ->
-    L τ τ ->
-    cssim L (BrS c k) (BrS c' k').
-  Proof.
-    intros INH REL HL.
-    destruct INH as [z _].
-    apply cssim_br.
-    exists z; etrans.
-    intros x; specialize (REL x) as [y ?]; exists y.
-    apply cssim_step; auto.
-  Qed.
-
-  Lemma step_css_brS_id_gen {Z Y D F} (c : C Z) (d: D Z)
-    (k: Z -> ctree E C X) (k': Z -> ctree F D Y) (R L : rel _ _) :
-    (Proper (equ eq ==> equ eq ==> impl) R) ->
-    (forall x, R (k x) (k' x)) ->
-    L τ τ ->
-    css L R (BrS c k) (BrS d k').
-  Proof.
-    intros HP REL HL.
-    split; [apply step_ss_brS_id_gen; auto |].
-    intros. inv_trans. etrans.
-    Unshelve. apply x0.
-  Qed.
-
-  Lemma step_css_brS_id {Z Y D F} (c : C Z) (d : D Z)
-    (k: Z -> ctree E C X) (k': Z -> ctree F D Y) (L : rel _ _)
-    {R : Chain (@css E F C D X Y L)} :
-    (forall x, `R (k x) (k' x)) ->
-    L τ τ ->
-    css L `R (BrS c k) (BrS d k').
-  Proof.
-    intros REL HL.
-    apply step_css_brS_id_gen; auto.
-    typeclasses eauto.
-  Qed.
-
-  Lemma cssim_brS_id {Z Y D F} (c : C Z) (d : D Z)
-        (k: Z -> ctree E C X) (k': Z -> ctree F D Y) (L : rel _ _) :
-    (forall x, cssim L (k x) (k' x)) ->
-    L τ τ ->
-    cssim L (BrS c k) (BrS d k').
-  Proof.
-    intros. step. apply step_css_brS_id; auto.
-  Qed.
-
-End Proof_Rules.
-
-Section WithParams.
-
-  Context {E F C D : Type -> Type}.
-  Context (L : rel (@label E) (@label F)).
-
-(*|
-Note that with visible schedules, nary-spins are equivalent only
-if neither are empty, or if both are empty: they match each other's
-tau challenge infinitely often.
-With invisible schedules, they are always equivalent: neither of them
-produce any challenge for the other.
-|*)
-  Lemma spinS_gen_nonempty : forall {Z Z' X Y} (c: C X) (c': D Y) (x: X) (y: Y) (L : rel _ _),
-    L τ τ ->
-    cssim L (@spinS_gen E C Z X c) (@spinS_gen F D Z' Y c').
-  Proof.
-    intros.
-    red. coinduction R CH.
-    simpl; split; intros l t' TR; rewrite ctree_eta in TR; cbn in TR;
-    apply trans_brS_inv in TR as (_ & EQ & ->);
-      do 2 eexists;
-      rewrite ctree_eta; cbn; intuition.
-    - econstructor; auto.
-      constructor; eauto.
-    - rewrite EQ; eauto.
-    - eapply H.
-    - econstructor; auto.
-      constructor; eauto.
   Qed.
 
 (*|
 Inversion principles
 --------------------
+TODO: these principles are mirrored on ssim directly. We should be able to derive additional liveness information from them in some cases.
 |*)
-  Lemma cssim_ret_inv X Y (r1 : X) (r2 : Y) :
-    (Ret r1 : ctree E C X) (⪅L) (Ret r2 : ctree F D Y) ->
+  
+  Lemma cssim_stuck_inv L (t : ctree E C X) (u : ctree F D Y)
+    (CSS :@cssim E F C D X Y  L t u) :
+    is_stuck t <-> is_stuck u.
+  Proof.
+    split.
+    - intros IS l u' TR.
+      step in CSS.
+      destruct CSS as [SS PROG].
+      eapply not_stuck_is_stuck.
+      apply PROG.
+      eauto.
+      auto.
+    - intros IS l t' TR.
+      step in CSS.
+      apply CSS in TR.
+      edestruct5 TR.
+      eapply IS; eauto.
+  Qed.
+
+  Lemma cssim_ret_l_inv L :
+    forall r (u : ctree F D Y)
+      (CSS : @cssim E F C D X Y L (Ret r) u),
+      exists r' u', trans (val r') u u' /\ RR L r r'.
+  Proof.
+    intros. step in CSS.
+    destruct CSS as [SIM PROG].
+    edestruct5 SIM; etrans.
+    invL.
+    ex2; split; etrans.
+  Qed.
+ 
+  Lemma cssim_ret_inv L (r1 : X) (r2 : Y)
+    (CSS : @cssim E F C D X Y L (Ret r1) (Ret r2)) :
     L (val r1) (val r2).
   Proof.
-    intros.
     eplay.
+    now inv_trans.
+  Qed.
+
+  Lemma cssim_vis_inv {X1 X2} L
+    (e : E X1) (f : F X2)
+    (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree F D Y)
+    (CSS : cssim L (Vis e k1) (Vis f k2)) :
+    Rask L e f /\
+      (forall x, exists y, Rrcv L e f x y /\ cssim L (k1 x) (k2 y)).
+  Proof.
+    eplay; inv_trans; invL.
+    split; auto.
+    intros x.
+    unshelve eplay. exact x.
+    invL.
     inv_trans.
-    now subst.
+    exists x1; split; eauto.
+    dependent induction EQl; eauto.
   Qed.
-
-  Lemma css_ret_l_inv {X Y R} :
-    forall r (u : ctree F D Y),
-    css L R (Ret r : ctree E C X) u ->
-    exists l' u', trans l' u u' /\ R Stuck u' /\ L (val r) l'.
-  Proof.
-    intros. apply H; etrans.
-  Qed.
-
-  Lemma cssim_ret_l_inv {X Y} :
-    forall r (u : ctree F D Y),
-    cssim L (Ret r : ctree E C X) u ->
-    exists l' u', trans l' u u' /\ L (val r) l'.
-  Proof.
-    intros. step in H.
-    apply css_ret_l_inv in H as (? & ? & ? & ? & ?). etrans.
-  Qed.
-
-  Lemma cssim_vis_inv_type {X Y X1 X2}
-    (e1 : E X1) (e2 : E X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree E D Y) (x1 : X1):
-    cssim eq (Vis e1 k1) (Vis e2 k2) ->
-    X1 = X2.
+  
+  Lemma cssim_vis_l_inv {Z L} :
+    forall (e : E Z) (k : Z -> ctree E C X) u,
+      @cssim E F C D X Y L (Vis e k) u ->
+      exists Z' (f : F Z') k',
+        trans (ask f) u (β f k') /\
+          Rask L e f /\
+          forall x, exists y, cssim L (k x) (k' y) /\ Rrcv L e f x y.
   Proof.
     intros.
-    step in H; cbn in H; destruct H as [SIM COMP].
-    edestruct SIM as (? & ? & ? & ? & ?).
-    etrans.
-    inv_trans; subst; auto.
-    eapply obs_eq_invT; eauto.
-    Unshelve.
-    exact x1.
+    eplay; invL; refine_trans.
+    ex3; split3; etrans.
+    intros z.
+    unshelve eplay; [eassumption |]; inv_trans; invL.
+    ex; split; etrans.
   Qed.
 
-  Lemma cssbt_vis_inv {X Y X1 X2}
-    (e1 : E X1) (e2 : F X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree F D Y) (x : X1)
-    {R : Chain (@css E F C D X Y L)} :
-    css L (elem R) (Vis e1 k1) (Vis e2 k2) ->
-    (exists y, L (obs e1 x) (obs e2 y))  /\ (forall x, exists y, ` R (k1 x) (k2 y)).
+  Lemma cssim_guard_l_inv L (t1 : ctree E C X) (t2 : ctree F D Y) :
+    cssim L (Guard t1) t2 ->
+    cssim L t1 t2.
   Proof.
-    intros.
-    destruct H as [SIM COMP].
-    split; intros; edestruct SIM as (? & ? & ? & ? & ?);
-      etrans; subst;
-      inv_trans; subst; eexists; auto.
-    - now eapply H1.
-    - now apply H0.
-  Qed.
-
-  Lemma ssim_vis_inv {X Y X1 X2}
-    (e1 : E X1) (e2 : F X2) (k1 : X1 -> ctree E C X) (k2 : X2 -> ctree F D Y) (x : X1):
-    cssim L (Vis e1 k1) (Vis e2 k2) ->
-    (exists y, L (obs e1 x) (obs e2 y)) /\ (forall x, exists y, cssim L (k1 x) (k2 y)).
-  Proof.
-    intros.
-    split.
+    intros CSS; play.
     - eplay.
-      inv_trans; subst; exists x2; eauto.
-    - intros y.
-      step in H.
-      cbn in H.
-      edestruct H as [(l' & u' & TR & IN & HL) ?].
-      apply trans_vis with (x := y).
-      inv_trans.
-      eexists.
-      apply IN.
+      ex2; split3; etrans.
+    - intros NS.
+      step in CSS; destruct CSS as [_ PROG]; edestruct3 PROG; eauto.
+      inv_trans; eauto.
   Qed.
 
-  Lemma css_vis_l_inv {X Y Z R} :
-    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
-    css L R (Vis e k) u ->
-    exists l' u', trans l' u u' /\ R (k x) u' /\ L (obs e x) l'.
+  Lemma cssim_guard_r_inv L (t1 : ctree E C X) (t2 : ctree F D Y) :
+    cssim L t1 (Guard t2) ->
+    cssim L t1 t2.
   Proof.
-    intros. apply H; etrans.
+    intros CSS; play.
+    - eplay; inv_trans.
+      ex2; split3; etrans.
+    - intros (? & ? & ?).
+      step in CSS; destruct CSS as [_ PROG]; edestruct3 PROG; eauto.
   Qed.
 
-  Lemma cssim_vis_l_inv {X Y Z} :
-    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
-    cssim L (Vis e k) u ->
-    exists l' u', trans l' u u' /\ cssim L (k x) u' /\ L (obs e x) l'.
+  Lemma cssim_guard_inv L (t1 : ctree E C X) (t2 : ctree F D Y) :
+    cssim L (Guard t1) (Guard t2) ->
+    cssim L t1 t2.
   Proof.
-    intros. step in H.
-    now simple apply css_vis_l_inv with (x := x) in H.
+    intros.
+    now apply cssim_guard_r_inv, cssim_guard_l_inv.
   Qed.
 
-  Lemma cssim_brS_inv {X Y}
-    n m (cn: C n) (cm: D m) (k1 : n -> ctree E C X) (k2 : m -> ctree F D Y) :
-    cssim L (BrS cn k1) (BrS cm k2) ->
-    (forall i1, exists i2, cssim L (k1 i1) (k2 i2)).
+  Lemma cssim_br_l_inv L Z
+    (c: C Z) (t : ctree F D Y) (k : Z -> ctree E C X):
+    cssim L (Br c k) t ->
+    forall x, not_stuck (k x) -> cssim L (k x) t.
+  Proof.
+    intros CSS ? NS; play.
+    eplay; eauto.
+  Qed.
+
+  Lemma cssim_br_r_inv L Z
+    (d: D Z) (t : ctree E C X) (k : Z -> ctree F D Y):
+    cssim L t (Br d k) ->
+    forall l t', trans l t t' ->
+    exists x l' u', trans l' (k x) u' /\
+               cssim L t' u' /\
+               L l l'.
+  Proof.
+    intros CSS * TR.
+    eplay; inv_trans.
+    ex3; split3; eauto.
+  Qed.
+
+  Lemma cssim_step_inv L (t1 : ctree E C X) (t2 : ctree F D Y) :
+    cssim L (Step t1) (Step t2) ->
+    cssim L t1 t2.
+  Proof.
+    intros; eplay; inv_trans; etrans.
+  Qed.
+
+  Lemma cssim_step_l_inv L (t1 : ctree E C X) (t2 : ctree F D Y) :
+    cssim L (Step t1) t2 ->
+    exists t2', trans τ t2 t2' /\ cssim L t1 t2'.
+  Proof.
+    intros; eplay; invL; refine_trans.
+    ex; split; etrans.
+  Qed.
+
+  Lemma cssim_brS_inv L
+    A B (c: C A) (d: D B) (k1 : A -> ctree E C X) (k2 : B -> ctree F D Y) :
+    cssim L (BrS c k1) (BrS d k2) ->
+    forall i1, exists i2, cssim L (k1 i1) (k2 i2).
   Proof.
     intros EQ i1.
-    eplay.
-    subst; inv_trans.
-    eexists; eauto.
+    eplay; invL; inv_trans; eauto.
   Qed.
 
-  Lemma css_brS_l_inv {X Y Z R} :
-    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
-    css L R (BrS c k) u ->
-    exists l' u', trans l' u u' /\ R (k x) u' /\ L τ l'.
+  Lemma cssim_brS_l_inv L
+    A (c: C A) (k1 : A -> ctree E C X) (t2 : ctree F D Y) :
+    cssim L (BrS c k1) t2 ->
+    forall i, exists t2', trans τ t2 t2' /\ cssim L (k1 i) t2'.
   Proof.
-    intros. apply H; etrans.
+    intros EQ i1.
+    eplay; invL; inv_trans; eauto.
   Qed.
 
-  Lemma cssim_brS_l_inv {X Y Z} :
-    forall (c : C Z) (k : Z -> ctree E C X) (u : ctree F D Y) x,
-    cssim L (BrS c k) u ->
-    exists l' u', trans l' u u' /\ cssim L (k x) u' /\ L τ l'.
-  Proof.
-    intros. step in H.
-    now simple apply css_brS_l_inv with (x := x) in H.
-  Qed.
+End Proof_Rules.
 
-  Lemma css_br_l_inv {X Y}
-        n (c: C n) (t : ctree F D Y) (k : n -> ctree E C X) R:
-    css L R (Br c k) t ->
-    forall x,
-      (exists l' t', trans l' (k x) t') ->
-      css L R (k x) t.
-  Proof.
-    cbn. intros [? ?] * PROG; split; intros * TR.
-    - eapply trans_br in TR; [| reflexivity].
-      apply H in TR as (? & ? & ? & ? & ?); subst.
-      eauto.
-    - apply PROG.
-   Qed.
-
-  Lemma cssim_br_l_inv {X Y}
-        n (c: C n) (t : ctree F D Y) (k : n -> ctree E C X):
-    cssim L (Br c k) t ->
-    forall x,
-      (exists l' t', trans l' (k x) t') ->
-      cssim L (k x) t.
-  Proof.
-    intros. step. step in H. eapply css_br_l_inv; eauto.
-  Qed.
-
-  (* This one isn't very convenient... *)
-  Lemma cssim_br_r_inv {X Y}
-        n (c: D n) (t : ctree E C X) (k : n -> ctree F D Y):
-    cssim L t (Br c k) ->
-    forall l t', trans l t t' ->
-    exists l' x t'' , trans l' (k x) t'' /\ L l l' /\ (cssim L t' t'').
-  Proof.
-    cbn. intros. step in H. apply H in H0 as (? & ? & ? & ? & ?); subst. inv_trans.
-    do 3 eexists; eauto.
-  Qed.
-
-End WithParams.

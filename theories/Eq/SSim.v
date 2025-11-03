@@ -120,7 +120,7 @@ Ltac __play_ssim_in H :=
 
 Ltac __eplay_ssim :=
   match goal with
-  | h : @ssim ?E ?F ?C ?D ?X ?Y _ _ ?L |- _ =>
+  | h : @ssim ?E ?F ?C ?D ?X ?Y ?L ?u ?v |- _ =>
       __play_ssim_in h
   end.
 
@@ -766,15 +766,25 @@ Invisible nodes
 (*|
 Internal transitions
 |*)
+  Lemma ss_step_gen
+    (t: ctree E C X) (t': ctree F D Y) L R :
+    (Proper (Seq ==> Seq ==> impl) R) ->
+    R (α t) (α t') ->
+    ss L R (Step t) (Step t').
+  Proof.
+    intros HP HR ???; inv_trans; subst.
+    ex2; intuition.
+    now rewrite EQ.
+  Qed.
+
   Lemma ss_step 
     (t: ctree E C X) (t': ctree F D Y) L
     {R : Chain (@ss E F C D X Y L)} :
     ` R t t' ->
     ss L ` R (Step t) (Step t').
   Proof.
-    intros HR ???; inv_trans; subst.
-    ex2; intuition.
-    now rewrite EQ.
+    apply ss_step_gen.
+    typeclasses eauto.
   Qed.
 
   Lemma ssim_step
