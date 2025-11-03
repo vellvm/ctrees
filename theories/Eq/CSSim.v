@@ -30,10 +30,11 @@ Section CompleteStrongSim.
 (*|
 Complete strong simulation [css].
 |*)
+ 
   Program Definition css {E F C D : Type -> Type} {X Y : Type}
     (L : lrel E F X Y) : mon (@S E C X -> @S F D Y -> Prop) :=
     {| body R t u :=
-        ss L R t u /\ (forall l u', trans l u u' -> exists l' t', trans l' t t')
+        ss L R t u /\ (forall l u', trans l u u' -> not_stuck t)
     |}.
   Next Obligation.
     split; eauto. intros.
@@ -48,11 +49,15 @@ Definition cssim {E F C D X Y} L :=
 Module CSSimNotations.
 
   (*| css (complete simulation) notation |*)
-  Notation "t (⪅ L ) u" := (cssim L t u) (at level 70).
-  Notation "t ⪅ u" := (cssim eq t u) (at level 70).
-  Notation "t [⪅ L ] u" := (css L _ t u) (at level 79).
-  Notation "t [⪅] u" := (css eq _ t u) (at level 79).
+  
+  Infix "⪅" := (cssim Leq) (at level 70).
+  Notation "t (⪅ [ Q ] ) u" := (cssim (Lvrel Q) t u) (at level 79).
+  Notation "t (⪅ Q ) u" := (cssim Q t u) (at level 79).
 
+  Notation "t '[⪅]' u" := (css Leq (` _) t u) (at level 90, only printing).
+  Notation "t '[⪅' [ R ] ']' u" := (css (Lvrel R) (` _) t u) (at level 90, only printing).
+  Notation "t '[⪅' R ']' u" := (css R (` _) t u) (at level 90, only printing).
+  
 End CSSimNotations.
 
 Import CSSimNotations.
@@ -108,30 +113,15 @@ Ltac __eplay_cssim :=
 #[local] Tactic Notation "play" := __play_cssim.
 #[local] Tactic Notation "play" "in" ident(H) := __play_cssim_in H.
 #[local] Tactic Notation "eplay" := __eplay_cssim.
-
-Definition sub_lrel {E B X Y} (L L' : lrel E B X Y) : Prop :=
-  RR L <= RR L' /\ Rask L <= Rask L' /\ Rrcv L <= Rrcv L'.
-
-Lemma cssim_subrelation {E F C D X Y} :
-  Proper (sub_lrel ==> leq) (@cssim E F C D X Y).
-Proof.
-  step in CSS.
-  simpl; split; intros; cbn in H0; destruct H0 as [H0' H0''].
-  - cbn in H0'; apply H0' in H1 as (? & ? & ? & ? & ?);
-      apply H in H2. exists x, x0. auto.
-  - apply H0'' in H1 as (? & ? & ?).
-    do 2 eexists; apply H0.
-Qed.
-
  
 Section cssim_homogenous_theory.
 
-  Context {E B : Type -> Type} {X : Type}.
+  Context {E B : Type -> Type} {X : Type}
+    {L: lrel E E X X}.
 
   Notation css := (@css E E B B X X).
   Notation cssim  := (@cssim E E B B X X).
 
-    
 (*|
     Various results on reflexivity and transitivity.
 |*)
@@ -172,18 +162,33 @@ End cssim_homogenous_theory.
 Section cssim_heterogenous_theory.
 
   Arguments label: clear implicits.
-  Context {E F C D: Type -> Type} {X Y: Type}
-          {L: rel (@label E) (@label F)}.
+  Context {E F C D: Type -> Type} {X Y: Type}.
 
   Notation css := (@css E F C D X Y).
   Notation cssim  := (@cssim E F C D X Y).
 
+  Lemma cssim_subrelation :
+    Proper (sub_lrel ==> leq) cssim.
+  Proof.
+    cbn; intros * SUB.
+    coinduction R cih.
+    intros u v CSS.
+    remember CSS as TMP; clear HeqTMP;
+      step in TMP; destruct TMP as [HSS HPROG].
+    split; auto.
+    intros l u' TR.
+    eplay.
+    ex2; split3; etrans.
+    eapply sub_lrel_subrel; eauto.
+  Qed. 
+
+  Context {L: lrel E F X Y}.
 (*|
    Strong simulation up-to [equ] is valid
    ----------------------------------------
 |*)
 
-  Lemma equ_clos_csst {c: Chain (css L)}:
+  Lemma equ_clos_chain {c: Chain (css L)}:
     forall x y, equ_clos `c x y -> `c x y.
   Proof.
     apply tower.
@@ -203,75 +208,76 @@ Section cssim_heterogenous_theory.
         setoid_rewrite EQ'. eauto.
    Qed.
 
-  #[global] Instance equ_clos_csst_goal {c: Chain (css L)} :
-    Proper (equ eq ==> equ eq ==> flip impl) `c.
+  #[global] Instance seq_chain_goal {c: Chain (css L)} :
+    Proper (Seq ==> Seq ==> flip impl) `c.
   Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply equ_clos_csst; econstructor; [eauto | | symmetry; eauto]; assumption.
+    apply tower.
+    - intros ? INC t t' HP' ? ? HP'' ?? HP'''. 
+      red.
+      eapply INC; eauto.
+      apply leq_infx in HP'''.
+      now apply HP'''.
+    - intros ? INC t t' EQt u u' EQu [HS PROG].
+      split.
+      now rewrite EQu, EQt.
+      intros l v TR.
+      rewrite EQu in TR.
+      edestruct PROG as (? & ? & ?); eauto.
+      ex2; rewrite EQt; eauto.
   Qed.
 
-  #[global] Instance equ_clos_csst_ctx  {c: Chain (css L)} :
-    Proper (equ eq ==> equ eq ==> impl) `c.
+  #[global] Instance seq_css_goal {r} :
+    Proper (Seq ==> Seq ==> flip impl) (css L r).
   Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply equ_clos_csst; econstructor; [symmetry; eauto | | eauto]; assumption.
+    intros t t' tt' u u' uu'; cbn; intros [H1 H2].
+    split; intros; auto.
+    - edestruct5 H1.
+      rewrite <- tt'; eauto.
+      ex2; split3; eauto.
+      now rewrite uu'.
+    - edestruct3 H2.
+      rewrite <- uu'; eauto.
+      ex2; rewrite tt'; eauto.
   Qed.
 
-  #[global] Instance equ_css_closed_goal {r} : Proper (equ eq ==> equ eq ==> flip impl) (css L r).
+  #[global] Instance seq_chain_ctx  {c: Chain (css L)} :
+    Proper (Seq ==> Seq ==> impl) `c.
   Proof.
-    intros t t' tt' u u' uu'; cbn; intros [H H0]; split; intros l t0 TR.
-    - rewrite tt' in TR. destruct (H _ _ TR) as (? & ? & ? & ? & ?).
-      exists x, x0; auto; rewrite uu'; auto.
-    - rewrite uu' in TR. destruct (H0 _ _ TR) as (? & ? & ?).
-      exists x, x0; eauto; rewrite tt'; auto.
+    apply tower.
+    - intros ? INC t t' HP' ? ? HP'' ?? HP'''. 
+      red.
+      eapply INC; eauto.
+      apply leq_infx in HP'''.
+      now apply HP'''.
+    - intros ? INC  t t' EQt u u' EQu [HS PROG]; split.
+      now rewrite <- EQt, <- EQu.
+      intros l v TR.
+      rewrite <- EQu in TR.
+      edestruct PROG as (? & ? & ?); eauto.
+      ex2; rewrite <- EQt; eauto.
   Qed.
-
-  #[global] Instance equ_css_closed_ctx {r} : Proper (equ eq ==> equ eq ==> impl) (css L r).
+ 
+  #[global] Instance seq_css_ctx {r} :
+    Proper (Seq ==> Seq ==> impl) (css L r).
   Proof.
-    intros t t' tt' u u' uu'; cbn; intros [H H0]; split; intros l t0 TR.
-    - rewrite <- tt' in TR. destruct (H _ _ TR) as (? & ? & ? & ? & ?).
-      exists x, x0; auto; rewrite <- uu'; auto.
-    - rewrite <- uu' in TR. destruct (H0 _ _ TR) as (? & ? & ?).
-      exists x, x0; auto; rewrite <- tt'; auto.
-  Qed.
-
-  Lemma is_stuck_css : forall (t: ctree E C X) (u: ctree F D Y) R,
-      css L R t u -> is_stuck t <-> is_stuck u.
-  Proof.
-    split; intros; intros ? ? ?.
-    - apply H in H1 as (? & ? & ?). now apply H0 in H1.
-    - apply H in H1 as (? & ? & ? & ? & ?). now apply H0 in H1.
-  Qed.
-
-  Lemma is_stuck_cssim :  forall (t: ctree E C X) (u: ctree F D Y),
-      t (⪅ L) u -> is_stuck t <-> is_stuck u.
-  Proof.
-    intros. step in H. eapply is_stuck_css; eauto.
-  Qed.
-
-  Lemma css_is_stuck : forall (t : ctree E C X) (u: ctree F D Y) R,
-      is_stuck t -> is_stuck u -> css L R t u.
-  Proof.
-    split; intros.
-    - cbn. intros. now apply H in H1.
-    - now apply H0 in H1.
-  Qed.
-
-  Lemma cssim_is_stuck : forall (t : ctree E C X) (u: ctree F D Y),
-      is_stuck t -> is_stuck u -> t (⪅ L) u.
-  Proof.
-    intros. step. now apply css_is_stuck.
-  Qed.
-
-  Lemma cssim_ssim_subrelation_gen : forall x y, cssim L x y -> ssim L x y.
-  Proof.
-    red.
-    coinduction r cih; intros * SB.
-    step in SB; destruct SB as [fwd _].
-    intros ?? TR; apply fwd in TR as (? & ? & ? & ? & ?); eauto 10.
+    intros t t' tt' u u' uu'; cbn; intros [H1 H2].
+    split; intros; auto.
+    - edestruct5 H1.
+      rewrite tt'; eauto.
+      ex2; split3; eauto.
+      now rewrite <- uu'.
+    - edestruct3 H2.
+      rewrite uu'; eauto.
+      ex2; rewrite <- tt'; eauto.
   Qed.
 
 End cssim_heterogenous_theory.
+
+#[global] Instance weq_ssim : forall {E F C D X Y},
+  Proper (lequiv ==> weq) (@ssim E F C D X Y).
+Proof.
+  cbn -[ss weq]. intros. apply gfp_weq. now apply lequiv_ss.
+Qed.
 
 (*|
 Up-to [bind] context simulations
@@ -285,81 +291,185 @@ Section bind.
   Arguments label: clear implicits.
   Obligation Tactic := idtac.
 
-  Context {E F C D: Type -> Type} {X X' Y Y': Type}
-    (L : hrel (@label E) (@label F)) (R0 : rel X Y).
-
 (*|
 Specialization of [bind_ctx] to a function acting with [cssim] on the bound value,
 and with the argument (pointwise) on the continuation.
 |*)
   Lemma bind_chain_gen
-    (RR : rel (label E) (label F))
-    (ISVR : is_update_val_rel L R0 RR)
-    (HL: Respects_val RR)
+    {E F C D: Type -> Type} {X X' Y Y': Type}
+    (L : lrel E F X' Y')
+    (SS: rel X Y)
     {R : Chain (@css E F C D X' Y' L)} :
-    forall (t : ctree E C X) (t' : ctree F D Y) (k : X -> ctree E C X') (k' : Y -> ctree F D Y'),
-      cssim RR t t' ->
-      (forall x x', R0 x x' -> (elem R (k x) (k' x') /\ exists l t', trans l (k x) t')) ->
-      elem R (bind t k) (bind t' k').
+    forall (t : ctree E C X) (t' : ctree F D Y)
+      (k : X -> ctree E C X') (k' : Y -> ctree F D Y'),
+      cssim (upd_rel L SS) t t' ->
+      (forall x y, SS x y -> ` R (k x) (k' y) /\ not_stuck (k x)) ->
+      ` R (bind t k) (bind t' k').
   Proof.
     apply tower.
+    
     - intros ? INC ? ? ? ? tt' kk' ? ?.
       apply INC. apply H. apply tt'.
       intros x x' xx'. split. apply leq_infx in H. apply H. now apply kk'.
       edestruct kk'; eauto.
+      
     - intros ? ? ? ? ? ? tt' kk'.
       step in tt'.
       destruct tt' as [tt tt'].
       split.
+      
       + cbn; intros * STEP.
-        apply trans_bind_inv in STEP as [(?H & ?t' & STEP & EQ) | (v & STEPres & STEP)].
-        * apply tt in STEP as (? & ? & ? & ? & ?).
-          do 2 eexists; split; [| split].
-          apply trans_bind_l; eauto.
-          ++ intro Hl. destruct Hl.
-             apply ISVR in H3; etrans.
-             inversion H3; subst. apply H0. constructor. apply H5. constructor.
-          ++ rewrite EQ.
-             apply H.
-             apply H2.
-             intros * HR.
-             split.
-             now apply (b_chain x), kk'.
-             apply (kk' _ _ HR).
-          ++ apply ISVR in H3; etrans.
-             destruct H3. exfalso. apply H0. constructor. eauto.
-        * apply tt in STEPres as (u' & ? & STEPres & EQ' & ?).
-          apply ISVR in H0; etrans.
-          dependent destruction H0.
-          2 : exfalso; apply H0; constructor.
-          pose proof (trans_val_inv STEPres) as EQ.
-          rewrite EQ in STEPres.
-          specialize (kk' v v2 H0).
-          apply kk' in STEP as (u'' & ? & STEP & EQ'' & ?); cbn in *.
-          do 2 eexists; split.
+        apply trans_bind_inv in STEP as [(?H & ?t' & STEP & EQ) | [(Z & e & EQl & g & STEP & SEQ) | (v & STEPres & STEP)]].
+        
+        * subst l.
+          apply tt in STEP as (? & ? & STEP' & HSIM & HRL).
+          invL.
+          refine_trans.
+          ex2; split3.
+          ++ apply trans_bind_l_τ; eauto.
+          ++ rewrite EQ; apply H; auto.
+             intros.
+             edestruct4 kk'; eauto.
+             split; eauto.
+             step; auto.
+          ++ etrans.
+             
+        * subst l.
+          apply tt in STEP as (? & ? & STEP' & HSIM & HRL).
+          invL.
+          refine_trans.
+          exists (ask f); ex; split3; etrans.
+          rewrite SEQ.
+          step.
+          split.
+          { intros ?? TR.
+            pose proof trans_passive_inv' TR as (a & EQ & ->).
+            rewrite EQ in TR.
+            assert (TR': trans (rcv e a) (β e g) (g a)) by etrans.
+            step in HSIM; apply HSIM in TR' as (l' & u' & TR' & HSIM' & HRL').
+            pose proof trans_passive_inv' TR' as (b & EQ' & ->).
+            exists (rcv f b); ex; split; eauto; split; cycle 1.
+            { invL; etrans. }
+            rewrite EQ.
+            apply H.
+            rewrite EQ' in HSIM'; auto.
+            intros.
+            edestruct4 kk'; eauto.
+            split; eauto.
+            now step.
+          }
+          {
+            step in HSIM.
+            destruct HSIM as [HSIM' PROD].
+            intros * TR.
+            pose proof trans_passive_inv' TR as (y & EQ & EQ').
+            specialize (PROD (rcv f y) (u y)).
+            destruct PROD as (?l' & ?t' & ?TR').
+            etrans.
+            pose proof trans_passive_inv' TR' as (z & EQz & EQz').
+            exists (rcv e z).
+            ex.
+            etrans.
+          }
+          
+        * apply tt in STEPres as (? & ? & STEP' & HSIM & HRL).
+          invL.
+          destruct (kk' v y) as [HSIM' HBACK']; [etrans |].
+          apply HSIM' in STEP as (l' & u' & STEP'' & HSIM'' & HRL').
+          exists l'; eexists; split; eauto.
           eapply trans_bind_r; eauto.
-          split; auto.
-      + cbn; intros * STEP.
+          erewrite <- trans_val_inv'; eauto.
+ 
+      + intros * STEP.
         apply trans_bind_inv_l in STEP as (l' & t2' & STEP).
-        apply tt' in STEP as (l'' & t1' & TR1).
+        apply tt' in STEP as (l'' & ? & STEP').
         destruct l''.
-        do 2 eexists; apply trans_bind_l; eauto; intros abs; inv abs.
-        do 2 eexists; apply trans_bind_l; eauto; intros abs; inv abs.
-        apply trans_val_invT in TR1 as ?. subst X0.
-        apply trans_val_inv in TR1 as ?. rewrite H0 in TR1.
-        pose proof TR1 as tmp.
+        refine_trans; ex2; apply trans_bind_l_τ; etrans.
+        refine_trans; ex2; eapply trans_bind_l_ask; etrans.
+        exfalso; eapply trans_rcv_active_inv; eauto.
+
+        apply trans_val_invT in STEP' as ?. subst X0.
+        apply trans_val_inv' in STEP' as ?. rewrite H0 in STEP'.
+        pose proof STEP' as tmp.
         apply tt in tmp as (? & ? & TR & ? & ?).
-        assert (is_val x0) by (eapply HL; eauto; constructor).
-        inv H3; pose proof trans_val_invT TR; subst X0.
-        specialize (kk' v x2).
-        destruct kk'.
-        apply ISVR in H2; etrans.
-        dependent destruction H2; auto. exfalso; apply H2; constructor.
-        edestruct H4 as (? & ? & ?); eauto.
-        eapply trans_bind_r in H5; eauto.
+        invL.
+        specialize (kk' v y).
+        destruct kk' as [HSIM' (l'' & ? & TR')]; auto.
+        ex2.
+        eapply trans_bind_r; etrans.
+
+  Qed.
+
+(*|
+Specialization: equality on external calls, equality everywhere
+|*)
+  Lemma bind_chain E C D X Y X' Y'
+    (RR : rel X' Y') (SS : rel X Y)
+    {R : Chain (@css E E C D X' Y' (Lvrel RR))} :
+    forall (t1 : ctree E C X) (t2: ctree E D Y)
+      (k1 : X -> ctree E C X') (k2 : Y -> ctree E D Y'),
+      t1 (⪅[SS]) t2 ->
+      (forall x y, SS x y -> `R (k1 x) (k2 y) /\ not_stuck (k1 x)) ->
+      `R (t1 >>= k1) (t2 >>= k2).
+  Proof.
+    intros.
+    eapply bind_chain_gen; eauto.
+  Qed.
+
+  Lemma bind_chain_eq E C X X'
+    {R : Chain (@css E E C C X' X' Leq)} :
+    forall (t1 t2 : ctree E C X)
+      (k1 k2 : X -> ctree E C X'),
+      t1 ⪅ t2 ->
+      (forall x, `R (k1 x) (k2 x) /\ not_stuck (k1 x)) ->
+      `R (t1 >>= k1) (t2 >>= k2).
+  Proof.
+    intros.
+    eapply bind_chain_gen; eauto.
+    intros ??<-; auto.
+  Qed.
+
+(*|
+Specializations to the gfp
+|*)
+  Lemma ssim_bind_gen E F C D X Y X' Y'
+    L (SS : rel X Y) 
+    (t1 : ctree E C X) (t2: ctree F D Y)
+    (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y'):
+    t1 (⪅ upd_rel L SS) t2 ->
+    (forall x y, SS x y -> k1 x (⪅ L) k2 y /\ not_stuck (k1 x)) ->
+    t1 >>= k1 (⪅ L) t2 >>= k2.
+  Proof.
+    intros.
+    eapply bind_chain_gen; eauto.
+  Qed.
+
+  Lemma ssim_bind E C D X Y X' Y'
+    (RR : rel X' Y') (SS : rel X Y) 
+    (t1 : ctree E C X) (t2: ctree E D Y)
+    (k1 : X -> ctree E C X') (k2 : Y -> ctree E D Y'):
+    t1 (⪅ [SS]) t2 ->
+    (forall x y, SS x y -> k1 x (⪅ [RR]) k2 y /\ not_stuck (k1 x)) ->
+    t1 >>= k1 (⪅ [RR]) t2 >>= k2.
+  Proof.
+    intros.
+    eapply bind_chain_gen; eauto.
+  Qed.
+
+  Lemma ssim_bind_eq {E C D: Type -> Type} {X X': Type}
+    (t1 : ctree E C X) (t2: ctree E D X)
+    (k1 : X -> ctree E C X') (k2 : X -> ctree E D X'):
+    t1 ⪅ t2 ->
+    (forall x, k1 x ⪅ k2 x /\ not_stuck (k1 x)) ->
+    t1 >>= k1 ⪅ t2 >>= k2.
+  Proof.
+    intros.
+    eapply ssim_bind; eauto.
+    intros ?? ->; auto.
   Qed.
 
 End bind.
+
 
 (*|
 Specializing the congruence principle for [⪅]
@@ -415,6 +525,44 @@ Proof.
   - split; subst; auto.
     apply H0.
 Qed.
+
+
+  Lemma is_stuck_css : forall (t: ctree E C X) (u: ctree F D Y) R,
+      css L R t u -> is_stuck t <-> is_stuck u.
+  Proof.
+    split; intros; intros ? ? ?.
+    - apply H in H1 as (? & ? & ?). now apply H0 in H1.
+    - apply H in H1 as (? & ? & ? & ? & ?). now apply H0 in H1.
+  Qed.
+
+  Lemma is_stuck_cssim :  forall (t: ctree E C X) (u: ctree F D Y),
+      t (⪅ L) u -> is_stuck t <-> is_stuck u.
+  Proof.
+    intros. step in H. eapply is_stuck_css; eauto.
+  Qed.
+
+  Lemma css_is_stuck : forall (t : ctree E C X) (u: ctree F D Y) R,
+      is_stuck t -> is_stuck u -> css L R t u.
+  Proof.
+    split; intros.
+    - cbn. intros. now apply H in H1.
+    - now apply H0 in H1.
+  Qed.
+
+  Lemma cssim_is_stuck : forall (t : ctree E C X) (u: ctree F D Y),
+      is_stuck t -> is_stuck u -> t (⪅ L) u.
+  Proof.
+    intros. step. now apply css_is_stuck.
+  Qed.
+
+  Lemma cssim_ssim_subrelation_gen : forall x y, cssim L x y -> ssim L x y.
+  Proof.
+    red.
+    coinduction r cih; intros * SB.
+    step in SB; destruct SB as [fwd _].
+    intros ?? TR; apply fwd in TR as (? & ? & ? & ? & ?); eauto 10.
+  Qed.
+
 
 Section Proof_Rules.
   Arguments label: clear implicits.

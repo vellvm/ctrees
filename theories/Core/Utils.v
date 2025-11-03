@@ -119,3 +119,10 @@ Ltac split3 := split; [| split].
 Ltac edestruct3 H := edestruct H as (? & ? & ?).
 Ltac edestruct4 H := edestruct H as (? & ? & ? & ?).
 Ltac edestruct5 H := edestruct H as (? & ? & ? & ? & ?).
+
+(* Simple inhabited class in the sytle of stdpp.
+   Long term to do: use stdpp
+ *)
+Class Inhabited (A : Type) : Type := populate { inhabitant : A }.
+Global Hint Mode Inhabited ! : typeclass_instances.
+Global Arguments populate {_} _ : assert.

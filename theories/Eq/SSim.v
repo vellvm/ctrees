@@ -72,6 +72,7 @@ Module SSimNotations.
   Notation "t '[≲]' u" := (ss Leq (` _) t u) (at level 90, only printing).
   Notation "t '[≲' [ R ] ']' u" := (ss (Lvrel R) (` _) t u) (at level 90, only printing).
   Notation "t '[≲' R ']' u" := (ss R (` _) t u) (at level 90, only printing).
+  
 End SSimNotations.
 
 Import SSimNotations.
@@ -222,7 +223,7 @@ Section ssim_heterogenous_theory.
     apply equ_clos_chain; econstructor; [eauto | | symmetry; eauto]; assumption.
   Qed.
 
-  #[global] Instance seq_ss_closed_goal {r} :
+  #[global] Instance seq_ss_goal {r} :
     Proper (Seq ==> Seq ==> flip impl) (ss L r).
   Proof.
     intros t t' tt' u u' uu'; cbn; intros.
@@ -230,7 +231,7 @@ Section ssim_heterogenous_theory.
     ex2; eauto. rewrite uu'. eauto.
   Qed.
 
-  #[global] Instance equ_ss_closed_goal {r} :
+  #[global] Instance equ_ss_goal {r} :
     Proper (equ eq ==> equ eq ==> flip impl) (ss L r).
   Proof.
     intros t t' tt' u u' uu'; cbn; intros.
@@ -261,7 +262,7 @@ Section ssim_heterogenous_theory.
     apply equ_clos_chain; econstructor; [symmetry; eauto | | eauto]; assumption.
   Qed.
 
-  #[global] Instance seq_ss_closed_ctx {r} :
+  #[global] Instance seq_ss_ctx {r} :
     Proper (Seq ==> Seq ==> impl) (ss L r).
   Proof.
     intros t t' tt' u u' uu'; cbn; intros.
@@ -269,7 +270,7 @@ Section ssim_heterogenous_theory.
     ex2; eauto. rewrite <- uu'. eauto.
   Qed.
 
-  #[global] Instance equ_ss_closed_ctx {r} :
+  #[global] Instance equ_ss_ctx {r} :
     Proper (equ eq ==> equ eq ==> impl) (ss L r).
   Proof.
     intros t t' tt' u u' uu'; cbn; intros.
@@ -480,7 +481,7 @@ Stuck ctrees can be simulated by anything.
   Lemma ss_stuck L R (t : ctree F D Y) :
     @ss E F C D X Y L R Stuck t.
   Proof.
-    repeat intro. now apply Stuck_is_stuck in H.
+    repeat intro. now apply stuck_is_stuck in H.
   Qed.
 
   Lemma ssim_stuck L (t : ctree F D Y) :
@@ -862,7 +863,7 @@ Internal transitions
   (*   intros. *)
   (*   eapply step_ss_ret_l_gen; eauto. *)
   (*   - apply (b_chain R). *)
-  (*     apply is_stuck_ss; apply Stuck_is_stuck. *)
+  (*     apply is_stuck_ss; apply stuck_is_stuck. *)
   (*   - typeclasses eauto. *)
   (* Qed. *)
 

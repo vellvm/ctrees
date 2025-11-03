@@ -946,6 +946,49 @@ Proof.
   - eapply trans_ret_inv in step; intuition.
 Qed.
 
+Lemma passive_τ_trans {E B X Y} e (g : X -> ctree E B Y) u :
+  trans τ (β e g) u ->
+  False.
+Proof.
+  intros TR; cbn in TR; dependent induction TR.
+Qed.
+
+Lemma passive_τ_etrans {E B X Y} e (g : X -> ctree E B Y) u :
+  etrans τ (β e g) u ->
+  Seq u (β e g).
+Proof.
+  intros [TR | EQ].
+  - cbn in TR; dependent induction TR.
+  - symmetry; apply EQ.
+Qed.
+
+Lemma passive_τ_wtrans {E B X Y} e (g : X -> ctree E B Y) u :
+  wtrans τ (β e g) u ->
+  Seq u (β e g).
+Proof.
+  intros [? [? [n TR1] TR2] [m TR3]].
+  destruct n.
+  - cbn in TR1. rewrite <- TR1 in TR2.
+    apply passive_τ_etrans in TR2.
+    destruct m.
+    * cbn in TR3.
+      now rewrite <- TR3, TR2.
+    * destruct TR3 as [? TR _].
+      rewrite TR2 in TR.
+      exfalso; eapply passive_τ_trans; eauto.
+  - destruct TR1 as [? TR _].
+    exfalso; eapply passive_τ_trans; eauto.
+Qed.
+
+Lemma transs_τ_passive {E B X Y} e (g : X -> ctree E B Y) u :
+  (trans τ)^* (β e g) u ->
+  Seq u (β e g).
+Proof.
+  intros TR.
+  eapply passive_τ_wtrans.
+  now apply wtrans_τ.
+Qed.
+
 (*|
 Stuck processes
 ---------------
@@ -957,19 +1000,18 @@ is not.
 Section stuck.
 
   Context {E B : Type -> Type} {X : Type}.
-  Variable (l : @label E) (t u : ctree E B X).
 
-  Definition is_stuck : ctree E B X -> Prop :=
+  Definition is_stuck : @S E B X -> Prop :=
     fun t => forall l u, ~ (trans l t u).
 
-  #[global] Instance is_stuck_equ : Proper (equ eq ==> iff) is_stuck.
+  #[global] Instance Seq_is_stuck : Proper (Seq ==> iff) is_stuck.
   Proof.
     intros ? ? EQ; split; intros ST; red; intros * ABS.
     rewrite <- EQ in ABS; eapply ST; eauto.
     rewrite EQ in ABS; eapply ST; eauto.
   Qed.
 
-  Lemma etrans_is_stuck_inv' (v : ctree E B X) v' :
+  Lemma etrans_is_stuck_inv' v v' l :
     is_stuck v ->
     etrans l v v' ->
     l = τ /\ Seq v v'.
@@ -979,7 +1021,7 @@ Section stuck.
     apply ST in H; tauto.
   Qed.
 
-  Lemma etrans_is_stuck_inv (v v' : ctree E B X) :
+  Lemma etrans_is_stuck_inv (v v' : ctree E B X) l :
     is_stuck v ->
     etrans l v v' ->
     (l = τ /\ v ≅ v').
@@ -989,7 +1031,7 @@ Section stuck.
     apply ST in H; tauto.
   Qed.
 
-  Lemma transs_is_stuck_inv' (v : ctree E B X) v' :
+  Lemma transs_is_stuck_inv' v v' :
     is_stuck v ->
     (trans τ)^* v v' ->
     Seq v v'.
@@ -1011,23 +1053,30 @@ Section stuck.
     now inv TR.
   Qed.
 
-  Lemma wtrans_is_stuck_inv :
+  Lemma wtrans_is_stuck_inv t u l :
     is_stuck t ->
     wtrans l t u ->
-    (l = τ /\ t ≅ u).
+    (l = τ /\ Seq t u).
   Proof.
     intros * ST TR.
     destruct TR as [? [? ?] ?].
     apply transs_is_stuck_inv' in H; auto.
     inv H.
-    rewrite EQ in ST; apply etrans_is_stuck_inv' in H0 as [-> ?]; auto.
-    inv H.
-    rewrite EQ0 in ST; apply transs_is_stuck_inv in H1; auto.
-    intuition.
-    rewrite EQ, EQ0; auto.
+    - rewrite EQ in ST; apply etrans_is_stuck_inv' in H0 as [-> ?]; auto.
+      inv H.
+      rewrite EQ0 in ST; apply transs_is_stuck_inv' in H1; auto.
+      intuition.
+      rewrite EQ, EQ0; auto.
+    - rewrite EQ in ST.
+      pose proof etrans_is_stuck_inv' _ _ ST H0 as [-> ?]; auto.
+      split; auto.
+      rewrite <-H in H1.
+      apply transs_τ_passive in H1.
+      rewrite H1. auto.
   Qed.
 
-  Lemma Stuck_is_stuck :
+  (* Constructions *) 
+  Lemma stuck_is_stuck :
      is_stuck Stuck.
   Proof.
     repeat intro; eapply trans_stuck_inv; eauto.
@@ -1048,7 +1097,7 @@ Section stuck.
     now apply case0.
   Qed.
 
-  Lemma spinD_gen_is_stuck {Y} (x : B Y) :
+  Lemma spin_gen_is_stuck {Y} (x : B Y) :
     is_stuck (spin_gen x).
   Proof.
     red; intros * abs.
@@ -1092,8 +1141,92 @@ Section stuck.
     apply trans_step.
   Qed.
 
+  Lemma vis_is_not_stuck {Y} (e : E Y) (k : Y -> _) :
+    ~ is_stuck (Vis e k).
+  Proof.
+    red; intros * abs.
+    eapply (abs (ask e)).
+    apply trans_ask.
+  Qed.
+
+  Lemma passive_is_not_stuck {Y} `{Inhabited Y} (e : E Y) (k : Y -> _) :
+    ~ is_stuck (β e k).
+  Proof.
+    red; intros * abs.
+    eapply (abs (rcv e inhabitant)).
+    apply trans_rcv.
+  Qed.
+
+  Lemma passive_void_is_stuck (e : E void) (k : void -> _) :
+    is_stuck (β e k).
+  Proof.
+    red; intros * abs.
+    apply trans_passive_inv' in abs as ([] & _ & _).
+  Qed.
+
 End stuck.
 
+Section not_stuck.
+
+  Context {E B : Type -> Type} {X : Type}.
+
+  Definition not_stuck t :=
+    exists l' t', @trans E B X l' t t'.
+
+  #[global] Instance seq_not_stuck : Proper (Seq ==> iff) not_stuck.
+  Proof.
+    intros ? ? EQ; split; intros (l' & t' & TR).
+    rewrite EQ in TR; red; eauto.
+    rewrite <- EQ in TR; red; eauto.
+  Qed.
+
+  (* Converse is classically true *)
+  Lemma not_stuck_is_stuck :
+    forall t, not_stuck t -> ~ is_stuck t.
+  Proof.
+    intros t (l' & t' & NS) IS; eapply IS; eauto.
+  Qed.
+
+  Lemma ret_not_stuck x:
+    not_stuck (Ret x).
+  Proof.
+    red; eauto.
+  Qed.
+ 
+  Lemma vis_not_stuck {Y} (e : E Y) k:
+    not_stuck (Vis e k).
+  Proof.
+    red; eauto.
+  Qed.
+  
+  Lemma passive_not_stuck {Y} `{Inhabited Y} (e : E Y) k:
+    not_stuck (β e k).
+  Proof.
+    red; eauto.
+    Unshelve.
+    exact inhabitant.
+  Qed.
+  
+  Lemma br_not_stuck {Y} (b : B Y) (k : Y -> ctree _ _ _):
+    (exists x, not_stuck (k x)) ->
+    not_stuck (Br b k).
+  Proof.
+    intros (y & l' & t' & TR).
+    red; eauto.
+  Qed.
+   
+  Lemma brS_not_stuck {Y} (b : B Y) (k : Y -> ctree _ _ _):
+    (exists x, not_stuck (k x)) ->
+    not_stuck (BrS b k).
+  Proof.
+    intros (y & l' & t' & TR).
+    red; eauto.
+    Unshelve. exact y.
+  Qed.
+  
+End not_stuck.  
+#[global] Hint Unfold not_stuck : core.
+  
 (*|
 wtrans theory
 ---------------
@@ -1142,7 +1275,7 @@ Section wtrans.
     apply etrans_ret_inv' in step2 as [[-> EQ] |[-> EQ]].
     rewrite EQ in step3; apply trans_τ_str_ret_inv in step3; auto.
     rewrite EQ in step3.
-    apply transs_is_stuck_inv in step3; [| apply Stuck_is_stuck].
+    apply transs_is_stuck_inv in step3; [| apply stuck_is_stuck].
     intuition.
   Qed.
 
@@ -1157,7 +1290,7 @@ Section wtrans.
     clear step1.
     pose proof trans_val_inv' step2.
     rewrite H in step3.
-    apply transs_is_stuck_inv' in step3; auto using Stuck_is_stuck.
+    apply transs_is_stuck_inv' in step3; auto using stuck_is_stuck.
     split; [| rewrite <- step3; auto].
     rewrite H in step2. rewrite <- step3.
     auto.
@@ -1272,7 +1405,7 @@ Proof.
     rewrite EQ2, H0; auto.
 Qed.
   
-Lemma trans_bind_inv_l {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B Y) l :
+Lemma trans_bind_inv_l {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) u l :
   trans l (t >>= k) u ->
   exists l' t', trans l' t t'.
 Proof.
@@ -1396,40 +1529,6 @@ Proof.
       exists (Datatypes.S n), t1; auto.
 Qed.
 
-Lemma passive_τ_trans {E B X Y} e (g : X -> ctree E B Y) u :
-  trans τ (β e g) u ->
-  False.
-Proof.
-  intros TR; cbn in TR; dependent induction TR.
-Qed.
-
-Lemma passive_τ_etrans {E B X Y} e (g : X -> ctree E B Y) u :
-  etrans τ (β e g) u ->
-  Seq u (β e g).
-Proof.
-  intros [TR | EQ].
-  - cbn in TR; dependent induction TR.
-  - symmetry; apply EQ.
-Qed.
-
-Lemma passive_τ_wtrans {E B X Y} e (g : X -> ctree E B Y) u :
-  wtrans τ (β e g) u ->
-  Seq u (β e g).
-Proof.
-  intros [? [? [n TR1] TR2] [m TR3]].
-  destruct n.
-  - cbn in TR1. rewrite <- TR1 in TR2.
-    apply passive_τ_etrans in TR2.
-    destruct m.
-    * cbn in TR3.
-      now rewrite <- TR3, TR2.
-    * destruct TR3 as [? TR _].
-      rewrite TR2 in TR.
-      exfalso; eapply passive_τ_trans; eauto.
-  - destruct TR1 as [? TR _].
-    exfalso; eapply passive_τ_trans; eauto.
-Qed.
-
 
 (*|
 Things are a bit ugly with [wtrans], we end up with three cases:
@@ -1541,15 +1640,6 @@ Lemma etrans_ask_inv {E B X Y} (t : ctree E B X) (e : E Y) u :
   exists g, Seq u (β e g).
 Proof.
   intros TR; eapply trans_ask_inv; eauto.
-Qed.
-
-Lemma transs_τ_passive {E B X Y} e (g : X -> ctree E B Y) u :
-  (trans τ)^* (β e g) u ->
-  Seq u (β e g).
-Proof.
-  intros TR.
-  eapply passive_τ_wtrans.
-  now apply wtrans_τ.
 Qed.
 
 Lemma transs_τ_active {E B X} (t : ctree E B X) u :
@@ -1896,9 +1986,9 @@ Qed.
 (*       pose proof (trans_val_invT TR1'); subst. *)
 (*       apply trans_val_inv in TR1'. *)
 (*       rewrite TR1' in TR1''. *)
-(*       apply transs_is_stuck_inv in TR1''; [| apply Stuck_is_stuck]. *)
+(*       apply transs_is_stuck_inv in TR1''; [| apply stuck_is_stuck]. *)
 (*       rewrite <- TR1'' in TR2. *)
-(*       apply wtrans_is_stuck_inv in TR2; [| apply Stuck_is_stuck]. *)
+(*       apply wtrans_is_stuck_inv in TR2; [| apply stuck_is_stuck]. *)
 (*       destruct TR2 as [abs _]; inv abs. *)
 (*     } *)
 (*     eexists. *)
