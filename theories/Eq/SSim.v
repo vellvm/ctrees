@@ -36,11 +36,8 @@ Pous'16 in order to be able to exploit symmetry arguments in proofs
   Program Definition ss {E F C D : Type -> Type} {X Y : Type}
     (L : lrel E F X Y) :
     mon (@S E C X -> @S F D Y -> Prop) :=
-    {| body R t u :=
-      forall l t', trans l t t' ->
-              exists l' u', trans l' u u' /\
-                       R t' u' /\
-                       L l l'
+    {| body R t u := forall l t', trans l t t' ->
+              exists l' u', trans l' u u' /\ R t' u' /\ L l l'
     |}.
   Next Obligation.
     edestruct3 H0; eauto.
@@ -166,7 +163,7 @@ Section ssim_heterogenous_theory.
   Notation ss := (@ss E F C D X Y).
   Notation ssim  := (@ssim E F C D X Y).
 
-  Lemma ssim_subrelation :
+  Lemma ssim_mono :
     Proper (sub_lrel ==> leq) ssim.
   Proof.
     cbn; intros * SUB.

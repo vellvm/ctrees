@@ -70,9 +70,6 @@ Import CTree.
 Import CTreeNotations.
 Import EquNotations.
 
-(* TODO: Decide where to set this *)
-Arguments trans : simpl never.
-
 (*|
 Strong Bisimulation
 -------------------
@@ -81,35 +78,73 @@ Relation relaxing [equ] to become insensitive to:
 - the particular branches taken during (any kind of) brs.
 |*)
 
+Definition flipL {E F X Y} (L : lrel E F X Y) : lrel F E Y X :=
+   {| RR := flip (RR L) ;
+      Rask := fun X Y => flip (@Rask _ _ _ _ L Y X) ;
+      Rrcv := fun X Y f e => flip (Rrcv L e f) |}.
+
+Lemma flipL_flip {E F X Y} (L : lrel E F X Y) :
+  build_rel (flipL L) == flip (build_rel L).
+Proof.
+  intros f e; split; cbn; intros []; constructor; auto.
+Qed. 
+
+Lemma lequiv_flipL {E F X Y} (L L' : lrel E F X Y):
+  lequiv L L' ->
+  lequiv (flipL L) (flipL L').
+Proof.
+  intros (EQV & EQA & EQR).
+  split3.
+  cbn; intros; apply EQV.
+  cbn; intros; apply EQA.
+  cbn; intros; apply EQR.
+Qed.
+
+Lemma equiv_flipL {E F X Y} (L L' : lrel E F X Y):
+  build_rel L == build_rel L' ->
+  build_rel (flipL L) == build_rel (flipL L').
+Proof.
+  intros EQ e f; specialize (EQ f e); cbn in *.
+  split.
+  - destruct EQ as [EQ _].
+    intros FL; dependent induction FL; constructor.
+    cbn in *.
+     assert (HL: L (ask f) (ask e)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
+     assert (HL: L (rcv f y) (rcv e x)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
+     assert (HL: L (val y) (val x)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
+  - destruct EQ as [_ EQ].
+    intros FL; dependent induction FL; constructor.
+    cbn in *.
+    assert (HL: L' (ask f) (ask e)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
+    assert (HL: L' (rcv f y) (rcv e x)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
+    assert (HL: L' (val y) (val x)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
+Qed.
+
 Section StrongBisim.
   Context {E F C D : Type -> Type} {X Y : Type}.
-  Notation S := (ctree E C X).
-  Notation S' := (ctree F D Y).
 
 (*|
 In the heterogeneous case, the relation is not symmetric.
 |*)
-  Program Definition sb L : mon (S -> S' -> Prop) :=
-    {| body R t u := ss L R t u /\ ss (flip L) (flip R) u t |}.
+  Program Definition sb L : mon (@S E C X -> @S F D Y -> Prop) :=
+    {| body R t u := ss L R t u /\ ss (flipL L) (flip R) u t |}.
   Next Obligation.
     split; intros; [edestruct H0 as (? & ? & ?) | edestruct H1 as (? & ? & ?)]; eauto; eexists; eexists; intuition; eauto.
   Qed.
 
-  #[global] Instance Lequiv_sb_goal :
-    Proper (Lequiv X Y ==> leq) sb.
+  #[global] Instance lequiv_sb :
+      Proper (lequiv ==> weq) sb.
   Proof.
-    cbn -[sb]. split.
-    - destruct H0 as [? _]. eapply Lequiv_ss_goal. apply H. apply H0.
-    - destruct H0 as [_ ?]. eapply Lequiv_ss_goal with (x := flip x).
-      red. cbn. intros. now apply H. apply H0.
-  Qed.
-
-  #[global] Instance weq_sb :
-    Proper (weq ==> weq) sb.
-  Proof.
-    cbn -[weq]. split; intro.
-    - eapply Lequiv_sb_goal. apply weq_Lequiv. apply H. auto.
-    - eapply Lequiv_sb_goal. apply weq_Lequiv. symmetry. apply H. auto.
+    cbn -[sb]. intros * EQ *; split.
+    - intros [For Bac]; split.
+      eapply lequiv_ss in EQ.
+      now apply EQ in For.
+      eapply lequiv_ss; [| eauto].
+      now apply lequiv_flipL.
+    - intros [For Bac]; split.
+      eapply lequiv_ss; eauto.
+      eapply lequiv_ss; [| eauto].
+      now apply lequiv_flipL.
   Qed.
 
 End StrongBisim.
@@ -117,50 +152,57 @@ End StrongBisim.
 Definition sbisim {E F C D X Y} L :=
   (gfp (@sb E F C D X Y L) : hrel _ _).
 
-#[global] Instance Lequiv_sbisim : forall {E F C D X Y},
-    Proper (Lequiv X Y ==> leq) (@sbisim E F C D X Y).
-Proof.
-  cbn. intros.
-  - unfold sbisim.
-    epose proof (gfp_leq (x := sb x) (y := sb y)). lapply H1.
-    + intro. red in H2. cbn in H2. apply H2. apply H0.
-    + now rewrite H.
-Qed.
-
-#[global] Instance weq_sbisim : forall {E F C D X Y},
-    Proper (weq ==> weq) (@sbisim E F C D X Y).
-Proof.
-  cbn -[ss weq]. intros. apply gfp_weq. now apply weq_sb.
-Qed.
-
-(* This instance allows to use the symmetric tactic from coq-coinduction
-   for homogeneous bisimulations *)
-#[global] Instance sbisim_sym {E C X L} :
-  Symmetric L ->
-  Symmetrical converse (@sb E E C C X X L) (@ss E E C C X X L).
-Proof.
-  intros SYM. split; intro.
-  - destruct H. split.
-    + apply H.
-    + cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?). apply SYM in H3. eauto.
-  - destruct H. split.
-    + apply H.
-    + cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?). apply SYM in H3. eauto.
-Qed.
-
 Module SBisimNotations.
 
 (*|
 sb (bisimulation) notation
 |*)
   Notation "t ~ u" := (sbisim eq t u) (at level 70).
+  Notation "t (~ [ Q ] ) u" := (sbisim (Lvrel Q) t u) (at level 79).
   Notation "t (~ L ) u" := (sbisim L t u) (at level 70).
   Notation "t {{ ~ L }} u" := (sb L _ t u) (at level 79).
+  Notation "t '{{~' [ R ] '}}' u" := (sb (Lvrel R) (` _) t u) (at level 90, only printing).
   Notation "t {{~}} u" := (sb eq _ t u) (at level 79).
 
 End SBisimNotations.
 
 Import SBisimNotations.
+
+#[global] Instance build_rel_symmetric {E X L} `{Symmetric X L} : Symmetric (@build_rel E E X X (Lvrel L)).
+Proof.
+  intros l l' HL.
+  unfold Lvrel in *.
+  dependent induction HL; constructor; cbn in *.
+  dependent induction HR; constructor.
+  dependent induction HR; constructor.
+  now apply H.
+Qed.
+
+(* This instance allows to use the symmetric tactic from coq-coinduction
+   for homogeneous bisimulations *)
+#[global] Instance sbisim_sym {E C X L} :
+  Symmetric L ->
+  Symmetrical converse (@sb E E C C X X (Lvrel L)) (@ss E E C C X X (Lvrel L)).
+Proof.
+  intros SYM. intros RR u v. split; intros HSIM.
+  - destruct HSIM as [F B]. split.
+    + apply F.
+    + cbn. intros l v' TR.
+      apply B in TR as (l' & u' & TR & HR & HR').
+      ex2; split3; eauto.
+      symmetry.
+      pose proof flipL_flip (Lvrel L) l l' as G.
+      now apply G.
+  - destruct HSIM as [F B]. split.
+    + apply F.
+    + intros l v' TR.
+      apply B in TR as (l' & u' & TR & HR & HR').
+      ex2; split3; eauto.
+      pose proof flipL_flip (Lvrel L) l l' as G.
+      apply G.
+      now symmetry.
+Qed.
+
 
 Ltac fold_sbisim :=
   repeat
