@@ -108,22 +108,25 @@ Tactic Notation "__coinduction_ssim" simple_intropattern(r) simple_intropattern(
   first [unfold ssim at 4 | unfold ssim at 3 | unfold ssim at 2 | unfold ssim at 1]; coinduction r cih.
 #[local] Tactic Notation "coinduction" simple_intropattern(r) simple_intropattern(cih) := __coinduction_ssim r cih || coinduction r cih.
 
-Ltac __play_ssim := step; cbn; intros ? ? ?TR.
+Ltac __play_ssim := (try step); cbn; intros ? ? ?TR.
 
 Ltac __play_ssim_in H :=
-  step in H;
+  (try step in H);
   cbn in H; edestruct H as (? & ? & ?TR & ?SS & ?HL);
   clear H; [etrans |]; fold_ssim.
 
 Ltac __eplay_ssim :=
   match goal with
-  | h : @ssim ?E ?F ?C ?D ?X ?Y ?L ?u ?v |- _ =>
-      __play_ssim_in h
+  | h : ssim ?L ?u ?v |- _ => __play_ssim_in h
+  | h : body (ss ?L) ?R ?u ?v |- _ => __play_ssim_in h
   end.
+
+Ltac __answer_ssim := ex2; split3; etrans.
 
 #[local] Tactic Notation "play" := __play_ssim.
 #[local] Tactic Notation "play" "in" ident(H) := __play_ssim_in H.
 #[local] Tactic Notation "eplay" := __eplay_ssim.
+#[local] Tactic Notation "answer" := __answer_ssim.
 
 Section ssim_homogenous_theory.
   Context {E B: Type -> Type} {X: Type}
@@ -131,24 +134,37 @@ Section ssim_homogenous_theory.
 
   Notation ss := (@ss E E B B X X).
 
-  #[global] Instance refl_sst {LR: Reflexive L} {C: Chain (ss L)}: Reflexive `C.
+  #[global] Instance reflexive_ss {R}
+    (LR: Reflexive L)
+    (RR: Reflexive R): Reflexive (ss L R).
   Proof.
-    apply Reflexive_chain.
-    cbn; eauto.
+    cbn; eauto 10.
   Qed.
 
-  #[global] Instance square_sst {LT: Transitive L} {C: Chain (ss L)}: Transitive `C.
+  #[global] Instance reflexive_chain {LR: Reflexive L} {C: Chain (ss L)}: Reflexive `C.
+  Proof.
+    apply Reflexive_chain; typeclasses eauto.
+  Qed.
+
+  #[global] Instance transitive_ss {R}
+    (LT: Transitive L)
+    (RT: Transitive R): Transitive (ss L R).
+  Proof.
+    intros x y z SS1 SS2.
+    play.
+    play in SS1.
+    play in SS2.
+    answer.
+  Qed.
+
+  #[global] Instance transitive_chain {LT: Transitive L} {C: Chain (ss L)}: Transitive `C.
   Proof.
     apply Transitive_chain.
-    cbn. intros ????? xy yz.
-    intros ?? xx'.
-    destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
-    destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
-    eauto 8.
+    typeclasses eauto.
   Qed.
 
   (*| PreOrder |*)
-  #[global] Instance PreOrder_sst {LPO: PreOrder L} {C: Chain (ss L)}: PreOrder `C.
+  #[global] Instance PreOrder_chain {LPO: PreOrder L} {C: Chain (ss L)}: PreOrder `C.
   Proof. split; typeclasses eauto. Qed.
 
 End ssim_homogenous_theory.

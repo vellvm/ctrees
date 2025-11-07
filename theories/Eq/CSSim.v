@@ -97,56 +97,66 @@ Ltac __step_in_cssim H :=
 Import CTreeNotations.
 Import EquNotations.
 
-Ltac __play_cssim := step; cbn; split; [intros ? ? ?TR | etrans].
+Ltac __play_cssim := (try step); cbn; split; [intros ? ? ?TR | etrans].
 
 Ltac __play_cssim_in H :=
-  step in H;
+  (try step in H);
   cbn in H; edestruct H as [(? & ? & ?TR & ?EQ & ?HL) ?PROG];
   clear H; [etrans |]; fold_cssim.
 
 Ltac __eplay_cssim :=
   match goal with
-  | h : @cssim ?E ?F ?C ?D ?X ?Y ?L ?u ?v |- _ =>
-      __play_cssim_in h
+  | h : cssim ?L ?u ?v |- _ => __play_cssim_in h
+  | h : body (css ?L) ?R ?u ?v |- _ => __play_cssim_in h
   end.
+
+Ltac __answer_cssim := ex2; split3; etrans.
 
 #[local] Tactic Notation "play" := __play_cssim.
 #[local] Tactic Notation "play" "in" ident(H) := __play_cssim_in H.
 #[local] Tactic Notation "eplay" := __eplay_cssim.
+#[local] Tactic Notation "answer" := __answer_cssim.
  
 Section cssim_homogenous_theory.
 
   Context {E B : Type -> Type} {X : Type}
     {L: lrel E E X X}.
 
-  Notation css := (@css E E B B X X).
-  Notation cssim  := (@cssim E E B B X X).
+  Notation css   := (@css E E B B X X).
+  Notation cssim := (@cssim E E B B X X).
 
 (*|
     Various results on reflexivity and transitivity.
 |*)
-  #[global] Instance refl_csst {LR: Reflexive L} {C: Chain (css L)}: Reflexive `C.
+  #[global] Instance reflexive_css {R}
+    (LR: Reflexive L)
+    (RR: Reflexive R): Reflexive (css L R).
   Proof.
-    apply Reflexive_chain; cbn; eauto 9.
+    cbn; eauto 10.
   Qed.
 
-  #[global] Instance square_csst {LT: Transitive L} {C: Chain (css L)}: Transitive `C.
+  #[global] Instance reflexive_chain {LR: Reflexive L} {C: Chain (css L)}: Reflexive `C.
   Proof.
-    apply Transitive_chain.
-    cbn. intros ????? [xy xy'] [yz yz'].
-    split.
-    - intros ?? xx'.
-      destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
-      destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
-      eauto 8.
+    apply Reflexive_chain; typeclasses eauto.
+  Qed.
+
+  #[global] Instance transitive_css {R}
+    (LT: Transitive L)
+    (RT: Transitive R): Transitive (css L R).
+  Proof.
+    intros x y z SS1 SS2.
+    play.
+    - play in SS1.
+      play in SS2.
+      answer.
     - intros ns.
-      destruct (yz' ns) as (l'' & z' & zz').
-      edestruct xy' as (l' & y' & yy'); eauto.
+      now apply SS2,SS1 in ns.
   Qed.
-
-  (*| PreOrder |*)
-  #[global] Instance PreOrder_csst {LPO: PreOrder L} {C: Chain (css L)}: PreOrder `C.
-  Proof. split; typeclasses eauto. Qed.
+  
+  #[global] Instance transitive_chain {LT: Transitive L} {C: Chain (css L)}: Transitive `C.
+  Proof.
+    apply Transitive_chain; typeclasses eauto.
+  Qed.
 
   #[global] Instance css_ss_subrelation R : subrelation (css L R) (ss L R).
   Proof.
