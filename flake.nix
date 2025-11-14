@@ -71,7 +71,7 @@
               owner = "vellvm";
               pname = "ctrees";
               version = "ctrees:dev";
-              opam-name = "coq-ctree";
+              opam-name = "rocq-ctree";
               useDune = true;
               src = ./.;
 
