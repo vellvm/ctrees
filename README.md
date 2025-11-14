@@ -13,7 +13,7 @@ We develop a cousin of Interaction Trees, dubbed _Choice Trees_, with native sup
   - Yannick Zakowski
   - Steve Zdancewic
 - License: MIT License
-- Compatible Rocq versions: 8.20
+- Compatible Rocq versions: 9.0
 - Additional dependencies:
   - dune
   - [Extlib](https://github.com/coq-community/coq-ext-lib)

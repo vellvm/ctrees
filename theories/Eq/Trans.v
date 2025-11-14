@@ -32,7 +32,7 @@ closed under [equ] rather than [eq].
 .. coq:: none
 |*)
 
-From Coq Require Import Fin.
+From Stdlib Require Import Fin.
 
 From Coinduction Require Import all.
 

@@ -7,10 +7,10 @@ Denotation of [ccs] into [ctree]s
 |*)
 Unset Universe Checking.
 
-From Coq Require Export
+From Stdlib Require Export
      List
      Strings.String.
-From Coq Require Import RelationClasses Program.
+From Stdlib Require Import RelationClasses Program.
 
 From RelationAlgebra Require Import
      monoid
@@ -117,7 +117,7 @@ Section Combinators.
 
 (*|
 We would like to define [bang] directly as in the following.
-Unfortunately, it is not syntactically guarded and convincing Coq
+Unfortunately, it is not syntactically guarded and convincing Rocq
 seems challenging.
 We therefore instead define a more general function [parabang] expressing
 at once the parallel composition of a process [p] with a server of [q].

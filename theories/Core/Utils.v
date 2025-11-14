@@ -1,7 +1,7 @@
 #[global] Set Warnings "-intuition-auto-with-star".
 
-From Coq Require Import Fin.
-From Coq Require Export Program.Equality.
+From Stdlib Require Import Fin.
+From Stdlib Require Export Program.Equality.
 From Coinduction Require Import all.
 From ITree Require Import Basics.Basics.
 

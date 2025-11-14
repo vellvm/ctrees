@@ -1,9 +1,9 @@
-From Coq Require Import
+From Stdlib Require Import
      Program
      List
-     Logic.FinFun
      Logic.FunctionalExtensionality
      Logic.IndefiniteDescription
+     Vectors.FinFun
      micromega.Lia
      Init.Specif
      Fin.

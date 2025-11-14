@@ -1,4 +1,4 @@
-From Coq Require Import Basics Fin.
+From Stdlib Require Import Basics Fin.
 
 From Coinduction Require Import all.
 

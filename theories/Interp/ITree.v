@@ -12,7 +12,7 @@ Unset Auto Template Polymorphism.
 From ITree Require Import
 	   ITree Eq Interp InterpFacts.
 
-From Coq Require Import
+From Stdlib Require Import
 	   Morphisms Program.
 Open Scope ctree.
 
@@ -96,7 +96,7 @@ Proof.
     apply CIH, REL.
 Qed.
 
-From Coq Require Import Datatypes.
+From Stdlib Require Import Datatypes.
 
 (* This is actually not trivial.
    There are two ways to encode itrees' taus:

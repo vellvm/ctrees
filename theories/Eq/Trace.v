@@ -1,4 +1,4 @@
-From Coq Require Import Basics.
+From Stdlib Require Import Basics.
 
 From Coinduction Require Import all.
 

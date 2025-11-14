@@ -1,6 +1,6 @@
 Unset Universe Checking.
 
-From Coq Require Import
+From Stdlib Require Import
      Strings.String.
 From ExtLib Require Import
      Data.Map.FMapAList.
