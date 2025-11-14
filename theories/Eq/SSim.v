@@ -60,6 +60,7 @@ End StrongSim.
 Definition ssim {E F C D X Y} L :=
   (gfp (@ss E F C D X Y L): hrel _ _).
 
+(* TODO :  TESTER LVREL COERCION *)
 Module SSimNotations.
 
   Infix "≲" := (ssim Leq) (at level 70).
@@ -186,7 +187,7 @@ Section ssim_heterogenous_theory.
     coinduction R cih.
     intros u v HSS l u' TR.
     eplay.
-    ex2; split3; etrans.
+    answer.
     eapply sub_lrel_subrel; eauto.
   Qed.
 
@@ -197,6 +198,7 @@ Section ssim_heterogenous_theory.
    ----------------------------------------
 |*)
 
+  (* Can this be rewritten with a simpler proper? *)
   Lemma equ_clos_chain {c: Chain (ss L)}:
     forall x y, equ_clos `c x y -> `c x y.
   Proof.
@@ -555,6 +557,8 @@ Note: the general formulation (over any well-behaved realtion rather than elemen
  transition system, stepping is hence symmetric and we can just recover
  the itree-style rule.
 |*)
+  (* TODO: specialization to Lvrel *)
+  
   Lemma ss_vis {Z Z'} (e : E Z) (f: F Z')
     (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) L
     {R : Chain (@ss E F C D X Y L)}

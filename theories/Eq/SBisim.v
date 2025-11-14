@@ -78,86 +78,6 @@ Relation relaxing [equ] to become insensitive to:
 - the particular branches taken during (any kind of) brs.
 |*)
 
-Definition flipL {E F X Y} (L : lrel E F X Y) : lrel F E Y X :=
-   {| RR := flip (RR L) ;
-      Rask := fun X Y => flip (@Rask _ _ _ _ L Y X) ;
-      Rrcv := fun X Y f e => flip (Rrcv L e f) |}.
-
-Lemma flipL_flip {E F X Y} (L : lrel E F X Y) :
-  build_rel (flipL L) == flip (build_rel L).
-Proof.
-  intros f e; split; cbn; intros []; constructor; auto.
-Qed. 
-
-Lemma lequiv_flipL {E F X Y} (L L' : lrel E F X Y):
-  lequiv L L' ->
-  lequiv (flipL L) (flipL L').
-Proof.
-  intros (EQV & EQA & EQR).
-  split3.
-  cbn; intros; apply EQV.
-  cbn; intros; apply EQA.
-  cbn; intros; apply EQR.
-Qed.
-
-  
-Lemma equiv_flipL {E F X Y} (L L' : lrel E F X Y):
-  build_rel L == build_rel L' ->
-  build_rel (flipL L) == build_rel (flipL L').
-Proof.
-  intros EQ e f; specialize (EQ f e); cbn in *.
-  split.
-  - destruct EQ as [EQ _].
-    intros FL; dependent induction FL; constructor.
-    cbn in *.
-     assert (HL: L (ask f) (ask e)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
-     assert (HL: L (rcv f y) (rcv e x)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
-     assert (HL: L (val y) (val x)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
-  - destruct EQ as [_ EQ].
-    intros FL; dependent induction FL; constructor.
-    cbn in *.
-    assert (HL: L' (ask f) (ask e)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
-    assert (HL: L' (rcv f y) (rcv e x)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
-    assert (HL: L' (val y) (val x)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
-Qed.
-
-#[global] Instance flipL_reflexive {E X} (L : lrel E E X X) {LR: Reflexive L} : Reflexive (flipL L).
-Proof.
-  intros ?.
-  now apply flipL_flip.
-Qed.
-  
-#[global] Instance flipL_symmetric {E X} (L : lrel E E X X) {LR: Symmetric L} : Symmetric (flipL L).
-Proof.
-  intros l l' HL.
-  apply flipL_flip.
-  apply (flipL_flip L) in HL.
-  now apply LR.
-Qed.
-
-#[global] Instance flipL_transitive {E X} (L : lrel E E X X) {LR: Transitive L} : Transitive (flipL L).
-Proof.
-  intros l1 l2 l3 HL1 HL2.
-  apply flipL_flip.
-  apply (flipL_flip L) in HL1,HL2.
-  etransitivity; eauto.
-Qed. 
-
-#[global] Instance flipL_equivalence {E X} (L : lrel E E X X) {LR: Equivalence L} : Equivalence (flipL L).
-Proof.
-  split; typeclasses eauto.
-Qed.
-
-#[global] Instance build_rel_symmetric {E X L} `{Symmetric X L} : Symmetric (@build_rel E E X X (Lvrel L)).
-Proof.
-  intros l l' HL.
-  unfold Lvrel in *.
-  dependent induction HL; constructor; cbn in *.
-  dependent induction HR; constructor.
-  dependent induction HR; constructor.
-  now apply H.
-Qed.
-
 Section StrongBisim.
   Context {E F C D : Type -> Type} {X Y : Type}.
 
@@ -365,36 +285,47 @@ Section sbisim_homogenous_theory.
 
 End sbisim_homogenous_theory.
 
+(* Section Homogeneous. *)
 
-Section Homogeneous.
+(*   Context {E C: Type -> Type} {X: Type} *)
+(*     {L: rel (@label E) (@label E)}. *)
+(*   Notation ss := (@ss E E C C X X). *)
+(*   Notation ssim  := (@ssim E E C C X X). *)
 
-  Context {E C: Type -> Type} {X: Type}
-    {L: rel (@label E) (@label E)}.
-  Notation ss := (@ss E E C C X X).
-  Notation ssim  := (@ssim E E C C X X).
+(*   #[global] Instance sbisim_clos_ssim_goal `{Symmetric _ L} `{Transitive _ L} : *)
+(*     Proper (sbisim L ==> sbisim L ==> flip impl) (ssim L). *)
+(*   Proof. *)
+(*     repeat intro. *)
+(*     transitivity y0. transitivity y. *)
+(*     - now apply sbisim_ssim_subrelation in H1. *)
+(*     - now exact H3. *)
+(*     - symmetry in H2; now apply sbisim_ssim_subrelation in H2. *)
+(*   Qed. *)
 
-  #[global] Instance sbisim_clos_ssim_goal `{Symmetric _ L} `{Transitive _ L} :
-    Proper (sbisim L ==> sbisim L ==> flip impl) (ssim L).
-  Proof.
-    repeat intro.
-    transitivity y0. transitivity y.
-    - now apply sbisim_ssim_subrelation in H1.
-    - now exact H3.
-    - symmetry in H2; now apply sbisim_ssim_subrelation in H2.
-  Qed.
+(*   #[global] Instance sbisim_clos_ssim_ctx `{Equivalence _ L}: *)
+(*     Proper (sbisim L ==> sbisim L ==> impl) (ssim L). *)
+(*   Proof. *)
+(*     repeat intro. symmetry in H0, H1. eapply sbisim_clos_ssim_goal; eauto. *)
+(*   Qed. *)
 
-  #[global] Instance sbisim_clos_ssim_ctx `{Equivalence _ L}:
-    Proper (sbisim L ==> sbisim L ==> impl) (ssim L).
-  Proof.
-    repeat intro. symmetry in H0, H1. eapply sbisim_clos_ssim_goal; eauto.
-  Qed.
+(* End Homogeneous. *)
 
-End Homogeneous.
-
+Section VRel.
+  Context {E B: Type -> Type} {X Y: Type} {RR: rel X Y}.
 (*|
 Hence [equ eq] is a included in [sbisim]
 |*)
-  #[global] Instance equ_sbisim_subrelation `{EqL: Equivalence _ L} : subrelation (equ eq) (sbisim L).
+
+(* TODO: Generalize SEQ to take a relation on values as argument *)
+Lemma foo u v :
+  SeqR RR u v ->
+  @sbisim E E B B X Y (Lvrel RR) u v.
+Proof.
+  intros SEQ.
+  dependent induction SEQ.
+  - rewrite EQ.
+  
+#[global] Instance equ_sbisim_subrelation {X Y} (RR : rel X Y) : subrelation (SeqR RR) (sbisim (Lvrel RR)).
   Proof.
     red; intros.
     rewrite H; reflexivity.

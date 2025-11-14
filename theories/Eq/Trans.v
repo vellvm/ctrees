@@ -69,30 +69,36 @@ Set Primitive Projections.
 .. coq::
 |*)
 
+Variant S E B R :=
+  | Active (t : ctree E B R)
+  | Passive {X} (e : E X) (k : X -> ctree E B R).
+
+Variant SeqR {E B X Y} (RR : hrel X Y) : S E B X -> S E B Y -> Prop :=
+  | ActAct t u (EQ: equ RR t u) : SeqR RR (Active t) (Active u)
+  | PasPas {A} e (k g : A -> _) (EQ: forall a, equ RR (k a) (g a)) : SeqR RR (Passive e k) (Passive e g)
+.
+Hint Constructors SeqR : core.
+Definition Seq {E B X} := (@SeqR E B X X eq).
+Hint Unfold Seq : core.
+
+#[global] Instance SeqR_equiv {E B R} {RR : rel R R} {RE: Equivalence RR}: Equivalence (@SeqR E B R R RR).
+Proof.
+  constructor.
+  - intros []; auto.
+  - intros ? ? []; constructor; intros; now symmetry.
+  - intros ? ? ? EQ1 EQ2.
+    inv EQ1.
+    inv EQ2; constructor; intros; etransitivity; eauto.
+    dependent induction EQ2; constructor; intros; etransitivity; eauto.
+Qed.
+Arguments Active {E B R}.
+Arguments Passive {E B R X} e k.
+
 Section Trans.
 
   Context {E B : Type -> Type} {R : Type}.
-
-  Variant S :=
-    | Active (t : ctree E B R)
-    | Passive {X} (e : E X) (k : X -> ctree E B R).
-  (* Notation S' := (ctree' E B R). *)
-  (* Notation S  := (ctree  E B R). *)
-  Variant Seq : S -> S -> Prop :=
-    | ActAct t u (EQ: equ eq t u) : Seq (Active t) (Active u)
-    | PasPas {X} e (k g : X -> _) (EQ: pointwise_relation _ (equ eq) k g) : Seq (Passive e k) (Passive e g)
-  .
-  Hint Constructors Seq : core.
-  #[global] Instance Seq_equiv : Equivalence Seq.
-  Proof.
-    constructor.
-    - intros []; auto.
-    - intros ? ? []; constructor; intros; now symmetry.
-    - intros ? ? ? EQ1 EQ2.
-      inv EQ1.
-      inv EQ2; constructor; intros; etransitivity; eauto.
-      dependent induction EQ2; constructor; intros; etransitivity; eauto.
-  Qed.
+  Notation S   := (S E B R).
+  Notation Seq := (@Seq E B R).
   
   Definition SS : EqType :=
     {| type_of := S ; Eq := Seq |}.
@@ -168,7 +174,7 @@ node, labelling the transition by the returned value.
     u ≅ Stuck ->
     transR (val r) (Active t) (Active u).
   Hint Constructors transR : core.
-
+  
   #[global] Instance equ_Seq_active : Proper (equ eq ==> Seq) Active.
   Proof.
     now intros ?? EQ; constructor.
@@ -247,7 +253,19 @@ library.
   Proof.
     intros ? ? eqt ? ? equ.
     inv eqt; inv equ.
-    all: now rewrite EQ, EQ0.
+    now rewrite EQ,EQ0.
+    rewrite EQ. 
+    all: try now rewrite EQ, EQ0.
+    assert (H: Seq (Passive e k) (Passive e g))
+    by (apply equ_Seq_passive; red; apply EQ0); now rewrite H.
+    rewrite EQ0.
+    assert (H: Seq (Passive e k) (Passive e g))
+    by (apply equ_Seq_passive; red; apply EQ); now rewrite H.
+    assert (H1: Seq (Passive e k) (Passive e g))
+    by (apply equ_Seq_passive; red; apply EQ);
+    assert (H2: Seq (Passive e0 k0) (Passive e0 g0))
+    by (apply equ_Seq_passive; red; apply EQ0);
+      now rewrite H1,H2.
   Qed.
 
   Definition trans l : srel SS SS := {| hrel_of := transR l : hrel SS SS |}.
@@ -388,7 +406,6 @@ End Trans.
 
 Arguments label : clear implicits.
 #[global] Infix "⩸" := Seq (at level 10).
-#[global] Hint Constructors Seq : core.
 #[global] Hint Constructors transR : core.
 
 Ltac rem_weak_ t s :=
@@ -400,24 +417,24 @@ Ltac rem_weak_ t s :=
   
 Tactic Notation "rem_weak" constr(t) "as" ident(s) := rem_weak_ t s.
 
-Class Respects_val {E F} (L : rel (@label E) (@label F)) :=
-  { respects_val:
-    forall l l',
-      L l l' ->
-      is_val l <-> is_val l' }.
+(* Class Respects_val {E F} (L : rel (@label E) (@label F)) := *)
+(*   { respects_val: *)
+(*     forall l l', *)
+(*       L l l' -> *)
+(*       is_val l <-> is_val l' }. *)
 
-Class Respects_τ {E F} (L : rel (@label E) (@label F)) :=
-  { respects_τ: forall l l',
-      L l l' ->
-      l = τ <-> l' = τ }.
+(* Class Respects_τ {E F} (L : rel (@label E) (@label F)) := *)
+(*   { respects_τ: forall l l', *)
+(*       L l l' -> *)
+(*       l = τ <-> l' = τ }. *)
 
-#[global] Instance Respects_val_eq A: @Respects_val A A eq.
-split; intros; subst; reflexivity.
-Defined.
+(* #[global] Instance Respects_val_eq A: @Respects_val A A eq. *)
+(* split; intros; subst; reflexivity. *)
+(* Defined. *)
 
-#[global] Instance Respects_τ_eq A: @Respects_τ A A eq.
-split; intros; subst; reflexivity.
-Defined.
+(* #[global] Instance Respects_τ_eq A: @Respects_τ A A eq. *)
+(* split; intros; subst; reflexivity. *)
+(* Defined. *)
 
 Coercion Active : ctree >-> S.
 Notation "'α' t" := (Active t) (at level 100).
@@ -712,7 +729,7 @@ Structural rules
 
   Lemma trans_vis_inv : forall {Y} (e : E Y) k l (u : ctree E B X),
       trans l (Vis e k) u ->
-      Seq u (β e k) /\ l = ask e.
+      False.
   Proof.
     intros * TR.
     inv TR; inv_equ.
@@ -1061,14 +1078,14 @@ Section stuck.
     intros * ST TR.
     destruct TR as [? [? ?] ?].
     apply transs_is_stuck_inv' in H; auto.
+    rewrite H in ST.
     inv H.
-    - rewrite EQ in ST; apply etrans_is_stuck_inv' in H0 as [-> ?]; auto.
+    - apply etrans_is_stuck_inv' in H0 as [-> ?]; auto.
       inv H.
       rewrite EQ0 in ST; apply transs_is_stuck_inv' in H1; auto.
       intuition.
       rewrite EQ, EQ0; auto.
-    - rewrite EQ in ST.
-      pose proof etrans_is_stuck_inv' _ _ ST H0 as [-> ?]; auto.
+    - pose proof etrans_is_stuck_inv' _ _ ST H0 as [-> ?]; auto.
       split; auto.
       rewrite <-H in H1.
       apply transs_τ_passive in H1.
@@ -2043,38 +2060,38 @@ Proof.
   eapply trans_br; eauto.
 Qed.
 
-(*|
-[wf_val] states that a [label] is well-formed:
-if it is a [val] it should be of the right type.
-|*)
-Definition wf_val {E} X l := forall Y (v : Y), l = @val E Y v -> X = Y.
+(* (*| *)
+(* [wf_val] states that a [label] is well-formed: *)
+(* if it is a [val] it should be of the right type. *)
+(* |*) *)
+(* Definition wf_val {E} X l := forall Y (v : Y), l = @val E Y v -> X = Y. *)
 
-Lemma wf_val_val {E} X (v : X) : wf_val X (@val E X v).
-Proof.
-  red. intros. apply val_eq_invT in H. assumption.
-Qed.
+(* Lemma wf_val_val {E} X (v : X) : wf_val X (@val E X v). *)
+(* Proof. *)
+(*   red. intros. apply val_eq_invT in H. assumption. *)
+(* Qed. *)
 
-Lemma wf_val_nonval {E} X (l : @label E) : ~is_val l -> wf_val X l.
-Proof.
-  red. intros. subst. exfalso. apply H. constructor.
-Qed.
+(* Lemma wf_val_nonval {E} X (l : @label E) : ~is_val l -> wf_val X l. *)
+(* Proof. *)
+(*   red. intros. subst. exfalso. apply H. constructor. *)
+(* Qed. *)
 
-Lemma wf_val_trans {E B X} (l : @label E) t t' :
-  @trans E B X l t t' -> wf_val X l.
-Proof.
-  red. intros. subst.
-  now apply trans_val_invT in H.
-Qed.
+(* Lemma wf_val_trans {E B X} (l : @label E) t t' : *)
+(*   @trans E B X l t t' -> wf_val X l. *)
+(* Proof. *)
+(*   red. intros. subst. *)
+(*   now apply trans_val_invT in H. *)
+(* Qed. *)
 
-Lemma wf_val_is_val_inv : forall {E} X (l : @label E),
-  is_val l ->
-  wf_val (E := E) X l ->
-  exists (x : X), l = val x.
-Proof.
-  intros.
-  destruct H. red in H0.
-  specialize (H0 X0 x eq_refl). subst. eauto.
-Qed.
+(* Lemma wf_val_is_val_inv : forall {E} X (l : @label E), *)
+(*   is_val l -> *)
+(*   wf_val (E := E) X l -> *)
+(*   exists (x : X), l = val x. *)
+(* Proof. *)
+(*   intros. *)
+(*   destruct H. red in H0. *)
+(*   specialize (H0 X0 x eq_refl). subst. eauto. *)
+(* Qed. *)
 
 (* (*| If the LTS has events of type [L +' R] then *)
 (*   it is possible to step it as either an [L] LTS *)
@@ -2250,8 +2267,7 @@ Create HintDb trans.
 #[global] Hint Resolve
   is_val_τ
   is_val_ask
-  is_val_rcv
-  wf_val_val wf_val_nonval wf_val_trans : trans.
+  is_val_rcv : trans.
 
 Ltac etrans := eauto with trans.
 #[global] Arguments trans : simpl never.
@@ -2393,3 +2409,82 @@ Proof.
   now constructor; apply SUB1.
 Qed.
  
+Definition flipL {E F X Y} (L : lrel E F X Y) : lrel F E Y X :=
+   {| RR := flip (RR L) ;
+      Rask := fun X Y => flip (@Rask _ _ _ _ L Y X) ;
+      Rrcv := fun X Y f e => flip (Rrcv L e f) |}.
+
+Lemma flipL_flip {E F X Y} (L : lrel E F X Y) :
+  build_rel (flipL L) == flip (build_rel L).
+Proof.
+  intros f e; split; cbn; intros []; constructor; auto.
+Qed. 
+
+Lemma lequiv_flipL {E F X Y} (L L' : lrel E F X Y):
+  lequiv L L' ->
+  lequiv (flipL L) (flipL L').
+Proof.
+  intros (EQV & EQA & EQR).
+  split3.
+  cbn; intros; apply EQV.
+  cbn; intros; apply EQA.
+  cbn; intros; apply EQR.
+Qed.
+  
+Lemma equiv_flipL {E F X Y} (L L' : lrel E F X Y):
+  build_rel L == build_rel L' ->
+  build_rel (flipL L) == build_rel (flipL L').
+Proof.
+  intros EQ e f; specialize (EQ f e); cbn in *.
+  split.
+  - destruct EQ as [EQ _].
+    intros FL; dependent induction FL; constructor.
+    cbn in *.
+     assert (HL: L (ask f) (ask e)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
+     assert (HL: L (rcv f y) (rcv e x)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
+     assert (HL: L (val y) (val x)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
+  - destruct EQ as [_ EQ].
+    intros FL; dependent induction FL; constructor.
+    cbn in *.
+    assert (HL: L' (ask f) (ask e)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
+    assert (HL: L' (rcv f y) (rcv e x)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
+    assert (HL: L' (val y) (val x)) by (now constructor); apply EQ in HL; dependent induction HL; auto.
+Qed.
+
+#[global] Instance flipL_reflexive {E X} (L : lrel E E X X) {LR: Reflexive L} : Reflexive (flipL L).
+Proof.
+  intros ?.
+  now apply flipL_flip.
+Qed.
+  
+#[global] Instance flipL_symmetric {E X} (L : lrel E E X X) {LR: Symmetric L} : Symmetric (flipL L).
+Proof.
+  intros l l' HL.
+  apply flipL_flip.
+  apply (flipL_flip L) in HL.
+  now apply LR.
+Qed.
+
+#[global] Instance flipL_transitive {E X} (L : lrel E E X X) {LR: Transitive L} : Transitive (flipL L).
+Proof.
+  intros l1 l2 l3 HL1 HL2.
+  apply flipL_flip.
+  apply (flipL_flip L) in HL1,HL2.
+  etransitivity; eauto.
+Qed. 
+
+#[global] Instance flipL_equivalence {E X} (L : lrel E E X X) {LR: Equivalence L} : Equivalence (flipL L).
+Proof.
+  split; typeclasses eauto.
+Qed.
+
+#[global] Instance build_rel_symmetric {E X L} `{Symmetric X L} : Symmetric (@build_rel E E X X (Lvrel L)).
+Proof.
+  intros l l' HL.
+  unfold Lvrel in *.
+  dependent induction HL; constructor; cbn in *.
+  dependent induction HR; constructor.
+  dependent induction HR; constructor.
+  now apply H.
+Qed.
+
