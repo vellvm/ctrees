@@ -1,5 +1,6 @@
 # Choice Trees
 [![Docker CI](https://github.com/vellvm/ctrees/workflows/Docker%20CI/badge.svg?branch=dev)](https://github.com/vellvm/ctrees/actions?query=workflow:"Docker%20CI")
+[![Nix](https://github.com/vellvm/ctrees/actions/workflows/nix-build.yml/badge.svg)](https://github.com/vellvm/ctrees/actions/workflows/nix-build.yml)
 
 We develop a cousin of Interaction Trees, dubbed _Choice Trees_, with native support for non-determinism.
 
