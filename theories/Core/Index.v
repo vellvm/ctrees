@@ -3,8 +3,6 @@ From CTree Require Import Core.Utils.
 
 Section Index.
 
-Unset Automatic Proposition Inductives.
-
 (*|
 Nullary arity, encoding stuck processes
 |*)

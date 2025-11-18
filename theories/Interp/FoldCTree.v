@@ -226,6 +226,15 @@ Section FoldCTree.
       refine g (Vis e k) ≅ x <- trigger e;; Guard (refine g (k x)).
     Proof. now rewrite unfold_refine. Qed.
 
+    Lemma refine_trigger `{E -< F} (e: E X) :
+        refine g (trigger e : ctree E C X) ~ (trigger e : ctree F D X).
+    Proof.
+      rewrite unfold_refine; cbn.
+      setoid_rewrite sb_guard.
+      setoid_rewrite refine_ret.
+      now rewrite bind_ret_r.
+    Qed.
+
     Lemma refine_guard `{E -< F} (t: ctree E C X) :
       refine g (Guard t) ≅ Guard (refine g t).
     Proof. now rewrite unfold_refine. Qed.
@@ -310,7 +319,6 @@ Counter-example showing that interp does not preserve sbisim in the general case
 
 Module CounterExample.
 
-  Unset Automatic Proposition Inductives.
   Inductive VoidE : Type -> Type :=
   | voidE : VoidE void.
 
