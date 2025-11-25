@@ -122,7 +122,7 @@ Section FoldCTree.
        | GuardF t => Guard (interp h t)
        | StepF  t => Step  (Guard (interp h t))
 	     | VisF e k => bind (h _ e) (fun x => Guard (interp h (k x)))
-	     | BrF c k => bind (mbr _ c) (fun x => Guard (interp h (k x)))
+	     | BrF c k => bind (mbr c) (fun x => Guard (interp h (k x)))
        end)%function.
 
     (** Unfold lemma. *)
