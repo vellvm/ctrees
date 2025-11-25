@@ -33,7 +33,7 @@ Arguments fequ : simpl never.
 
 #[global] Instance MonadBr_stateT {S M C} {MM : Monad M} {AM : MonadBr C M}:
   MonadBr C (stateT S M) :=
-  fun X c s => f <- mbr _ c;; ret (s,f).
+  fun X c s => f <- mbr c;; ret (s,f).
 
 #[global] Instance MonadTrigger_stateT {E S M} {MM : Monad M} {MT: MonadTrigger E M} :
   MonadTrigger E (stateT S M) :=
@@ -225,7 +225,7 @@ Section State.
      | GuardF t => Guard (interp_state h t s)
      | StepF t => Step (Guard (interp_state h t s))
  	   | VisF e k => bind (h _ e s) (fun xs => Guard (interp_state h (k (snd xs)) (fst xs)))
-	   | BrF c k => bind (mbr (M := stateT _ _) _ c s) (fun xs => Guard (interp_state h (k (snd xs)) (fst xs)))
+	   | BrF c k => bind (mbr (M := stateT _ _) c s) (fun xs => Guard (interp_state h (k (snd xs)) (fst xs)))
      end)%function.
 
   Lemma unfold_interp_state `{C-<D} (t : ctree E C R) (s : S) :

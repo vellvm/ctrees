@@ -61,7 +61,7 @@ Definition interp {E B M : Type -> Type}
   {Mstep : MonadStep M}
   {Mbranch : MonadBr B M}
   (h : E ~> M) : ctree E B ~> M :=
-  fold h mbr.
+  fold h (@mbr B M Mbranch).
 
 Arguments interp {E B M FM MM IM _ _ _} h [T].
 
