@@ -122,8 +122,8 @@ Proof.
     apply CH. apply REL.
 Qed.
 
-#[global] Instance refine_equ {E C X} h:
-  Proper (equ eq ==> @equ E C X X eq) (@refine E C _ _ _ _ _ _ _ h X).
+#[global] Instance refine_equ {E C D X} (h : C ~> ctree E D):
+  Proper (equ eq ==> @equ E D X X eq) (@refine E C _ _ _ _ _ _ _ h X).
 Proof.
   cbn.
   coinduction R CH.
