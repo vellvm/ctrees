@@ -70,9 +70,6 @@ Import CTree.
 Import CTreeNotations.
 Import EquNotations.
 
-(* TODO: Decide where to set this *)
-Arguments trans : simpl never.
-
 (*|
 Strong Bisimulation
 -------------------
@@ -83,33 +80,29 @@ Relation relaxing [equ] to become insensitive to:
 
 Section StrongBisim.
   Context {E F C D : Type -> Type} {X Y : Type}.
-  Notation S := (ctree E C X).
-  Notation S' := (ctree F D Y).
 
 (*|
 In the heterogeneous case, the relation is not symmetric.
 |*)
-  Program Definition sb L : mon (S -> S' -> Prop) :=
-    {| body R t u := ss L R t u /\ ss (flip L) (flip R) u t |}.
+  Program Definition sb L : mon (@S E C X -> @S F D Y -> Prop) :=
+    {| body R t u := ss L R t u /\ ss (flipL L) (flip R) u t |}.
   Next Obligation.
     split; intros; [edestruct H0 as (? & ? & ?) | edestruct H1 as (? & ? & ?)]; eauto; eexists; eexists; intuition; eauto.
   Qed.
 
-  #[global] Instance Lequiv_sb_goal :
-    Proper (Lequiv X Y ==> leq) sb.
+  #[global] Instance lequiv_sb :
+      Proper (lequiv ==> weq) sb.
   Proof.
-    cbn -[sb]. split.
-    - destruct H0 as [? _]. eapply Lequiv_ss_goal. apply H. apply H0.
-    - destruct H0 as [_ ?]. eapply Lequiv_ss_goal with (x := flip x).
-      red. cbn. intros. now apply H. apply H0.
-  Qed.
-
-  #[global] Instance weq_sb :
-    Proper (weq ==> weq) sb.
-  Proof.
-    cbn -[weq]. split; intro.
-    - eapply Lequiv_sb_goal. apply weq_Lequiv. apply H. auto.
-    - eapply Lequiv_sb_goal. apply weq_Lequiv. symmetry. apply H. auto.
+    cbn -[sb]. intros * EQ *; split.
+    - intros [For Bac]; split.
+      eapply lequiv_ss in EQ.
+      now apply EQ in For.
+      eapply lequiv_ss; [| eauto].
+      now apply lequiv_flipL.
+    - intros [For Bac]; split.
+      eapply lequiv_ss; eauto.
+      eapply lequiv_ss; [| eauto].
+      now apply lequiv_flipL.
   Qed.
 
 End StrongBisim.
@@ -117,50 +110,46 @@ End StrongBisim.
 Definition sbisim {E F C D X Y} L :=
   (gfp (@sb E F C D X Y L) : hrel _ _).
 
-#[global] Instance Lequiv_sbisim : forall {E F C D X Y},
-    Proper (Lequiv X Y ==> leq) (@sbisim E F C D X Y).
-Proof.
-  cbn. intros.
-  - unfold sbisim.
-    epose proof (gfp_leq (x := sb x) (y := sb y)). lapply H1.
-    + intro. red in H2. cbn in H2. apply H2. apply H0.
-    + now rewrite H.
-Qed.
-
-#[global] Instance weq_sbisim : forall {E F C D X Y},
-    Proper (weq ==> weq) (@sbisim E F C D X Y).
-Proof.
-  cbn -[ss weq]. intros. apply gfp_weq. now apply weq_sb.
-Qed.
-
-(* This instance allows to use the symmetric tactic from coq-coinduction
-   for homogeneous bisimulations *)
-#[global] Instance sbisim_sym {E C X L} :
-  Symmetric L ->
-  Symmetrical converse (@sb E E C C X X L) (@ss E E C C X X L).
-Proof.
-  intros SYM. split; intro.
-  - destruct H. split.
-    + apply H.
-    + cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?). apply SYM in H3. eauto.
-  - destruct H. split.
-    + apply H.
-    + cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?). apply SYM in H3. eauto.
-Qed.
-
 Module SBisimNotations.
 
 (*|
 sb (bisimulation) notation
 |*)
   Notation "t ~ u" := (sbisim eq t u) (at level 70).
+  Notation "t (~ [ Q ] ) u" := (sbisim (Lvrel Q) t u) (at level 79).
   Notation "t (~ L ) u" := (sbisim L t u) (at level 70).
   Notation "t {{ ~ L }} u" := (sb L _ t u) (at level 79).
+  Notation "t '{{~' [ R ] '}}' u" := (sb (Lvrel R) (` _) t u) (at level 90, only printing).
   Notation "t {{~}} u" := (sb eq _ t u) (at level 79).
 
 End SBisimNotations.
 
 Import SBisimNotations.
+
+(* This instance allows to use the symmetric tactic from coq-coinduction
+   for homogeneous bisimulations *)
+#[global] Instance sbisim_sym {E C X L} :
+  Symmetric L ->
+  Symmetrical converse (@sb E E C C X X (Lvrel L)) (@ss E E C C X X (Lvrel L)).
+Proof.
+  intros SYM. intros RR u v. split; intros HSIM.
+  - destruct HSIM as [F B]. split.
+    + apply F.
+    + cbn. intros l v' TR.
+      apply B in TR as (l' & u' & TR & HR & HR').
+      ex2; split3; eauto.
+      symmetry.
+      pose proof flipL_flip (Lvrel L) l l' as G.
+      now apply G.
+  - destruct HSIM as [F B]. split.
+    + apply F.
+    + intros l v' TR.
+      apply B in TR as (l' & u' & TR & HR & HR').
+      ex2; split3; eauto.
+      pose proof flipL_flip (Lvrel L) l l' as G.
+      apply G.
+      now symmetry.
+Qed.
 
 Ltac fold_sbisim :=
   repeat
@@ -191,6 +180,174 @@ Tactic Notation "__coinduction_sbisim" simple_intropattern(r) simple_intropatter
   first [unfold sbisim at 4 | unfold sbisim at 3 | unfold sbisim at 2 | unfold sbisim at 1]; coinduction r cih.
 #[local] Tactic Notation "coinduction" simple_intropattern(r) simple_intropattern(cih) :=
   __coinduction_sbisim r cih || __coinduction_cssim r cih || __coinduction_ssim r cih || coinduction r cih.
+
+Ltac __play_sbisim := (try step); split; cbn; intros ? ? ?TR.
+
+Ltac __playL_sbisim H :=
+  (try step in H);
+  let Hf := fresh "Hf" in
+  destruct H as [Hf _];
+  cbn in Hf; edestruct Hf as (? & ? & ?TR & ?EQ & ?);
+  clear Hf; subst; [etrans |].
+
+Ltac __eplayL_sbisim :=
+  match goal with
+  | h : @sbisim ?E _ ?C _ ?X _ ?RR _ _ |- _ =>
+      __playL_sbisim h
+  | h : body (sb ?L) ?R _ _ |- _ =>
+      __playL_sbisim h
+   end.
+
+Ltac __playR_sbisim H :=
+  try (step in H);
+  let Hb := fresh "Hb" in
+  destruct H as [_ Hb];
+  cbn in Hb; edestruct Hb as (? & ? & ?TR & ?EQ & ?);
+  clear Hb; subst; [etrans |].
+
+Ltac __eplayR_sbisim :=
+  match goal with
+  | h : @sbisim ?E _ ?C _ ?X _ ?RR _ _ |- _ =>
+      __playR_sbisim h
+  | h : body (sb ?L) ?R _ _ |- _ =>
+      __playR_sbisim h
+  end.
+
+Ltac __answer_sbisim := ex2; split3; etrans. 
+
+#[local] Tactic Notation "play" := __play_sbisim.
+#[local] Tactic Notation "playL" "in" ident(H) := __playL_sbisim H.
+#[local] Tactic Notation "playR" "in" ident(H) := __playR_sbisim H.
+#[local] Tactic Notation "play" "in" ident(H)  := first [playL in H; [] | playR in H; []].
+#[local] Tactic Notation "eplayL" := __eplayL_sbisim.
+#[local] Tactic Notation "eplayR" := __eplayR_sbisim.
+#[local] Tactic Notation "eplay"  := first [eplayL; [] | eplayR; []].
+#[local] Tactic Notation "answer" := __answer_sbisim.
+
+Section sbisim_homogenous_theory.
+  Context {E B: Type -> Type} {X: Type} {L: lrel E E X X}.
+
+  Notation sb  := (@sb E E B B X X).
+
+  #[global] Instance reflexive_sb {R}
+    (LR: Reflexive L)
+    (RR: Reflexive R): Reflexive (sb L R).
+  Proof.
+    split. reflexivity.
+    cbn; eauto 10.
+  Qed.
+
+  #[global] Instance reflexive_chain {LR: Reflexive L} {C: Chain (sb L)}: Reflexive `C.
+  Proof.
+    apply Reflexive_chain; typeclasses eauto.
+  Qed.
+
+  #[global] Instance symmetric_sb {R}
+    (LS : Symmetric L)
+    (RS : Symmetric R) :
+    Symmetric (sb L R).
+  Proof.
+    intros u v SB.
+    play; eplay.
+    answer; now apply flipL_flip.
+    answer; now apply flipL_flip.
+  Qed.
+ 
+  #[global] Instance symmetric_chain {LR: Symmetric L} {C: Chain (sb L)}: Symmetric `C.
+  Proof.
+    apply Symmetric_chain; typeclasses eauto.
+  Qed.
+
+  #[global] Instance transitive_sb {R}
+    (LT: Transitive L)
+    (RT: Transitive R): Transitive (sb L R).
+  Proof.
+    intros x y z SS1 SS2.
+    play.
+    - play in SS1; play in SS2; answer.
+    - play in SS2; play in SS1; answer.
+      apply (flipL_flip L) in H,H0; apply flipL_flip; cbn in *; eauto.
+  Qed.
+ 
+  #[global] Instance transitive_chain {LT: Transitive L} {C: Chain (sb L)}: Transitive `C.
+  Proof.
+    apply Transitive_chain; typeclasses eauto.
+  Qed.
+
+  (*| Equivalence |*)
+  #[global] Instance equivalence_sb {R}
+    (LE : Equivalence L)
+    (RE : Equivalence R) : Equivalence (sb L R).
+  Proof. split; typeclasses eauto. Qed.
+  
+  #[global] Instance equivalence_chain {LE: Equivalence L} {C: Chain (sb L)}: Equivalence `C.
+  Proof. split; typeclasses eauto. Qed.
+
+End sbisim_homogenous_theory.
+
+(* Section Homogeneous. *)
+
+(*   Context {E C: Type -> Type} {X: Type} *)
+(*     {L: rel (@label E) (@label E)}. *)
+(*   Notation ss := (@ss E E C C X X). *)
+(*   Notation ssim  := (@ssim E E C C X X). *)
+
+(*   #[global] Instance sbisim_clos_ssim_goal `{Symmetric _ L} `{Transitive _ L} : *)
+(*     Proper (sbisim L ==> sbisim L ==> flip impl) (ssim L). *)
+(*   Proof. *)
+(*     repeat intro. *)
+(*     transitivity y0. transitivity y. *)
+(*     - now apply sbisim_ssim_subrelation in H1. *)
+(*     - now exact H3. *)
+(*     - symmetry in H2; now apply sbisim_ssim_subrelation in H2. *)
+(*   Qed. *)
+
+(*   #[global] Instance sbisim_clos_ssim_ctx `{Equivalence _ L}: *)
+(*     Proper (sbisim L ==> sbisim L ==> impl) (ssim L). *)
+(*   Proof. *)
+(*     repeat intro. symmetry in H0, H1. eapply sbisim_clos_ssim_goal; eauto. *)
+(*   Qed. *)
+
+(* End Homogeneous. *)
+
+Section VRel.
+  Context {E B: Type -> Type} {X Y: Type} {RR: rel X Y}.
+(*|
+Hence [equ eq] is a included in [sbisim]
+|*)
+
+(* TODO: Generalize SEQ to take a relation on values as argument *)
+Lemma foo u v :
+  SeqR RR u v ->
+  @sbisim E E B B X Y (Lvrel RR) u v.
+Proof.
+  intros SEQ.
+  dependent induction SEQ.
+  - rewrite EQ.
+  
+#[global] Instance equ_sbisim_subrelation {X Y} (RR : rel X Y) : subrelation (SeqR RR) (sbisim (Lvrel RR)).
+  Proof.
+    red; intros.
+    rewrite H; reflexivity.
+  Qed.
+
+  #[global] Instance is_stuck_sbisim : Proper (sbisim L ==> flip impl) is_stuck.
+  Proof.
+    cbn. intros ???????.
+    step in H. destruct H as [? _].
+    apply H in H1 as (? & ? & ? & ? & ?). now apply H0 in H1.
+  Qed.
+
+  #[global] Instance sbisim_cssim_subrelation : subrelation (sbisim L) (cssim L).
+  Proof.
+    red; apply sbisim_cssim_subrelation_gen.
+  Qed.
+
+  #[global] Instance sbisim_ssim_subrelation : subrelation (sbisim L) (ssim L).
+  Proof.
+    red; apply sbisim_ssim_subrelation_gen.
+  Qed.
+
 
 (*|
   This section should describe lemmas proved for the
@@ -338,82 +495,6 @@ stuck ctrees can be simulated by anything.
   Qed.
 
 End sbisim_heterogenous_theory.
-
-Section sbisim_homogenous_theory.
-  Context {E B: Type -> Type} {X: Type} (L: relation (@label E)).
-
-  Notation sb  := (@sb E E B B X X).
-  Notation sbisim := (@sbisim E E B B X X).
-
-  #[global] Instance refl_sb {LR: Reflexive L} {C: Chain (sb L)}: Reflexive `C.
-  Proof.
-    apply Reflexive_chain.
-    cbn; intros; split; intros * TR; do 2 eexists; eauto.
-  Qed.
-
-  #[global] Instance sb_sym {R} :
-    Symmetric L ->
-    Symmetric R ->
-    Symmetric (sb L R).
-  Proof.
-    intros SYM SYM'. split; cbn; intros.
-    - destruct H as [_ ?]. cbn in H.
-      apply H in H0 as (? & ? & ? & ? & ?). eauto 7.
-    - destruct H as [? _]. cbn in H.
-      apply H in H0 as (? & ? & ? & ? & ?). eauto 7.
-  Qed.
-
-  #[global] Instance sym_sb {LT: Symmetric L} {C: Chain (sb L)}: Symmetric `C.
-  Proof.
-    apply Symmetric_chain.
-    cbn; intros * HS * [fwd bwd]; split; intros ?? TR.
-    - destruct (bwd _ _ TR) as (l' & y' & yy' & ? & ?); eauto 8.
-    - destruct (fwd _ _ TR) as (l' & y' & yy' & ? & ?); eauto 8.
-  Qed.
-
-  #[global] Instance square_sb {LT: Transitive L} {C: Chain (sb L)}: Transitive `C.
-  Proof.
-    apply Transitive_chain.
-    cbn. intros ????? [xy xy'] [yz yz']; split; intros ?? xx'.
-    - destruct (xy _ _ xx') as (l' & y' & yy' & ? & ?).
-      destruct (yz _ _ yy') as (l'' & z' & zz' & ? & ?).
-      eauto 8.
-    - destruct (yz' _ _ xx') as (l' & y' & yy' & ? & ?).
-      destruct (xy' _ _ yy') as (l'' & z' & zz' & ? & ?).
-      eauto 8.
-  Qed.
-
-(*| PreOrder |*)
-  #[global] Instance Equivalence_sb {LPO: Equivalence L} {C: Chain (sb L)}: Equivalence `C.
-  Proof. split; typeclasses eauto. Qed.
-
-(*|
-Hence [equ eq] is a included in [sbisim]
-|*)
-  #[global] Instance equ_sbisim_subrelation `{EqL: Equivalence _ L} : subrelation (equ eq) (sbisim L).
-  Proof.
-    red; intros.
-    rewrite H; reflexivity.
-  Qed.
-
-  #[global] Instance is_stuck_sbisim : Proper (sbisim L ==> flip impl) is_stuck.
-  Proof.
-    cbn. intros ???????.
-    step in H. destruct H as [? _].
-    apply H in H1 as (? & ? & ? & ? & ?). now apply H0 in H1.
-  Qed.
-
-  #[global] Instance sbisim_cssim_subrelation : subrelation (sbisim L) (cssim L).
-  Proof.
-    red; apply sbisim_cssim_subrelation_gen.
-  Qed.
-
-  #[global] Instance sbisim_ssim_subrelation : subrelation (sbisim L) (ssim L).
-  Proof.
-    red; apply sbisim_ssim_subrelation_gen.
-  Qed.
-
-End sbisim_homogenous_theory.
 
 (*|
 Up-to [bind] context bisimulations
@@ -641,40 +722,6 @@ Lemma vis_chain {E C X Y}
 Proof.
   intros. eapply vis_chain_gen with (left := fun x => x) (right := fun x => x); auto.
 Qed.
-
-Ltac __play_sbisim := step; split; cbn; intros ? ? ?TR.
-
-Ltac __playL_sbisim H :=
-  step in H;
-  let Hf := fresh "Hf" in
-  destruct H as [Hf _];
-  cbn in Hf; edestruct Hf as (? & ? & ?TR & ?EQ & ?);
-  clear Hf; subst; [etrans |].
-
-Ltac __eplayL_sbisim :=
-  match goal with
-  | h : @sbisim ?E _ ?C _ ?X _ ?RR _ _ |- _ =>
-      __playL_sbisim h
-  end.
-
-Ltac __playR_sbisim H :=
-  step in H;
-  let Hb := fresh "Hb" in
-  destruct H as [_ Hb];
-  cbn in Hb; edestruct Hb as (? & ? & ?TR & ?EQ & ?);
-  clear Hb; subst; [etrans |].
-
-Ltac __eplayR_sbisim :=
-  match goal with
-  | h : @sbisim ?E _ ?C _ ?X _ ?RR _ _ |- _ =>
-      __playR_sbisim h
-  end.
-
-#[local] Tactic Notation "play" := __play_sbisim.
-#[local] Tactic Notation "playL" "in" ident(H) := __playL_sbisim H.
-#[local] Tactic Notation "playR" "in" ident(H) := __playR_sbisim H.
-#[local] Tactic Notation "eplayL" := __eplayL_sbisim.
-#[local] Tactic Notation "eplayR" := __eplayR_sbisim.
 
 
 (*|
@@ -1613,31 +1660,6 @@ Section StrongSimulations.
     Qed.
 
   End Heterogeneous.
-
-  Section Homogeneous.
-
-    Context {E C: Type -> Type} {X: Type}
-      {L: rel (@label E) (@label E)}.
-    Notation ss := (@ss E E C C X X).
-    Notation ssim  := (@ssim E E C C X X).
-
-    #[global] Instance sbisim_clos_ssim_goal `{Symmetric _ L} `{Transitive _ L} :
-      Proper (sbisim L ==> sbisim L ==> flip impl) (ssim L).
-    Proof.
-      repeat intro.
-      transitivity y0. transitivity y.
-      - now apply sbisim_ssim_subrelation in H1.
-      - now exact H3.
-      - symmetry in H2; now apply sbisim_ssim_subrelation in H2.
-    Qed.
-
-    #[global] Instance sbisim_clos_ssim_ctx `{Equivalence _ L}:
-      Proper (sbisim L ==> sbisim L ==> impl) (ssim L).
-    Proof.
-      repeat intro. symmetry in H0, H1. eapply sbisim_clos_ssim_goal; eauto.
-    Qed.
-
-  End Homogeneous.
 
   Section two_ss_is_not_sb.
 

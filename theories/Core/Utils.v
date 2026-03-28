@@ -1,4 +1,5 @@
-#[global] Set Warnings "-intuition-auto-with-star".
+#[export] Set Warnings "-intuition-auto-with-star".
+#[export] Set Warnings "-warn-library-file-stdlib-vector".
 
 From Stdlib Require Import Fin.
 From Stdlib Require Export Program.Equality.
@@ -20,6 +21,7 @@ Polymorphic Class MonadStuck (M : Type -> Type) : Type :=
   mstuck : forall X, M X.
 
 Notation rel X Y := (X -> Y -> Prop).
+Notation rel1 E F := (forall X Y, E X -> E Y -> Prop).
 
 Ltac invert :=
   match goal with
@@ -100,7 +102,7 @@ Ltac do_det :=
       clear RWTdet H'
   end.
 
-#[global] Notation inhabited X := { x: X | True}.
+(* #[global] Notation inhabited X := { x: X | True}. *)
 
 Definition sum_rel {A1 A2 B1 B2} Ra Rb : rel (A1 + B1) (A2 + B2) :=
   fun ab ab' =>
@@ -109,3 +111,18 @@ Definition sum_rel {A1 A2 B1 B2} Ra Rb : rel (A1 + B1) (A2 + B2) :=
     | inr b, inr b' => Rb b b'
     | _, _ => False
     end.
+
+Ltac ex  :=  eexists.
+Ltac ex2 := do 2 eexists.
+Ltac ex3 := do 3 eexists.
+Ltac split3 := split; [| split].
+Ltac edestruct3 H := edestruct H as (? & ? & ?).
+Ltac edestruct4 H := edestruct H as (? & ? & ? & ?).
+Ltac edestruct5 H := edestruct H as (? & ? & ? & ? & ?).
+
+(* Simple inhabited class in the sytle of stdpp.
+   Long term to do: use stdpp
+ *)
+Class Inhabited (A : Type) : Type := populate { inhabitant : A }.
+Global Hint Mode Inhabited ! : typeclass_instances.
+Global Arguments populate {_} _ : assert.
