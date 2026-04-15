@@ -24,14 +24,42 @@ Import CoindNotations.
 Import CTree.
 Set Implicit Arguments.
 
+(*|
+Strong simulation
+=================
+
+Parametric strong simulation [ss L] between ctrees over distinct signatures
+(events [E]/[F], branching [C]/[D], return types [X]/[Y]), indexed by a
+label relation [L : lrel E F X Y]. Its greatest fixed point is [ssim L],
+notated [t (≲ L) u] (or [t ≲ u] with the default [Leq]).
+
+File organisation:
+- [ss]/[ssim] definition, notations, folding tactics, custom [step],
+  [coinduction], [play]/[eplay]/[answer] tactics.
+- Homogeneous theory ([E = F], [C = D], [X = Y]): Reflexive / Transitive /
+  PreOrder instances, both on [ss L R] and on any chain element [`C].
+- Heterogeneous theory: [ssim_mono] for [sub_lrel], the [equ_clos] up-to
+  principle, and [Proper] instances allowing rewriting [Seq] and [equ eq]
+  on either side, both on chain elements and on [ss L r].
+- Up-to bind: [bind_chain_gen] and its specialisations ([bind_chain],
+  [bind_chain_eq], [ssim_bind_gen/bind/bind_eq]).
+- Structural proof rules and their inversion counterparts ([Proof_Rules]
+  section). Naming:
+  - [ss_foo]/[ssim_foo] = before/after stepping the gfp;
+  - [_gen] = quantified over an arbitrary well-behaved [R] (required to
+    rebuild [ssim] on a structural subterm or to reuse in [CSSim]);
+  - [_l], [_r], [_id] = unilateral / same-type variants;
+  - [_inv] = inversion principle from the shape of one side.
+
+The bisimulation counterpart [sb] lives in [Eq.SBisim] and is defined
+symmetrically à la Pous'16 for better symmetry arguments; see [square_st]
+there for an illustration.
+|*)
+
 Section StrongSim.
 (*|
-The function defining strong simulations: [trans] plays must be answered
-using [trans].
-The [ss] definition stands for [strong simulation]. The bisimulation [sb]
-is obtained by expliciting the symmetric aspect of the definition following
-Pous'16 in order to be able to exploit symmetry arguments in proofs
-(see [square_st] for an illustration).
+[ss L R t u]: every transition from [t] can be matched by [u] up to [L]
+on labels, with the resulting continuations related by [R].
 |*)
   Program Definition ss {E F C D : Type -> Type} {X Y : Type}
     (L : lrel E F X Y) :
@@ -129,6 +157,11 @@ Ltac __answer_ssim := ex2; split3; etrans.
 #[local] Tactic Notation "eplay" := __eplay_ssim.
 #[local] Tactic Notation "answer" := __answer_ssim.
 
+(*|
+Homogeneous theory: when source and target share their signature, [L]
+becomes a relation on a single label space and order-theoretic properties
+(reflexivity, transitivity) can be stated and lifted to chain elements.
+|*)
 Section ssim_homogenous_theory.
   Context {E B: Type -> Type} {X: Type}
           {L: lrel E E X X}.
@@ -198,23 +231,6 @@ Section ssim_heterogenous_theory.
    ----------------------------------------
 |*)
 
-  (* Can this be rewritten with a simpler proper? *)
-  Lemma equ_clos_chain {c: Chain (ss L)}:
-    forall x y, equ_clos `c x y -> `c x y.
-  Proof.
-    apply tower.
-    - intros ? INC x y [x' y' x'' y'' EQ' EQ''] ??. red.
-      apply INC; auto.
-      econstructor; eauto.
-      apply leq_infx in H.
-      now apply H.
-    - intros a b ?? [x' y' x'' y'' EQ' EQ''] ? ? tr.
-      rewrite EQ' in tr.
-      edestruct EQ'' as (l' & ? & ? & ? & ?); [eauto |].
-      exists l',x0; intuition.
-      rewrite <- Equu; auto.
-  Qed.
-
   #[global] Instance seq_chain_goal {c: Chain (ss L)} :
     Proper (Seq ==> Seq ==> flip impl) (`c).
   Proof.
@@ -234,8 +250,18 @@ Section ssim_heterogenous_theory.
   #[global] Instance equ_chain_goal {c: Chain (ss L)} :
     Proper (equ eq ==> equ eq ==> flip impl) `c.
   Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply equ_clos_chain; econstructor; [eauto | | symmetry; eauto]; assumption.
+    unfold Proper, respectful,flip,impl.
+    apply tower.
+    - intros ? INC x y EQ x' y' EQ' ? ? ?; red.
+      cbn in INC.
+      eapply INC; eauto.
+      apply leq_infx in H0.
+      now apply H0.
+    - intros a b x y EQ x' y' EQ' SS ?? tr.
+      rewrite EQ in tr.
+      edestruct SS as (l' & ? & ? & ? & ?); [eauto |].
+      exists l',x0; intuition.
+      rewrite EQ'; auto.
   Qed.
 
   #[global] Instance seq_ss_goal {r} :
@@ -273,10 +299,20 @@ Section ssim_heterogenous_theory.
   #[global] Instance equ_chain_ctx  {c: Chain (ss L)} :
     Proper (equ eq ==> equ eq ==> impl) `c.
   Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply equ_clos_chain; econstructor; [symmetry; eauto | | eauto]; assumption.
+    unfold Proper, respectful,flip,impl.
+    apply tower.
+    - intros ? INC x y EQ x' y' EQ' ? ? ?; red.
+      cbn in INC.
+      eapply INC; eauto.
+      apply leq_infx in H0.
+      now apply H0.
+    - intros a b x y EQ x' y' EQ' SS ?? tr.
+      rewrite <- EQ in tr.
+      edestruct SS as (l' & ? & ? & ? & ?); [eauto |].
+      exists l',x0; intuition.
+      rewrite <- EQ'; auto.
   Qed.
-
+  
   #[global] Instance seq_ss_ctx {r} :
     Proper (Seq ==> Seq ==> impl) (ss L r).
   Proof.
@@ -472,6 +508,17 @@ Qed.
 (* Notation ssim_ L t u := (ssim L (α t) (α u)). *)
 (* Notation ss_ L t u := (ss L _ (α t) (α u)). *)
 
+(*|
+Structural proof rules
+======================
+For each ctree constructor, we provide up to three forms:
+- [ss_*_gen]: low-level, parameterised by an arbitrary [R] with the
+  Proper/reflexivity side-conditions made explicit;
+- [ss_*]: specialised to an element [`R] of the companion chain, using
+  typeclasses to discharge the side-conditions;
+- [ssim_*]: the [step]-free form at the gfp level.
+Inversion lemmas (named [ssim_*_inv]) invert the shape of one or both sides.
+|*)
 Section Proof_Rules.
 
   Context {E F C D: Type -> Type} {X Y : Type}.
@@ -558,6 +605,19 @@ Note: the general formulation (over any well-behaved realtion rather than elemen
  the itree-style rule.
 |*)
   (* TODO: specialization to Lvrel *)
+
+  Lemma ss_vis_gen {Z Z'} (e : E Z) (f: F Z')
+    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (R: rel _ _) (L : lrel E F X Y) :
+    R (β (e) k) (β (f) k') ->
+    (Proper (Seq ==> Seq ==> impl) R) ->
+    L (ask e) (ask f) ->
+    ss L R (Vis e k) (Vis f k').
+  Proof.
+    intros.
+    cbn; intros ? ? TR; inv_trans; subst.
+    ex2; split3; etrans.
+    now rewrite EQ.
+  Qed.
   
   Lemma ss_vis {Z Z'} (e : E Z) (f: F Z')
     (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) L
@@ -566,16 +626,15 @@ Note: the general formulation (over any well-behaved realtion rather than elemen
     (HRrcv : forall x, exists y, `R (k x) (k' y) /\ Rrcv L e f x y) :
     ss L ` R (Vis e k) (Vis f k').
   Proof.
-    intros ?? TR; inv_trans.
-    subst.
-    ex2; intuition.
-    rewrite EQ.
+    eapply ss_vis_gen.
+    2:typeclasses eauto.
+    2: now constructor.
     step.
     intros l u TR.
     inv_trans; subst.
     destruct (HRrcv x) as (y & ? & ?).
     ex2; intuition.
-    rewrite EQ0; eauto.
+    rewrite EQ; eauto.
     etrans.
   Qed.
 

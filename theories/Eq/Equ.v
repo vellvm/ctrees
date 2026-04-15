@@ -671,68 +671,99 @@ associated enhancing function.
 (*|
 Definition of the enhancing function
 |*)
-Variant equ_clos_body {E F C D X1 X2} (R : rel (ctree E C X1) (ctree F D X2)) : (rel (ctree E C X1) (ctree F D X2)) :=
-  | Equ_clos : forall t t' u' u
-                 (Equt : t ≅ t')
-                 (HR : R t' u')
-                 (Equu : u' ≅ u),
-      equ_clos_body R t u.
+(* Variant equ_clos_body {E F C D X1 X2} (R : rel (ctree E C X1) (ctree F D X2)) : (rel (ctree E C X1) (ctree F D X2)) := *)
+(*   | Equ_clos : forall t t' u' u *)
+(*                  (Equt : t ≅ t') *)
+(*                  (HR : R t' u') *)
+(*                  (Equu : u' ≅ u), *)
+(*       equ_clos_body R t u. *)
 
-Program Definition equ_clos {E F C D X1 X2} : mon (rel (ctree E C X1) (ctree F D X2)) :=
-  {| body := @equ_clos_body E F C D X1 X2 |}.
-Next Obligation.
-  intros * ?? LE t u EQ; inv EQ.
-  econstructor; eauto.
-  apply LE; auto.
-Qed.
+(* Program Definition equ_clos {E F C D X1 X2} : mon (rel (ctree E C X1) (ctree F D X2)) := *)
+(*   {| body := @equ_clos_body E F C D X1 X2 |}. *)
+(* Next Obligation. *)
+(*   intros * ?? LE t u EQ; inv EQ. *)
+(*   econstructor; eauto. *)
+(*   apply LE; auto. *)
+(* Qed. *)
 
 (*|
 Sufficient condition to prove compatibility only over the simulation
 |*)
-Lemma equ_clos_sym {E C X} : compat converse (@equ_clos E E C C X X).
-Proof.
-  intros R t u EQ; inv EQ.
-  apply Equ_clos with u' t'; intuition.
-Qed.
+(* Lemma equ_clos_sym {E C X} : compat converse (@equ_clos E E C C X X). *)
+(* Proof. *)
+(*   intros R t u EQ; inv EQ. *)
+(*   apply Equ_clos with u' t'; intuition. *)
+(* Qed. *)
 
-Lemma equ_clos_equ {E C X L} {c: Chain (fequ L)}:
-  forall x y, @equ_clos E E C C X X (elem c) x y -> (elem c) x y.
-Proof.
-  apply tower.
-  - intros ? INC x y [x' y' x'' y'' EQ' EQ''] ??. red.
-    apply INC; auto.
-    econstructor; eauto.
-    apply leq_infx in H.
-    now apply H.
-  - clear; intros c IH ?? [].
-    step in Equt; step in Equu; cbn in *.
-    inv Equt; rewrite <- H in HR; clear H H0 t t'.
-    all:inv HR; rewrite <- H in Equu.
-    all:try now inv Equu; eauto.
-    inv Equu; constructor; apply IH; econstructor; eauto.
-    inv Equu; constructor; apply IH; econstructor; eauto.
-    dependent induction H1; dependent induction H2. inv Equu.
-    dependent induction H2; dependent induction H3.
-    econstructor; intros. apply IH; econstructor; eauto.
-    dependent induction H1; dependent induction H2. inv Equu.
-    dependent induction H2; dependent induction H3.
-    econstructor; intros. apply IH; econstructor; eauto.
-Qed.
+(* Lemma equ_clos_equ {E C X L} {c: Chain (fequ L)}: *)
+(*   forall x y, @equ_clos E E C C X X (elem c) x y -> (elem c) x y. *)
+(* Proof. *)
+(*   apply tower. *)
+(*   - intros ? INC x y [x' y' x'' y'' EQ' EQ''] ??. red. *)
+(*     apply INC; auto. *)
+(*     econstructor; eauto. *)
+(*     apply leq_infx in H. *)
+(*     now apply H. *)
+(*   - clear; intros c IH ?? []. *)
+(*     step in Equt; step in Equu; cbn in *. *)
+(*     inv Equt; rewrite <- H in HR; clear H H0 t t'. *)
+(*     all:inv HR; rewrite <- H in Equu. *)
+(*     all:try now inv Equu; eauto. *)
+(*     inv Equu; constructor; apply IH; econstructor; eauto. *)
+(*     inv Equu; constructor; apply IH; econstructor; eauto. *)
+(*     dependent induction H1; dependent induction H2. inv Equu. *)
+(*     dependent induction H2; dependent induction H3. *)
+(*     econstructor; intros. apply IH; econstructor; eauto. *)
+(*     dependent induction H1; dependent induction H2. inv Equu. *)
+(*     dependent induction H2; dependent induction H3. *)
+(*     econstructor; intros. apply IH; econstructor; eauto. *)
+(* Qed. *)
 
 #[global] Instance equ_eq_equ_goal_gen {E C R L} (r : Chain (@fequ E C R R L)) :
-  Proper (equ eq ==> equ eq ==> flip impl)
-	  (elem r).
+  Proper (equ eq ==> equ eq ==> flip impl) (elem r).
 Proof.
-  repeat intro.
-  apply equ_clos_equ; econstructor; eauto; now symmetry.
+  apply tower.
+  - intros ? INC x y EQ x' y' EQ' ???. red.
+    eapply INC; eauto.
+    apply leq_infx in H0.
+    now apply H0.
+  - clear; intros c IH ?? EQ ?? EQ' Equt.
+    step in EQ; step in EQ'; cbn in *.
+    inv EQ; rewrite <- H in Equt; clear H H0 x y.
+    all: inv Equt; rewrite <- H in EQ'.
+    all:try now inv EQ'; eauto.
+    inv EQ'; constructor; eapply IH; eauto.
+    inv EQ'; constructor; eapply IH; eauto.
+    dependent induction H1; dependent induction H2. inv EQ'.
+    dependent induction H3; dependent induction H4.
+    econstructor; intros. eapply IH; eauto.
+    dependent induction H1; dependent induction H2. inv EQ'.
+    dependent induction H3; dependent induction H4.
+    econstructor; intros. eapply IH; eauto.
 Qed.
 
 #[global] Instance equ_eq_equ_hyp_gen {E C R L} (r : Chain (@fequ E C R R L)) :
   Proper (equ eq ==> equ eq ==> impl)
 	  (elem r).
 Proof.
-  repeat intro.
-  apply equ_clos_equ; econstructor; [| eassumption |]; eauto; now symmetry.
+  apply tower.
+  - intros ? INC x y EQ x' y' EQ' ???. red.
+    eapply INC; eauto.
+    apply leq_infx in H0.
+    now apply H0.
+  - clear; intros c IH ?? EQ ?? EQ' Equt.
+    step in EQ; step in EQ'; cbn in *.
+    inv EQ; rewrite <- H0 in Equt; clear H H0 x y.
+    all: inv Equt; rewrite <- H in EQ'.
+    all:try now inv EQ'; eauto.
+    inv EQ'; constructor; eapply IH; eauto.
+    inv EQ'; constructor; eapply IH; eauto.
+    dependent induction H1; dependent induction H2. inv EQ'.
+    dependent induction H3; dependent induction H4.
+    econstructor; intros. eapply IH; eauto.
+    dependent induction H1; dependent induction H2. inv EQ'.
+    dependent induction H3; dependent induction H4.
+    econstructor; intros. eapply IH; eauto.
 Qed.
 
 Lemma equ_clo_bind_gen_eq (E B: Type -> Type) (X Y1 Y2 : Type)

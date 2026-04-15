@@ -26,7 +26,7 @@ br.
 From ITree Require Import Basics.Basics Core.Subevent Indexed.Sum.
 
 From CTree Require Export
-	   Core.Utils.
+	   Utils.Utils.
 From CTree Require Import Core.Index.
 
 From ExtLib Require Import

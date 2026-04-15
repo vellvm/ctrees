@@ -114,10 +114,10 @@ least annoying solution.
     | τ
     | ask {X : Type} (e : E X)
     | rcv {X : Type} (e : E X) (v : X) (* Note: I think we need to remember which request led to the response for the bisimilarity to be right, but I am not 100% sure, [e] might be spurious *)
-    | val {X : Type} (v : X).
+    | val (v : R).
 
   Variant is_val : label -> Prop :=
-    | Is_val : forall X (x : X), is_val (val x).
+    | Is_val : forall x, is_val (val x).
 
   Lemma is_val_τ : ~ is_val τ.
   Proof.
@@ -517,7 +517,7 @@ Section BackwardBounded.
   Context `{B2 -< B}.
   Context `{B3 -< B}.
   Context `{B4 -< B}.
-  Variable (l : @label E) (t t' u u' v v' w w' : ctree E B X).
+  Variable (l : @label E X) (t t' u u' v v' w w' : ctree E B X).
 
   Lemma trans_brS21 :
     trans τ (brS2 t u) t.
@@ -662,32 +662,32 @@ Section forward.
 Inverting equalities between labels
 |*)
 
-  Lemma val_eq_invT : forall X Y x y, @val E X x = @val E Y y -> X = Y.
+  (* [val_eq_invT] no longer makes sense: [val] now has signature
+     [val : R -> label E R], so two [val x], [val y] can only be compared
+     when they share the return-type parameter; the type equality is
+     enforced by typing rather than proved. *)
+
+  Lemma val_eq_inv : forall (x y : X), @val E X x = val y -> x = y.
     clear B. intros * EQ.
-    now dependent induction EQ.
+    now inversion EQ.
   Qed.
 
-  Lemma val_eq_inv : forall X x y, @val E X x = val y -> x = y.
-    clear B. intros * EQ.
-    now dependent induction EQ.
-  Qed.
-
-  Lemma ask_invT : forall E X Y e1 e2, @ask E X e1 = @ask E Y e2 -> X = Y.
+  Lemma ask_invT : forall E Y Z e1 e2, @ask E X Y e1 = @ask E X Z e2 -> Y = Z.
     intros * EQ.
     now dependent induction EQ.
   Qed.
 
-  Lemma ask_inv : forall E X e1 e2, @ask E X e1 = @ask E X e2 -> e1 = e2.
+  Lemma ask_inv : forall E Y e1 e2, @ask E X Y e1 = @ask E X Y e2 -> e1 = e2.
     intros * EQ.
     now dependent induction EQ.
   Qed.
 
-  Lemma rcv_invT : forall E X Y e1 e2 v1 v2, @rcv E X e1 v1 = @rcv E Y e2 v2 -> X = Y.
+  Lemma rcv_invT : forall E Y Z e1 e2 v1 v2, @rcv E X Y e1 v1 = @rcv E X Z e2 v2 -> Y = Z.
     intros * EQ.
     now dependent induction EQ.
   Qed.
 
-  Lemma rcv_inv : forall E X e1 e2 v1 v2, @rcv E X e1 v1 = @rcv E X e2 v2 -> e1 = e2 /\ v1 = v2.
+  Lemma rcv_inv : forall E Y e1 e2 v1 v2, @rcv E X Y e1 v1 = @rcv E X Y e2 v2 -> e1 = e2 /\ v1 = v2.
     intros * EQ.
     now dependent induction EQ.
   Qed.
@@ -826,7 +826,7 @@ Structural rules
 Ad-hoc rules for pre-defined finite branching
 |*)
 
-  Variable (l : @label E) (t t' u v w : ctree E B X).
+  Variable (l : @label E X) (t t' u v w : ctree E B X).
   Context `{B2 -< B} `{B3 -< B} `{B4 -< B}.
 
   Lemma trans_br2_inv :
@@ -885,8 +885,8 @@ I'll skip them for now and introduce them if they turn out to be
 useful.
 |*)
 
-  Lemma trans_val_inv' {Y} :
-    forall t u (x : Y),
+  Lemma trans_val_inv' :
+    forall t u (x : X),
       trans (val x) t u ->
       Seq u (α (Stuck : ctree E B X)).
   Proof.
@@ -897,8 +897,8 @@ useful.
     all: eauto.
   Qed.
 
-  Lemma trans_val_inv {Y} :
-    forall (t u : ctree E B X) (x : Y),
+  Lemma trans_val_inv :
+    forall (t u : ctree E B X) (x : X),
       trans (val x) t u ->
       u ≅ Stuck.
   Proof.
@@ -1197,6 +1197,13 @@ Section not_stuck.
     rewrite <- EQ in TR; red; eauto.
   Qed.
 
+  #[global] Instance equ_not_stuck : Proper (equ eq ==> iff) not_stuck.
+  Proof.
+    intros ? ? EQ; split; intros (l' & t' & TR).
+    rewrite EQ in TR; red; eauto.
+    rewrite <- EQ in TR; red; eauto.
+  Qed.
+
   (* Converse is classically true *)
   Lemma not_stuck_is_stuck :
     forall t, not_stuck t -> ~ is_stuck t.
@@ -1212,6 +1219,12 @@ Section not_stuck.
  
   Lemma vis_not_stuck {Y} (e : E Y) k:
     not_stuck (Vis e k).
+  Proof.
+    red; eauto.
+  Qed.
+  
+  Lemma step_not_stuck t:
+    not_stuck (Step t).
   Proof.
     red; eauto.
   Qed.
@@ -1324,12 +1337,15 @@ trans (val x) t stuck -> trans l (k x) u -> trans l (bind t k) u.
 |*)
 
 Lemma trans_bind_inv {E B X Y}
-  (t : ctree E B X) (k : X -> ctree E B Y) u l :
-  trans l (t >>= k) u ->
-  (l = τ /\ exists t', trans l t (α t') /\ Seq u (α t' >>= k)) \/
-  (exists Z (e : E Z), l = ask e /\
-   exists (g : Z -> ctree E B X), trans l t (β e g) /\ Seq u (β e (fun x => g x >>= k))) \/
-  (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u).
+  (t : ctree E B X) (k : X -> ctree E B Y)
+  u (l : label E Y) :
+  trans l (t >>= k) u -> 
+  (l = τ /\ exists t', trans τ t (α t') /\ Seq u (α t' >>= k)) \/
+  (exists Z (e : E Z),
+        l = ask e /\
+          exists (g : Z -> ctree E B X),
+            trans (ask e) t (β e g) /\ Seq u (β e (fun x => g x >>= k))) \/
+    (exists (x : X), trans (val x) t Stuck /\ trans l (k x) u).
 Proof.
   intros TR.
   rem_weak (α x <- t ;; k x) as ob.
@@ -1357,7 +1373,7 @@ Proof.
         right; right.
         exists y; split; auto.
         rewrite EQ1; eauto.
- 
+        
   - intros ? EQ.
     inv EQ.
     rewrite EQ0 in H.
@@ -1501,9 +1517,9 @@ Forward and backward rules for [wtrans] w.r.t. [bind]
 
 Lemma etrans_bind_inv {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) u l :
   etrans l (t >>= k) u ->
-  (l = τ /\ exists t', etrans l t (α t') /\ Seq u (t' >>= k)) \/
+  (l = τ /\ exists t', etrans τ t (α t') /\ Seq u (t' >>= k)) \/
   (exists Z (e : E Z), l = ask e /\
-   exists (g : Z -> ctree E B X), trans l t (β e g) /\ Seq u (β e (fun x => g x >>= k))) \/
+   exists (g : Z -> ctree E B X), trans (ask e) t (β e g) /\ Seq u (β e (fun x => g x >>= k))) \/
   (exists (x : X), trans (val x) t Stuck /\ etrans l (k x) u).
 Proof.
   intros TR.
@@ -1560,10 +1576,11 @@ the last visible state reached by [wtrans] and add a [trans (val _)] afterward.
 |*)
 Lemma wtrans_bind_inv {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) u l :
   wtrans l (t >>= k) u ->
-  (l = τ /\ exists t', wtrans l t (α t') /\ Seq u (t' >>= k)) \/
-  (exists Y (e : E Y), l = ask e /\ exists g, wtrans l t (β e g) /\ Seq u (β e (fun x => g x >>= k))) \/
+  (l = τ /\ exists t', wtrans τ t (α t') /\ Seq u (t' >>= k)) \/
+  (exists Y (e : E Y), l = ask e /\ exists g, wtrans (ask e) t (β e g) /\ Seq u (β e (fun x => g x >>= k))) \/
   (exists (x : X), wtrans (val x) t Stuck /\ wtrans l (k x) u) \/
-  (exists (x : X) s, wtrans l t s /\ trans (val x) s Stuck /\ wtrans τ (k x) u).
+  (exists (x : X) s, l = τ /\ wtrans τ t s /\ trans (val x) s Stuck /\ wtrans τ (k x) u) \/
+  (exists Y (e : E Y) (x : X) s, l = ask e /\ wtrans (ask e) t s /\ trans (val x) s Stuck /\ wtrans τ (k x) u).
 Proof.
   intros TR.
   destruct TR as [t2 [t1 step1 step2] step3].
@@ -1576,10 +1593,10 @@ Proof.
       * left; split; auto.
         eexists; split. 2:apply EQ3.
         exists (α u2); [exists (α u1) |]; auto.
-      * right; right; right.
+      * right; right; right; left.
         apply wtrans_val_inv in TR3 as (u3 & TR2' & TR2'').
         exists x, u3.
-        split; [|split]; auto.
+        repeat split; auto.
         2:apply wtrans_τ; auto.
         exists (α u2); [exists (α u1) |]; auto.
         apply wtrans_τ; apply wtrans_τ in TR1.
@@ -1978,15 +1995,10 @@ Qed.
 (*     apply trans_wtrans; auto. *)
 (* Qed. *)
 
-Lemma trans_val_invT {E B R R'} :
-  forall t u (v : R'),
-    @trans E B R (val v) t u ->
-    R = R'.
-Proof.
-  intros * TR.
-  remember (val v) as ov.
-  induction TR; intros; auto; try now inv Heqov.
-Qed.
+(* [trans_val_invT] is no longer needed: with [label] now indexed by
+   the return type [R], the equality [R = R'] it used to extract is
+   enforced by typing. Callers that relied on it can simply drop the
+   surrounding [apply trans_val_invT ... ; subst] step. *)
 
 (* Lemma wtrans_bind_lr {E B X Y} (t u : ctree E B X) (k : X -> ctree E B Y) (v : ctree E B Y) x l : *)
 (*   pwtrans l t u -> *)
@@ -2051,7 +2063,7 @@ Qed.
 
 Lemma trans_branch :
   forall {E B : Type -> Type} {X : Type} {Y : Type}
-    [l : label E] [t t' : ctree E B X] (c : B Y) (k : Y -> ctree E B X) (x : Y),
+    [l : label E X] [t t' : ctree E B X] (c : B Y) (k : Y -> ctree E B X) (x : Y),
     trans l (k x) t' ->
     trans l (branch c >>= k) t'.
 Proof.
@@ -2288,7 +2300,7 @@ Section build_rel.
       Rrcv: forall [X Y] (e : E X) (f : F Y), X -> Y -> Prop ;
     }.
   
-  Variant build_rel {RL : lrel} : hrel (label E) (label F) :=
+  Variant build_rel {RL : lrel} : hrel (label E X) (label F Y) :=
     | rel_τ   : build_rel τ τ
     | rel_ask {X Y} {e : E X} {f : F Y}
         (HR : Rask RL e f) :
@@ -2420,6 +2432,17 @@ Proof.
   intros f e; split; cbn; intros []; constructor; auto.
 Qed. 
 
+Lemma lequiv_sub_lrel {E F X Y} (L L' : lrel E F X Y):
+  sub_lrel L L' ->
+  sub_lrel (flipL L) (flipL L').
+Proof.
+  intros (EQV & EQA & EQR).
+  split3.
+  now cbn; intros; apply EQV.
+  now cbn; intros; apply EQA.
+  now cbn; intros; apply EQR.
+Qed.
+ 
 Lemma lequiv_flipL {E F X Y} (L L' : lrel E F X Y):
   lequiv L L' ->
   lequiv (flipL L) (flipL L').
@@ -2487,4 +2510,20 @@ Proof.
   dependent induction HR; constructor.
   now apply H.
 Qed.
+
+#[global] Instance Leq_equiv {E X} : Equivalence (build_rel (@Leq E X)).
+Proof.
+  split.
+  - intros []; try now constructor.
+  - intros ?? H.
+    inv H; try now constructor.
+    cbn in HR.
+    dependent induction HR; now constructor.
+    dependent induction HR; now constructor.
+  - intros ??? H1 H2.
+    dependent induction H1; dependent induction H2; try now constructor.
+    dependent induction HR; dependent induction HR0; now constructor.
+    dependent induction HR; dependent induction HR0; now constructor.
+    cbn in *; subst; now constructor.
+Qed.  
 

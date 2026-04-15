@@ -5,8 +5,10 @@ From ITree Require Export
      Indexed.Function
      Indexed.Sum.
 
+From CTree.Utils Require Export
+     Utils.
+
 From CTree.Core Require Export
-     Utils
      Index
      CTreeDefinitions.
 

@@ -1,5 +1,5 @@
 From ITree Require Import Basics Indexed.Sum.
-From CTree Require Import Core.Utils.
+From CTree Require Import Utils.Utils.
 
 Section Index.
 

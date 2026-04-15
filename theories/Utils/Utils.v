@@ -5,7 +5,8 @@ From Stdlib Require Import Fin.
 From Stdlib Require Export Program.Equality.
 From Coinduction Require Import all.
 From ITree Require Import Basics.Basics.
-
+From CTree Require Export coinduction_addon.
+       
 Notation fin := Fin.t.
 
 Polymorphic Class MonadTrigger (E : Type -> Type) (M : Type -> Type) : Type :=
@@ -21,7 +22,7 @@ Polymorphic Class MonadStuck (M : Type -> Type) : Type :=
   mstuck : forall X, M X.
 
 Notation rel X Y := (X -> Y -> Prop).
-Notation rel1 E F := (forall X Y, E X -> E Y -> Prop).
+Notation rel1 E F := (forall X Y, E X -> F Y -> Prop).
 
 Ltac invert :=
   match goal with

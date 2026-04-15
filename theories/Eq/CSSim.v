@@ -25,10 +25,41 @@ Import CoindNotations.
 Import CTree.
 Set Implicit Arguments.
 
+(*|
+Complete strong simulation
+==========================
+
+[css L] refines [ss L] (from [Eq.SSim]) with a liveness-preservation
+clause: the simulating side must itself be live whenever the simulated
+side is:
+
+    css L R t u  ≜  ss L R t u  ∧  (not_stuck u → not_stuck t)
+
+Its greatest fixed point is [cssim L], notated [t (⪅ L) u] (or [t ⪅ u]
+with the default [Leq]).
+
+Because of the extra clause, [cssim] is strictly finer than [ssim]:
+[cssim_ssim_subrelation] and [cssim_ssim_subrelation_gen] witness the
+inclusion. Most structural rules mirror those of [ss]/[ssim] but acquire
+a non-stuckness side-condition (typically [Inhabited] on a branching
+type, [not_stuck] on a continuation, or a disjunction between the two
+sides). Lemmas that would be false under completeness — e.g. "stuck is
+simulated by anything" — are therefore absent; their sound analogues
+require both sides stuck ([css_is_stuck']).
+
+File organisation mirrors [Eq.SSim]: definition + tactics; homogeneous
+theory (Reflexive/Transitive + subrelation into [ss]/[ssim]);
+heterogeneous theory with [cssim_mono], [equ_clos] up-to, and
+[Seq]/[equ eq] [Proper] instances on both chain elements and [css L r];
+up-to bind; structural proof rules and inversion principles, using the
+same [_gen] / [`R] / gfp naming convention as in [SSim.v].
+|*)
+
 Section CompleteStrongSim.
 
 (*|
-Complete strong simulation [css].
+[css L R t u]: both [ss L R t u] holds, and [t] is live whenever [u] is.
+The second clause is what distinguishes [css] from [ss].
 |*)
  
   Program Definition css {E F C D : Type -> Type} {X Y : Type}
@@ -39,6 +70,21 @@ Complete strong simulation [css].
   Next Obligation.
     split; eauto. intros.
     edestruct H0 as (? & ? & ? & ? & ?); repeat econstructor; eauto.
+  Qed.
+
+  #[global] Instance lequiv_css : forall {E F C D X Y}, Proper (lequiv ==> weq) (@css E F C D X Y).
+  Proof.
+    cbn. intros * EQ *. split.
+    - intros [SIM PROG]; split; auto.
+      intros.
+      apply SIM in H as (? & ? & ? & ? & ?).
+      ex2; split3; eauto.
+      now rewrite <- EQ.
+    - intros [SIM PROG]; split; auto.
+      intros.
+      apply SIM in H as (? & ? & ? & ? & ?).
+      ex2; split3; eauto.
+      now rewrite EQ.
   Qed.
 
 End CompleteStrongSim.
@@ -117,6 +163,12 @@ Ltac __answer_cssim := ex2; split3; etrans.
 #[local] Tactic Notation "eplay" := __eplay_cssim.
 #[local] Tactic Notation "answer" := __answer_cssim.
  
+(*|
+Homogeneous theory: source and target share their signature. In addition
+to reflexivity / transitivity (lifted to chain elements), we record
+[css_ss_subrelation] and [cssim_ssim_subrelation], making [css]/[cssim]
+usable wherever [ss]/[ssim] is expected.
+|*)
 Section cssim_homogenous_theory.
 
   Context {E B : Type -> Type} {X : Type}
@@ -203,26 +255,27 @@ Section cssim_heterogenous_theory.
    ----------------------------------------
 |*)
 
-  Lemma equ_clos_chain {c: Chain (css L)}:
-    forall x y, equ_clos `c x y -> `c x y.
+  #[global] Instance equ_chain_goal {c: Chain (css L)} :
+    Proper (equ eq ==> equ eq ==> flip impl) `c.
   Proof.
+    unfold Proper, respectful,flip,impl.
     apply tower.
-    - intros ? INC x y [x' y' x'' y'' EQ' EQ''] ??. red.
-      apply INC; auto.
-      econstructor; eauto.
-      apply leq_infx in H.
-      now apply H.
-    - intros a b ?? [x' y' x'' y'' EQ' [SIM LIVE]].
+    - intros ? INC x y EQ x' y' EQ' ? ? ?; red.
+      cbn in INC.
+      eapply INC; eauto.
+      apply leq_infx in H0.
+      now apply H0.
+    - intros a b x y EQ x' y' EQ' [SIM LIVE].
       split.
       + intros ?? tr.
-        rewrite EQ' in tr.
+        rewrite EQ in tr.
         edestruct SIM as (l' & ? & ? & ? & ?); eauto.
         exists l',x0; intuition.
-        rewrite <- Equu; auto.
+        rewrite EQ'; auto.
       + intros ns.
-        rewrite <- Equu in ns.
+        rewrite EQ' in ns.
         edestruct LIVE as (l' & ? & ?); eauto.
-        setoid_rewrite EQ'. eauto.
+        setoid_rewrite EQ. eauto.
    Qed.
 
   #[global] Instance seq_chain_goal {c: Chain (css L)} :
@@ -257,6 +310,17 @@ Section cssim_heterogenous_theory.
       ex2; rewrite tt'; eauto.
   Qed.
 
+  #[global] Instance equ_css_goal {r} :
+    Proper (equ eq ==> equ eq ==> flip impl) (css L r).
+  Proof.
+    intros t t' tt' u u' uu'; cbn.
+    intros [? ?]; split.
+    - intros.
+      rewrite tt' in H1. apply H in H1 as (l' & ? & ? & ? & ?).
+      ex2; eauto. rewrite uu'. eauto.
+    - now rewrite tt',uu'. 
+  Qed.
+
   #[global] Instance seq_chain_ctx  {c: Chain (css L)} :
     Proper (Seq ==> Seq ==> impl) `c.
   Proof.
@@ -274,6 +338,29 @@ Section cssim_heterogenous_theory.
       ex2; rewrite <- EQt; eauto.
   Qed.
 
+  #[global] Instance equ_chain_ctx  {c: Chain (css L)} :
+    Proper (equ eq ==> equ eq ==> impl) `c.
+  Proof.
+    unfold Proper, respectful,flip,impl.
+    apply tower.
+    - intros ? INC x y EQ x' y' EQ' ? ? ?; red.
+      cbn in INC.
+      eapply INC; eauto.
+      apply leq_infx in H0.
+      now apply H0.
+    - intros a b x y EQ x' y' EQ' [SIM LIVE].
+      split.
+      + intros ?? tr.
+        rewrite <- EQ in tr.
+        edestruct SIM as (l' & ? & ? & ? & ?); eauto.
+        exists l',x0; intuition.
+        rewrite <- EQ'; auto.
+      + intros ns.
+        rewrite <- EQ' in ns.
+        edestruct LIVE as (l' & ? & ?); eauto.
+        setoid_rewrite <- EQ. eauto.
+  Qed.
+
   #[global] Instance seq_css_ctx {r} :
     Proper (Seq ==> Seq ==> impl) (css L r).
   Proof.
@@ -288,6 +375,15 @@ Section cssim_heterogenous_theory.
       ex2; rewrite <- tt'; eauto.
   Qed.
 
+  #[global] Instance equ_css_ctx {r} :
+    Proper (equ eq ==> equ eq ==> impl) (css L r).
+  Proof.
+    intros t t' tt' u u' uu'; cbn; intros [? ?]; split.
+    - intros; rewrite <- tt' in H1. apply H in H1 as (l' & ? & ? & ? & ?).
+      ex2; eauto. rewrite <- uu'. eauto.
+    - now rewrite <- tt', <-uu'.
+  Qed.
+
   Lemma cssim_ssim_subrelation_gen : forall x y, cssim L x y -> ssim L x y.
   Proof.
     red.
@@ -298,10 +394,10 @@ Section cssim_heterogenous_theory.
 
 End cssim_heterogenous_theory.
 
-#[global] Instance weq_ssim : forall {E F C D X Y},
-  Proper (lequiv ==> weq) (@ssim E F C D X Y).
+#[global] Instance weq_cssim : forall {E F C D X Y},
+  Proper (lequiv ==> weq) (@cssim E F C D X Y).
 Proof.
-  cbn -[ss weq]. intros. apply gfp_weq. now apply lequiv_ss.
+  cbn -[css weq]. intros. apply gfp_weq. now apply lequiv_css.
 Qed.
 
 (*|
@@ -411,7 +507,6 @@ and with the argument (pointwise) on the continuation.
         refine_trans; ex2; eapply trans_bind_l_ask; etrans.
         exfalso; eapply trans_rcv_active_inv; eauto.
 
-        apply trans_val_invT in STEP' as ?. subst X0.
         apply trans_val_inv' in STEP' as ?. rewrite H0 in STEP'.
         pose proof STEP' as tmp.
         apply tt in tmp as (? & ? & TR & ? & ?).
@@ -507,6 +602,16 @@ Proof.
   intros ?? <-; auto.
 Qed.
 
+(*|
+Structural proof rules
+======================
+Same three-layer shape as in [SSim.v] ([css_*_gen] / [css_*] / [cssim_*]).
+Compared to [ss]/[ssim] the rules typically carry an extra non-stuckness
+side-condition: [Inhabited] on a [Br]'s index (to witness progress),
+[not_stuck] on a branch, or a disjunction between the two sides.
+Inversion principles ([cssim_*_inv]) additionally exploit the liveness
+clause — e.g. [cssim_stuck_inv] is an *iff*, unlike its [ssim] analogue.
+|*)
 Section Proof_Rules.
 
   Context {E F C D: Type -> Type} {X Y : Type}.
@@ -546,6 +651,19 @@ Stuck ctrees can be simulated by anything.
 (*|
 Ret nodes
 |*)
+  Lemma css_ret_gen (x : X) (y : Y) L R :
+    R (α Stuck) (α Stuck) ->
+    (Proper (Seq ==> Seq ==> impl) R) ->
+    RR L x y ->
+    css L R (Ret x : ctree E C X) (Ret y : ctree F D Y).
+  Proof.
+    intros HS HP HR; split; [intros l u TR |].
+    - inv_trans. subst.
+      ex2; intuition.
+      now rewrite EQ.
+    - intros; auto using ret_not_stuck.
+  Qed.
+  
   Lemma css_ret (x : X) (y : Y) L
     {R : Chain (@css E F C D X Y L)} :
     RR L x y ->
@@ -565,7 +683,6 @@ Ret nodes
     intros.
     step. now apply css_ret.
   Qed.
-
     
 (*|
  The vis nodes are deterministic from the perspective of the labeled
@@ -818,6 +935,18 @@ Invisible nodes
 (*|
 Internal transitions
 |*)
+  Lemma css_step_gen
+    (t: ctree E C X) (t': ctree F D Y) L R :
+    (Proper (Seq ==> Seq ==> impl) R) ->
+    R (α t) (α t') ->
+    css L R (Step t) (Step t').
+  Proof.
+    intros HP HR; split; [intros ???; inv_trans; subst |].
+    - ex2; intuition.
+      now rewrite EQ.
+    - intros; auto using step_not_stuck.
+  Qed.
+
   Lemma css_step 
     (t: ctree E C X) (t': ctree F D Y) L
     {R : Chain (@css E F C D X Y L)} :
