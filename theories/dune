@@ -2,4 +2,4 @@
 
 (coq.theory
  (name CTree)
- (package coq-ctree))
+ (package rocq-ctree))
