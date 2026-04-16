@@ -567,25 +567,25 @@ Section BackwardBounded.
     now apply trans_br with t33.
   Qed.
 
-  Lemma trans_br31 :
-    trans l t t' ->
-    trans l (br3 t u v) t'.
+  Lemma trans_br31 x :
+    trans l t x ->
+    trans l (br3 t u v) x.
   Proof.
     intros * TR.
     now apply trans_br with t31.
   Qed.
 
-  Lemma trans_br32 :
-    trans l u u' ->
-    trans l (br3 t u v) u'.
+  Lemma trans_br32 x :
+    trans l u x ->
+    trans l (br3 t u v) x.
   Proof.
     intros * TR.
     now apply trans_br with t32.
   Qed.
 
-  Lemma trans_br33 :
-    trans l v v' ->
-    trans l (br3 t u v) v'.
+  Lemma trans_br33 x :
+    trans l v x ->
+    trans l (br3 t u v) x.
   Proof.
     intros * TR.
     now apply trans_br with t33.
@@ -615,33 +615,33 @@ Section BackwardBounded.
     eapply trans_br with t44; eauto.
   Qed.
 
-  Lemma trans_br41 :
-    trans l t t' ->
-    trans l (br4 t u v w) t'.
+  Lemma trans_br41 x :
+    trans l t x ->
+    trans l (br4 t u v w) x.
   Proof.
     intros * TR.
     eapply trans_br with t41; eauto.
   Qed.
 
-  Lemma trans_br42 :
-    trans l u u' ->
-    trans l (br4 t u v w) u'.
+  Lemma trans_br42 x :
+    trans l u x ->
+    trans l (br4 t u v w) x.
   Proof.
     intros * TR.
     eapply trans_br with t42; eauto.
   Qed.
 
-  Lemma trans_br43 :
-    trans l v v' ->
-    trans l (br4 t u v w) v'.
+  Lemma trans_br43 x :
+    trans l v x ->
+    trans l (br4 t u v w) x.
   Proof.
     intros * TR.
     eapply trans_br with t43; eauto.
   Qed.
 
-  Lemma trans_br44 :
-    trans l w w' ->
-    trans l (br4 t u v w) w'.
+  Lemma trans_br44 x :
+    trans l w x ->
+    trans l (br4 t u v w) x.
   Proof.
     intros * TR.
     eapply trans_br with t44; eauto.
@@ -826,17 +826,17 @@ Structural rules
 Ad-hoc rules for pre-defined finite branching
 |*)
 
-  Variable (l : @label E X) (t t' u v w : ctree E B X).
+  Variable (l : @label E X) (t u v w : ctree E B X).
   Context `{B2 -< B} `{B3 -< B} `{B4 -< B}.
 
-  Lemma trans_br2_inv :
+  Lemma trans_br2_inv t' :
     trans l (br2 t u) t' ->
     (trans l t t' \/ trans l u t').
   Proof.
     intros * TR; apply trans_br_inv in TR as [[] TR]; auto.
   Qed.
 
-  Lemma trans_br3_inv :
+  Lemma trans_br3_inv t' :
     trans l (br3 t u v) t' ->
     (trans l t t' \/ trans l u t' \/ trans l v t').
   Proof.
@@ -844,7 +844,7 @@ Ad-hoc rules for pre-defined finite branching
     destruct n; auto.
   Qed.
 
-  Lemma trans_br4_inv :
+  Lemma trans_br4_inv t' :
     trans l (br4 t u v w) t' ->
     (trans l t t' \/ trans l u t' \/ trans l v t' \/ trans l w t').
   Proof.
@@ -852,7 +852,7 @@ Ad-hoc rules for pre-defined finite branching
     destruct n; auto.
   Qed.
 
-  Lemma trans_brS2_inv :
+  Lemma trans_brS2_inv (t': ctree _ _ _) :
     trans l (brS2 t u) t' ->
     (l = τ /\ (t' ≅ t \/ t' ≅ u)).
   Proof.
@@ -860,7 +860,15 @@ Ad-hoc rules for pre-defined finite branching
     destruct x; auto.
   Qed.
 
-  Lemma trans_brS3_inv :
+  Lemma trans_brS2_inv' t' :
+    trans l (brS2 t u) t' ->
+    (l = τ /\ (Seq t' t \/ Seq t' u)).
+  Proof.
+    intros * TR; apply trans_brS_inv' in TR as (? & TR & ->); split; auto.
+    destruct x; auto.
+  Qed.
+
+  Lemma trans_brS3_inv (t': ctree _ _ _) :
     trans l (brS3 t u v) t' ->
     (l = τ /\ (t' ≅ t \/ t' ≅ u \/ t' ≅ v)).
   Proof.
@@ -868,11 +876,19 @@ Ad-hoc rules for pre-defined finite branching
     destruct x; auto.
   Qed.
 
-  Lemma trans_brS4_inv :
-    trans l (brS4 t u v w) t' ->
-    (l = τ /\ (t' ≅ t \/ t' ≅ u \/ t' ≅ v \/ t' ≅ w)).
+  Lemma trans_brS3_inv' t' :
+    trans l (brS3 t u v) t' ->
+    (l = τ /\ (Seq t' t \/ Seq t' u \/ Seq t' v)).
   Proof.
-    intros * TR; apply trans_brS_inv in TR as (? & TR & ->); split; auto.
+    intros * TR; apply trans_brS_inv' in TR as (? & TR & ->); split; auto.
+    destruct x; auto.
+  Qed.
+
+  Lemma trans_brS4_inv' t' :
+    trans l (brS4 t u v w) t' ->
+    (l = τ /\ (Seq t' t \/ Seq t' u \/ Seq t' v \/ Seq t' w)).
+  Proof.
+    intros * TR; apply trans_brS_inv' in TR as (? & TR & ->); split; auto.
     destruct x; auto.
   Qed.
 
@@ -2236,6 +2252,14 @@ Ltac inv_trans_one :=
   | h : htrans _ (α Br _ _) _ |- _ =>
       let TR := fresh "TR" in
       apply trans_br_inv in h as (?n & TR)
+ 
+  | h : htrans _ (α br2 _ _) _ |- _ =>
+      let TR := fresh "TR" in
+      apply trans_br2_inv in h as [TR | TR]
+
+  | h : htrans _ (α br3 _ _ _) _ |- _ =>
+      let TR := fresh "TR" in
+      apply trans_br3_inv in h as [TR | [TR | TR]]
 
   (* Guard *)
   | h : htrans _ (α Guard _) _ |- _ =>

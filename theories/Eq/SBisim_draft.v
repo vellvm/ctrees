@@ -1393,57 +1393,102 @@ Section WithParams.
   Context {HasC2 : B2 -< C}.
   Context {HasC3 : B3 -< C}.
 
-  Lemma spin_bisim : forall {Z1 Z2} (c : C Z1) (c' : C Z2),
-      @spin_gen E C Z1 Z1 c ≃ @spin_gen E C Z2 Z2 c'.
-  Admitted.
-
+  Lemma spin_bisim : forall {D R X Y} (c : C X) (c' : D Y),
+      @spin_gen E C R X c ≃ @spin_gen E D R Y c'.
+  Proof.
+    intros.
+    play; exfalso; eapply spin_gen_is_stuck; eauto.
+  Qed.
+  
   Lemma br2_assoc {X} : forall (t u v : ctree E C X),
       br2 (br2 t u) v ≃ br2 t (br2 u v).
-  Admitted.
+  Proof.
+    intros; play; inv_trans; answer.
+  Qed.
 
   Lemma br2_commut {X} : forall (t u : ctree E C X),
       br2 t u ≃ br2 u t.
-  Admitted.
+  Proof.
+    intros; play; inv_trans; answer.
+  Qed.
 
   Lemma br2_idem {X} : forall (t : ctree E C X),
       br2 t t ≃ t.
-  Admitted.
+  Proof.
+    intros; play; inv_trans; answer.
+  Qed.
 
   Lemma br2_merge {X} : forall (t u v : ctree E C X),
       br2 (br2 t u) v ≃ br3 t u v.
-  Admitted.
+  Proof.
+    intros; play; inv_trans; answer.
+  Qed.
 
   Lemma br2_is_stuck {X} : forall (u v : ctree E C X),
       is_stuck u -> br2 u v ≃ v.
-  Admitted.
-
+  Proof.
+    intros; play; inv_trans; answer.
+    (* todo: have inv_trans support stuck stepping *)
+    exfalso; eapply H; eauto.
+  Qed.
+  
   Lemma br2_stuck_l {X} : forall (t : ctree E C X),
       br2 Stuck t ≃ t.
-  Admitted.
+  Proof.
+    intros; play; inv_trans; answer.
+    (* todo: have inv_trans support stuck stepping *)
+    exfalso; eapply trans_stuck_inv; eauto.
+  Qed.
 
   Lemma br2_stuck_r {X} : forall (t : ctree E C X),
       br2 t Stuck ≃ t.
-  Admitted.
+  Proof.
+    intros; play; inv_trans; answer.
+    (* todo: have inv_trans support stuck stepping *)
+    exfalso; eapply trans_stuck_inv; eauto.
+  Qed.
 
   Lemma br2_spin_l {X} : forall (t : ctree E C X),
       br2 spin t ≃ t.
-  Admitted.
+  Proof.
+    intros; play; inv_trans; answer.
+    (* todo: have inv_trans support stuck stepping *)
+    exfalso; eapply spin_is_stuck; eauto.
+  Qed.
 
   Lemma br2_spin_r {X} : forall (t : ctree E C X),
       br2 t spin ≃ t.
-  Admitted.
+  Proof.
+    intros; play; inv_trans; answer.
+    (* todo: have inv_trans support stuck stepping *)
+    exfalso; eapply spin_is_stuck; eauto.
+  Qed.
 
   Lemma brS2_commut {X} : forall (t u : ctree E C X),
       brS2 t u ≃ brS2 u t.
-  Admitted.
+  Proof.
+    intros; play;
+    apply trans_brS2_inv' in TR as (-> & [EQ | EQ]); setoid_rewrite EQ;
+    (ex2; split3; [| eauto |]; etrans).
+  Qed.
 
   Lemma brS2_idem {X} : forall (t : ctree E C X),
       brS2 t t ≃ Step t.
-  Admitted.
-
+  Proof.
+    intros; play.
+    - apply trans_brS2_inv' in TR as (-> & [EQ | EQ]); setoid_rewrite EQ;
+    ( ex2; split3; [| eauto |]; etrans).
+    - inv_trans; setoid_rewrite EQ; answer.
+  Qed.
+  
   Lemma sb_unfold_forever {X} : forall (k : X -> ctree E C X) (i : X),
       forever k i ≃ r <- k i ;; forever k r.
-  Admitted.
+  Proof.
+    intros.
+    rewrite unfold_forever.
+    apply sbisim_bind_eq; auto.
+    intros; now rewrite sbisim_guard.
+  Qed.
 
 End WithParams.
 
