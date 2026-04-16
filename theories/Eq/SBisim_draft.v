@@ -96,9 +96,9 @@ Module SBisimNotations.
   Notation "t (≃ [ Q ] ) u" := (sbisim (Lvrel Q) t u) (at level 79).
   Notation "t (≃ L ) u" := (sbisim L t u) (at level 79).
 
-  Notation "t '[≃]' u" := (sb Leq (` _) t u) (at level 90, only printing).
-  Notation "t '[≃' [ R ] ']' u" := (sb (Lvrel R) (` _) t u) (at level 90, only printing).
-  Notation "t '[≃' R ']' u" := (sb R (` _) t u) (at level 90, only printing).
+  Notation "t '[≃]' u" := (sb Leq _ t u) (at level 90, only printing).
+  Notation "t '[≃' [ R ] ']' u" := (sb (Lvrel R) _ t u) (at level 90, only printing).
+  Notation "t '[≃' R ']' u" := (sb R _ t u) (at level 90, only printing).
 
 End SBisimNotations.
 
@@ -146,7 +146,7 @@ Ltac fold_sbisim :=
 
 Tactic Notation "__step_sbisim" :=
   match goal with
-  | |- context[@sbisim ?E ?F ?C ?D ?X ?Y ?LR] =>
+  | |- context[@sbisim ?E ?F ?C ?D ?X ?Y ?L] =>
       unfold sbisim;
       step;
       fold (@sbisim E F C D X Y L)
@@ -155,7 +155,7 @@ Tactic Notation "__step_sbisim" :=
 
 Ltac __step_in_sbisim H :=
   match type of H with
-  | context[@sbisim ?E ?F ?C ?D ?X ?Y ?LR] =>
+  | context[@sbisim ?E ?F ?C ?D ?X ?Y ?L] =>
       unfold sbisim in H;
       step in H;
       fold (@sbisim E F C D X Y L) in H
@@ -1436,16 +1436,12 @@ Section WithParams.
       br2 Stuck t ≃ t.
   Proof.
     intros; play; inv_trans; answer.
-    (* todo: have inv_trans support stuck stepping *)
-    exfalso; eapply trans_stuck_inv; eauto.
   Qed.
 
   Lemma br2_stuck_r {X} : forall (t : ctree E C X),
       br2 t Stuck ≃ t.
   Proof.
     intros; play; inv_trans; answer.
-    (* todo: have inv_trans support stuck stepping *)
-    exfalso; eapply trans_stuck_inv; eauto.
   Qed.
 
   Lemma br2_spin_l {X} : forall (t : ctree E C X),
@@ -1517,25 +1513,45 @@ Section Incompat.
 
   Lemma sbisim_absurd {X} (t u : ctree E C X) :
     are_bisim_incompat t u -> t ≃ u -> False.
-  Admitted.
+  Proof.
+    intros * IC EQ.
+    unfold are_bisim_incompat in IC.
+    setoid_rewrite ctree_eta in EQ.
+    genobs t ot. genobs u ou.
+    destruct ot, ou.
+    all: inv IC.
+    all: try now unshelve (playR in EQ; inv_trans); auto.
+    all: try now unshelve (playL in EQ; inv_trans); auto.
+  Qed.
+
+  Ltac sb_abs h :=
+    eapply sbisim_absurd; [| eassumption]; cbn; try reflexivity.
 
   Lemma sbisim_ret_vis_inv {X Y} (r : Y) (e : E X) (k : X -> ctree E C Y) :
     (Ret r : ctree E C _) ≃ Vis e k -> False.
-  Admitted.
+  Proof.
+    intros * abs. sb_abs abs.
+  Qed.
 
   Lemma sbisim_ret_BrS_inv {X Y} (r : Y) (c : C X) (k : X -> ctree E C Y) :
     (Ret r : ctree E C _) ≃ BrS c k -> False.
-  Admitted.
+  Proof.
+    intros EQ; playL in EQ; inv_trans; invL.
+  Qed.
 
   Lemma sbisim_vis_BrS_inv {X Y Z}
     (e : E X) (k1 : X -> ctree E C Z) (c : C Y) (k2 : Y -> ctree E C Z) (y : Y) :
     Vis e k1 ≃ BrS c k2 -> False.
-  Admitted.
+  Proof.
+    unshelve (intros EQ; playR in EQ; inv_trans); auto; invL.
+  Qed.
 
   Lemma sbisim_vis_BrS_inv' {X Y Z}
     (e : E X) (k1 : X -> ctree E C Z) (c : C Y) (k2 : Y -> ctree E C Z) (x : X) :
     Vis e k1 ≃ BrS c k2 -> False.
-  Admitted.
+  Proof.
+    unshelve (intros EQ; playL in EQ; inv_trans); auto; invL.
+  Qed.
 
 End Incompat.
 

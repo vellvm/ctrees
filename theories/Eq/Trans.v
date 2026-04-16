@@ -2088,203 +2088,6 @@ Proof.
   eapply trans_br; eauto.
 Qed.
 
-(* (*| *)
-(* [wf_val] states that a [label] is well-formed: *)
-(* if it is a [val] it should be of the right type. *)
-(* |*) *)
-(* Definition wf_val {E} X l := forall Y (v : Y), l = @val E Y v -> X = Y. *)
-
-(* Lemma wf_val_val {E} X (v : X) : wf_val X (@val E X v). *)
-(* Proof. *)
-(*   red. intros. apply val_eq_invT in H. assumption. *)
-(* Qed. *)
-
-(* Lemma wf_val_nonval {E} X (l : @label E) : ~is_val l -> wf_val X l. *)
-(* Proof. *)
-(*   red. intros. subst. exfalso. apply H. constructor. *)
-(* Qed. *)
-
-(* Lemma wf_val_trans {E B X} (l : @label E) t t' : *)
-(*   @trans E B X l t t' -> wf_val X l. *)
-(* Proof. *)
-(*   red. intros. subst. *)
-(*   now apply trans_val_invT in H. *)
-(* Qed. *)
-
-(* Lemma wf_val_is_val_inv : forall {E} X (l : @label E), *)
-(*   is_val l -> *)
-(*   wf_val (E := E) X l -> *)
-(*   exists (x : X), l = val x. *)
-(* Proof. *)
-(*   intros. *)
-(*   destruct H. red in H0. *)
-(*   specialize (H0 X0 x eq_refl). subst. eauto. *)
-(* Qed. *)
-
-(* (*| If the LTS has events of type [L +' R] then *)
-(*   it is possible to step it as either an [L] LTS *)
-(*   or [R] LTS ignoring the other. *)
-(* *) *)
-(* Section Coproduct. *)
-(*   Arguments label: clear implicits. *)
-(*   Context {L R C: Type -> Type} {X: Type}. *)
-(*   Notation S := (ctree (L +' R) C X). *)
-(*   Notation S' := (ctree' (L +' R) C X). *)
-(*   Notation SP := (SS -> label (L +' R) -> Prop). *)
-
-(*   (* Skip an [R] event *) *)
-(*   Inductive srtrans_: rel S' S' := *)
-(*   | IgnoreR {X} (e : R X) k x t : *)
-(*     srtrans_ (observe (k x)) t -> *)
-(*     srtrans_ (VisF (inr1 e) k) t. *)
-
-(*   (* Skip an [L] event *) *)
-(*   Inductive sltrans_: rel S' S' := *)
-(*   | IgnoreL {X} (e : L X) k x t : *)
-(*     sltrans_ (observe (k x)) t -> *)
-(*     sltrans_ (VisF (inl1 e) k) t. *)
-
-(*   Hint Constructors srtrans_ sltrans_: core. *)
-
-(*   (* Make those relations that respect equality [srel] *) *)
-(*   Program Definition srtrans : srel SS SS := *)
-(*     {| hrel_of := (fun (u v: SS) => srtrans_ (observe u) (observe v)) |}. *)
-(*   Next Obligation. split; induction 1; auto. Defined. *)
-
-(*   Program Definition sltrans : srel SS SS := *)
-(*     {| hrel_of := (fun (u v: SS) => sltrans_ (observe u) (observe v)) |}. *)
-(*   Next Obligation. split; induction 1; auto. Defined. *)
-
-(*   (*| Obs transition on the left, ignores right transitions and [τ] |*) *)
-(*   Definition ltrans {X}(l: L X)(x: X): srel SS SS := *)
-(*     (trans τ ⊔ srtrans)^* ⋅ trans (obs (inl1 l) x) ⋅ (trans τ ⊔ srtrans)^*. *)
-
-(*   (*| Obs transition on the right, ignores left transitions and [τ] |*) *)
-(*   Definition rtrans {X}(r: R X)(x: X): srel SS SS := *)
-(*     (trans τ ⊔ sltrans)^* ⋅ trans (obs (inr1 r) x) ⋅ (trans τ ⊔ sltrans)^*. *)
-
-(* End Coproduct. *)
-
-#[global] Notation htrans l u v := (hrel_of (trans l) u v) (only parsing).
-
-(*|
-[refine_transition H]: given a transition whose concrete label is known,
-derive information on the active/passive status of its destination state.
-
-Currently very partial
-|*)
-Ltac refine_trans_in h :=
-  match type of h with
-  | htrans τ _ _ =>
-      let u  := fresh "u" in
-      let EQ := fresh "EQ" in
-      pose proof trans_τ_inv h as [u EQ];
-      rewrite EQ in *;
-      match type of EQ with
-      | Seq ?a _ => try clear a EQ
-      end
-  | htrans (ask ?e) _ _ =>
-      let u  := fresh "u" in
-      let EQ := fresh "EQ" in
-      pose proof trans_ask_inv h as [u EQ];
-      rewrite EQ in *;
-      match type of EQ with
-      | Seq ?a _ => try clear a EQ
-      end
-  end.
-
-Tactic Notation "refine_trans" :=
-  match goal with
-  | h : htrans _ _ _ |- _ => refine_trans_in h
-  end.
-Tactic Notation "refine_trans" "in" ident(h) := refine_trans_in h.
-
-(*|
-[inv_trans] is an helper tactic to automatically
-invert hypotheses involving [trans].
-|*)
-
-Ltac inv_label_eq EQl :=
-  match type of EQl with
-    | τ        = τ     =>
-        clear EQl
-    | val _   = val _ =>
-        apply val_eq_inv in EQl; try (inversion EQl; fail)
-    | ask _   = ask _ =>
-        let EQt := fresh "EQt" in
-        let EQe := fresh "EQe" in
-        apply ask_invT in EQl as EQt;
-        symmetry in EQt;
-        (* subst_hyp_in EQt h; *)
-        apply ask_inv in EQl as EQe;
-        try (inversion EQe; fail)
-    | rcv _ _ = rcv _ _ =>
-        let EQt := fresh "EQt" in
-        let EQt := fresh "EQv" in
-        let EQe := fresh "EQe" in
-        apply rcv_invT in EQl as EQt;
-        symmetry in EQt;
-        (* subst_hyp_in EQt h; *)
-        apply rcv_inv in EQl as [EQe EQv];
-        try (inversion EQe; inversion EQv; fail)
-    | _ => subst; try now inv EQl
-  end.
-
-Ltac inv_trans_one :=
-  match goal with
-  (* Ret *)
-  | h : htrans _ (α Ret _) _ |- _ =>
-      let EQl := fresh "EQl" in
-      let EQ  := fresh "EQ" in
-      (apply trans_ret_inv in h as [EQ EQl] || apply trans_ret_inv' in h as [EQ EQl]);
-      try rewrite EQ in *;
-      inv_label_eq EQl
-
-  (* Step *)
-  | h : htrans _ (α Step _) _ |- _ =>
-      let EQl := fresh "EQl" in
-      let EQ  := fresh "EQ" in
-      apply trans_step_inv' in h as (EQ & EQl);
-      try rewrite EQ in *;
-      inv_label_eq EQl
- 
-  (* Br *)
-  | h : htrans _ (α Br _ _) _ |- _ =>
-      let TR := fresh "TR" in
-      apply trans_br_inv in h as (?n & TR)
- 
-  | h : htrans _ (α br2 _ _) _ |- _ =>
-      let TR := fresh "TR" in
-      apply trans_br2_inv in h as [TR | TR]
-
-  | h : htrans _ (α br3 _ _ _) _ |- _ =>
-      let TR := fresh "TR" in
-      apply trans_br3_inv in h as [TR | [TR | TR]]
-
-  (* Guard *)
-  | h : htrans _ (α Guard _) _ |- _ =>
-      apply trans_guard_inv in h
-                                 
-  (* Vis *)
-  | h : htrans _ (α (Vis ?e ?k)) _ |- _ =>
-      let EQl := fresh "EQl" in
-      let EQ  := fresh "EQ" in
-      apply trans_vis_inv' in h as (EQ & EQl);
-      try rewrite EQ in *;
-      inv_label_eq EQl
-                   
-  (* Passive *)
-  | h : htrans _ (β ?e ?k) _ |- _ =>
-      let EQl := fresh "EQl" in
-      let EQ  := fresh "EQ" in
-      apply trans_passive_inv' in h as (?x & EQ & EQl);
-      try rewrite EQ in *;
-      inv_label_eq EQl
-
-  end.
-
-Ltac inv_trans := repeat inv_trans_one.
- 
 Create HintDb trans.
 #[global] Hint Resolve
  trans_ret trans_ask trans_brS trans_br
@@ -2551,3 +2354,208 @@ Proof.
     cbn in *; subst; now constructor.
 Qed.  
 
+(* (*| *)
+(* [wf_val] states that a [label] is well-formed: *)
+(* if it is a [val] it should be of the right type. *)
+(* |*) *)
+(* Definition wf_val {E} X l := forall Y (v : Y), l = @val E Y v -> X = Y. *)
+
+(* Lemma wf_val_val {E} X (v : X) : wf_val X (@val E X v). *)
+(* Proof. *)
+(*   red. intros. apply val_eq_invT in H. assumption. *)
+(* Qed. *)
+
+(* Lemma wf_val_nonval {E} X (l : @label E) : ~is_val l -> wf_val X l. *)
+(* Proof. *)
+(*   red. intros. subst. exfalso. apply H. constructor. *)
+(* Qed. *)
+
+(* Lemma wf_val_trans {E B X} (l : @label E) t t' : *)
+(*   @trans E B X l t t' -> wf_val X l. *)
+(* Proof. *)
+(*   red. intros. subst. *)
+(*   now apply trans_val_invT in H. *)
+(* Qed. *)
+
+(* Lemma wf_val_is_val_inv : forall {E} X (l : @label E), *)
+(*   is_val l -> *)
+(*   wf_val (E := E) X l -> *)
+(*   exists (x : X), l = val x. *)
+(* Proof. *)
+(*   intros. *)
+(*   destruct H. red in H0. *)
+(*   specialize (H0 X0 x eq_refl). subst. eauto. *)
+(* Qed. *)
+
+(* (*| If the LTS has events of type [L +' R] then *)
+(*   it is possible to step it as either an [L] LTS *)
+(*   or [R] LTS ignoring the other. *)
+(* *) *)
+(* Section Coproduct. *)
+(*   Arguments label: clear implicits. *)
+(*   Context {L R C: Type -> Type} {X: Type}. *)
+(*   Notation S := (ctree (L +' R) C X). *)
+(*   Notation S' := (ctree' (L +' R) C X). *)
+(*   Notation SP := (SS -> label (L +' R) -> Prop). *)
+
+(*   (* Skip an [R] event *) *)
+(*   Inductive srtrans_: rel S' S' := *)
+(*   | IgnoreR {X} (e : R X) k x t : *)
+(*     srtrans_ (observe (k x)) t -> *)
+(*     srtrans_ (VisF (inr1 e) k) t. *)
+
+(*   (* Skip an [L] event *) *)
+(*   Inductive sltrans_: rel S' S' := *)
+(*   | IgnoreL {X} (e : L X) k x t : *)
+(*     sltrans_ (observe (k x)) t -> *)
+(*     sltrans_ (VisF (inl1 e) k) t. *)
+
+(*   Hint Constructors srtrans_ sltrans_: core. *)
+
+(*   (* Make those relations that respect equality [srel] *) *)
+(*   Program Definition srtrans : srel SS SS := *)
+(*     {| hrel_of := (fun (u v: SS) => srtrans_ (observe u) (observe v)) |}. *)
+(*   Next Obligation. split; induction 1; auto. Defined. *)
+
+(*   Program Definition sltrans : srel SS SS := *)
+(*     {| hrel_of := (fun (u v: SS) => sltrans_ (observe u) (observe v)) |}. *)
+(*   Next Obligation. split; induction 1; auto. Defined. *)
+
+(*   (*| Obs transition on the left, ignores right transitions and [τ] |*) *)
+(*   Definition ltrans {X}(l: L X)(x: X): srel SS SS := *)
+(*     (trans τ ⊔ srtrans)^* ⋅ trans (obs (inl1 l) x) ⋅ (trans τ ⊔ srtrans)^*. *)
+
+(*   (*| Obs transition on the right, ignores left transitions and [τ] |*) *)
+(*   Definition rtrans {X}(r: R X)(x: X): srel SS SS := *)
+(*     (trans τ ⊔ sltrans)^* ⋅ trans (obs (inr1 r) x) ⋅ (trans τ ⊔ sltrans)^*. *)
+
+(* End Coproduct. *)
+
+#[global] Notation htrans l u v := (hrel_of (trans l) u v) (only parsing).
+
+(*|
+[refine_transition H]: given a transition whose concrete label is known,
+derive information on the active/passive status of its destination state.
+
+Currently very partial
+|*)
+Ltac refine_trans_in h :=
+  match type of h with
+  | htrans τ _ _ =>
+      let u  := fresh "u" in
+      let EQ := fresh "EQ" in
+      pose proof trans_τ_inv h as [u EQ];
+      rewrite EQ in *;
+      match type of EQ with
+      | Seq ?a _ => try clear a EQ
+      end
+  | htrans (ask ?e) _ _ =>
+      let u  := fresh "u" in
+      let EQ := fresh "EQ" in
+      pose proof trans_ask_inv h as [u EQ];
+      rewrite EQ in *;
+      match type of EQ with
+      | Seq ?a _ => try clear a EQ
+      end
+  end.
+
+Tactic Notation "refine_trans" :=
+  match goal with
+  | h : htrans _ _ _ |- _ => refine_trans_in h
+  end.
+Tactic Notation "refine_trans" "in" ident(h) := refine_trans_in h.
+
+(*|
+[inv_trans] is an helper tactic to automatically
+invert hypotheses involving [trans].
+|*)
+
+Ltac inv_label_eq EQl :=
+  match type of EQl with
+    | τ        = τ     =>
+        clear EQl
+    | val _   = val _ =>
+        apply val_eq_inv in EQl; try (inversion EQl; fail)
+    | ask _   = ask _ =>
+        let EQt := fresh "EQt" in
+        let EQe := fresh "EQe" in
+        apply ask_invT in EQl as EQt;
+        symmetry in EQt;
+        (* subst_hyp_in EQt h; *)
+        apply ask_inv in EQl as EQe;
+        try (inversion EQe; fail)
+    | rcv _ _ = rcv _ _ =>
+        let EQt := fresh "EQt" in
+        let EQt := fresh "EQv" in
+        let EQe := fresh "EQe" in
+        apply rcv_invT in EQl as EQt;
+        symmetry in EQt;
+        (* subst_hyp_in EQt h; *)
+        apply rcv_inv in EQl as [EQe EQv];
+        try (inversion EQe; inversion EQv; fail)
+    | _ => subst; try now inv EQl
+  end.
+
+Ltac inv_trans_one :=
+  match goal with
+  (* Ret *)
+  | h : htrans _ (α Ret _) _ |- _ =>
+      let EQl := fresh "EQl" in
+      let EQ  := fresh "EQ" in
+      (apply trans_ret_inv in h as [EQ EQl] || apply trans_ret_inv' in h as [EQ EQl]);
+      try rewrite EQ in *;
+      inv_label_eq EQl
+
+  (* Step *)
+  | h : htrans _ (α Step _) _ |- _ =>
+      let EQl := fresh "EQl" in
+      let EQ  := fresh "EQ" in
+      apply trans_step_inv' in h as (EQ & EQl);
+      try rewrite EQ in *;
+      inv_label_eq EQl
+ 
+  (* Br *)
+  | h : htrans _ (α Br _ _) _ |- _ =>
+      let TR := fresh "TR" in
+      apply trans_br_inv in h as (?n & TR)
+ 
+  | h : htrans _ (α br2 _ _) _ |- _ =>
+      let TR := fresh "TR" in
+      apply trans_br2_inv in h as [TR | TR]
+
+  | h : htrans _ (α br3 _ _ _) _ |- _ =>
+      let TR := fresh "TR" in
+      apply trans_br3_inv in h as [TR | [TR | TR]]
+
+  | h : htrans _ (α br4 _ _ _ _) _ |- _ =>
+      let TR := fresh "TR" in
+      apply trans_br4_inv in h as [TR | [TR | [TR | TR]]]
+
+  (* Guard *)
+  | h : htrans _ (α Guard _) _ |- _ =>
+      apply trans_guard_inv in h
+                                 
+  (* Vis *)
+  | h : htrans _ (α (Vis ?e ?k)) _ |- _ =>
+      let EQl := fresh "EQl" in
+      let EQ  := fresh "EQ" in
+      apply trans_vis_inv' in h as (EQ & EQl);
+      try rewrite EQ in *;
+      inv_label_eq EQl
+
+ (* Stuck *)
+  | h : htrans _ (α Stuck) _ |- _ =>
+      exfalso; eapply trans_stuck_inv; now apply h
+ 
+  (* Passive *)
+  | h : htrans _ (β ?e ?k) _ |- _ =>
+      let EQl := fresh "EQl" in
+      let EQ  := fresh "EQ" in
+      apply trans_passive_inv' in h as (?x & EQ & EQl);
+      try rewrite EQ in *;
+      inv_label_eq EQl
+
+  end.
+
+Ltac inv_trans := repeat (inv_trans_one).
+ 
