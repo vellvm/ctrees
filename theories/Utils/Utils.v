@@ -117,6 +117,7 @@ Ltac ex  :=  eexists.
 Ltac ex2 := do 2 eexists.
 Ltac ex3 := do 3 eexists.
 Ltac split3 := split; [| split].
+Ltac split4 := split; [| split; [| split]].
 Ltac edestruct3 H := edestruct H as (? & ? & ?).
 Ltac edestruct4 H := edestruct H as (? & ? & ? & ?).
 Ltac edestruct5 H := edestruct H as (? & ? & ? & ? & ?).

@@ -736,7 +736,7 @@ Same three-layer shape as in [SSim.v] / [CSSim.v]:
 - [sb_*]: body-level, on a chain element [`R];
 - [sbisim_*]: gfp-level.
 |*)
-Section Proof_Rules.
+Section Proof_rules.
 
   Context {E F C D : Type -> Type} {X Y : Type}.
 
@@ -752,7 +752,7 @@ Section Proof_Rules.
   
   Lemma sbisim_is_stuck L :
     forall (t : ctree E C X) (u : ctree F D Y),
-      sbisim L t u -> is_stuck t <-> is_stuck u.
+      t (≃ L) u -> is_stuck t <-> is_stuck u.
   Proof.
     intros * SB; step in SB; eauto using sb_is_stuck.
   Qed.
@@ -768,7 +768,7 @@ Section Proof_Rules.
     
   Lemma is_stuck_sbisim L :
     forall (t : ctree E C X) (u : ctree F D Y),
-      is_stuck t -> is_stuck u -> sbisim L t u.
+      is_stuck t -> is_stuck u -> t (≃ L) u.
   Proof.
     intros; step; auto using is_stuck_sb.
   Qed.
@@ -805,7 +805,7 @@ Section Proof_Rules.
 
   Lemma sbisim_ret (x : X) (y : Y) L :
     RR L x y ->
-    sbisim L (Ret x : ctree E C X) (Ret y : ctree F D Y).
+    (Ret x : ctree E C X) (≃ L) (Ret y : ctree F D Y).
   Proof.
     intros; step; now apply sb_ret.
   Qed.
@@ -849,9 +849,9 @@ Section Proof_Rules.
   Lemma sbisim_vis {Z Z'} (e : E Z) (f : F Z')
     (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) L
     (HRask : Rask L e f)
-    (HRfwd : forall x, exists y, sbisim L (k x) (k' y) /\ Rrcv L e f x y)
-    (HRbwd : forall y, exists x, sbisim L (k x) (k' y) /\ Rrcv L e f x y) :
-    sbisim L (Vis e k) (Vis f k').
+    (HRfwd : forall x, exists y, (k x) (≃ L) (k' y) /\ Rrcv L e f x y)
+    (HRbwd : forall y, exists x, (k x) (≃ L) (k' y) /\ Rrcv L e f x y) :
+    (Vis e k) (≃ L) (Vis f k').
   Proof.
     now step; apply sb_vis.
   Qed.
@@ -870,8 +870,8 @@ Section Proof_Rules.
   Lemma sbisim_vis_id {Z} (e : E Z) (f : F Z)
     (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) L
     (HRask : Rask L e f)
-    (HRrcv : forall z, sbisim L (k z) (k' z) /\ Rrcv L e f z z) :
-    sbisim L (Vis e k) (Vis f k').
+    (HRrcv : forall z, (k z) (≃ L) (k' z) /\ Rrcv L e f z z) :
+    (Vis e k) (≃ L) (Vis f k').
   Proof.
     now step; apply sb_vis_id.
   Qed.
@@ -964,9 +964,9 @@ Section Proof_Rules.
 
   Lemma sbisim_br {A B} (c : C A) (d : D B)
     (k : A -> ctree E C X) (k' : B -> ctree F D Y) L :
-    (forall x, exists y, sbisim L (k x) (k' y)) ->
-    (forall y, exists x, sbisim L (k x) (k' y)) ->
-    sbisim L (Br c k) (Br d k').
+    (forall x, exists y, (k x) (≃ L) (k' y)) ->
+    (forall y, exists x, (k x) (≃ L) (k' y)) ->
+    (Br c k) (≃ L) (Br d k').
   Proof.
     intros H1 H2; step; apply sb_br; eauto.
     intros x; destruct (H1 x); eexists; step in H; eauto.
@@ -975,8 +975,8 @@ Section Proof_Rules.
 
   Lemma sbisim_br_id {A} (c : C A) (d : D A)
     (k : A -> ctree E C X) (k' : A -> ctree F D Y) L :
-    (forall x, sbisim L (k x) (k' x)) ->
-    sbisim L (Br c k) (Br d k').
+    (forall x, (k x) (≃ L) (k' x)) ->
+    (Br c k) (≃ L) (Br d k').
   Proof.
     intros; step; apply sb_br_id; eauto.
     intros x; specialize (H x); step in H; auto.
@@ -984,8 +984,8 @@ Section Proof_Rules.
 
   Lemma sbisim_br_l {Z} (c : C Z) (x : Z)
     (k : Z -> ctree E C X) (t : ctree F D Y) L :
-    (forall z, sbisim L (k z) t) ->
-    sbisim L (Br c k) t.
+    (forall z, (k z) (≃ L) t) ->
+    (Br c k) (≃ L) t.
   Proof.
     intros; step; apply sb_br_l; eauto.
     intros y; specialize (H y); step in H; auto.
@@ -993,119 +993,204 @@ Section Proof_Rules.
 
   Lemma sbisim_br_r {Z} (d : D Z) (y : Z)
     (k : Z -> ctree F D Y) (t : ctree E C X) L :
-    (forall z, sbisim L t (k z)) ->
-    sbisim L t (Br d k).
+    (forall z, t (≃ L) (k z)) ->
+    t (≃ L) (Br d k).
   Proof.
     intros; step; apply sb_br_r; eauto.
     intros x; specialize (H x); step in H; auto.
   Qed.
 
-  (* CHECKPOINT *)
   (*|
   Guard — a silent wrapper; absorbed by [≃].
   |*)
   Lemma sb_guard_l_gen (t : ctree E C X) (u : ctree F D Y) R L :
     sb L R t u -> sb L R (Guard t) u.
   Proof.
-    
+    intros EQ.
+    play; inv_trans; eplay; answer.
+  Qed.
 
   Lemma sb_guard_l (t : ctree E C X) (u : ctree F D Y) L
     {R : Chain (@sb E F C D X Y L)} :
     sb L `R t u -> sb L `R (Guard t) u.
-  Admitted.
-
+  Proof.
+    apply sb_guard_l_gen.
+  Qed.
+  
   Lemma sbisim_guard_l (t : ctree E C X) (u : ctree F D Y) L :
-    sbisim L t u -> sbisim L (Guard t) u.
-  Admitted.
-
+    t (≃ L) u -> (Guard t) (≃ L) u.
+  Proof.
+    intros H; step in H; step; apply sb_guard_l_gen; auto.
+  Qed.
+         
   Lemma sb_guard_r_gen (t : ctree E C X) (u : ctree F D Y) R L :
     sb L R t u -> sb L R t (Guard u).
-  Admitted.
+  Proof.
+    intros EQ.
+    play; inv_trans; eplay; answer.
+  Qed.
 
   Lemma sb_guard_r (t : ctree E C X) (u : ctree F D Y) L
     {R : Chain (@sb E F C D X Y L)} :
     sb L `R t u -> sb L `R t (Guard u).
-  Admitted.
-
+  Proof.
+    apply sb_guard_r_gen.
+  Qed.
+ 
   Lemma sbisim_guard_r (t : ctree E C X) (u : ctree F D Y) L :
-    sbisim L t u -> sbisim L t (Guard u).
-  Admitted.
+    t (≃ L) u -> t (≃ L) (Guard u).
+  Proof.
+    intros H; step in H; step; apply sb_guard_r_gen; auto.
+  Qed.
+         
+  Lemma sb_gguard_gen (t : ctree E C X) (u : ctree F D Y) R L :
+    sb L R t u -> sb L R (Guard t) (Guard u).
+  Proof.
+    intros EQ.
+    play; inv_trans; eplay; answer.
+  Qed.
 
-  Lemma sbisim_guard (t : ctree E C X) (u : ctree F D Y) L :
-    sbisim L t u -> sbisim L (Guard t) (Guard u).
-  Admitted.
+  Lemma sb_gguard (t : ctree E C X) (u : ctree F D Y) L
+    {R : Chain (@sb E F C D X Y L)} :
+    sb L `R t u -> sb L `R (Guard t) (Guard u).
+  Proof.
+    apply sb_gguard_gen.
+  Qed.
+ 
+  Lemma sbisim_gguard (t : ctree E C X) (u : ctree F D Y) L :
+    t (≃ L) u -> (Guard t) (≃ L) (Guard u).
+  Proof.
+    intros H; step in H; step; apply sb_gguard_gen; auto.
+  Qed.
 
   (*|
   Internal transitions — [Step].
   |*)
   Lemma sb_step_gen (t : ctree E C X) (u : ctree F D Y) R L :
-    (Proper (Seq ==> Seq ==> impl) R) ->
-    L τ τ ->
+    Proper (Seq ==> Seq ==> impl) R ->
+    Proper (Seq ==> Seq ==> flip impl) R ->
     R (α t) (α u) ->
     sb L R (Step t) (Step u).
-  Admitted.
+  Proof.
+    split; apply ss_step_gen; eauto; typeclasses eauto.
+  Qed.
 
   Lemma sb_step (t : ctree E C X) (u : ctree F D Y) L
     {R : Chain (@sb E F C D X Y L)} :
-    L τ τ ->
     `R t u ->
     sb L `R (Step t) (Step u).
-  Admitted.
+  Proof.
+    intros.
+    apply sb_step_gen; eauto; typeclasses eauto.
+  Qed.
 
   Lemma sbisim_step (t : ctree E C X) (u : ctree F D Y) L :
-    L τ τ ->
-    sbisim L t u ->
-    sbisim L (Step t) (Step u).
-  Admitted.
+    t (≃ L) u ->
+    (Step t) (≃ L) (Step u).
+  Proof.
+    intros. step. apply sb_step; auto.
+  Qed.
 
   (*|
   Visible branching — [BrS].
   |*)
+  Lemma sb_brS_gen {Z Z'} (c : C Z) (d : D Z')
+    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) R L :
+    Proper (Seq ==> Seq ==> impl) R ->
+    Proper (Seq ==> Seq ==> flip impl) R ->
+    (forall x, exists y, R (α (k x)) (α (k' y))) ->
+    (forall y, exists x, R (k x) (k' y)) ->
+    sb L R (BrS c k) (BrS d k').
+  Proof.
+    intros ? ? EQs1 EQs2.
+    apply sb_br_gen; intros x.
+    - destruct (EQs1 x) as [z ?]; exists z.
+      apply sb_step_gen; auto.
+    - destruct (EQs2 x) as [z ?]. exists z.
+      apply sb_step_gen; eauto.
+  Qed.
+
+  Lemma sb_brS_id_gen {X'} (c : C X') (d: D X')
+    (k : X' -> ctree E C X) (k' : X' -> ctree F D Y) (R : rel _ _) L:
+    Proper (Seq ==> Seq ==> impl) R ->
+    Proper (Seq ==> Seq ==> flip impl) R ->
+    (forall x, R (k x) (k' x)) ->
+    sb L R (BrS c k) (BrS d k').
+  Proof.
+    intros ?? EQs.
+    split; apply sb_br_id_gen; intros; apply sb_step_gen; auto.
+  Qed.
+
   Lemma sb_brS {Z Z'} (c : C Z) (d : D Z')
     (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) L
     {R : Chain (@sb E F C D X Y L)} :
-    L τ τ ->
     (forall x, exists y, `R (k x) (k' y)) ->
     (forall y, exists x, `R (k x) (k' y)) ->
     sb L `R (BrS c k) (BrS d k').
-  Admitted.
-
-  Lemma sbisim_brS {Z Z'} (c : C Z) (d : D Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) L :
-    L τ τ ->
-    (forall x, exists y, sbisim L (k x) (k' y)) ->
-    (forall y, exists x, sbisim L (k x) (k' y)) ->
-    sbisim L (BrS c k) (BrS d k').
-  Admitted.
-
+  Proof.
+    intros; apply sb_brS_gen; auto; typeclasses eauto.
+  Qed.
+  
   Lemma sb_brS_id {Z} (c : C Z) (d : D Z)
     (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) L
     {R : Chain (@sb E F C D X Y L)} :
-    L τ τ ->
     (forall x, `R (k x) (k' x)) ->
     sb L `R (BrS c k) (BrS d k').
-  Admitted.
+  Proof.
+    intros; apply sb_brS_id_gen; auto; typeclasses eauto.
+  Qed.
 
+  Lemma sbisim_brS {Z Z'} (c : C Z) (d : D Z')
+    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) L :
+    (forall x, exists y, (k x) (≃ L) (k' y)) ->
+    (forall y, exists x, (k x) (≃ L) (k' y)) ->
+    (BrS c k) (≃ L) (BrS d k').
+  Proof.
+    intros; step; apply sb_brS; auto.
+  Qed.
+  
   Lemma sbisim_brS_id {Z} (c : C Z) (d : D Z)
     (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) L :
-    L τ τ ->
-    (forall x, sbisim L (k x) (k' x)) ->
-    sbisim L (BrS c k) (BrS d k').
-  Admitted.
-
+    (forall x, (k x) (≃ L) (k' x)) ->
+    BrS c k (≃ L ) BrS d k'.
+  Proof.
+    intros; step; apply sb_brS_id; auto.
+  Qed.
+ 
   (*|
   [spinS] laws.
   |*)
-  Lemma sbisim_spinS_nonempty :
-    forall {Z Z'} L (x : Z) (y : Z') (c : C Z) (c' : D Z'),
-      L τ τ ->
-      @sbisim E F C D X Y L (spinS_gen c) (spinS_gen c').
-  Admitted.
+  Lemma spinS_gen_nonempty :
+    forall (L : lrel E F X Y) {Z Z'} (c: C Z) (c': D Z') (z: Z) (z': Z'),
+      @spinS_gen E C X Z c (≃ L ) @spinS_gen F D Y Z' c'.
+  Proof.
+    intros * ??.
+    coinduction S CIH.
+    rewrite (ctree_eta (spinS_gen c)), (ctree_eta (spinS_gen c')); cbn.
+    apply sb_brS; intros _; eauto.
+  Qed.
 
   Lemma sbisim_spinS_empty :
     forall L (c : C False) (c' : D False),
       @sbisim E F C D X Y L (spinS_gen c) (spinS_gen c').
-  Admitted.
+  Proof.
+    intros.
+    eapply is_stuck_sbisim.
+    intros ?? TR; rewrite ctree_eta in TR; cbn in TR; now inv_trans.
+    intros ?? TR; rewrite ctree_eta in TR; cbn in TR; now inv_trans.
+  Qed.
+
+End Proof_rules.
+
+Lemma sbisim_guard {E C X} (t : ctree E C X) :
+  Guard t ≃ t.
+Proof.
+  now apply sbisim_guard_l.
+Qed.
+
+Section Inversion_rules.
+
+    Context {E F C D : Type -> Type} {X Y : Type}.
 
 (*|
 Inversion principles
@@ -1113,104 +1198,191 @@ Inversion principles
 |*)
 
   Lemma sbisim_stuck_inv L (t : ctree E C X) (u : ctree F D Y) :
-    sbisim L t u -> is_stuck t <-> is_stuck u.
-  Admitted.
-
+    t (≃ L) u -> is_stuck t <-> is_stuck u.
+  Proof.
+    intros SB; split; intros IS ?? tr; eplay; eapply IS; eauto.
+  Qed.
+  
   Lemma sbisim_ret_l_inv L :
     forall r (u : ctree F D Y),
-      sbisim L (Ret r : ctree E C X) u ->
+      (Ret r : ctree E C X) (≃ L) u ->
       exists r' u', trans (val r') u u' /\ RR L r r'.
-  Admitted.
+  Proof.
+    intros.
+    eplayL.
+    invL.
+    etrans.
+  Qed.
 
   Lemma sbisim_ret_r_inv L :
     forall r' (t : ctree E C X),
-      sbisim L t (Ret r' : ctree F D Y) ->
+      t (≃ L) (Ret r' : ctree F D Y) ->
       exists r t', trans (val r) t t' /\ RR L r r'.
-  Admitted.
+  Proof.
+    intros.
+    eplayR.
+    invL.
+    etrans.
+  Qed.
 
   Lemma sbisim_ret_inv L (r : X) (r' : Y) :
-    sbisim L (Ret r : ctree E C X) (Ret r' : ctree F D Y) ->
+    (Ret r : ctree E C X) (≃ L) (Ret r' : ctree F D Y) ->
     RR L r r'.
-  Admitted.
+  Proof.
+    intro.
+    eplayL.
+    invL.
+    inv_trans.
+    now subst.
+  Qed.
 
   Lemma sbisim_vis_l_inv {Z L} :
-    forall (e : E Z) (k : Z -> ctree E C X) u,
-      sbisim L (Vis e k) u ->
+    forall (e : E Z) (k : Z -> ctree E C X) (u : ctree F D Y),
+      (Vis e k) (≃ L) u ->
       exists Z' (f : F Z') k',
         trans (ask f) u (β f k') /\
         Rask L e f /\
-        (forall x, exists y, sbisim L (k x) (k' y) /\ Rrcv L e f x y) /\
-        (forall y, exists x, sbisim L (k x) (k' y) /\ Rrcv L e f x y).
-  Admitted.
+        (forall x, exists y, (k x) (≃ L) (k' y) /\ Rrcv L e f x y) /\
+        (forall y, exists x, (k x) (≃ L) (k' y) /\ Rrcv L e f x y).
+  Proof.
+    intros.
+    eplayL; invL.
+    refine_trans in TR.
+    ex3; split4; eauto.
+    - intros x.
+      step in EQ.
+      edestruct EQ as [(? & ? & ? & ? & ?) _]; unshelve etrans; eauto.
+      inv_trans; invL; eauto.
+    - intros x.
+      step in EQ.
+      edestruct EQ as [_ (? & ? & ? & ? & ?)]; unshelve etrans; eauto.
+      inv_trans; invL; eauto.
+  Qed.
+  
+  Lemma sbisim_vis_r_inv {Z L} :
+    forall (t : ctree E C X) (f : F Z) (k' : Z -> ctree F D Y),
+      t (≃ L) (Vis f k') ->
+      exists Z' (e : E Z') k,
+        trans (ask e) t (β e k) /\
+        Rask L e f /\
+        (forall x, exists y, (k x) (≃ L) (k' y) /\ Rrcv L e f x y) /\
+        (forall y, exists x, (k x) (≃ L) (k' y) /\ Rrcv L e f x y).
+  Proof.
+    intros.
+    eplayR; invL.
+    refine_trans in TR.
+    ex3; split4; eauto.
+    - intros x.
+      step in EQ.
+      edestruct EQ as [(? & ? & ? & ? & ?) _]; unshelve etrans; eauto.
+      inv_trans; invL; eauto.
+    - intros x.
+      step in EQ.
+      edestruct EQ as [_ (? & ? & ? & ? & ?)]; unshelve etrans; eauto.
+      inv_trans; invL; eauto.
+  Qed.
 
   Lemma sbisim_vis_inv {Z Z'} L
     (e : E Z) (f : F Z')
     (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) :
-    sbisim L (Vis e k) (Vis f k') ->
+    (Vis e k) (≃ L) (Vis f k') ->
     Rask L e f /\
-    (forall x, exists y, Rrcv L e f x y /\ sbisim L (k x) (k' y)) /\
-    (forall y, exists x, Rrcv L e f x y /\ sbisim L (k x) (k' y)).
-  Admitted.
-
-  Lemma sbisim_vis_invT {Z Z'} L
-    (e : E Z) (f : F Z')
-    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) (x : Z) :
-    sbisim L (Vis e k) (Vis f k') -> Rask L e f.
-  Admitted.
+    (forall x, exists y, Rrcv L e f x y /\ (k x) (≃ L) (k' y)) /\
+    (forall y, exists x, Rrcv L e f x y /\ (k x) (≃ L) (k' y)).
+  Proof.
+    intros.
+    eplayL; invL.
+    inv_trans.
+    dependent destruction EQl.
+    split3; auto.
+    - intros x.
+      step in EQ.
+      edestruct EQ as [(? & ? & ? & ? & ?) _]; unshelve etrans; eauto.
+      inv_trans; invL; eauto.
+    - intros x.
+      step in EQ.
+      edestruct EQ as [_ (? & ? & ? & ? & ?)]; unshelve etrans; eauto.
+      inv_trans; invL; eauto.
+  Qed.
 
   Lemma sbisim_guard_l_inv L (t : ctree E C X) (u : ctree F D Y) :
-    sbisim L (Guard t) u -> sbisim L t u.
-  Admitted.
-
+    (Guard t) (≃ L) u -> t (≃ L) u.
+  Proof.
+    intros.
+    now rewrite sbisim_guard in H.
+  Qed.
+  
   Lemma sbisim_guard_r_inv L (t : ctree E C X) (u : ctree F D Y) :
-    sbisim L t (Guard u) -> sbisim L t u.
-  Admitted.
+    t (≃ L) (Guard u) -> t (≃ L) u.
+  Proof.
+    intros.
+    now rewrite sbisim_guard in H.
+  Qed.
 
   Lemma sbisim_guard_inv L (t : ctree E C X) (u : ctree F D Y) :
-    sbisim L (Guard t) (Guard u) -> sbisim L t u.
-  Admitted.
-
-  Lemma sbisim_br_l_inv L Z
-    (c : C Z) (t : ctree F D Y) (k : Z -> ctree E C X) :
-    sbisim L (Br c k) t ->
-    forall x, sbisim L (k x) t.
-  Admitted.
-
-  Lemma sbisim_br_r_inv L Z
-    (d : D Z) (t : ctree E C X) (k : Z -> ctree F D Y) :
-    sbisim L t (Br d k) ->
-    forall y, sbisim L t (k y).
-  Admitted.
+    (Guard t) (≃ L) (Guard u) -> t (≃ L) u.
+  Proof.
+    intros.
+    now rewrite !sbisim_guard in H.
+  Qed.
 
   Lemma sbisim_step_inv L (t : ctree E C X) (u : ctree F D Y) :
-    sbisim L (Step t) (Step u) -> sbisim L t u.
-  Admitted.
-
+    (Step t) (≃ L) (Step u) -> t (≃ L) u.
+  Proof.
+    intros.
+    now eplay; inv_trans; invL.
+  Qed.
+  
   Lemma sbisim_step_l_inv L (t : ctree E C X) (u : ctree F D Y) :
-    sbisim L (Step t) u ->
-    exists u', trans τ u u' /\ sbisim L t u'.
-  Admitted.
+    (Step t) (≃ L) u ->
+    exists u', trans τ u u' /\ t (≃ L) u'.
+  Proof.
+    intros.
+    eplayL. invL.
+    eexists; split; eauto.
+  Qed.
 
   Lemma sbisim_step_r_inv L (t : ctree E C X) (u : ctree F D Y) :
-    sbisim L t (Step u) ->
-    exists t', trans τ t t' /\ sbisim L t' u.
-  Admitted.
+    t (≃ L) (Step u) ->
+    exists t', trans τ t t' /\ t' (≃ L) u.
+  Proof.
+    intros.
+    eplayR. invL.
+    eexists; split; eauto.
+  Qed.
 
   Lemma sbisim_brS_inv L
     {A B} (c : C A) (d : D B)
     (k1 : A -> ctree E C X) (k2 : B -> ctree F D Y) :
-    sbisim L (BrS c k1) (BrS d k2) ->
-    (forall a, exists b, sbisim L (k1 a) (k2 b)) /\
-    (forall b, exists a, sbisim L (k1 a) (k2 b)).
-  Admitted.
-
+    (BrS c k1) (≃ L) (BrS d k2) ->
+    (forall a, exists b, (k1 a) (≃ L) (k2 b)) /\
+    (forall b, exists a, (k1 a) (≃ L) (k2 b)).
+  Proof.
+    intros.
+    split; intros.
+    - unshelve eplayL; auto; inv_trans; invL; eauto.
+    - unshelve eplayR; auto; inv_trans; invL; eauto.
+  Qed.
+  
   Lemma sbisim_brS_l_inv L
     {A} (c : C A) (k1 : A -> ctree E C X) (u : ctree F D Y) :
-    sbisim L (BrS c k1) u ->
-    forall a, exists u', trans τ u u' /\ sbisim L (k1 a) u'.
-  Admitted.
+    (BrS c k1) (≃ L) u ->
+    forall a, exists u', trans τ u u' /\ (k1 a) (≃ L) u'.
+  Proof.
+    intros.
+    unshelve eplayL; auto; inv_trans; invL; eauto.
+  Qed.
+  
+  Lemma sbisim_brS_r_inv L
+    {B} (d : D B) (k2 : B -> ctree F D Y) (t : ctree E C X) :
+    t (≃ L) (BrS d k2) ->
+    forall b, exists t', trans τ t t' /\ t' (≃ L) (k2 b).
+  Proof.
+    intros.
+    unshelve eplayR; auto; inv_trans; invL; eauto.
+  Qed.
 
-End Proof_Rules.
+End Inversion_rules.
 
 (*|
 Sanity checks and structural laws (homogeneous).
