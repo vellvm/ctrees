@@ -274,21 +274,6 @@ Section sbisim_homogenous_theory.
 
 End sbisim_homogenous_theory.
 
-Lemma Leq_eq {E X}: build_rel (@Leq E X) == eq.
-Proof.
-  split; [| intros <-; reflexivity].
-  intros []; auto.
-  dependent induction HR; auto.
-  dependent induction HR; auto.
-  cbn in H; subst; auto.
-Qed.
-
-Lemma flipL_Leq {E X}: lequiv (flipL (@Leq E X)) Leq.
-Proof.
-  cbv; intuition.
-  all: dependent induction H; constructor.
-Qed.
-
 (*|
 Heterogeneous theory
 --------------------
@@ -1561,41 +1546,99 @@ Interaction with (complete) strong simulation
 |*)
 Section SBisim_vs_SSim.
 
-  Context {E F C D : Type -> Type} {X Y : Type}
-          {L : lrel E F X Y}.
+  Section withParam.
+    
+    Context {E F C D : Type -> Type} {X Y : Type}
+      {L : lrel E F X Y}.
 
-  Notation ss    := (@ss    E F C D X Y).
-  Notation ssim  := (@ssim  E F C D X Y).
+    Notation ss    := (@ss    E F C D X Y).
+    Notation ssim  := (@ssim  E F C D X Y).
 
-  (*|
-  A two-sided [ss] gives an [sb]; the converse fails in general (see
-  [ssim_sbisim_nequiv] below).
-  |*)
-  Lemma ss_sb (R : rel _ _) (t : ctree E C X) (u : ctree F D Y) :
-    ss L R t u ->
-    ss (flipL L) (flip R) u t ->
-    sb L R t u.
-  Admitted.
+    #[global] Instance sbisim_ss_chain_goal {c : Chain (ss L)} :
+      Proper (sbisimeq ==> sbisimeq ==> flip impl) `c.
+    Proof.
+      apply tower.
+      - intros ? INC x y EQ x' y' EQ' ?? HP; red.
+        eapply INC; eauto.
+        eapply leq_infx in HP.
+        now apply HP.
+      - clear.
+        intros c IH x y EQ x' y' EQ' SS ?? TR.
+        playL in EQ.
+        apply SS in TR0; destruct TR0 as (? & ? & TR0 & Sbis' & HL).
+        playR in EQ'.
+        ex2; split3; eauto.
+        eapply IH; eauto.
+        rewrite flipL_Leq in H0.
+        apply Leq_eq in H,H0; subst; auto.
+    Qed.
 
-  Lemma sbisim_clos_ss {c : Chain (ss L)} :
-    forall x y, @sbisim_clos E F C D X Y Leq Leq `c x y -> `c x y.
-  Admitted.
+    #[global] Instance sbisim_ss_chain_ctx {c : Chain (ss L)} :
+      Proper (sbisimeq ==> sbisimeq ==> impl) `c.
+    Proof.
+      apply tower.
+      - intros ? INC x y EQ x' y' EQ' ?? HP; red.
+        eapply INC; eauto.
+        eapply leq_infx in HP.
+        now apply HP.
+      - clear.
+        intros c IH x y EQ x' y' EQ' SS ?? TR.
+        playR in EQ.
+        apply SS in TR0; destruct TR0 as (? & ? & TR0 & Sbis' & HL).
+        playL in EQ'.
+        ex2; split3; eauto.
+        eapply IH; eauto.
+        rewrite flipL_Leq in H.
+        apply Leq_eq in H,H0; subst; auto.
+    Qed.
 
-  #[global] Instance sbisim_eq_clos_ss_goal {R : Chain (ss L)} :
-    Proper (sbisim Leq ==> sbisim Leq ==> flip impl) `R.
-  Admitted.
+    #[global] Instance sbisim_ssim_goal :
+      Proper (sbisim Leq ==> sbisim Leq ==> flip impl) (ssim L).
+    Proof.
+      repeat intro; eapply sbisim_ss_chain_goal; eauto.
+    Qed.
 
-  #[global] Instance sbisim_eq_clos_ss_ctx {R : Chain (ss L)} :
-    Proper (sbisim Leq ==> sbisim Leq ==> impl) `R.
-  Admitted.
+    #[global] Instance sbisim_ssim_ctx :
+      Proper (sbisim Leq ==> sbisim Leq ==> impl) (ssim L).
+    Proof.
+      repeat intro; eapply sbisim_ss_chain_ctx; eauto.
+    Qed.
 
-  #[global] Instance sbisim_eq_clos_ssim_goal :
-    Proper (sbisim Leq ==> sbisim Leq ==> flip impl) (ssim L).
-  Admitted.
+    (*|
+      "Co-similarity" does not entail bisimilarity as per [ssim_sbisim_nequiv],
+      but we can get something weaker:
+    |*)
+    Lemma ss_sb (R : rel _ _) (t : ctree E C X) (u : ctree F D Y) :
+      ss L R t u ->
+      SSim.ss (flipL L) (flip R) u t ->
+      sb L R t u.
+    Proof.
+      split; cbn; intros.
+      - apply H in H1 as (? & ? & ? & ? & ?); eauto.
+      - apply H0 in H1 as (? & ? & ? & ? & ?); eauto.
+    Qed.
+          
+  End withParam.
 
-  #[global] Instance sbisim_eq_clos_ssim_ctx :
-    Proper (sbisim Leq ==> sbisim Leq ==> impl) (ssim L).
-  Admitted.
+  (* Bisimilarity entails co-similarity. *)
+  Lemma ssim_sbisim {E C X} (t u : ctree E C X) :
+    t ≃ u ->
+    ssim Leq t u /\ ssim Leq u t.
+  Proof.
+    intros SB.
+    split.
+    - coinduction r cih.
+      intros ?? TR.
+      playL in SB.
+      answer.
+      now rewrite EQ.
+    - coinduction r cih.
+      intros ?? TR.
+      playR in SB.
+      answer.
+      now rewrite EQ.
+      now simpL.
+  Qed.
 
 End SBisim_vs_SSim.
 
@@ -1608,11 +1651,28 @@ Section Two_ss_is_not_sb.
     ss Leq RR t t' ->
     ss Leq (flip RR) t' t ->
     sb Leq RR t t'.
-  Admitted.
+  Proof.
+    intros * fwd bwd.
+    play.
+    apply fwd in TR as (? & ? & ? & ? & ?); answer.
+    apply bwd in TR as (? & ? & ? & ? & ?); answer.
+    now rewrite flipL_Leq.
+  Qed.
 
   Lemma split_sbisim_eq {E B X} (t u : ctree E B X) :
     t ≃ u <-> ss Leq (sbisim Leq) t u /\ ss Leq (sbisim Leq) u t.
-  Admitted.
+    Proof.
+      split; intro.
+      - step in H. split; [apply H |].
+        symmetry in H. apply H.
+      - step. split; [apply H |].
+        destruct H as [_ ?].
+        (* todo: this should be nicer *)
+        eapply lequiv_ss; [apply flipL_Leq |].
+        cbn; intros.
+        apply H in H0 as (? & ? & ? & ? & ?); answer.
+        symmetry; auto.
+    Qed.
 
   (*|
   A concrete counter-example: [Step (Ret tt)] and [brS2 (Ret tt) Stuck]
@@ -1620,47 +1680,147 @@ Section Two_ss_is_not_sb.
   |*)
   Lemma ssim_sbisim_nequiv :
     exists (t1 t2 : ctree void1 B2 unit),
-      ssim Leq t1 t2 /\ ssim Leq t2 t1 /\ ≃ sbisim Leq t1 t2.
-  Admitted.
+      ssim Leq t1 t2 /\ ssim Leq t2 t1 /\ ~ sbisimeq t1 t2.
+  Proof.
+    exists (Step (Ret tt)), (brS2 (Ret tt) (Stuck)).
+    intuition.
+    - unfold brS2.
+      step.
+      intros ?? TR.
+      inv_trans; subst.
+      exists τ, (α (Ret tt)); split3.
+      apply trans_br with true; etrans.
+      now rewrite EQ.
+      eauto.
+    - step; intros ?? TR.
+      inv_trans.
+      exists τ, (α (Ret tt)); intuition; now rewrite EQ.
+      exists τ, (α (Ret tt)). intuition.
+      rewrite EQ; apply ssim_stuck.
+    - step in H. cbn in H. destruct H as [_ ?].
+      specialize (H τ Stuck). lapply H; [| etrans].
+      intros. destruct H0 as (? & ? & ? & ? & ?).
+      inv_trans. step in H1. cbn in H1. destruct H1 as [? _].
+      specialize (H0 (val tt) Stuck). lapply H0.
+      2: subst; etrans.
+      intro; destruct H1 as (? & ? & ? & ? & ?).
+      inv_trans.
+  Qed.
 
 End Two_ss_is_not_sb.
 
 Section SBisim_vs_CSSim.
 
-  Context {E F C D : Type -> Type} {X Y : Type}
-          {L : lrel E F X Y}.
+  Section withParam.
+    
+    Context {E F C D : Type -> Type} {X Y : Type}
+      {L : lrel E F X Y}.
 
-  Notation css   := (@css   E F C D X Y).
-  Notation cssim := (@cssim E F C D X Y).
+    Notation css   := (@css   E F C D X Y).
+    Notation cssim := (@cssim E F C D X Y).
 
-  Lemma sb_css (R : rel _ _) (t : ctree E C X) (u : ctree F D Y) :
-    sb L R t u -> css L R t u.
-  Admitted.
+    Tactic Notation "dec3" ident(h) "as"
+      simple_intropattern(a) simple_intropattern(b) simple_intropattern(c)
+      := destruct h as (a & b & c).
+    
+    #[global] Instance sbisim_css_chain_goal {c : Chain (css L)} :
+      Proper (sbisimeq ==> sbisimeq ==> flip impl) `c.
+    Proof.
+      apply tower.
+      - intros ? INC x y EQ x' y' EQ' ?? HP; red.
+        eapply INC; eauto.
+        eapply leq_infx in HP.
+        now apply HP.
+      - clear.
+        intros c IH x y EQ x' y' EQ'; split.
+        + intros ?? TR.
+          playL in EQ.
+          play in H.
+          playR in EQ'.
+          answer.
+          eapply IH; eauto.
+          now simpL.
+        + intros (? & ? & TR).
+          playL in EQ'.
+          destruct H as [_ LIV].
+          dec3 LIV as ? ? TR'; eauto.
+          playR in EQ.
+          eauto.
+    Qed.
 
-  Lemma css_sb (R : rel _ _) (t : ctree E C X) (u : ctree F D Y) :
-    css L R t u ->
-    css (flipL L) (flip R) u t ->
-    sb L R t u.
-  Admitted.
+    #[global] Instance sbisim_css_chain_ctx {c : Chain (css L)} :
+      Proper (sbisimeq ==> sbisimeq ==> impl) `c.
+    Proof.
+      apply tower.
+      - intros ? INC x y EQ x' y' EQ' ?? HP; red.
+        eapply INC; eauto.
+        eapply leq_infx in HP.
+        now apply HP.
+      - clear.
+        intros c IH x y EQ x' y' EQ'; split.
+        + intros ?? TR.
+          playR in EQ.
+          play in H.
+          playL in EQ'.
+          answer.
+          eapply IH; eauto.
+          now simpL.
+        + intros (? & ? & TR).
+          playR in EQ'.
+          destruct H as [_ LIV].
+          dec3 LIV as ? ? TR'; eauto.
+          playL in EQ.
+          eauto.
+    Qed.
 
-  Lemma sbisim_clos_css {c : Chain (css L)} :
-    forall x y, @sbisim_clos E F C D X Y Leq Leq `c x y -> `c x y.
-  Admitted.
+    #[global] Instance sbisim_cssim_goal :
+      Proper (sbisim Leq ==> sbisim Leq ==> flip impl) (cssim L).
+    Proof.
+      repeat intro; eapply sbisim_css_chain_goal; eauto.
+    Qed.
 
-  #[global] Instance sbisim_eq_clos_css_goal {R : Chain (css L)} :
-    Proper (sbisim Leq ==> sbisim Leq ==> flip impl) `R.
-  Admitted.
+    #[global] Instance sbisim_cssim_ctx :
+      Proper (sbisim Leq ==> sbisim Leq ==> impl) (cssim L).
+    Proof.
+      repeat intro; eapply sbisim_css_chain_ctx; eauto.
+    Qed.
 
-  #[global] Instance sbisim_eq_clos_css_ctx {R : Chain (css L)} :
-    Proper (sbisim Leq ==> sbisim Leq ==> impl) `R.
-  Admitted.
+    Lemma css_sb (R : rel _ _) (t : ctree E C X) (u : ctree F D Y) :
+      css L R t u ->
+      CSSim.css (flipL L) (flip R) u t ->
+      sb L R t u.
+    Proof.
+      split; cbn; intros.
+      - apply H in H1 as (? & ? & ? & ? & ?); eauto.
+      - apply H0 in H1 as (? & ? & ? & ? & ?); eauto.
+    Qed.
 
-  #[global] Instance sbisim_eq_clos_cssim_goal :
-    Proper (sbisim Leq ==> sbisim Leq ==> flip impl) (cssim L).
-  Admitted.
+  End withParam.
 
-  #[global] Instance sbisim_eq_clos_cssim_ctx :
-    Proper (sbisim Leq ==> sbisim Leq ==> impl) (cssim L).
-  Admitted.
+  (* Bisimilarity entails co-similarity. *)
+  Lemma sbisim_cssim {E C X} (t u : ctree E C X) :
+    t ≃ u ->
+    cssim Leq t u /\ cssim Leq u t.
+  Proof.
+    intros SB.
+    split.
+    - coinduction r cih.
+      split.
+      + intros ?? TR.
+        playL in SB.
+        answer.
+        now rewrite EQ.
+      + intros (? & ? & TR).
+        playR in SB; eauto.
+    - coinduction r cih.
+      split.
+      + intros ?? TR.
+        playR in SB.
+        simpL.
+        answer.
+        now rewrite EQ.
+      + intros (? & ? & TR).
+        playL in SB; eauto.
+  Qed.
 
 End SBisim_vs_CSSim.

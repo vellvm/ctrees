@@ -2354,6 +2354,27 @@ Proof.
     cbn in *; subst; now constructor.
 Qed.  
 
+Lemma Leq_eq {E X}: build_rel (@Leq E X) == eq.
+Proof.
+  split; [| intros <-; reflexivity].
+  intros []; auto.
+  dependent induction HR; auto.
+  dependent induction HR; auto.
+  cbn in H; subst; auto.
+Qed.
+
+Lemma flipL_Leq {E X}: lequiv (flipL (@Leq E X)) Leq.
+Proof.
+  cbv; intuition.
+  all: dependent induction H; constructor.
+Qed.
+
+Ltac simpL :=
+  repeat match goal with
+    | h : build_rel (flipL _) _ _ |- _ => rewrite flipL_Leq in h
+    | h : build_rel Leq _ _ |- _ => apply Leq_eq in h
+    end; subst.
+
 (* (*| *)
 (* [wf_val] states that a [label] is well-formed: *)
 (* if it is a [val] it should be of the right type. *)
@@ -2531,6 +2552,18 @@ Ltac inv_trans_one :=
       let TR := fresh "TR" in
       apply trans_br4_inv in h as [TR | [TR | [TR | TR]]]
 
+  | h : htrans _ (α brS2 _ _) _ |- _ =>
+      let EQ := fresh "EQ" in
+      apply trans_brS2_inv' in h as (-> & [EQ | EQ])
+
+   | h : htrans _ (α brS3 _ _ _) _ |- _ =>
+      let EQ := fresh "EQ" in
+      apply trans_brS3_inv' in h as (-> & [EQ | [EQ | EQ]])
+ 
+   | h : htrans _ (α brS4 _ _ _ _) _ |- _ =>
+      let EQ := fresh "EQ" in
+      apply trans_brS4_inv' in h as (-> & [EQ | [EQ | [EQ | EQ]]])
+                                       
   (* Guard *)
   | h : htrans _ (α Guard _) _ |- _ =>
       apply trans_guard_inv in h
@@ -2558,4 +2591,4 @@ Ltac inv_trans_one :=
   end.
 
 Ltac inv_trans := repeat (inv_trans_one).
- 
+
