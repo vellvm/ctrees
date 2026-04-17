@@ -38,6 +38,7 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
   | epsilon_guard : forall t u, epsilon_ (observe u) t -> epsilon_ (GuardF u) t.
 
   Definition epsilon {E C X} (t t' : ctree E C X) := epsilon_ (observe t) (observe t').
+  Hint Constructors epsilon_det productive epsilon_ : core.
 
   Section epsilon_det_theory.
 
@@ -111,11 +112,11 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
     Qed.
 
     Lemma sbisim_epsilon_det {E C X}:
-      forall (t t' : ctree E C X), epsilon_det t t' -> t ~ t'.
+      forall (t t' : ctree E C X), epsilon_det t t' -> t ≃ t'.
     Proof.
       intros. induction H.
       - now rewrite H.
-      - rewrite H0. rewrite sb_guard. apply IHepsilon_det.
+      - rewrite H0. rewrite sbisim_guard. apply IHepsilon_det.
     Qed.
 
   End epsilon_det_theory.
@@ -261,8 +262,8 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       genobs t ot. genobs t' ot'. clear t Heqot t' Heqot'.
       induction H.
       - rewrite H. apply H0.
-      - apply IHepsilon_ in H0. eapply trans_br in H0. apply H0. rewrite <- ctree_eta. reflexivity.
-      - apply IHepsilon_ in H0; etrans.
+      - apply IHepsilon_ in H0. rewrite <- ctree_eta in H0. eapply trans_br in H0. apply H0. 
+      - apply IHepsilon_ in H0; rewrite <- ctree_eta in H0; etrans.
     Qed.
 
     Lemma epsilon_fwd : forall {E C X Y} (t : ctree E C X) k x (c : C Y),
@@ -289,35 +290,29 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       - intros; subst; eapply epsilon_guard, IHepsilon_; reflexivity.
     Qed.
 
-    Lemma trans_epsilon {E C X} l (t t'' : ctree E C X) : trans l t t'' -> exists t',
+    Lemma trans_epsilon {E C X} l (t : ctree E C X) t'' : trans l t t'' -> exists t',
           epsilon t t' /\ productive t' /\ trans l t' t''.
     Proof.
-      intros. do 3 red in H.
-      setoid_rewrite (ctree_eta t). setoid_rewrite (ctree_eta t'').
-      genobs t ot. genobs t'' ot''. clear t Heqot t'' Heqot''.
-      induction H; intros.
-      - destruct IHtrans_ as (? & ? & ? & ?).
-        rewrite <- ctree_eta in H0. eapply epsilon_br in H0.
-        exists x0. etrans.
-      - destruct IHtrans_ as (? & ? & ? & ?).
-        rewrite <- ctree_eta in H0. eapply epsilon_guard in H0.
-        eexists; etrans.
-      - eexists. split; [| split ].
-        + constructor 1. reflexivity.
-        + eapply prod_step. reflexivity.
-        + rewrite <- H, <- ctree_eta. etrans.
-      - eexists. split; [| split ].
-        + constructor 1. reflexivity.
-        + eapply prod_vis. reflexivity.
-        + rewrite <- H, <- ctree_eta. etrans.
-      - eexists. split; [| split ].
-        + constructor 1. reflexivity.
-        + eapply prod_ret. reflexivity.
-        + etrans.
+      intros H. cbv in H.
+      dependent induction H.
+      - edestruct4 IHtransR; eauto.
+        setoid_rewrite H; rewrite H0 in H2.
+        cbv; eauto.
+      - edestruct4 IHtransR; eauto.
+        setoid_rewrite H.
+        cbv; eauto.
+      - setoid_rewrite H.
+        setoid_rewrite H0.
+        exists (Step t'); split3; eauto.
+      - setoid_rewrite H.
+        eauto 5.
+      - setoid_rewrite H.
+        setoid_rewrite H0.
+        exists (Ret r); split3; eauto.
     Qed.
-
-    Lemma trans_val_epsilon {E C X} : forall x (t t' : ctree E C X),
-        trans (val x) t t' -> epsilon t (Ret x) /\ t' ≅ Stuck.
+    
+    Lemma trans_val_epsilon {E C X} : forall x (t : ctree E C X) t',
+        trans (val x) t t' -> epsilon t (Ret x).
     Proof.
       intros. apply trans_epsilon in H as (? & ? & ? & ?).
       inv H0.
@@ -333,17 +328,24 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       inv H0.
       - rewrite EQ in H1. inv_trans.
       - rewrite EQ in H1. inv_trans.
-      - rewrite EQ in H1. inv_trans.
-        eauto.
+      -  rewrite EQ in H1,H.
+         clear x EQ.
+         inv_trans.
+         inv EQ.
+         eauto.
     Qed.
 
-    Lemma trans_obs_epsilon {E C X Y} : forall (t t' : ctree E C X) e (x : Y),
-        trans (obs e x) t t' -> exists k, epsilon t (Vis e k) /\ t' ≅ k x.
+    Lemma trans_ask_epsilon {E C X Y} : forall (t : ctree E C X) t' (e : E Y),
+        trans (ask e) t t' -> exists k, epsilon t (Vis e k) /\ Seq t' (β e k).
     Proof.
       intros. apply trans_epsilon in H as (? & ? & ? & ?).
       inv H0.
       - rewrite EQ in H1. inv_trans.
-      - rewrite EQ in H1. inv_trans. subst. etrans.
+      - rewrite EQ in H1. inv_trans.
+        rewrite EQ in H.
+        pose proof ask_invT EQl; subst.
+        pose proof ask_inv EQl; subst.
+        eauto.
       - rewrite EQ in H1. inv_trans.
     Qed.
 
@@ -501,68 +503,55 @@ Helper inductive: [epsilon t t'] judges that [t'] is reachable from [t] by a pat
       step in H0. step. eapply ss_epsilon_r in H0; eauto.
     Qed.
 
+    Notation "l ⊢ x → y" := (hrel_of (trans l) x y) (at level 10, x at next level, y at next level, only printing).
+    Notation "x" := (α x) (at level 9, only printing).
+    
     Lemma ssim_ret_epsilon {E F C D X Y L} :
       forall r (u : ctree F D Y),
-      Respects_val L ->
       (Ret r : ctree E C X) (≲L) u ->
       exists r', epsilon u (Ret r') /\ L (val r) (val r').
     Proof.
-      intros * RV SIM *.
-      step in SIM. specialize (SIM (val r) Stuck (trans_ret _)).
-      destruct SIM as (l' & u' & TR & _ & EQ).
-      apply RV in EQ as ?. destruct H as [? _]. specialize (H (Is_val _)). inv H.
-      apply trans_val_invT in TR as ?. subst.
-      apply trans_val_epsilon in TR as []. eauto.
+      intros * SIM *.
+      play in SIM.
+      invL.
+      apply trans_val_epsilon in TR.
+      etrans.
     Qed.
 
     Lemma ssim_vis_epsilon {E F C D X Y Z L} :
       forall e (k : Z -> ctree E C X) (u : ctree F D Y),
-      Respects_val L ->
-      Respects_τ L ->
       Vis e k (≲L) u ->
-      forall x, exists Z' (e' : F Z') k' y, epsilon u (Vis e' k') /\ k x (≲L) k' y /\ L (obs e x) (obs e' y).
+      forall x, exists Z' (e' : F Z') k' y,
+        epsilon u (Vis e' k') /\
+        k x (≲L) k' y /\
+        L (ask e) (ask e') /\
+        L (rcv e x) (rcv e' y).
     Proof.
-      intros * RV RT SIM *.
-      step in SIM. cbn in SIM. specialize (SIM (obs e x) (k x) (trans_vis _ _ _)).
-      destruct SIM as (l' & u'' & TR & SIM & EQ).
+      intros * SIM *.
+      apply ssim_vis_l_inv in SIM as (? & ? & ? & TR & ? & SIM).
       apply trans_epsilon in TR. destruct TR as (u' & EPS & PROD & TR).
-      destruct PROD.
-      1: {
-        subs. inv_trans. subst.
-        apply RV in EQ. destruct EQ as [_ ?]. specialize (H (Is_val _)). inv H.
-      }
-      2: {
-        subs. inv_trans. subst.
-        apply RT in EQ. destruct EQ as [_ ?]. specialize (H eq_refl). inv H.
-      }
-      subs. inv_trans. subst.
-      eexists _, _, _, _. etrans.
+      destruct PROD; subs; inv_trans.
+      dependent induction EQ.
+      pose proof ask_invT EQl; subst.
+      pose proof ask_inv EQl; subst.
+      destruct (SIM x) as (? & ? & ?).
+      rewrite EQ in H2.
+      ex4; split4; eauto; etrans.
     Qed.
 
     Lemma ssim_brS_epsilon {E F C D X Y Z L} :
       forall c (k : Z -> ctree E C X) (u : ctree F D Y),
-      Respects_τ L ->
-      L τ τ ->
       BrS c k (≲L) u ->
       forall x,
       (exists v, epsilon u (Step v) /\ k x (≲L) v).
     Proof.
-      intros * RT HL SIM *.
+      intros * SIM *.
       step in SIM. cbn in SIM. specialize (SIM τ (k x) (trans_brS _ _ _)).
       destruct SIM as (l' & u'' & TR & SIM & EQ).
       apply trans_epsilon in TR. destruct TR as (u' & EPS & PROD & TR).
-      destruct PROD.
-      1: {
-        subs. inv_trans. subst.
-        apply RT in EQ. destruct EQ as [? _]. specialize (H eq_refl). inv H.
-      }
-      1: {
-        subs. inv_trans. subst.
-        apply RT in EQ. destruct EQ as [? _]. specialize (H eq_refl). inv H.
-      }
-      subs.
-      inv_trans. subst.
-      eexists _. etrans.
+      destruct PROD; subs; inv_trans; etrans.
+      invL.
+      invL.
     Qed.
 
   End epsilon_theory.

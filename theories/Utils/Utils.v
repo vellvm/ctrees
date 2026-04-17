@@ -116,6 +116,7 @@ Definition sum_rel {A1 A2 B1 B2} Ra Rb : rel (A1 + B1) (A2 + B2) :=
 Ltac ex  :=  eexists.
 Ltac ex2 := do 2 eexists.
 Ltac ex3 := do 3 eexists.
+Ltac ex4 := do 4 eexists.
 Ltac split3 := split; [| split].
 Ltac split4 := split; [| split; [| split]].
 Ltac edestruct3 H := edestruct H as (? & ? & ?).
