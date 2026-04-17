@@ -2369,10 +2369,24 @@ Proof.
   all: dependent induction H; constructor.
 Qed.
 
+(* This one is a bit ugly: we will have proper instance to
+   lift [lequiv] arguments of (bi)simulations to [weq] result.
+   This instance does the last bit to allow the rewriting by [lequiv]
+   directly.
+ *)
+#[global] Instance weq_body {E B X}:
+  Proper (Coinduction.lattice.weq ==> eq ==> eq ==> eq ==> iff)
+    (@body (rel (S E B X) (S E B X)) _).
+Proof.
+  cbn; intros R L EQ ?? <- ?? <- ?? <-; split; intros H.
+  all:apply EQ; auto.
+Qed.
+
 Ltac simpL :=
   repeat match goal with
     | h : build_rel (flipL _) _ _ |- _ => rewrite flipL_Leq in h
     | h : build_rel Leq _ _ |- _ => apply Leq_eq in h
+    | |- context[flipL Leq] => rewrite flipL_Leq
     end; subst.
 
 (* (*| *)

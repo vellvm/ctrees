@@ -383,20 +383,13 @@ Section sbisim_heterogenous_theory.
         step in Sbisimu; apply Sbisimu in TR; destruct TR as (? & ? & TR & Sbis'' & EQl').
         do 2 eexists; repeat split; eauto.
         eapply INC; eauto.
-        (* todo ltac *)
-        apply Leq_eq in EQl.
-        rewrite flipL_Leq in EQl'.
-        apply Leq_eq in EQl'.
-        subst; auto.
+        now simpL.
       + step in Sbisimu; apply Sbisimu in TR; destruct TR as (? & ? & TR & Sbis & EQl).
         apply bwd in TR; destruct TR as (? & ? & TR & Sbis' & HL).
         step in Sbisimt; apply Sbisimt in TR; destruct TR as (? & ? & TR & Sbis'' & EQl').
         do 2 eexists; repeat split; eauto.
         eapply INC; eauto.
-        apply Leq_eq in EQl.
-        rewrite flipL_Leq in EQl'.
-        apply Leq_eq in EQl'.
-        subst; auto.
+        now simpL.
   Qed.
    
   #[global] Instance seq_chain_ctx {c : Chain (sb L)} :
@@ -458,20 +451,13 @@ Section sbisim_heterogenous_theory.
         step in Sbisimu; apply Sbisimu in TR; destruct TR as (? & ? & TR & Sbis'' & EQl').
         do 2 eexists; repeat split; eauto.
         eapply INC; eauto.
-        (* todo ltac *)
-        apply Leq_eq in EQl'.
-        rewrite flipL_Leq in EQl.
-        apply Leq_eq in EQl.
-        subst; auto.
+        now simpL.
       + step in Sbisimu; apply Sbisimu in TR; destruct TR as (? & ? & TR & Sbis & EQl).
         apply bwd in TR; destruct TR as (? & ? & TR & Sbis' & HL).
         step in Sbisimt; apply Sbisimt in TR; destruct TR as (? & ? & TR & Sbis'' & EQl').
         do 2 eexists; repeat split; eauto.
         eapply INC; eauto.
-        apply Leq_eq in EQl'.
-        rewrite flipL_Leq in EQl.
-        apply Leq_eq in EQl.
-        subst; auto.
+        now simpL.
   Qed.
   
   (*| Subrelations. |*)
@@ -1569,8 +1555,7 @@ Section SBisim_vs_SSim.
         playR in EQ'.
         ex2; split3; eauto.
         eapply IH; eauto.
-        rewrite flipL_Leq in H0.
-        apply Leq_eq in H,H0; subst; auto.
+        now simpL.
     Qed.
 
     #[global] Instance sbisim_ss_chain_ctx {c : Chain (ss L)} :
@@ -1588,8 +1573,7 @@ Section SBisim_vs_SSim.
         playL in EQ'.
         ex2; split3; eauto.
         eapply IH; eauto.
-        rewrite flipL_Leq in H.
-        apply Leq_eq in H,H0; subst; auto.
+        now simpL.
     Qed.
 
     #[global] Instance sbisim_ssim_goal :
@@ -1667,8 +1651,7 @@ Section Two_ss_is_not_sb.
         symmetry in H. apply H.
       - step. split; [apply H |].
         destruct H as [_ ?].
-        (* todo: this should be nicer *)
-        eapply lequiv_ss; [apply flipL_Leq |].
+        simpL.
         cbn; intros.
         apply H in H0 as (? & ? & ? & ? & ?); answer.
         symmetry; auto.
