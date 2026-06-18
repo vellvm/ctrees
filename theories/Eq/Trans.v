@@ -17,6 +17,10 @@ observable node. At this point, it steps following the simple rules:
 label of [v]
 - [Vis e k] can step to any [k x] by emitting an event label tagged
 with both [e] and [x]
+
+
+(* TODO remove, note: this above will change with the vis fix *)
+
 - [BrS k] can step to any [k x] by emitting a tau label
 
 This transition system will define a notion of strong bisimulation
