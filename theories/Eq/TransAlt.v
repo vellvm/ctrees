@@ -1453,178 +1453,103 @@ l <> val x -> trans_alt l t u -> trans_alt l (t >>= k) (u >>= k)
 trans_alt (val x) t stuck -> trans_alt l (k x) u -> trans_alt l (bind t k) u.
 |*)
 
-(* Lemma trans_bind_inv {E B X Y}
-  (t : ctree E B X) (k : X -> ctree E B Y)
-  u (l : label E Y) :
-  trans_alt l (t >>= k) u -> 
-  (l = τ /\ exists t', trans_alt τ t (α t') /\ Seq u (α t' >>= k)) \/
-  (exists Z (e : E Z),
-        l = ask e /\
-          exists (g : Z -> ctree E B X),
-            trans_alt (ask e) t (β e g) /\ Seq u (β e (fun x => g x >>= k))) \/
-    (exists (x : X), trans_alt (val x) t Stuck /\ trans_alt l (k x) u).
+Lemma trans_bind_l_τ {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B X) :
+  trans_alt τ (Active t) (Active u) ->
+  trans_alt τ (Active (x <- t;; k x)) (Active (x <- u;; k x)).
 Proof.
-  intros TR.
-  rem_weak (α x <- t ;; k x) as ob.
-  revert t EQ.
-  induction TR.
-  - intros ? EQ.
-    inv EQ.
-    rewrite EQ0 in H.
-    apply br_equ_bind in H as [(r & EQ1 & EQ2) | (v & EQ1 & EQ2)].
-    + right; right.
-      exists r; split.
-      rewrite EQ1; auto.
-      rewrite EQ2.
-      rewrite H0. now econstructor. 
-    + edestruct IHTR as [H | [H | H]]; [rewrite H0, EQ2; reflexivity |..]; clear IHTR.
-      * destruct H as (-> & u' & EQ1' & EQ2').
-        left. split; auto.
-        eexists; split; [| eassumption]; rewrite EQ1; eauto.
-      * destruct H as (Z & e & -> & g & TR' & EQ).
-        right; left.
-        exists Z,e; split; auto; exists g; split; auto.
-        rewrite EQ1; eauto.
-      * destruct H as (y & TR' & TR'').
-        right; right.
-        exists y; split; auto.
-        rewrite EQ1; eauto.
-        
-  - intros ? EQ.
-    inv EQ.
-    rewrite EQ0 in H.
-    apply guard_equ_bind in H as [(r & EQ1 & EQ2) | (v & EQ1 & EQ2)].
-    + right; right.
-      exists r; split.
-      rewrite EQ1; auto.
-      rewrite EQ2; auto.
-    + edestruct IHTR as [H | [H | H]]; [rewrite <- EQ2; reflexivity | ..]; clear IHTR.
-      * destruct H as (-> & u' & EQ1' & EQ2').
-        left. split; auto.
-        eexists; split; [| eassumption]; rewrite EQ1; auto.
-      * destruct H as (Z & e & -> & g & TR' & EQ).
-        right; left.
-        exists Z,e; split; auto; exists g; split; auto.
-        rewrite EQ1; auto.
-      * destruct H as (x & TR' & TR'').
-        right; right.
-        exists x; split; auto.
-        rewrite EQ1; auto.
-        
-  - intros ? EQ.
-    inv EQ.
-    rewrite EQ0 in H.
-    apply step_equ_bind in H as [(r & EQ1 & EQ2) | (v & EQ1 & EQ2)].
-    + right; right.
-      exists r; split.
-      rewrite EQ1; auto.
-      rewrite EQ2, H0; auto.
-    + left.
-      split; auto.
-      exists v; split.
-      rewrite EQ1; auto.
-      rewrite H0, <- EQ2; auto.
-      
-  - intros ? EQ.
-    inv EQ.
-    rewrite EQ0 in H.
-    apply vis_equ_bind in H as [(r & EQ1 & EQ2) | (v & EQ1 & EQ2)].
-    + right; right.
-      exists r; split.
-      rewrite EQ1; auto.
-      rewrite EQ2; auto.
-    + right; left.
-      exists X0, e; split; auto.
-      exists v; split.
-      rewrite EQ1; auto.
-      constructor.
-      intros ?.
-      rewrite EQ2; auto.
-       
-  - intros ? EQ.
-    inv EQ.
-       
-  - intros ? EQ.
-    inv EQ.
-    rewrite EQ0 in H.
-    apply ret_equ_bind in H as (r' & EQ1 & EQ2).
-    right; right.
-    exists r'; split.
-    rewrite EQ1; auto.
-    rewrite EQ2, H0; auto.
-Qed. *)
-  
-(* Lemma trans_bind_inv_l {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) u l :
-  trans_alt l (t >>= k) u ->
-  exists l' t', trans_alt l' t t'.
-Proof.
-  intros TR.
-  apply trans_bind_inv in TR.
-  destruct TR as [(? & ? & ? & ?) | [(? & ? & ? & ? & ? & ?) | (? & ? & ?)]]; eauto.
-Qed. *)
+  intros TR; unfold trans_alt in TR; cbn in TR; dependent destruction TR.
+  eapply Transstep.
+  - rewrite H, bind_step; reflexivity.
+  - rewrite H0; reflexivity.
+Qed.
 
-(* Lemma trans_bind_l_τ {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B X) :
-  trans_alt τ t u ->
-  trans_alt τ (t >>= k) (u >>= k).
+Lemma trans_bind_l_ε {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) (u : ctree E B X) :
+  trans_alt ε (Active t) (Active u) ->
+  trans_alt ε (Active (x <- t;; k x)) (Active (x <- u;; k x)).
 Proof.
-  cbn; intros TR.
-  dependent induction TR; cbn in *.
-  - rewrite H, bind_br.
-    apply trans_br with x.
-    specialize (IHTR t' k u eq_refl eq_refl eq_refl).
-    now rewrite H0 in IHTR.
-  - rewrite H, bind_guard.
-    apply trans_guard.
-    apply IHTR; auto.
-  - rewrite H, bind_step.
-    rewrite H0; apply trans_step.
-Qed. *)
+  intros TR; unfold trans_alt in TR; cbn in TR; dependent destruction TR.
+  - eapply Transbr.
+    + rewrite H, bind_br; reflexivity.
+    + rewrite H0; reflexivity.
+  - eapply Transguard.
+    + rewrite H, bind_guard; reflexivity.
+    + rewrite H0; reflexivity.
+Qed.
 
-(* Lemma trans_bind_l_ask {E B X Y Z} (t : ctree E B X) (k : X -> ctree E B Y) (e : E Z) (g : Z -> ctree E B X) :
-  trans_alt (ask e) t (β e g) ->
-  trans_alt (ask e) (t >>= k) (β e (fun x => g x >>= k)).
+Lemma trans_bind_l_ask {E B X Y Z} (t : ctree E B X) (k : X -> ctree E B Y)
+  (e : E Z) (g : Z -> ctree E B X) :
+  trans_alt (ask e) (Active t) (Passive e g) ->
+  trans_alt (ask e) (Active (x <- t;; k x)) (Passive e (fun z => x <- g z;; k x)).
 Proof.
-  cbn; intros TR.
-  dependent induction TR; cbn in *.
-  - rewrite H, bind_br.
-    apply trans_br with x.
-    specialize (IHTR Z t' k e g eq_refl eq_refl eq_refl).
-    now rewrite H0 in IHTR.
-  - rewrite H, bind_guard.
-    apply trans_guard.
-    apply IHTR; auto.
-  - rewrite H, bind_vis.
-    apply trans_ask.
-Qed. *)
+  intros TR; unfold trans_alt in TR; cbn in TR; dependent destruction TR.
+  econstructor.
+  rewrite H, bind_vis; reflexivity.
+Qed.
 
-(* Lemma trans_bind_r {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) u x l :
-  trans_alt (val x) t Stuck ->
-  trans_alt l (k x) u ->
-  trans_alt l (t >>= k) u.
+Lemma trans_bind_r {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y)
+  (u : @S E B Y) (x : X) (l : @label E Y) :
+  trans_alt (val x) (Active t) (Active (Stuck : ctree E B X)) ->
+  trans_alt l (Active (k x)) u ->
+  trans_alt l (Active (y <- t;; k y)) u.
 Proof.
-  cbn; intros TR1.
-  dependent induction TR1; cbn in *.
-  - intros TR2; rewrite H, bind_br.
-    apply trans_br with x0.
-    rewrite <- H0; eapply IHTR1; eauto.
-  - intros TR2; rewrite H, bind_guard.
-    apply trans_guard.
-    eapply IHTR1; eauto.
-  - intros TR2; rewrite H, bind_ret_l; auto.
-Qed. *)
+  intros TR1 TR2; unfold trans_alt in *; cbn in *; dependent destruction TR1.
+  assert (SQ : Seq (Active (y <- t;; k y)) (Active (k x))) by
+        (constructor; now rewrite H, bind_ret_l).
+  rewrite SQ. exact TR2.
+Qed.
 
-(* Lemma is_stuck_bind : forall {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y),
-    is_stuck t -> is_stuck (bind t k).
+Lemma trans_bind_inv {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y)
+  (u : @S E B Y) (l : @label E Y) :
+  trans_alt l (Active (x <- t;; k x)) u ->
+  (exists x, t ≅ Ret x /\ trans_alt l (Active (k x)) u)
+  \/ (l = τ /\ exists t', trans_alt τ (Active t) (Active t')
+      /\ u ⩸ (Active (x <- t';; k x)))
+  \/ (l = ε /\ exists t', trans_alt ε (Active t) (Active t')
+      /\ u ⩸ (Active (x <- t';; k x)))
+  \/ (exists Z (e : E Z) (g : Z -> ctree E B X),
+      l = ask e /\ trans_alt (ask e) (Active t) (Passive e g)
+      /\ u ⩸ (Passive e (fun z => x <- g z;; k x))).
 Proof.
-  repeat intro.
-  apply trans_bind_inv in H0 as [|[]].
-  - destruct H0 as (? & ? & TR & ?).
-    now apply H in TR.
-  - destruct H0 as (? & ? & ? & ? & TR & ?).
-    now apply H in TR.
-  - destruct H0 as (? & TR & ?).
-    now apply H in TR.
-Qed. *)
+  intros TR; unfold trans_alt in TR; cbn in TR; dependent destruction TR.
+  - apply br_equ_bind in H as [(r & EQ1 & EQ2) | (k1 & EQ1 & EQ2)].
+    + left; exists r; split; auto; eapply Transbr; eauto.
+    + right; right; left; split; auto; exists (k1 x); split.
+      * eapply Transbr; eauto; reflexivity.
+      * constructor; rewrite H0; apply EQ2.
+  - apply guard_equ_bind in H as [(r & EQ1 & EQ2) | (t1 & EQ1 & EQ2)].
+    + left; exists r; split; auto; eapply Transguard; eauto.
+    + right; right; left; split; auto; exists t1; split.
+      * eapply Transguard; eauto; reflexivity.
+      * constructor; rewrite H0, <- EQ2; reflexivity.
+  - apply step_equ_bind in H as [(r & EQ1 & EQ2) | (t1 & EQ1 & EQ2)].
+    + left; exists r; split; auto; eapply Transstep; eauto.
+    + right; left; split; auto; exists t1; split.
+      * eapply Transstep; eauto; reflexivity.
+      * constructor; rewrite H0, <- EQ2; reflexivity.
+  - apply vis_equ_bind in H as [(r & EQ1 & EQ2) | (k1 & EQ1 & EQ2)].
+    + left; exists r; split; auto; econstructor; eauto.
+    + right; right; right; exists X0, e, k1; split; auto; split.
+      * econstructor; eauto.
+      * constructor; intros a; apply EQ2.
+  - apply ret_equ_bind in H as (r1 & EQ1 & EQ2).
+    left; exists r1; split; auto; eapply Transval; eauto.
+Qed.
+
+Lemma trans_bind_inv_l {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y)
+  (u : @S E B Y) (l : @label E Y) :
+  trans_alt l (Active (x <- t;; k x)) u ->
+  exists (l' : @label E X) (t' : @S E B X), trans_alt l' (Active t) t'.
+Proof.
+  intros TR; apply trans_bind_inv in TR as [(y & EQ & _) | [(_ & t' & TR' & _) | [(_ & t' & TR' & _) | (Z & e & g & _ & TR' & _)]]]; eauto.
+  exists (val y), (Active (Stuck : ctree E B X)); eapply Transval; eauto; reflexivity.
+Qed.
+
+Lemma is_stuck_bind {E B X Y} (t : ctree E B X) (k : X -> ctree E B Y) :
+  is_stuck (Active t) -> is_stuck (Active (x <- t;; k x)).
+Proof.
+  intros ST l u TR; apply trans_bind_inv in TR as [(y & EQ & _) | [(_ & t' & TR' & _) | [(_ & t' & TR' & _) | (Z & e & g & _ & TR' & _)]]]; try (eapply ST; eauto; fail).
+  eapply (ST (val y) (Active (Stuck : ctree E B X))); eapply Transval; eauto; reflexivity.
+Qed.
 
 (*|
 Forward and backward rules for [wtrans] w.r.t. [bind]
