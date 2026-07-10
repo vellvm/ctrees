@@ -84,23 +84,28 @@ Section pure.
     - apply IHepsilon_. rewrite <- ctree_eta. eapply pure_guard_inv. apply H.
   Qed.
 
-  Lemma trans_pure_is_val (t t' : ctree E C X) l :
+  (* issue: active/passive makes this annoying, though it is a logical non-issue  *)
+ Lemma trans_pure_is_val (t : ctree E C X) (st : @Trans.S E C X) l :
     pure t ->
-    trans l t t' ->
+    trans l t st ->
     is_val l.
-  Proof.
-    intros. do 3 red in H0. genobs t ot. genobs t' ot'.
-    assert (t ≅ go ot). { now rewrite Heqot, <- ctree_eta. } clear Heqot.
-    revert t H H1. induction H0; intros; subst.
-    - apply IHtrans_ with (t := k x); auto. 2: apply ctree_eta.
-      rewrite H1 in H. step in H. inversion H; inv_equ.
-      rewrite EQ0. apply REC.
-    - apply IHtrans_ with t; eauto. 2: apply ctree_eta.
-      rewrite H1 in H; step in H; inversion H; inv_equ.
-      rewrite EQ. apply REC.
-    - rewrite H1 in H0. step in H0. inversion H0; inv_equ.
-    - rewrite H1 in H0. step in H0. inversion H0; inv_equ.
-    - constructor.
+  Proof. 
+    intros Hp TR. repeat red in TR.
+    remember (Active t).
+    generalize dependent t. 
+    induction TR; intros t0 Hp Heqs; inv Heqs.
+    (* just these 2 cases need to 'thread the purity argument' *)
+    - eapply IHTR. 
+      all: try reflexivity.
+      rewrite H in Hp. step in Hp. inversion Hp; inv_equ. rewrite H0, EQ0. 
+      apply REC. 
+    - eapply IHTR. 
+      all: try reflexivity.
+      rewrite H in Hp. step in Hp. inversion Hp; inv_equ. rewrite EQ.
+      apply REC. 
+    - rewrite H in Hp. step in Hp; inv Hp; inv_equ.
+    - rewrite H in Hp. step in Hp; inv Hp; inv_equ. 
+    - constructor. 
   Qed.
 
   Lemma trans_bind_pure {Y} (t : ctree E C X) k (u : ctree E C Y) l :
@@ -110,7 +115,9 @@ Section pure.
   Proof.
     intros. apply trans_bind_inv in H0 as [(? & ? & ? & ?) |].
     - now apply trans_pure_is_val in H1.
-    - apply H0.
+    - destruct H0 as [[Z [e (Hl & g & Htrans & Hsym)]] | H0].
+      + inv Hsym. 
+      + apply H0.
   Qed.
 
 End pure.
@@ -232,20 +239,27 @@ Lemma is_stuck_pure : forall {E B X Y} t (k : X -> ctree E B Y),
   is_stuck (CTree.bind t k).
 Proof.
   red. intros. intro.
-  apply trans_bind_inv in H1 as [].
-  - destruct H1 as (? & ? & ? & ?). subs.
-    apply H1. eapply trans_pure_is_val; eauto.
-  - destruct H1 as (? & ? & ?). now apply H0 in H2.
+  apply trans_bind_inv in H1 as
+    [ (-> & t' & TR & _)
+    | [ (Z & e & -> & g & TR & _)
+    | (v & TRv & TRk) ]].
+  (* discriminate labels; they should be val since t is pure *)
+  - apply trans_pure_is_val in TR; [inv TR | exact H].
+  - apply trans_pure_is_val in TR; [inv TR | exact H].
+  - eapply H0; exact TRk.
 Qed.
 
 (*|
+
 A computation [is_simple] all its transitions are either:
 - directly returning
 - or reducing in one step to something of the shape [Guard* (Ret r)]
 |*)
 Class is_simple {E C X} (t : ctree E C X) :=
   is_simple' : (forall l t', trans l t t' -> is_val l) \/
-  (forall l t', trans l t t' -> exists r, epsilon_det t' (Ret r)).
+  (forall l t', trans l t t' ->
+     exists Z (e : E Z) (k : Z -> ctree E C X),
+       t' ⩸ (β (e) k) /\ forall z, exists r, epsilon_det (k z) (Ret r)).
 
 Section is_simple_theory.
 
@@ -281,16 +295,35 @@ Section is_simple_theory.
   Proof.
     intros. destruct H.
     - left. intros.
-      unfold CTree.map in H0. apply trans_bind_inv in H0 as ?.
-      destruct H1 as [(? & ? & ? & ?) | (? & ? & ?)].
-      + now apply H in H2.
-      + apply trans_ret_inv in H2 as []. now subst.
+      unfold CTree.map in H0.
+      apply trans_bind_inv in H0 as
+        [ (-> & t1 & TR & _)
+        | [ (Z & e & -> & g & TR & _)
+        | (v & TRv & TRk) ]].
+      + now apply H in TR.
+      + now apply H in TR.
+      + apply trans_ret_inv' in TRk as [? ->]. constructor.
     - right. intros.
-      apply trans_bind_inv in H0 as ?.
-      destruct H1 as [(? & ? & ? & ?) | (? & ? & ?)].
-      + apply H in H2 as []. exists (f x0). subs.
-        eapply Epsilon.epsilon_det_bind_ret_l. apply H2. reflexivity.
-      + apply H in H1 as []. inv H1; inv_equ.
+      unfold CTree.map in H0.
+      apply trans_bind_inv in H0 as
+        [ (-> & t1 & TR & SQ)
+        | [ (Z & e & -> & g & TR & SQ)
+        | (v & TRv & TRk) ]].
+      + apply H in TR as (Z0 & e0 & k0 & SQ0 & _).
+        inv SQ0.
+      + apply H in TR as (Z0 & e0 & k0 & SQ0 & DET).
+        dependent destruction SQ0.
+        exists Z0, e0, (fun z => CTree.map f (g z)); split.
+        * exact SQ.
+        * intros z.
+          destruct (DET z) as (r & Hdet).
+          exists (f r).
+          rewrite (EQ z).
+          eapply Epsilon.epsilon_det_bind_ret_l.
+          -- apply Hdet.
+          -- reflexivity.
+      + apply H in TRv as (Z0 & e0 & k0 & SQ0 & _).
+        inv SQ0.
   Qed.
 
   #[global] Instance is_simple_liftState {St} :
@@ -305,8 +338,11 @@ Section is_simple_theory.
     is_simple (CTree.trigger e : ctree E C X).
   Proof.
     right. intros.
-    unfold CTree.trigger in H. inv_trans. subst.
-    exists x. now left.
+    unfold CTree.trigger in H.
+    apply trans_vis_inv' in H as [SQ ->].
+    exists X, e, (fun x => Ret x); split.
+    - exact SQ.
+    - intros z. exists z. now left.
   Qed.
 
   Lemma is_simple_br_inv : forall {Y} (c: C X) (k : X -> ctree E C Y) x,
