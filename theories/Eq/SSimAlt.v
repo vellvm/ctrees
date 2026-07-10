@@ -49,6 +49,7 @@ Section StrongSimAlt.
           t ≅ Guard t' ->
           exists u', epsilon u u' /\ Reps t' u').
  *)
+
 Locate dot. 
   Definition ss'_gen {E F B : Type -> Type} {X : Type}
     (L : rel (@label E X) (@label F X))
@@ -61,9 +62,9 @@ Locate dot.
       (forall t', trans_alt (B:=B) ε t t' -> exists u', (trans_alt (B:=B) ε)^* u u' /\ Reps t' u').
 
   #[global] Instance weq_ss'_gen {E F B X} :
-    Proper (weq ==> eq ==> weq) (@ss'_gen E F B X).
+    Proper (weq ==> weq) (@ss'_gen E F B X).
   Proof.
-    cbn. intros L L' HL R ? <- x y; split; intros (HA & HB); split; intros.
+    cbn. intros L L' HL R x y; split; intros (HA & HB); split; intros.
     - destruct (HA _ _ H H0) as (l'' & u'' & Htrans & HR & HL').
       do 2 esplit; split; [eassumption | split; [eassumption |]]; now apply HL.
     - now apply HB in H.
@@ -106,6 +107,24 @@ End StrongSimAlt.
 Definition ssim' {E F B X} L :=
   (gfp (@ss' E F B X L): hrel _ _).
 
+Program Definition ss {E F B : Type -> Type} {X : Type}
+  (L : rel (@label E X) (@label F X)) :
+  mon (@SS E B X -> @SS F B X -> Prop) :=
+  {| body R t u :=
+      forall t' l, l <> ε -> ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) t t' ->
+      exists l' u', ((trans_alt (B:=B) ε)^* ⋅ trans_alt l') u u' /\ R t' u' /\ L l l'
+  |}.
+Next Obligation.
+  destruct (H0 _ _ H1 H2) as (l' & u' & STEP & HR & HL).
+  exists l', u'; ssplit.
+  - assumption.
+  - now apply H.
+  - assumption.
+Qed.
+
+Definition ssim {E F B X} L := (gfp (@ss E F B X L) : hrel _ _).
+
+  (* todo: remove this and rewrite using simple proper instances *)
 Variant Seq_clos_body {E F B X} (R : rel (@S E B X) (@S F B X)) : rel (@S E B X) (@S F B X) :=
   | Seq_clos_intro : forall t t' u' u
                        (Seqt : t ⩸ t')
@@ -233,7 +252,22 @@ Ltac __step_in_ssim' H :=
       step in H;
       fold (@ssim' E F B X L) in H
   end.
+(* goal: elem x y wtp b x y 
 
+step: 
+
+gfp b <= b (elem) <= elem
+
+H: gfp b x y 
+goal:
+b (elem) x y 
+
+elem <- b elem <- gfp b <-> b (gfp b) 
+
+unstep: 
+b gfp -> gfp 
+
+*)
 Tactic Notation "step" "in" ident(H) := __step_in_ssim' H || step in H.
 
 Tactic Notation "__coinduction_ssim'" simple_intropattern(r) simple_intropattern(cih) :=
@@ -460,11 +494,19 @@ Section Proof_Rules.
     apply H; eexists; eassumption.
   Qed.
 
+  Lemma estar_single' {G : Type -> Type} :
+    (@trans_alt G B X ε) ≦ (trans_alt ε)^*.
+  Proof.
+    ka.
+  Qed.
+
   Lemma estar_single {G : Type -> Type} (a b : @S G B X) :
     trans_alt ε a b -> (trans_alt ε)^* a b.
   Proof.
-    intro S; eapply estar_cons0; [ exact S | apply trans_star_self ].
+    apply estar_single'.
   Qed.
+
+
 
   Lemma estar_cons {G : Type -> Type} (a b c : @S G B X) l :
     trans_alt ε a b -> ((trans_alt ε)^* ⋅ trans_alt l) b c ->
@@ -782,7 +824,8 @@ Lemma ssim'_epsilon_l {E F B X} {L} :
   ssim' L t' u.
 Proof.
   intros. step. eapply ss'_gen_epsilon_l.
-  - apply (gfp_pfp (ss' L)).
+  (* blessed postfixpoint *)
+  - exact (gfp_pfp (ss' L)).
   - step in H. apply H.
   - apply H0.
 Qed.
@@ -824,18 +867,20 @@ Definition epsilon_det_ctx {E B X} (R : ctree E B X -> Prop)
 
 Section upto.
 
-  Context {E F C D: Type -> Type} {X Y: Type}
-          (L : hrel (@label E) (@label F)).
+  Context {E F B : Type -> Type} {X : Type}
+          (L : rel (@label E X) (@label F X)).
 
   (* Up-to epsilon *)
 
-  Program Definition epsilon_ctx_r : mon (rel (ctree E B X) (ctree F B X))
-    := {| body R t u := epsilon_ctx (fun u => R t u) u |}.
+  #[local] Obligation Tactic := idtac.
+  Program Definition epsilon_ctx_r : mon (rel (@S E B X) (@S F B X))
+    := {| body R t u := exists u', (trans_alt ε)^* u u' /\ R t u' |}.
   Next Obligation.
-    destruct H0 as (? & ? & ?). red. eauto.
+    intros R R' HR t u (u' & STAR & HRtu).
+    exists u'; split; [ exact STAR | now apply HR ].
   Qed.
 
-  Lemma epsilon_ctx_r_sst' {c: Chain (ss' L)}:
+  Lemma epsilon_ctx_r_sst' {c: Chain (@ss' E F B X L)}:
     forall x y, epsilon_ctx_r `c x y -> `c x y.
   Proof.
     apply tower.
@@ -845,269 +890,411 @@ Section upto.
       apply leq_infx in H1.
       now apply H1.
     - clear.
-      intros R IH t u (u' & Heps & (HA & HB & HC)).
-      ssplit.
-      + intros HP l t' TR.
-        eapply HA in TR as (l'' & u'' & TR' & ? & ?); auto.
-        do 2 eexists; ssplit.
-        eapply epsilon_trans; eauto.
-        all: auto.
-      + intros * EQ ?.
-        eapply HB in EQ as (? & ? & ?).
-        eexists; split; [| eauto].
-        etransitivity; eauto.
-      + intros * EQ.
-        eapply HC in EQ as (? & ? & ?).
-        eexists; split; [| eauto].
-        etransitivity; eauto.
+      intros R IH t u (u' & STAR & HSS).
+      eapply step_ss'_epsilon_r; [ exact HSS | exact STAR ].
   Qed.
 
-  (* Up-to ss. *)
-  (* This principle holds because an ss step always corresponds
-     to one or more ss' steps. *)
-  Lemma ss_sst' {c : Chain (ss' L)} :
-    forall x y, @ss E F C D X Y L ` c x y -> `c x y.
+  Lemma ss_sst' {c : Chain (@ss' E F B X L)} :
+    forall x y, ss L `c x y -> `c x y.
   Proof.
     apply tower.
-    - intros ? INC x y HSS ??; red.
+    - intros ? INC x y HSS ? ?; red.
       apply INC; auto.
-      intros ?? TR; apply HSS in TR as (?& ?& ? &? &?).
-      do 2 eexists; ssplit; eauto.
-      apply leq_infx in H.
-      now apply H.
-    - clear.
-      intros R IH t u HSS.
-      ssplit.
-      + intros HP l t' TR.
-        apply HSS in TR as (l'' & u'' & TR' & ? & ?).
-        do 2 eexists; ssplit; eauto.
-        now apply (b_chain R).
-      + intros * EQ ?.
-        eexists; split; eauto.
-        apply IH.
-        intros ?? TR.
-        edestruct HSS as (l'' & u'' & TR' & ? & ?).
-        rewrite EQ; econstructor; apply TR.
-        do 2 eexists; ssplit; eauto.
-        now apply (b_chain R).
-      + intros * EQ.
-        eexists; split; eauto.
-        apply IH.
-        intros ?? TR.
-        edestruct HSS as (l'' & u'' & TR' & ? & ?).
-        rewrite EQ; econstructor; apply TR.
-        do 2 eexists; ssplit; eauto.
-        now apply (b_chain R).
+      intros t' l Hne TR.
+      destruct (HSS _ _ Hne TR) as (l' & u' & STEP & HR & HL).
+      exists l', u'; ssplit.
+      + assumption.
+      + apply leq_infx in H; now apply H.
+      + assumption.
+    - clear; intros R IH t u HSS; split.
+      + intros t' l Hne TR.
+        assert (cTR : ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) t t')
+          by (apply trans_star_l; exact TR).
+        destruct (HSS _ _ Hne cTR) as (l' & u' & STEP & HR & HL).
+        exists l', u'; ssplit.
+        * assumption.
+        * now apply (b_chain R).
+        * assumption.
+      + intros t' TR.
+        exists u; split.
+        * apply trans_star_self.
+        * apply IH; intros t'' l Hne cTR.
+          assert (cTR2 : ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) t t'')
+            by (eapply estar_cons; [exact TR | exact cTR]).
+          destruct (HSS _ _ Hne cTR2) as (l' & u' & STEP & HR & HL).
+          exists l', u'; ssplit.
+          -- assumption.
+          -- now apply (b_chain R).
+          -- assumption.
   Qed.
 
 End upto.
 
+
 Arguments ss_sst' {E F B X} L.
 
-(*|
-Up-to [bind] context simulations
-----------------------------------
-We have proved in the module [Equ] that up-to bind context is
-a valid enhancement to prove [equ].
-We now prove the same result, but for strong simulation.
-|*)
+Lemma ss_ss'_chain {E F B X} {L : rel (@label E X) (@label F X)}
+  {R : Chain (@ss' E F B X L)} :
+  forall (t : @SS E B X) (u : @SS F B X),
+    ss L `R t u -> ss' L `R t u.
+Proof.
+  intros t u HSS; split.
+  - intros t' l Hne TR.
+    assert (cTR : ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) t t')
+      by (apply trans_star_l; exact TR).
+    destruct (HSS _ _ Hne cTR) as (l' & u' & STEP & HR & HL).
+    exists l', u'; ssplit; assumption.
+  - intros t' TR.
+    exists u; split.
+    + apply trans_star_self.
+    + apply ss_sst'; intros t'' l Hne cTR.
+      assert (cTR2 : ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) t t'')
+        by (eapply estar_cons; [exact TR | exact cTR]).
+      destruct (HSS _ _ Hne cTR2) as (l' & u' & STEP & HR & HL).
+      exists l', u'; ssplit; assumption.
+Qed.
 
-Section bind.
-  Arguments label: clear implicits.
-  Obligation Tactic := idtac.
+Theorem ssim_ssim' {E F B X} (L : rel (@label E X) (@label F X)) :
+  forall (t : @SS E B X) (u : @SS F B X), ssim L t u <-> ssim' L t u.
+Proof.
+  split; intro H.
+  - revert t u H; unfold ssim'; coinduction R CH; intros t u H.
+    apply ss_ss'_chain.
+    intros t' l Hne TR.
+    step in H.
+    destruct (H _ _ Hne TR) as (l' & u' & STEP & HR & HL).
+    exists l', u'; ssplit.
+    + assumption.
+    + apply CH, HR.
+    + assumption.
+  - revert t u H; unfold ssim; coinduction R CH; intros t u H.
+    intros t' l Hne TR.
+    destruct TR as [m STAR STEP].
+    eapply ssim'_epsilon_l in H; [| exact STAR].
+    step in H.
+    destruct H as (Hchal & _).
+    destruct (Hchal _ _ Hne STEP) as (l' & u' & RESP & Hgfp & HL).
+    exists l', u'; ssplit.
+    + assumption.
+    + apply CH, Hgfp.
+    + assumption.
+Qed.
 
-  Context {E F C D: Type -> Type} {X X' Y Y': Type}
-          (L : hrel (@label E) (@label F)) (R0 : rel X Y).
+#[local] Example ssim'_spin {E F B X} (L : rel (@label E X) (@label F X)) :
+  forall (u : @SS F B X), ssim' L (Active (@spin E B X)) u.
+Proof.
+  unfold ssim'; coinduction R CH; intros u.
+  assert (SQ : (Active (@spin E B X) : @SS E B X) ⩸ (Active (Guard spin)))
+    by (constructor; apply unfold_spin).
+  split.
+  - intros t' l Hne TR.
+    rewrite SQ in TR.
+    eapply trans_alt_guard_inv in TR as (-> & _); easy.
+    Unshelve. exact E. exact F. all: auto.
+  - intros t' TR.
+    rewrite SQ in TR.
+    eapply trans_alt_guard_inv in TR as (_ & EQ).
+    exists u; split.
+    + apply trans_star_self.
+    + rewrite EQ; apply CH.
+    Unshelve. exact E. exact F. all: auto.
+Qed.
 
-(*|
-    The resulting enhancing function gives a valid up-to technique
-|*)
+Variant update_val_rel {E F X X'}
+  (L : rel (@label E X') (@label F X')) (R0 : rel X X)
+  : rel (@label E X) (@label F X) :=
+| uvr_τ :
+    L τ τ ->
+    update_val_rel L R0 τ τ
+| uvr_ask {Z Z'} (e : E Z) (f : F Z') :
+    L (ask e) (ask f) ->
+    update_val_rel L R0 (ask e) (ask f)
+| uvr_rcv {Z Z'} (e : E Z) (v : Z) (f : F Z') (w : Z') :
+    L (rcv e v) (rcv f w) ->
+    update_val_rel L R0 (rcv e v) (rcv f w)
+| uvr_val (v w : X) :
+    R0 v w ->
+    update_val_rel L R0 (val v) (val w).
 
-  Lemma bind_chain_gen L0
-    (ISVR : is_update_val_rel L R0 L0)
-    {R : Chain (@ss' E F C D X' Y' L)} :
-    forall (t : ctree E B X) (t' : ctree F B X) (k : X -> ctree E B X') (k' : Y -> ctree F B X'),
-      ssim L0 t t' ->
-      (forall x x', R0 x x' -> elem R (k x) (k' x')) ->
-      ` R (bind t k) (bind t' k').
+Section uvr_inv.
+
+  Context {E F : Type -> Type} {X X' : Type}
+          {L : rel (@label E X') (@label F X')} {R0 : rel X X}.
+
+  Lemma update_val_rel_val_l (v : X) (l2 : @label F X) :
+    update_val_rel L R0 (val v) l2 ->
+    exists w, l2 = val w /\ R0 v w.
   Proof.
-    apply tower.
-    - intros ? INC ? ? ? ? tt' kk' ? ?.
-      apply INC. apply H. apply tt'.
-      intros x x' xx'. apply leq_infx in H. apply H. now apply kk'.
-    - clear R; intros R IH ? ? ? ? tt kk.
-      step in tt. ssplit.
-      + simpl; intros PROD l u STEP.
-        apply trans_bind_inv in STEP as [(?H & ?t' & STEP & EQ) | (v & STEPres & STEP)].
-        apply tt in STEP as (l' & u' & STEP & EQ' & ?).
-        do 2 eexists. ssplit.
-        apply trans_bind_l; eauto.
-        * intro Hl. destruct Hl.
-          apply ISVR in H0; etrans.
-          inversion H0; subst. apply H. constructor. apply H2.
-          constructor.
-        * rewrite EQ; apply IH.
-          eauto.
-          intros.
-          apply (b_chain R); auto.
-        * apply ISVR in H0; etrans.
-          destruct H0. exfalso. apply H. constructor. apply H2.
-        * assert (t ≅ Ret v).
-          { apply productive_bind in PROD. apply trans_val_epsilon in STEPres as [? _].
-            now apply productive_epsilon. } subs.
-          apply tt in STEPres as (l' & u' & STEPres & EQ' & ?).
-          apply ISVR in H; etrans.
-          dependent destruction H. 2: { exfalso. apply H. constructor. }
-                                 pose proof (trans_val_inv STEPres) as EQ.
-          rewrite EQ in STEPres.
-          specialize (kk v v2 H).
-          rewrite bind_ret_l in PROD.
-          apply kk in STEP as (? & u''' & STEP & EQ'' & ?); auto.
-          do 2 eexists; split.
-          eapply trans_bind_r; eauto.
-          split; auto.
-      + intros * EQ ?.
-        apply br_equ_bind in EQ as EQ'.
-        destruct EQ' as [(v & EQ' & EQ'') | (?k0 & EQ' & EQ'')].
-        * subs.
-          edestruct tt as (l & t'' & STEPres & _ & ?). etrans.
-          apply ISVR in H; etrans.
-          apply update_val_rel_val_l in H as (v' & -> & EQ').
-          rewrite bind_ret_l in EQ.
-          specialize (kk v v' EQ').
-          apply kk with (x := x) in EQ. destruct EQ as (u' & EPS & EQ).
-          exists u'.
-          apply trans_val_epsilon in STEPres as [? _]. split; eauto.
-          eapply epsilon_bind; eassumption.
-        * subs. eexists. split; [now constructor |].
-          rewrite EQ''.
-          apply IH.
-          eapply ssim_br_l_inv. step. apply tt.
-          intros.
-          apply (b_chain R); eauto.
-      + intros * EQ.
-        apply guard_equ_bind in EQ as EQ'.
-        destruct EQ' as [(v & EQ' & EQ'') | (?k0 & EQ' & EQ'')].
-        * subs.
-          edestruct tt as (l & t'' & STEPres & _ & ?). etrans.
-          apply ISVR in H; etrans.
-          apply update_val_rel_val_l in H as (v' & -> & EQ').
-          rewrite bind_ret_l in EQ.
-          specialize (kk v v' EQ').
-          apply kk in EQ. destruct EQ as (u' & EPS & EQ).
-          exists u'.
-          apply trans_val_epsilon in STEPres as [? _]. split; eauto.
-          eapply epsilon_bind; eassumption.
-        * subs. eexists. split; [now constructor |].
-          rewrite <- EQ''.
-          apply IH.
-          eapply ssim_guard_l_inv. step. apply tt.
-          intros.
-          apply (b_chain R); eauto.
+    intros H; dependent destruction H; eauto.
   Qed.
 
-End bind.
+  Lemma update_val_rel_τ_l (l2 : @label F X) :
+    update_val_rel L R0 τ l2 ->
+    l2 = τ /\ L τ τ.
+  Proof.
+    intros H; dependent destruction H; eauto.
+  Qed.
 
-(*|
-Expliciting the reasoning rule provided by the up-to principles.
-|*)
-Lemma ss'_clo_bind_gen {E F C D: Type -> Type} {X Y X' Y': Type}  {L : rel (@label E) (@label F)}
-      (R0 : rel X Y) L0
-      (HL0 : is_update_val_rel L R0 L0)
-      (t1 : ctree E B X) (t2: ctree F B X)
-      (k1 : X -> ctree E B X') (k2 : Y -> ctree F B X'):
-  ssim L0 t1 t2 ->
-  (forall x y, R0 x y -> ssim' L (k1 x) (k2 y)) ->
-  ssim' L (t1 >>= k1) (t2 >>= k2).
+  Lemma update_val_rel_ask_l {Z} (e : E Z) (l2 : @label F X) :
+    update_val_rel L R0 (ask e) l2 ->
+    exists Z' (f : F Z'), l2 = ask f /\ L (ask e) (ask f).
+  Proof.
+    intros H; dependent destruction H; eauto.
+  Qed.
+
+  Lemma update_val_rel_rcv_l {Z} (e : E Z) (v : Z) (l2 : @label F X) :
+    update_val_rel L R0 (rcv e v) l2 ->
+    exists Z' (f : F Z') (w : Z'), l2 = rcv f w /\ L (rcv e v) (rcv f w).
+  Proof.
+    intros H; dependent destruction H; eauto.
+  Qed.
+
+End uvr_inv.
+
+Lemma estar_seq {E B X} (a b : @SS E B X) :
+  a ⩸ b -> (trans_alt ε)^* a b.
 Proof.
-  intros.
-  eapply bind_chain_gen; eauto.
+  intros H; exists O; exact H.
 Qed.
 
-Lemma ss'_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
-  (R0 : rel X Y)
-  {R : Chain (@ss' E F C D X' Y' L)} :
-  forall (t : ctree E B X) (t' : ctree F B X) (k : X -> ctree E B X') (k' : Y -> ctree F B X'),
-    t (≲update_val_rel L R0) t' ->
-    (forall x x', R0 x x' -> elem R (k x) (k' x')) ->
-    ` R (bind t k) (bind t' k').
+Lemma estar_passive {E B X Z} (e : E Z) (g : Z -> ctree E B X) (m : @SS E B X) :
+  (trans_alt ε)^* (Passive e g) m ->
+  (Passive e g : @SS E B X) ⩸ m.
 Proof.
-  intros.
-  eapply bind_chain_gen; eauto using update_val_rel_correct.
+  intros [n STAR]; destruct n.
+  - exact STAR.
+  - destruct STAR as [mid STEP _].
+    apply trans_passive_inv' in STEP as (z & _ & Habs); easy.
 Qed.
 
-Lemma ssim'_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : rel (@label E) (@label F)}
-      (R0 : rel X Y)
-      (t1 : ctree E B X) (t2: ctree F B X)
-      (k1 : X -> ctree E B X') (k2 : Y -> ctree F B X'):
-  t1 (≲update_val_rel L R0) t2 ->
-  (forall x y, R0 x y -> ssim' L (k1 x) (k2 y)) ->
-  ssim' L (t1 >>= k1) (t2 >>= k2).
+Lemma estar_bind {E B X Y} (t u : ctree E B X) (k : X -> ctree E B Y) :
+  (trans_alt ε)^* (Active t) (Active u) ->
+  (trans_alt ε)^* (Active (x <- t;; k x)) (Active (x <- u;; k x)).
 Proof.
-  intros. eapply ss'_clo_bind; eauto.
+  intros [n STAR]; revert t STAR; induction n; intros t STAR.
+  - cbn in STAR; dependent destruction STAR.
+    apply estar_seq; constructor.
+    now rewrite EQ.
+  - destruct STAR as [mid STEP REST].
+    unfold trans_alt in STEP; cbn in STEP; dependent destruction STEP.
+    + eapply estar_cons0.
+      * apply trans_bind_l_ε; eapply Transbr; eauto.
+      * apply IHn; exact REST.
+    + eapply estar_cons0.
+      * apply trans_bind_l_ε; eapply Transguard; eauto.
+      * apply IHn; exact REST.
 Qed.
 
-Lemma ss'_clo_bind_eq {E C D: Type -> Type} {X X': Type}
-  {R : Chain (@ss' E E C D X' X' eq)} :
-  forall (t : ctree E B X) (t' : ctree E D X) (k : X -> ctree E B X') (k' : X -> ctree E D X'),
-    t ≲ t' ->
-    (forall x, elem R (k x) (k' x)) ->
-    ` R (bind t k) (bind t' k').
+Lemma ssim_eps_l {E F B X} (L : rel (@label E X) (@label F X))
+  (t t1 : @SS E B X) (u : @SS F B X) :
+  ssim L t u -> trans_alt ε t t1 -> ssim L t1 u.
 Proof.
-  intros.
-  eapply bind_chain_gen; eauto.
-  - apply update_val_rel_eq.
-  - intros; subst. apply H0.
+  intros H TR.
+  unfold ssim in *.
+  step in H.
+  apply (b_chain (chain_gfp (ss L))).
+  intros t' l Hne cTR.
+  destruct cTR as [m STAR STEP].
+  assert (cTR2 : ((trans_alt ε)^* ⋅ trans_alt l) t t').
+  { exists m.
+    - eapply estar_cons0; [exact TR | exact STAR].
+    - exact STEP. }
+  destruct (H _ _ Hne cTR2) as (l' & u' & RESP & HR & HL).
+  exists l', u'; ssplit; assumption.
 Qed.
 
-Lemma ssim'_clo_bind_eq {E C D: Type -> Type} {X X': Type}
-      (t1 : ctree E B X) (t2: ctree E D X)
-      (k1 : X -> ctree E B X') (k2 : X -> ctree E D X'):
-  t1 ≲ t2 ->
-  (forall x, ssim' eq (k1 x) (k2 x)) ->
-  ssim' eq (t1 >>= k1) (t2 >>= k2).
+Section bind_restore.
+
+  Context {E F B : Type -> Type} {X X' : Type}
+          (L : rel (@label E X') (@label F X'))
+          (R0 : rel X X).
+
+  Notation uvr := (update_val_rel L R0).
+
+  Lemma bind_chain_gen {R : Chain (@ss' E F B X' L)} :
+    forall (t : ctree E B X) (t' : ctree F B X)
+      (k : X -> ctree E B X') (k' : X -> ctree F B X'),
+      ssim uvr (Active t) (Active t') ->
+      (forall x x', R0 x x' -> ssim' L (Active (k x)) (Active (k' x'))) ->
+      ` R (Active (x <- t;; k x)) (Active (x <- t';; k' x)).
+  Proof.
+    apply tower.
+    - intros ? INC t t' k k' tt kk ? ?; red.
+      apply INC; auto.
+    - clear; intros R IH t t' k k' tt kk.
+      split.
+      + intros s l Hne TR.
+        apply trans_bind_inv in TR as
+          [ (x & EQt & TRk)
+          | [ (-> & t1 & TRt & SQ)
+          | [ (Heps & _)
+          | (Z & e & g & -> & TRt & SQ) ]]].
+        * assert (cV : ((trans_alt ε)^* ⋅ trans_alt (val x))
+                         (Active t) (Active (Stuck : ctree E B X))).
+          { apply trans_star_l; eapply Transval; [exact EQt | reflexivity]. }
+          step in tt.
+          assert (HneV : (val x : @label E X) <> ε) by discriminate.
+          destruct (tt _ _ HneV cV) as (l2 & n & RESP & _ & HL2).
+          apply update_val_rel_val_l in HL2 as (x' & -> & Hx).
+          destruct RESP as [m STAR STEPv].
+          unfold trans_alt in STEPv; cbn in STEPv; dependent destruction STEPv.
+          specialize (kk x x' Hx).
+          step in kk; destruct kk as (kkA & _).
+          destruct (kkA _ _ Hne TRk) as (l' & u' & RESP2 & Hgfp & HL').
+          exists l', u'; ssplit.
+          -- destruct RESP2 as [m2 STAR2 STEP2].
+             exists m2; [| exact STEP2].
+             eapply estar_trans.
+             ++ apply estar_bind; exact STAR.
+             ++ eapply estar_trans; [| exact STAR2].
+                apply estar_seq; constructor.
+                rewrite H, bind_ret_l; reflexivity.
+          -- apply (gfp_chain R); exact Hgfp.
+          -- exact HL'.
+        * assert (cT : ((trans_alt ε)^* ⋅ trans_alt τ) (Active t) (Active t1))
+            by (apply trans_star_l; exact TRt).
+          step in tt.
+          assert (Hneτ : (τ : @label E X) <> ε) by discriminate.
+          destruct (tt _ _ Hneτ cT) as (l2 & n & RESP & Htt' & HL2).
+          apply update_val_rel_τ_l in HL2 as (-> & HLττ).
+          destruct RESP as [m STAR STEPτ].
+          unfold trans_alt in STEPτ; cbn in STEPτ; dependent destruction STEPτ.
+          exists τ, (Active (x <- u;; k' x)); ssplit.
+          -- exists (Active (x <- t0;; k' x)).
+             ++ apply estar_bind; exact STAR.
+             ++ apply trans_bind_l_τ; eapply Transstep; eauto.
+          -- rewrite SQ; apply IH; [exact Htt' | exact kk].
+          -- exact HLττ.
+        * easy.
+        (* a short trip is needed: active -> passive -> active 
+           via ask/rcv. not hard but a bit tedious. if this 
+           logic appears again it should be factored out into a lemma.  *)
+        * assert (cA : ((trans_alt ε)^* ⋅ trans_alt (ask e))
+                         (Active t) (Passive e g))
+            by (apply trans_star_l; exact TRt).
+          step in tt.
+          assert (HneA : (ask e : @label E X) <> ε) by discriminate.
+          destruct (tt _ _ HneA cA) as (l2 & n & RESP & Htt' & HL2).
+          apply update_val_rel_ask_l in HL2 as (Z' & f & -> & HLaa).
+          destruct RESP as [m STAR STEPa].
+          unfold trans_alt in STEPa; cbn in STEPa; dependent destruction STEPa.
+          exists (ask f), (Passive f (fun z => x <- k0 z;; k' x)); ssplit.
+          -- exists (Active (x <- t0;; k' x)).
+             ++ apply estar_bind; exact STAR.
+             ++ apply trans_bind_l_ask; econstructor; exact H.
+          -- rewrite SQ; apply (b_chain R); split.
+             ++ intros s2 l2 Hne2 TR2.
+                apply trans_passive_inv' in TR2 as (z & SQ2 & ->).
+                step in Htt'.
+                assert (cR : ((trans_alt ε)^* ⋅ trans_alt (rcv e z))
+                               (Passive e g) (Active (g z))).
+                { apply trans_star_l; econstructor; reflexivity. }
+                assert (HneR : (rcv e z : @label E X) <> ε) by discriminate.
+                destruct (Htt' _ _ HneR cR) as (l3 & n3 & RESP3 & Htt2 & HL3).
+                apply update_val_rel_rcv_l in HL3 as (Z2 & f2 & w & -> & HLrr).
+                destruct RESP3 as [m3 STAR3 STEP3].
+                apply estar_passive in STAR3.
+                dependent destruction STAR3.
+                apply trans_passive_inv' in STEP3 as (w' & SQ3 & Heq).
+                dependent destruction Heq.
+                dependent destruction SQ3.
+                exists (rcv f w'), (Active (x <- k0 w';; k' x)); ssplit.
+                ** apply trans_star_l; econstructor; reflexivity.
+                ** rewrite SQ2.
+                   assert (SQ5 : (Active (x <- t1;; k' x) : @SS F B X')
+                                   ⩸ (Active (x <- k0 w';; k' x))).
+                   { constructor; rewrite EQ0, <- (EQ w'); reflexivity. }
+                   rewrite <- SQ5; apply IH; [exact Htt2 | exact kk].
+                ** exact HLrr.
+             ++ intros s2 TR2.
+                apply trans_passive_inv' in TR2 as (z & _ & Habs); easy.
+          -- exact HLaa.
+      + intros s TR.
+        apply trans_bind_inv in TR as
+          [ (x & EQt & TRk)
+          | [ (Habs & _)
+          | [ (_ & t1 & TRt & SQ)
+          | (Z & e & g & Habs & _) ]]].
+        * assert (cV : ((trans_alt ε)^* ⋅ trans_alt (val x))
+                         (Active t) (Active (Stuck : ctree E B X))).
+          { apply trans_star_l; eapply Transval; [exact EQt | reflexivity]. }
+          step in tt.
+          assert (HneV : (val x : @label E X) <> ε) by discriminate.
+          destruct (tt _ _ HneV cV) as (l2 & n & RESP & _ & HL2).
+          apply update_val_rel_val_l in HL2 as (x' & -> & Hx).
+          destruct RESP as [m STAR STEPv].
+          unfold trans_alt in STEPv; cbn in STEPv; dependent destruction STEPv.
+          specialize (kk x x' Hx).
+          step in kk; destruct kk as (_ & kkB).
+          destruct (kkB _ TRk) as (u2 & STARu & Hgfp2).
+          exists u2; split.
+          -- eapply estar_trans.
+             ++ apply estar_bind; exact STAR.
+             ++ eapply estar_trans; [| exact STARu].
+                apply estar_seq; constructor.
+                rewrite H, bind_ret_l; reflexivity.
+          -- apply (gfp_chain R); exact Hgfp2.
+        * easy.
+        * exists (Active (x <- t';; k' x)); split.
+          -- apply trans_star_self.
+          -- rewrite SQ; apply IH; [| exact kk].
+             eapply ssim_eps_l; [exact tt | exact TRt].
+        * easy.
+  Qed.
+
+  Lemma ssim'_clo_bind :
+    forall (t : ctree E B X) (t' : ctree F B X)
+      (k : X -> ctree E B X') (k' : X -> ctree F B X'),
+      ssim uvr (Active t) (Active t') ->
+      (forall x x', R0 x x' -> ssim' L (Active (k x)) (Active (k' x'))) ->
+      ssim' L (Active (x <- t;; k x)) (Active (x <- t';; k' x)).
+  Proof.
+    intros t t' k k' tt kk.
+    apply (@bind_chain_gen (chain_gfp (ss' L))); assumption.
+  Qed.
+
+End bind_restore.
+
+Lemma update_val_rel_eq_refl {E X X'} :
+  forall (l : @label E X),
+    l <> ε -> @update_val_rel E E X X' eq eq l l.
 Proof.
-  apply ss'_clo_bind_eq.
+  destruct l; intro Hne. 
+  all: easy || now constructor. 
 Qed.
 
-Lemma ss_ss'_chain {E F B X L} {R : Chain (ss' L)} :
-  forall (t : ctree E B X) (u : ctree F B X),
-  ss L `R t u ->
-  ss' L `R t u.
+Lemma ssim_update_val_rel_eq {E B X X'} :
+  forall (t u : @SS E B X),
+    ssim eq t u -> ssim (@update_val_rel E E X X' eq eq) t u.
 Proof.
-  - intros.
-    ssplit; intros.
-    + apply H in H1 as (? & ? & ? & ? & ?). eauto 6.
-    + subs. apply ss_br_l_inv with (x := x) in H.
-      apply ss_sst' in H. eauto.
-    + subs. apply ss_guard_l_inv in H. apply ss_sst' in H.
-      eauto.
+  unfold ssim at 2; coinduction R CH; intros t u H.
+  intros t' l Hne TR.
+  step in H.
+  destruct (H _ _ Hne TR) as (l' & u' & RESP & HR & HL).
+  exists l', u'; ssplit.
+  - assumption.
+  - apply CH, HR.
+  - subst l'; apply update_val_rel_eq_refl; assumption.
 Qed.
 
-(* This alternative notion of simulation is equivalent to [ssim] *)
-Theorem ssim_ssim' {E F B X} :
-  forall L (t : ctree E B X) (t' : ctree F B X), ssim L t t' <-> ssim' L t t'.
+Lemma ss'_clo_bind_eq {E B X X'} {R : Chain (@ss' E E B X' eq)} :
+  forall (t t' : ctree E B X) (k k' : X -> ctree E B X'),
+    ssim eq (Active t) (Active t') ->
+    (forall x, ssim' eq (Active (k x)) (Active (k' x))) ->
+    ` R (Active (x <- t;; k x)) (Active (x <- t';; k' x)).
 Proof.
-  split; intros.
-  - red. revert t t' H. coinduction R CH. intros.
-    ssplit; intros.
-    + step in H. apply H in H1 as (? & ? & ? & ? & ?). eauto 6.
-    + subs. apply ssim_br_l_inv with (x := x) in H. eauto.
-    + subs. apply ssim_guard_l_inv in H. eauto.
-  - revert t t' H. coinduction R CH.
-    intros * HSS ?? TR.
-    apply trans_epsilon in TR as (? & ? & ? & ?).
-    apply ssim'_epsilon_l with (t' := x) in HSS; auto.
-    step in HSS. apply (proj1 HSS) in H1 as (? & ? & ? & ? & ?); auto.
-    eauto 6.
+  intros t t' k k' tt kk.
+  apply bind_chain_gen with (R0 := eq).
+  - apply ssim_update_val_rel_eq; exact tt.
+  - intros x x' ->; apply kk.
 Qed.
 
-#[local] Example ssim'_spin {E B X} : forall (t : ctree E B X), (spin : ctree E B X) ≲ t.
+Lemma ssim'_clo_bind_eq {E B X X'} :
+  forall (t t' : ctree E B X) (k k' : X -> ctree E B X'),
+    ssim eq (Active t) (Active t') ->
+    (forall x, ssim' eq (Active (k x)) (Active (k' x))) ->
+    ssim' eq (Active (x <- t;; k x)) (Active (x <- t';; k' x)).
 Proof.
-  intros.
-  apply ssim_ssim'.
-  coinduction R CH.
-  rewrite unfold_spin.
-  apply step_ss'_guard_l.
-  apply CH.
+  intros t t' k k' tt kk.
+  apply (@ss'_clo_bind_eq E B X X' (chain_gfp (ss' eq))); assumption.
 Qed.
