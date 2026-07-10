@@ -24,9 +24,6 @@ Import CoindNotations.
 Import CTree.
 Set Implicit Arguments.
 
-(* TODO: Decide where to set this *)
-Arguments trans_alt : simpl never.
-
 Ltac ssplit := split; [| split].
 
 Section StrongSimAlt.

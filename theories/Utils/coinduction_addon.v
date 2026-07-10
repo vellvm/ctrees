@@ -55,3 +55,25 @@ try econstructor;
 (* use monotonicity fact itself: [sim] <= [sim'] *)
 try apply_leq; 
 eauto]] || fail "`monauto` could not solve this goal."). 
+
+
+(* inf_closed automation *)
+Ltac inf_closed_forall_auto :=
+  repeat (apply inf_closed_all; intro).
+
+Ltac inf_closed_impl_auto :=
+  repeat (apply inf_closed_impl; [repeat intro; apply_leq; firstorder|]).
+
+Ltac inf_closed_final_auto :=
+  solve [repeat intro; try solve [firstorder]; try apply_leq ; firstorder].
+
+Ltac inf_closed_auto :=
+  repeat (inf_closed_forall_auto || inf_closed_impl_auto || inf_closed_final_auto).
+
+(* tower induction always leaves the goal with the form `forall _ : Chain, ...` ; 
+   match on this type and clear the old Chain *) 
+Ltac clear_old_chain := match goal with 
+  | c : ?T |- forall _ : ?T, _ => clear c; intro c end.
+
+Ltac tower_induction := apply tower; [inf_closed_auto|clear_old_chain].
+Tactic Notation "tower" "induction" := tower_induction.
