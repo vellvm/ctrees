@@ -32,3 +32,26 @@ match type of h with
 end.
 
 Tactic Notation "unstep" "in" ident(h) := unstep_in h.
+
+Ltac apply_leq := match goal with 
+  | [H : _ <= _ |- _]=> intros; apply H 
+  | [H : leq _ _ |- _]=> intros; apply H 
+end.
+
+(* nonlinear pattern works here *)
+Ltac induct_on_premise := match goal with 
+| H: context [?rel _] |- context [?rel ] => induction H
+end. 
+
+
+Ltac monauto := (solve [
+(* break `Proper`, introduce names and premises` *)
+cbv; 
+intros; 
+(* find hypothesis matching goal and proceed by cases *)
+solve [induct_on_premise; 
+(* break down each case as necessary. `solve` will backtrack in a helpful way.  *)
+try econstructor; 
+(* use monotonicity fact itself: [sim] <= [sim'] *)
+try apply_leq; 
+eauto]] || fail "`monauto` could not solve this goal."). 
