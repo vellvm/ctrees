@@ -1112,12 +1112,13 @@ Section bind_restore.
     forall (t : ctree E B X) (t' : ctree F B X)
       (k : X -> ctree E B X') (k' : X -> ctree F B X'),
       ssim uvr (Active t) (Active t') ->
-      (forall x x', R0 x x' -> ssim' L (Active (k x)) (Active (k' x'))) ->
+      (forall x x', R0 x x' -> ` R (Active (k x)) (Active (k' x'))) ->
       ` R (Active (x <- t;; k x)) (Active (x <- t';; k' x)).
   Proof.
     apply tower.
     - intros ? INC t t' k k' tt kk ? ?; red.
       apply INC; auto.
+      intros. now apply kk. 
     - clear; intros R IH t t' k k' tt kk.
       split.
       + intros s l Hne TR.
@@ -1136,7 +1137,7 @@ Section bind_restore.
           destruct RESP as [m STAR STEPv].
           unfold trans_alt in STEPv; cbn in STEPv; dependent destruction STEPv.
           specialize (kk x x' Hx).
-          step in kk; destruct kk as (kkA & _).
+          destruct kk as (kkA & _).
           destruct (kkA _ _ Hne TRk) as (l' & u' & RESP2 & Hgfp & HL').
           exists l', u'; ssplit.
           -- destruct RESP2 as [m2 STAR2 STEP2].
@@ -1146,7 +1147,7 @@ Section bind_restore.
              ++ eapply estar_trans; [| exact STAR2].
                 apply estar_seq; constructor.
                 rewrite H, bind_ret_l; reflexivity.
-          -- apply (gfp_chain R); exact Hgfp.
+          -- exact Hgfp.
           -- exact HL'.
         * assert (cT : ((trans_alt ε)^* ⋅ trans_alt τ) (Active t) (Active t1))
             by (apply trans_star_l; exact TRt).
@@ -1160,7 +1161,7 @@ Section bind_restore.
           -- exists (Active (x <- t0;; k' x)).
              ++ apply estar_bind; exact STAR.
              ++ apply trans_bind_l_τ; eapply Transstep; eauto.
-          -- rewrite SQ; apply IH; [exact Htt' | exact kk].
+          -- rewrite SQ; apply IH; [exact Htt' | intros; step; now apply kk].
           -- exact HLττ.
         * easy.
         (* a short trip is needed: active -> passive -> active 
@@ -1201,7 +1202,7 @@ Section bind_restore.
                    assert (SQ5 : (Active (x <- t1;; k' x) : @SS F B X')
                                    ⩸ (Active (x <- k0 w';; k' x))).
                    { constructor; rewrite EQ0, <- (EQ w'); reflexivity. }
-                   rewrite <- SQ5; apply IH; [exact Htt2 | exact kk].
+                   rewrite <- SQ5; apply IH; [exact Htt2 | intros; step; now apply kk].
                 ** exact HLrr.
              ++ intros s2 TR2.
                 apply trans_passive_inv' in TR2 as (z & _ & Habs); easy.
@@ -1222,7 +1223,7 @@ Section bind_restore.
           destruct RESP as [m STAR STEPv].
           unfold trans_alt in STEPv; cbn in STEPv; dependent destruction STEPv.
           specialize (kk x x' Hx).
-          step in kk; destruct kk as (_ & kkB).
+          destruct kk as (_ & kkB).
           destruct (kkB _ TRk) as (u2 & STARu & Hgfp2).
           exists u2; split.
           -- eapply estar_trans.
@@ -1230,11 +1231,11 @@ Section bind_restore.
              ++ eapply estar_trans; [| exact STARu].
                 apply estar_seq; constructor.
                 rewrite H, bind_ret_l; reflexivity.
-          -- apply (gfp_chain R); exact Hgfp2.
+          -- exact Hgfp2.
         * easy.
         * exists (Active (x <- t';; k' x)); split.
           -- apply trans_star_self.
-          -- rewrite SQ; apply IH; [| exact kk].
+          -- rewrite SQ; apply IH; [| intros; step; now apply kk].
              eapply ssim_eps_l; [exact tt | exact TRt].
         * easy.
   Qed.
