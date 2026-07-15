@@ -28,26 +28,17 @@ Ltac ssplit := split; [| split].
 
 Section StrongSimAlt.
 
-  (* finition ss'_gen {E F C D : Type -> Type} {X : Type}
-    (L : rel (@label E X) (@label F X))
-    (R Reps : rel (ctree E C X) (ctree F D X))
-    (t : ctree E C X) (u : ctree F D Y) :=
+  (* TODO: Make it heterogeneous, propagate the use of lrel *)
+  (* Definition ss'_gen {E F B : Type -> Type} {X : Type} *)
+  (*   (L : lrel E F X X) *)
+  (*   (R Reps : rel SS SS) *)
+  (*   (t : SS) (u : SS) := *)
 
-    (productive t ->
-    (* t and u step together under labels related by L, assuming 
-    t is "productive"; that is, not a Br *)
-      forall l t', trans l t t' ->
-             exists l' u', trans l' u u' /\ R t' u' /\ L l l')
-    (* if t branches, u ϵ-steps to u'  *)
-    /\ (forall Z (c : C Z) k,
-          t ≅ Br c k ->
-          forall x, exists u', epsilon u u' /\ Reps (k x) u')
-    /\ (forall t',
-          t ≅ Guard t' ->
-          exists u', epsilon u u' /\ Reps t' u').
- *)
-
-Locate dot. 
+  (*   (forall t' l, l <> ε -> trans_alt (B:=B) l t t' *)
+  (*   -> exists l' u', ((trans_alt (B:=B) ε)^* ⋅ (trans_alt l')) u u' /\ R t' u' /\ L l l') *)
+  (*   /\ *)
+  (*     (forall t', trans_alt (B:=B) ε t t' -> exists u', (trans_alt (B:=B) ε)^* u u' /\ Reps t' u'). *)
+ 
   Definition ss'_gen {E F B : Type -> Type} {X : Type}
     (L : rel (@label E X) (@label F X))
     (R Reps : rel SS SS)
@@ -81,7 +72,7 @@ Locate dot.
     - apply Hep in H as (u' & Htrans & HRtu). exists u'; split; [assumption | now apply HReps].
   Qed.
 
-(*|
+  (*|
 An alternative definition [ss'] of strong simulation.
 The simulation challenge does not involve an inductive transition relation,
 thus simplifying proofs.
@@ -90,20 +81,20 @@ thus simplifying proofs.
     (L : rel (@label E X) (@label F X)) :
     mon (SS -> SS -> Prop) :=
     {| body R t u :=
-      @ss'_gen E F B X L R R t u  
+        @ss'_gen E F B X L R R t u  
     |}.
-      Next Obligation.
+  Next Obligation.
     epose proof (@ss'_gen_mon E F B X). eapply H1.
     3: apply H0.
     all: auto.
   Qed.
-
 
 End StrongSimAlt.
 
 Definition ssim' {E F B X} L :=
   (gfp (@ss' E F B X L): hrel _ _).
 
+(* TODO: is this definition needed? *)
 Program Definition ss {E F B : Type -> Type} {X : Type}
   (L : rel (@label E X) (@label F X)) :
   mon (@SS E B X -> @SS F B X -> Prop) :=
@@ -121,7 +112,7 @@ Qed.
 
 Definition ssim {E F B X} L := (gfp (@ss E F B X L) : hrel _ _).
 
-  (* todo: remove this and rewrite using simple proper instances *)
+(* TODO: remove this and rewrite using simple proper instances *)
 Variant Seq_clos_body {E F B X} (R : rel (@S E B X) (@S F B X)) : rel (@S E B X) (@S F B X) :=
   | Seq_clos_intro : forall t t' u' u
                        (Seqt : t ⩸ t')
@@ -249,22 +240,6 @@ Ltac __step_in_ssim' H :=
       step in H;
       fold (@ssim' E F B X L) in H
   end.
-(* goal: elem x y wtp b x y 
-
-step: 
-
-gfp b <= b (elem) <= elem
-
-H: gfp b x y 
-goal:
-b (elem) x y 
-
-elem <- b elem <- gfp b <-> b (gfp b) 
-
-unstep: 
-b gfp -> gfp 
-
-*)
 Tactic Notation "step" "in" ident(H) := __step_in_ssim' H || step in H.
 
 Tactic Notation "__coinduction_ssim'" simple_intropattern(r) simple_intropattern(cih) :=
@@ -280,9 +255,7 @@ Section ssim'_homogenous_theory.
   Notation ss' := (@ss' E E B X).
   Notation ssim' := (@ssim' E E B X).
 
-
-  #[global] Instance Reflexive_ss' R Reps
-    `{Reflexive _ R} `{Reflexive _ L} `{Reflexive _ Reps}:
+  #[global] Instance Reflexive_ss' R Reps `{Reflexive _ R} `{Reflexive _ L} `{Reflexive _ Reps}:
     Reflexive (@ss'_gen E E B X L R Reps).
   Proof.
     split; intros.
@@ -301,6 +274,8 @@ Section ssim'_homogenous_theory.
       use_steps (1 : nat). econstructor; eauto. 
   Qed.
 
+  (* [Transitive `C] should hold? *)
+  
 End ssim'_homogenous_theory.
 
 (*|
@@ -502,8 +477,6 @@ Section Proof_Rules.
   Proof.
     apply estar_single'.
   Qed.
-
-
 
   Lemma estar_cons {G : Type -> Type} (a b c : @S G B X) l :
     trans_alt ε a b -> ((trans_alt ε)^* ⋅ trans_alt l) b c ->
@@ -926,7 +899,6 @@ Section upto.
   Qed.
 
 End upto.
-
 
 Arguments ss_sst' {E F B X} L.
 
