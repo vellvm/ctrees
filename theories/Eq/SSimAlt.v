@@ -35,20 +35,20 @@ thus simplifying proofs.
 |*)
 
 Definition ss'_gen {E F C D : Type -> Type} 
-(R Reps : (forall X Y, lrel E F X Y -> @S E C X -> @S F D Y -> Prop)) 
+(R Reps : (forall [X Y], lrel E F X Y -> @S E C X -> @S F D Y -> Prop)) 
 (X Y : Type) (L : lrel E F X Y) (t: @S E C X) (u: @S F D Y) :=
     (forall t' l, l <> ε -> trans_alt (B:=C) l t t'
-    -> exists l' u', ((trans_alt (B:=D) ε)^* ⋅ (trans_alt l')) u u' /\ R X Y L t' u' /\ L l l')
+    -> exists l' u', ((trans_alt (B:=D) ε)^* ⋅ (trans_alt l')) u u' /\ R L t' u' /\ L l l')
     /\
-      (forall t', trans_alt (B:=C) ε t t' -> exists u', (trans_alt (B:=D) ε)^* u u' /\ Reps X Y L t' u'). 
+      (forall t', trans_alt (B:=C) ε t t' -> exists u', (trans_alt (B:=D) ε)^* u u' /\ Reps L t' u'). 
 
   Program Definition ss' {E F C D : Type -> Type} :
     mon (forall (X Y : Type), 
     lrel E F X Y -> (* L *)
-    @S E C X -> (* t *)
-    @S F D Y -> (* u *)
-    Prop) :=
-    {| body R := ss'_gen R R
+    hrel (@S E C X) (* t *)
+         (@S F D Y) (* u *)
+    ) :=
+    {| body R := ss'_gen R R (* simulation: R and Reps are the same relation *)
     |}. 
 Next Obligation.
 Proof.  
@@ -77,101 +77,73 @@ End StrongSimAlt.
 Definition ssim' {E F C D X Y} L :=
   (gfp (@ss' E F C D) X Y L : hrel _ _).
 
-
-(* TODO: remove this and rewrite using simple proper instances *)
-Variant Seq_clos_body {E F B X} (R : rel (@S E B X) (@S F B X)) : rel (@S E B X) (@S F B X) :=
-  | Seq_clos_intro : forall t t' u' u
-                       (Seqt : t ⩸ t')
-                       (HR : R t' u')
-                       (Sequ : u' ⩸ u),
-      Seq_clos_body R t u.
-
-Program Definition Seq_clos {E F B X} : mon (rel (@S E B X) (@S F B X)) :=
-  {| body := @Seq_clos_body E F B X |}.
-Next Obligation.
-  match goal with h : Seq_clos_body _ _ _ |- _ => inv h end.
-  econstructor; eauto.
-Qed.
-
 Section ssim'_theory.
   Arguments label: clear implicits.
-  Context {E F B: Type -> Type} {X : Type}
-          {L: rel (@label E X) (@label F X)}.
+  Context {E F C D: Type -> Type} {X Y : Type}
+          {R: forall X Y, lrel E F X Y -> rel (@S E C X) (@S F D Y)}
+          {L: lrel E F X Y}.
 
 (*|
    Strong simulation up-to [equ] is valid
    ----------------------------------------
 |*)
-  #[global] Instance Seq_ss'_gen_goal {R Reps} :
-    Proper (Seq ==> Seq ==> flip impl) (@ss'_gen E F B X L R Reps).
+
+  #[global] Instance Seq_proper_ss'_chain_goal {c: Chain (@ss' E F C D)} :
+    Proper (Seq ==> Seq ==> flip impl) (`c X Y L).
   Proof.
-    intros t t' EQt u u' EQu (HA & HB); split.
-    - intros t'' l Hl TR. rewrite EQt in TR.
-      apply HA in TR as (l' & u'' & STEP & HRtu & HL); auto.
-      exists l', u''; split; [| split; assumption].
-      now rewrite EQu.
-    - intros t'' TR. rewrite EQt in TR.
-      apply HB in TR as (u'' & STEP & HRtu).
-      exists u''; split; [| assumption].
-      now rewrite EQu.
+    do 5 red.  
+    apply tower. 
+    - intros T HT a b Hseq x y Hseq2 Hinf i Hi. red. eapply HT; eauto. 
+      now apply Hinf. 
+    - clear c; intros c CIH x y Hseq x' y' Hseq2 [Hnonep Hep]. 
+    split; intros. 
+    + rewrite Hseq in H0. destruct (Hnonep _ _ H H0) as 
+    (l' & u' & Htr & Hc & HL). rewrite <- Hseq2 in Htr. 
+      exists l', u'; split; eauto.
+    + rewrite Hseq in H. apply Hep in H as (u' & Htr & Hc).
+    rewrite <- Hseq2 in Htr. 
+      exists u'; split; eauto.  
   Qed.
 
-  #[global] Instance Seq_ss'_gen_ctx {R Reps} :
-    Proper (Seq ==> Seq ==> impl) (@ss'_gen E F B X L R Reps).
+  #[global] Instance Seq_proper_ss'_chain_ctx  {c: Chain (@ss' E F C D)} :
+    Proper (Seq ==> Seq ==> impl) (`c X Y L).
   Proof.
-    intros t t' EQt u u' EQu H. now rewrite <- EQt, <- EQu.
+    do 4 red.  
+    apply tower. 
+    - intros T HT a b Hseq x y Hseq2 Hinf i Hi. red. eapply HT; eauto. 
+      now apply Hinf. 
+    - clear c; intros c CIH x y Hseq x' y' Hseq2 [Hnonep Hep]. 
+    split; intros. 
+    + rewrite <- Hseq in H0. destruct (Hnonep _ _ H H0) as 
+    (l' & u' & Htr & Hc & HL). rewrite Hseq2 in Htr. 
+      exists l', u'; split; eauto.
+    + rewrite <- Hseq in H. apply Hep in H as (u' & Htr & Hc).
+    rewrite Hseq2 in Htr. 
+      exists u'; split; eauto.  
   Qed.
 
-  Lemma Seq_clos_sst' {c: Chain (@ss' E F B X L)}:
-    forall x y, Seq_clos `c x y -> `c x y.
+
+  #[global] Instance Seq_proper_ssim'_goal : Proper (Seq ==> Seq ==> flip impl) (@ssim' E F C D X Y L).
   Proof.
-    apply tower.
-    - intros ? INC x y [t t' u' u EQt HR EQu] ??. red.
-      apply INC; auto.
-      econstructor; eauto.
-      apply leq_infx in H.
-      now apply H.
-    - intros R IH x y [t t' u' u EQt HR EQu].
-      eapply Seq_ss'_gen_goal; [ exact EQt | symmetry; exact EQu | exact HR ].
+    exact (@Seq_proper_ss'_chain_goal (chain_gfp (@ss' E F C D))).
   Qed.
 
-  #[global] Instance Seq_clos_sst_goal {c: Chain (@ss' E F B X L)} :
-    Proper (Seq ==> Seq ==> flip impl) `c.
+  #[global] Instance Seq_proper_ssim'_ctx : Proper (Seq ==> Seq ==> impl) (@ssim' E F C D X Y L).
   Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply Seq_clos_sst'; econstructor; [eauto | | symmetry; eauto]; assumption.
+    exact (@Seq_proper_ss'_chain_ctx (chain_gfp (@ss' E F C D))).
   Qed.
 
-  #[global] Instance Seq_clos_sst'_ctx  {c: Chain (@ss' E F B X L)} :
-    Proper (Seq ==> Seq ==> impl) `c.
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply Seq_clos_sst'; econstructor; [symmetry; eauto | | eauto]; assumption.
-  Qed.
-
-  #[global] Instance Seq_clos_ssim'_goal : Proper (Seq ==> Seq ==> flip impl) (@ssim' E F B X L).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    apply Seq_clos_sst'; econstructor; eauto; now symmetry.
-  Qed.
-
-  #[global] Instance Seq_clos_ssim'_ctx : Proper (Seq ==> Seq ==> impl) (@ssim' E F B X L).
-  Proof.
-    cbn; intros ? ? eq1 ? ? eq2 H.
-    now rewrite <- eq1, <- eq2.
-  Qed.
-
-  Lemma ss'_gen_epsilon_star {R : rel (@S E B X) (@S F B X)} :
-    forall (t t' : @S E B X) (u : @S F B X),
-    ss'_gen L R R t u ->
+  Lemma ss'_gen_epsilon_star :
+    forall (t t' : @S E C X) (u : @S F D Y),
+    ss'_gen R R L t u ->
     trans_alt ε t t' ->
-    exists u', (trans_alt ε)^* u u' /\ R t' u'.
+    exists u', (trans_alt ε)^* u u' /\ R L t' u'.
   Proof.
     intros * (_ & H); apply H.
   Qed.
 
   Lemma trans_alt_estar_l {G : Type -> Type} :
-    forall (t t' : @S G B X) l,
+    forall (t t' : @S G C X) l,
     trans_alt l t t' ->
     ((trans_alt ε)^* ⋅ trans_alt l) t t'.
   Proof.
@@ -183,28 +155,28 @@ End ssim'_theory.
 Ltac fold_ssim' :=
   repeat
     match goal with
-    | h: context[gfp (@ss' ?E ?F ?B ?X ?L)] |- _ =>
-        fold (@ssim' E F B X L) in h
-    | |- context[gfp (@ss' ?E ?F ?B ?X ?L)]      =>
-        fold (@ssim' E F B X L)
+    | h: context[gfp (@ss' ?E ?F ?C ?D ?X ?Y ?L)] |- _ =>
+        fold (@ssim' E F C D X Y L) in h
+    | |- context[gfp (@ss' ?E ?F ?C ?D ?X ?Y ?L)]      =>
+        fold (@ssim' E F C D X Y L)
     end.
 
 Tactic Notation "__step_ssim'" :=
   match goal with
-  | |- context[@ssim' ?E ?F ?B ?X ?L] =>
+  | |- context[@ssim' ?E ?F ?C ?D ?X ?Y ?L] =>
       unfold ssim';
-      step;
-      fold (@ssim' E F B X L)
+        apply (pfp_gfp (@ss' E F C D));
+      fold (@ssim' E F C D X Y L)
   end.
 
 Tactic Notation "step" := __step_ssim' || step.
 
 Ltac __step_in_ssim' H :=
   match type of H with
-  | context[@ssim' ?E ?F ?B ?X ?L] =>
+  | context[@ssim' ?E ?F ?C ?D ?X ?Y ?L] =>
       unfold ssim' in H;
-      step in H;
-      fold (@ssim' E F B X L) in H
+      apply (gfp_pfp (@ss' E F C D));
+      fold (@ssim' E F C D X Y L) in H
   end.
 Tactic Notation "step" "in" ident(H) := __step_in_ssim' H || step in H.
 
@@ -215,14 +187,15 @@ Tactic Notation "coinduction" simple_intropattern(r) simple_intropattern(cih) :=
 Import CTreeNotations.
 Import EquNotations.
 Section ssim'_homogenous_theory.
-  Context {E B: Type -> Type} {X: Type}
-          {L: relation (@label E X)}.
+  Context {E F C D : Type -> Type} {X Y: Type}
+          {L: lrel E E X X}
+          {R Reps: forall X Y : Type, lrel E E X Y -> rel (S E C X) (S E C Y)}. 
 
-  Notation ss' := (@ss' E E B X).
-  Notation ssim' := (@ssim' E E B X).
+  Notation ss' := (@ss' E E C C).
+  Notation ssim' := (@ssim' E E C C X X).
 
-  #[global] Instance Reflexive_ss' R Reps `{Reflexive _ R} `{Reflexive _ L} `{Reflexive _ Reps}:
-    Reflexive (@ss'_gen E E B X L R Reps).
+  #[global] Instance Reflexive_ss' `{Reflexive _ (R L)} `{Reflexive _ (Reps L)} `{Reflexive _ L}:
+    Reflexive (@ss'_gen E E C C R Reps X X L).
   Proof.
     split; intros.
     exists l, t'. split; auto.  
@@ -231,9 +204,10 @@ Section ssim'_homogenous_theory.
     use_steps (1 : nat). econstructor; eauto.  
   Qed.
 
-  #[global] Instance refl_ss' {LR: Reflexive L} {C: Chain (ss' L)}: Reflexive `C.
+  #[global] Instance refl_ss' {LR: Reflexive L} {c: Chain (ss')}: Reflexive (`c X X L).
   Proof.
-    apply Reflexive_chain.
+    (* of note: Reflexive chain fails here because elem has arguments.. we should fix that. *)   
+    tower induction. (* it works! sometimes *)
     split; intros.
     - do 2 eexists. split. use_steps O. apply H1. now split.  
     - exists t'; split; auto.
@@ -249,25 +223,28 @@ Parametric theory of [ss] with heterogenous [L]
 |*)
 Section ssim'_heterogenous_theory.
   Arguments label: clear implicits.
-  Context {E F B: Type -> Type} {X: Type}
-          {L: rel (@label E X) (@label F X)}.
+  Context {E F C D : Type -> Type} {X Y : Type}
+          {L: lrel E F X Y}.
 
-  Notation ss' := (@ss' E F B X).
-  Notation ssim'  := (@ssim' E F B X).
+  (* Notation ss' := (@ss' E F C D).
+  Notation ssim'  := (@ssim' E F C D X Y). *)
 
 (*|
   stuck ctrees can be simulated by anything.
 |*)
   Lemma ss'_stuck R Reps :
-    forall (u : @S F B X),
-    ss'_gen L R Reps (Stuck : ctree E B X) u.
+    forall (u : @S F D Y),
+    ss'_gen R Reps L (Stuck : ctree E C X) u.
   Proof.
     split; intros; exfalso; eapply trans_stuck_inv; eassumption.
   Qed.
 
-  Lemma ssim'_stuck (t : @S F B X) : ssim' L (Stuck : ctree E B X) t.
+  Lemma ssim'_stuck (t : @S F D Y) : ssim' L (Stuck : ctree E C X) t.
   Proof.
-    intros. step. apply ss'_stuck.
+    (* todo: step doesn't work here: the type of sub_bChain seems to demand
+       the two trees have the same type, which is too restrictive. *)
+    Fail (red; Coinduction.tactics.step).
+    step. apply ss'_stuck.
   Qed.
 
 End ssim'_heterogenous_theory.
