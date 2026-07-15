@@ -6,7 +6,6 @@ From Stdlib Require Import
      Program.Equality
      Logic.Eqdep.
 
-From Coinduction Require Import all.
 
 From ITree Require Import Core.Subevent.
 
@@ -19,6 +18,7 @@ From CTree Require Import
 
 From RelationAlgebra Require Export
      monoid kat kat_tac rel srel.
+From Coinduction Require Import all.
 
 Import CoindNotations.
 Import CTree.
@@ -28,71 +28,54 @@ Ltac ssplit := split; [| split].
 
 Section StrongSimAlt.
 
-  (* TODO: Make it heterogeneous, propagate the use of lrel *)
-  (* Definition ss'_gen {E F B : Type -> Type} {X : Type} *)
-  (*   (L : lrel E F X X) *)
-  (*   (R Reps : rel SS SS) *)
-  (*   (t : SS) (u : SS) := *)
-
-  (*   (forall t' l, l <> ε -> trans_alt (B:=B) l t t' *)
-  (*   -> exists l' u', ((trans_alt (B:=B) ε)^* ⋅ (trans_alt l')) u u' /\ R t' u' /\ L l l') *)
-  (*   /\ *)
-  (*     (forall t', trans_alt (B:=B) ε t t' -> exists u', (trans_alt (B:=B) ε)^* u u' /\ Reps t' u'). *)
- 
-  Definition ss'_gen {E F B : Type -> Type} {X : Type}
-    (L : rel (@label E X) (@label F X))
-    (R Reps : rel SS SS)
-    (t : SS) (u : SS) :=
-
-    (forall t' l, l <> ε -> trans_alt (B:=B) l t t'
-    -> exists l' u', ((trans_alt (B:=B) ε)^* ⋅ (trans_alt l')) u u' /\ R t' u' /\ L l l')
-    /\
-      (forall t', trans_alt (B:=B) ε t t' -> exists u', (trans_alt (B:=B) ε)^* u u' /\ Reps t' u').
-
-  #[global] Instance weq_ss'_gen {E F B X} :
-    Proper (weq ==> weq) (@ss'_gen E F B X).
-  Proof.
-    cbn. intros L L' HL R x y; split; intros (HA & HB); split; intros.
-    - destruct (HA _ _ H H0) as (l'' & u'' & Htrans & HR & HL').
-      do 2 esplit; split; [eassumption | split; [eassumption |]]; now apply HL.
-    - now apply HB in H.
-    - destruct (HA _ _ H H0) as (l'' & u'' & Htrans & HR & HL').
-      do 2 esplit; split; [eassumption | split; [eassumption |]]; now apply HL.
-    - now apply HB in H.
-  Qed.
-
-  #[global] Instance ss'_gen_mon {E F B X}
-    (L : rel (@label E X) (@label F X)) :
-    Proper (Coinduction.lattice.leq ==> Coinduction.lattice.leq ==> Coinduction.lattice.leq)
-     (@ss'_gen E F B X L).
-  Proof.
-    cbn. intros R R' HR Reps1 Reps2 HReps s1 s2 [Hl Hep]; split; intros.
-    - destruct (Hl _ _ H H0) as (l'' & u'' & Htrans & HRtu & HL').
-      do 2 esplit; split; [eassumption | split; [now apply HR | assumption]].
-    - apply Hep in H as (u' & Htrans & HRtu). exists u'; split; [assumption | now apply HReps].
-  Qed.
-
-  (*|
+    (*|
 An alternative definition [ss'] of strong simulation.
 The simulation challenge does not involve an inductive transition relation,
 thus simplifying proofs.
 |*)
-  Program Definition ss' {E F B : Type -> Type} {X : Type}
-    (L : rel (@label E X) (@label F X)) :
-    mon (SS -> SS -> Prop) :=
-    {| body R t u :=
-        @ss'_gen E F B X L R R t u  
-    |}.
-  Next Obligation.
-    epose proof (@ss'_gen_mon E F B X). eapply H1.
-    3: apply H0.
-    all: auto.
+
+Definition ss'_gen {E F C D : Type -> Type} 
+(R Reps : (forall X Y, lrel E F X Y -> @S E C X -> @S F D Y -> Prop)) 
+(X Y : Type) (L : lrel E F X Y) (t: @S E C X) (u: @S F D Y) :=
+    (forall t' l, l <> ε -> trans_alt (B:=C) l t t'
+    -> exists l' u', ((trans_alt (B:=D) ε)^* ⋅ (trans_alt l')) u u' /\ R X Y L t' u' /\ L l l')
+    /\
+      (forall t', trans_alt (B:=C) ε t t' -> exists u', (trans_alt (B:=D) ε)^* u u' /\ Reps X Y L t' u'). 
+
+  Program Definition ss' {E F C D : Type -> Type} :
+    mon (forall (X Y : Type), 
+    lrel E F X Y -> (* L *)
+    @S E C X -> (* t *)
+    @S F D Y -> (* u *)
+    Prop) :=
+    {| body R := ss'_gen R R
+    |}. 
+Next Obligation.
+Proof.  
+  split; intros; destruct H0. 
+    - destruct (H0 _ _ H1 H2) as (l'' & u'' & Htrans & HRtu & HL').
+      eauto 12. 
+    - apply H2 in H1 as (u' & Htrans & HRtu). eauto. 
+  Qed.
+
+  #[global] Instance weq_ss' {E F C D} :
+    Proper (weq ==> weq) (@ss' E F C D).
+  Proof.
+    cbn. intros L L' HL R x y; split; intros (HA & HB); split; intros.
+    - destruct (HA _ _ H H0) as (l'' & u'' & Htrans & HR & HL').
+      do 2 esplit; split; eauto. split; [now apply HL | assumption].
+    - apply HB in H as (u' & Htr & HL_).
+      exists u'; split; auto. now apply HL. 
+    - destruct (HA _ _ H H0) as (l'' & u'' & Htrans & HR & HL').
+      do 2 esplit; split; eauto. split; [now apply HL | assumption].
+    - apply HB in H as (u' & Htr & HL_).
+      exists u'; split; auto. now apply HL.
   Qed.
 
 End StrongSimAlt.
 
-Definition ssim' {E F B X} L :=
-  (gfp (@ss' E F B X L): hrel _ _).
+Definition ssim' {E F C D X Y} L :=
+  (gfp (@ss' E F C D) X Y L : hrel _ _).
 
 
 (* TODO: remove this and rewrite using simple proper instances *)
