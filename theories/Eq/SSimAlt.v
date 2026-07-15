@@ -104,22 +104,6 @@ End StrongSimAlt.
 Definition ssim' {E F B X} L :=
   (gfp (@ss' E F B X L): hrel _ _).
 
-Program Definition ss {E F B : Type -> Type} {X : Type}
-  (L : rel (@label E X) (@label F X)) :
-  mon (@SS E B X -> @SS F B X -> Prop) :=
-  {| body R t u :=
-      forall t' l, l <> ε -> ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) t t' ->
-      exists l' u', ((trans_alt (B:=B) ε)^* ⋅ trans_alt l') u u' /\ R t' u' /\ L l l'
-  |}.
-Next Obligation.
-  destruct (H0 _ _ H1 H2) as (l' & u' & STEP & HR & HL).
-  exists l', u'; ssplit.
-  - assumption.
-  - now apply H.
-  - assumption.
-Qed.
-
-Definition ssim {E F B X} L := (gfp (@ss E F B X L) : hrel _ _).
 
   (* todo: remove this and rewrite using simple proper instances *)
 Variant Seq_clos_body {E F B X} (R : rel (@S E B X) (@S F B X)) : rel (@S E B X) (@S F B X) :=
@@ -891,91 +875,8 @@ Section upto.
       eapply step_ss'_epsilon_r; [ exact HSS | exact STAR ].
   Qed.
 
-  Lemma ss_sst' {c : Chain (@ss' E F B X L)} :
-    forall x y, ss L `c x y -> `c x y.
-  Proof.
-    apply tower.
-    - intros ? INC x y HSS ? ?; red.
-      apply INC; auto.
-      intros t' l Hne TR.
-      destruct (HSS _ _ Hne TR) as (l' & u' & STEP & HR & HL).
-      exists l', u'; ssplit.
-      + assumption.
-      + apply leq_infx in H; now apply H.
-      + assumption.
-    - clear; intros R IH t u HSS; split.
-      + intros t' l Hne TR.
-        assert (cTR : ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) t t')
-          by (apply trans_star_l; exact TR).
-        destruct (HSS _ _ Hne cTR) as (l' & u' & STEP & HR & HL).
-        exists l', u'; ssplit.
-        * assumption.
-        * now apply (b_chain R).
-        * assumption.
-      + intros t' TR.
-        exists u; split.
-        * apply trans_star_self.
-        * apply IH; intros t'' l Hne cTR.
-          assert (cTR2 : ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) t t'')
-            by (eapply estar_cons; [exact TR | exact cTR]).
-          destruct (HSS _ _ Hne cTR2) as (l' & u' & STEP & HR & HL).
-          exists l', u'; ssplit.
-          -- assumption.
-          -- now apply (b_chain R).
-          -- assumption.
-  Qed.
-
 End upto.
 
-
-Arguments ss_sst' {E F B X} L.
-
-Lemma ss_ss'_chain {E F B X} {L : rel (@label E X) (@label F X)}
-  {R : Chain (@ss' E F B X L)} :
-  forall (t : @SS E B X) (u : @SS F B X),
-    ss L `R t u -> ss' L `R t u.
-Proof.
-  intros t u HSS; split.
-  - intros t' l Hne TR.
-    assert (cTR : ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) t t')
-      by (apply trans_star_l; exact TR).
-    destruct (HSS _ _ Hne cTR) as (l' & u' & STEP & HR & HL).
-    exists l', u'; ssplit; assumption.
-  - intros t' TR.
-    exists u; split.
-    + apply trans_star_self.
-    + apply ss_sst'; intros t'' l Hne cTR.
-      assert (cTR2 : ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) t t'')
-        by (eapply estar_cons; [exact TR | exact cTR]).
-      destruct (HSS _ _ Hne cTR2) as (l' & u' & STEP & HR & HL).
-      exists l', u'; ssplit; assumption.
-Qed.
-
-Theorem ssim_ssim' {E F B X} (L : rel (@label E X) (@label F X)) :
-  forall (t : @SS E B X) (u : @SS F B X), ssim L t u <-> ssim' L t u.
-Proof.
-  split; intro H.
-  - revert t u H; unfold ssim'; coinduction R CH; intros t u H.
-    apply ss_ss'_chain.
-    intros t' l Hne TR.
-    step in H.
-    destruct (H _ _ Hne TR) as (l' & u' & STEP & HR & HL).
-    exists l', u'; ssplit.
-    + assumption.
-    + apply CH, HR.
-    + assumption.
-  - revert t u H; unfold ssim; coinduction R CH; intros t u H.
-    intros t' l Hne TR.
-    destruct TR as [m STAR STEP].
-    eapply ssim'_epsilon_l in H; [| exact STAR].
-    step in H.
-    destruct H as (Hchal & _).
-    destruct (Hchal _ _ Hne STEP) as (l' & u' & RESP & Hgfp & HL).
-    exists l', u'; ssplit.
-    + assumption.
-    + apply CH, Hgfp.
-    + assumption.
-Qed.
 
 #[local] Example ssim'_spin {E F B X} (L : rel (@label E X) (@label F X)) :
   forall (u : @SS F B X), ssim' L (Active (@spin E B X)) u.
@@ -1082,23 +983,6 @@ Proof.
       * apply IHn; exact REST.
 Qed.
 
-Lemma ssim_eps_l {E F B X} (L : rel (@label E X) (@label F X))
-  (t t1 : @SS E B X) (u : @SS F B X) :
-  ssim L t u -> trans_alt ε t t1 -> ssim L t1 u.
-Proof.
-  intros H TR.
-  unfold ssim in *.
-  step in H.
-  apply (b_chain (chain_gfp (ss L))).
-  intros t' l Hne cTR.
-  destruct cTR as [m STAR STEP].
-  assert (cTR2 : ((trans_alt ε)^* ⋅ trans_alt l) t t').
-  { exists m.
-    - eapply estar_cons0; [exact TR | exact STAR].
-    - exact STEP. }
-  destruct (H _ _ Hne cTR2) as (l' & u' & RESP & HR & HL).
-  exists l', u'; ssplit; assumption.
-Qed.
 
 Section bind_restore.
 
@@ -1111,7 +995,7 @@ Section bind_restore.
   Lemma bind_chain_gen {R : Chain (@ss' E F B X' L)} :
     forall (t : ctree E B X) (t' : ctree F B X)
       (k : X -> ctree E B X') (k' : X -> ctree F B X'),
-      ssim uvr (Active t) (Active t') ->
+      ssim' uvr (Active t) (Active t') ->
       (forall x x', R0 x x' -> ` R (Active (k x)) (Active (k' x'))) ->
       ` R (Active (x <- t;; k x)) (Active (x <- t';; k' x)).
   Proof.
@@ -1127,12 +1011,14 @@ Section bind_restore.
           | [ (-> & t1 & TRt & SQ)
           | [ (Heps & _)
           | (Z & e & g & -> & TRt & SQ) ]]].
-        * assert (cV : ((trans_alt ε)^* ⋅ trans_alt (val x))
-                         (Active t) (Active (Stuck : ctree E B X))).
-          { apply trans_star_l; eapply Transval; [exact EQt | reflexivity]. }
-          step in tt.
-          assert (HneV : (val x : @label E X) <> ε) by discriminate.
-          destruct (tt _ _ HneV cV) as (l2 & n & RESP & _ & HL2).
+          (* t ≅ Ret, show t' steps to Stuck as well *)
+        * assert (cV : trans_alt (val x)
+                         (Active t) (Active (Stuck : ctree E B X))) by now constructor. 
+          step in tt; repeat red in tt; destruct tt as [tt_nonep tt_ep].
+          (* know cV reduced  *)
+          assert (HneV : (val x : @label E X) <> ε) by easy.
+          (* take the nonep branch *)
+          destruct (tt_nonep _ _ HneV cV) as (l2 & n & RESP & _ & HL2).
           apply update_val_rel_val_l in HL2 as (x' & -> & Hx).
           destruct RESP as [m STAR STEPv].
           unfold trans_alt in STEPv; cbn in STEPv; dependent destruction STEPv.
