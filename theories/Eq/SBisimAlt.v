@@ -1289,17 +1289,17 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
     forall (t : ctree E B X) (t' : ctree F B X)
       (k : X -> ctree E B X') (k' : X -> ctree F B X') side,
       gfp (sb' uvr) side (Active t) (Active t') ->
-      (forall side x x', R0 x x' -> gfp (sb' L) side (Active (k x)) (Active (k' x'))) ->
+      (forall side x x', R0 x x' -> `R side (Active (k x)) (Active (k' x'))) ->
       ` R side (Active (x <- t;; k x)) (Active (x <- t';; k' x)).
   Proof.
     apply (@tower _ _ _ (fun (P : bool -> rel (@SS E B X') (@SS F B X')) =>
       forall (t : ctree E B X) (t' : ctree F B X)
         (k : X -> ctree E B X') (k' : X -> ctree F B X') side,
         gfp (sb' uvr) side (Active t) (Active t') ->
-        (forall side x x', R0 x x' -> gfp (sb' L) side (Active (k x)) (Active (k' x'))) ->
+        (forall side x x', R0 x x' -> P side (Active (k x)) (Active (k' x'))) ->
         P side (Active (x <- t;; k x)) (Active (x <- t';; k' x)))).
     - intros ? INC t t' k k' side tt kk ? ?; red.
-      apply INC; auto.
+      apply INC; auto. intros. apply kk; auto. 
     - clear; intros R IH t t' k k' side tt kk.
       split; intro; subst.
       + (* side = true *)
@@ -1323,7 +1323,6 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
              destruct RESP as [m STAR STEPv].
              unfold trans_alt in STEPv; cbn in STEPv; dependent destruction STEPv.
              pose proof (kkT := kk true x x' Hx).
-             step in kkT.
              destruct kkT as [kkT _]; specialize (kkT eq_refl).
              destruct kkT as [kkA _].
              destruct (kkA _ _ Hne TRk) as (l' & u' & RESP2 & Hall & HL').
@@ -1335,7 +1334,7 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
                 ** eapply estar_trans; [| exact STAR2].
                    apply estar_seq; constructor.
                    rewrite H, bind_ret_l; reflexivity.
-             ++ intro side'; apply (gfp_chain R), Hall.
+             ++ intro side'; apply Hall.
              ++ exact HL'.
           -- (* τ step in the prefix *)
              step in tt.
@@ -1351,7 +1350,9 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
                 ** apply estar_bind; exact STAR.
                 ** apply trans_bind_l_τ; eapply Transstep; eauto.
              ++ intro side'; rewrite SQ.
-                apply IH; [apply Htt' | exact kk].
+                apply IH. 
+                ** apply Htt'.
+                ** intros. step. now apply kk. 
              ++ exact HLττ.
           -- easy.
           -- (* ask step in the prefix: the short trip through passives *)
@@ -1395,7 +1396,7 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
                            assert (SQ5 : (Active (x <- t1;; k' x) : @SS F B X')
                                            ⩸ (Active (x <- k0 w';; k' x))).
                            { constructor; rewrite EQ0, <- (EQ w'); reflexivity. }
-                           rewrite <- SQ5; apply IH; [apply Hall3 | exact kk].
+                           rewrite <- SQ5; apply IH; [apply Hall3 | intros; step; now apply kk].
                        +++ exact HLrr.
                    --- intros s2 TR2.
                        apply trans_passive_inv' in TR2 as (z & _ & Habs); easy.
@@ -1424,7 +1425,7 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
                            assert (SQ5 : (Active (x <- t1;; k x) : @SS E B X')
                                            ⩸ (Active (x <- g v';; k x))).
                            { constructor; rewrite EQ0, <- (EQ v'); reflexivity. }
-                           rewrite <- SQ5; apply IH; [apply Hall3 | exact kk].
+                           rewrite <- SQ5; apply IH; [apply Hall3 | intros; step; now apply kk].
                        +++ exact HLrr.
                    --- intros s2 TR2.
                        apply trans_passive_inv' in TR2 as (w & _ & Habs); easy.
@@ -1447,7 +1448,6 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
              destruct RESP as [m STAR STEPv].
              unfold trans_alt in STEPv; cbn in STEPv; dependent destruction STEPv.
              pose proof (kkT := kk true x x' Hx).
-             step in kkT.
              destruct kkT as [kkT _]; specialize (kkT eq_refl).
              destruct kkT as [_ kkB].
              destruct (kkB _ TRk) as (u2 & STARu & Hgfp2).
@@ -1457,11 +1457,11 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
                 ** eapply estar_trans; [| exact STARu].
                    apply estar_seq; constructor.
                    rewrite H, bind_ret_l; reflexivity.
-             ++ apply (gfp_chain R); exact Hgfp2.
+             ++ exact Hgfp2.
           -- easy.
           -- exists (Active (x <- t';; k' x)); split.
              ++ apply trans_star_self.
-             ++ rewrite SQ; apply IH; [| exact kk].
+             ++ rewrite SQ; apply IH; [| intros; step; now apply kk].
                 eapply sbisim'_epsilon_l; [exact tt | apply estar_single; exact TRt].
           -- easy.
       + (* side = false *)
@@ -1485,7 +1485,6 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
              destruct RESP as [m STAR STEPv].
              unfold trans_alt in STEPv; cbn in STEPv; dependent destruction STEPv.
              pose proof (kkF := kk false x x' Hx).
-             step in kkF.
              destruct kkF as [_ kkF]; specialize (kkF eq_refl).
              destruct kkF as [kkA _].
              destruct (kkA _ _ Hne TRk) as (l' & u' & RESP2 & Hall & HL').
@@ -1497,7 +1496,7 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
                 ** eapply estar_trans; [| exact STAR2].
                    apply estar_seq; constructor.
                    rewrite H, bind_ret_l; reflexivity.
-             ++ intro side'; apply (gfp_chain R), Hall.
+             ++ intro side'; apply Hall.
              ++ exact HL'.
           -- (* τ step in the prefix *)
              step in tt.
@@ -1513,7 +1512,7 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
                 ** apply estar_bind; exact STAR.
                 ** apply trans_bind_l_τ; eapply Transstep; eauto.
              ++ intro side'; rewrite SQ.
-                apply IH; [apply Htt' | exact kk].
+                apply IH; [apply Htt' | intros; step; now apply kk].
              ++ exact HLττ.
           -- easy.
           -- (* ask step in the prefix: the short trip, mirrored *)
@@ -1557,7 +1556,7 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
                            assert (SQ5 : (Active (x <- t1;; k' x) : @SS F B X')
                                            ⩸ (Active (x <- g w';; k' x))).
                            { constructor; rewrite EQ0, <- (EQ w'); reflexivity. }
-                           rewrite <- SQ5; apply IH; [apply Hall3 | exact kk].
+                           rewrite <- SQ5; apply IH; [apply Hall3 | intros; step; now apply kk].
                        +++ exact HLrr.
                    --- intros s2 TR2.
                        apply trans_passive_inv' in TR2 as (z & _ & Habs); easy.
@@ -1586,7 +1585,7 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
                            assert (SQ5 : (Active (x <- t1;; k x) : @SS E B X')
                                            ⩸ (Active (x <- k0 v';; k x))).
                            { constructor; rewrite EQ0, <- (EQ v'); reflexivity. }
-                           rewrite <- SQ5; apply IH; [apply Hall3 | exact kk].
+                           rewrite <- SQ5; apply IH; [apply Hall3 | intros; step; now apply kk].
                        +++ exact HLrr.
                    --- intros s2 TR2.
                        apply trans_passive_inv' in TR2 as (w & _ & Habs); easy.
@@ -1609,7 +1608,6 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
              destruct RESP as [m STAR STEPv].
              unfold trans_alt in STEPv; cbn in STEPv; dependent destruction STEPv.
              pose proof (kkF := kk false x x' Hx).
-             step in kkF.
              destruct kkF as [_ kkF]; specialize (kkF eq_refl).
              destruct kkF as [_ kkB].
              destruct (kkB _ TRk) as (u2 & STARu & Hgfp2).
@@ -1619,11 +1617,11 @@ prefixes are related by the [gfp] of [sb' uvr] at the same side.
                 ** eapply estar_trans; [| exact STARu].
                    apply estar_seq; constructor.
                    rewrite H, bind_ret_l; reflexivity.
-             ++ apply (gfp_chain R); exact Hgfp2.
+             ++ apply Hgfp2.
           -- easy.
           -- exists (Active (x <- t;; k x)); split.
              ++ apply trans_star_self.
-             ++ rewrite SQ; apply IH; [| exact kk].
+             ++ rewrite SQ; apply IH; [| intros; step; now apply kk].
                 eapply sbisim'_epsilon_r; [exact tt | apply estar_single; exact TRt].
           -- easy.
   Qed.
