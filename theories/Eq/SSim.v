@@ -61,10 +61,11 @@ Section StrongSim.
 [ss L R t u]: every transition from [t] can be matched by [u] up to [L]
 on labels, with the resulting continuations related by [R].
 |*)
-  Program Definition ss {E F C D : Type -> Type} :
-    mon (forall X Y, lrel E F X Y -> @S E C X -> @S F D Y -> Prop) :=
-    {| body R X Y L t u := forall l t', trans l t t' ->
-                                   exists l' u', trans l' u u' /\ R _ _ L t' u' /\ L l l'
+  Program Definition ss {E F C D : Type -> Type} {X Y : Type}
+    (L : lrel E F X Y) :
+    mon (@S E C X -> @S F D Y -> Prop) :=
+    {| body R t u := forall l t', trans l t t' ->
+              exists l' u', trans l' u u' /\ R t' u' /\ L l l'
     |}.
   Next Obligation.
     edestruct3 H0; eauto.
