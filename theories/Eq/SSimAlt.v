@@ -269,23 +269,23 @@ Ltac __eplay_ssim' :=
 Section Proof_Rules.
 
   Arguments label: clear implicits.
-  Context {E F B : Type -> Type}
-          {X : Type}
-          {L : rel (@label E X) (@label F X)}
-          {R Reps : rel (@S E B X) (@S F B X)}
-          {HR : (Proper (Seq ==> Seq ==> impl) R)}
-          {HReps : (Proper (Seq ==> Seq ==> impl) Reps)}.
+  Context {E F C D : Type -> Type}
+          {X Y : Type}
+          {L : lrel E F X Y}
+          {R Reps : (forall X Y : Type, lrel E F X Y -> rel (S E C X) (S F D Y))}
+          {HR : (Proper (Seq ==> Seq ==> impl) (R X Y L))}
+          {HReps : (Proper (Seq ==> Seq ==> impl) (Reps X Y L))}.
 
   Lemma step_ss'_stuck :
-    ss'_gen L R Reps (Stuck : ctree E B X) (Stuck : ctree F B X).
+    ss'_gen R Reps L (Stuck : ctree E C X) (Stuck : ctree F D Y).
   Proof.
     split; intros; exfalso; eapply trans_stuck_inv; eassumption.
   Qed.
 
-  Lemma step_ss'_ret (x : X) (y : X) :
-    R Stuck Stuck ->
+  Lemma step_ss'_ret (x : X) (y : Y) :
+    R L Stuck Stuck ->
     L (val x) (val y) ->
-    ss'_gen L R Reps (Ret x : ctree E B X) (Ret y : ctree F B X).
+    ss'_gen R Reps L (Ret x : ctree E C X) (Ret y : ctree F D Y).
   Proof.
     intros Rstuck Lval. split.
     - intros t' l Hl TR. apply trans_ret_inv' in TR as (EQ & ->).
