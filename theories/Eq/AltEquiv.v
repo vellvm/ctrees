@@ -155,9 +155,31 @@ Proof.
   apply transR_label_base; apply STEP.
 Qed.
 
-Definition lift_L {E F X} (L : Trans.lrel E F X X)
-  : rel (TransAlt.label E X) (TransAlt.label F X) :=
-  fun a b => exists la lb, a = o2n_label la /\ b = o2n_label lb /\ Trans.build_rel L la lb.
+Definition lift_L {E F X} (L : Trans.lrel E F X X) : TransAlt.lrel E F X X :=
+  {| TransAlt.RR   := Trans.RR L ;
+     TransAlt.Rask := Trans.Rask L ;
+     TransAlt.Rrcv := Trans.Rrcv L |}.
+
+(* old to new through lifting *)
+Lemma lift_L_o2n {E F X} (L : Trans.lrel E F X X)
+  (la : Trans.label E X) (lb : Trans.label F X) :
+  Trans.build_rel L la lb ->
+  TransAlt.build_rel (lift_L L) (o2n_label la) (o2n_label lb).
+Proof.
+  intros H; destruct H; cbn [o2n_label]; now constructor.
+Qed.
+
+Lemma lift_L_o2n_inv {E F X} (L : Trans.lrel E F X X)
+  (a : TransAlt.label E X) (b : TransAlt.label F X) :
+  TransAlt.build_rel (lift_L L) a b ->
+  exists la lb, a = o2n_label la /\ b = o2n_label lb /\ Trans.build_rel L la lb.
+Proof.
+  intros H; destruct H.
+  - exists Trans.τ, Trans.τ; cbn [o2n_label]; repeat split; constructor.
+  - exists (Trans.ask e), (Trans.ask f); cbn [o2n_label]; repeat split; now constructor.
+  - exists (Trans.rcv e x), (Trans.rcv f y); cbn [o2n_label]; repeat split; now constructor.
+  - exists (Trans.val x), (Trans.val y); cbn [o2n_label]; repeat split; now constructor.
+Qed.
 
 Lemma label_non_eps_image {E X} (l : TransAlt.label E X) :
   l <> ε -> exists lo, l = o2n_label lo.
@@ -230,7 +252,7 @@ Proof.
     + apply transR_o2n. apply TRb.
     + specialize (cih (n2o_S x) bo' Hrel).
       rewrite o2n_n2o_S in cih. apply cih.
-    + red. exists lo, lo'. tauto. 
+    + apply lift_L_o2n; exact HL.
   - intros x TR.
     exists (o2n_S b). split.
     + apply trans_star_self.
@@ -260,12 +282,12 @@ Proof.
   apply transR_o2n in oTR.
   destruct oTR as [m STAR STEP].
   eapply SSimAlt.ssim'_epsilon_l in H. 2: apply STAR.
-  apply (gfp_pfp (SSimAlt.ss' (lift_L L))) in H.
+  apply (gfp_pfp (@SSimAlt.ss' E F B B) X X (lift_L L)) in H.
   destruct H as (Hchal & _).
   destruct (Hchal (o2n_S ao') (o2n_label l)) as (nl' & u' & RESP & Hgfp & HL).
   { destruct l; cbn [o2n_label]; easy. }
   { apply STEP. }
-  destruct HL as (la & lb & Hla & Hlb & HLab).
+  apply lift_L_o2n_inv in HL as (la & lb & Hla & Hlb & HLab).
   apply o2n_label_inj in Hla; subst la.
   subst nl'.
   exists lb, (n2o_S u').
@@ -283,4 +305,19 @@ Proof.
   split; intro H.
   - apply o_ssim_to_ssim' in H. apply H.
   - apply ssim'_to_o_ssim. apply H.
+Qed.
+
+Lemma ss'_clo_bind_eq {E B X X'}
+  (t t' : ctree E B X) (k k' : X -> ctree E B X') :
+  SSim.ssim (@Trans.Leq E X) (Trans.Active t) (Trans.Active t') ->
+  (forall x, SSimAlt.ssim' (lift_L (@Trans.Leq E X'))
+               (TransAlt.Active (k x)) (TransAlt.Active (k' x))) ->
+  SSimAlt.ssim' (lift_L (@Trans.Leq E X'))
+    (TransAlt.Active (x <- t;; k x)) (TransAlt.Active (x <- t';; k' x)).
+Proof.
+  intros tt kk.
+  apply ssim_ssim' in tt.
+  eapply SSimAlt.ssim'_clo_bind with (SS := @eq X).
+  - exact tt.
+  - intros x x' ->; apply kk.
 Qed.
