@@ -9,7 +9,7 @@ From ITree Require Import
 From CTree Require Import
      CTree Eq.Shallow Eq.Equ Eq.Epsilon.
 
-From CTree Require Eq.Trans Eq.SSim.
+From CTree Require Eq.Trans Eq.SSim Eq.EstarTheory.
 
 From CTree Require Import Eq.TransAlt Eq.SSimAlt.
 
@@ -53,15 +53,6 @@ Proof. now destruct s. Qed.
 Lemma o2n_n2o_S {E B X} (s : TransAlt.S E B X) : o2n_S (n2o_S s) = s.
 Proof. now destruct s. Qed.
 
-(* add an epsilon *)
-Lemma estar_cons {E B X} (a b c : TransAlt.S E B X) :
-  trans_alt ε a b -> (trans_alt ε)^* b c -> (trans_alt ε)^* a c.
-Proof.
-  intros H1 H2.
-  assert (HH : (trans_alt (E:=E) (B:=B) (R:=X) ε ⋅ (trans_alt ε)^*) ≦ (trans_alt ε)^*) by ka.
-  apply HH. exists b; assumption.
-Qed.
-
 Lemma transR_o2n {E B X} (l : Trans.label E X) (a a' : Trans.S E B X) :
   Trans.transR l a a' ->
   ((trans_alt ε)^* ⋅ trans_alt (o2n_label l)) (o2n_S a) (o2n_S a').
@@ -69,11 +60,11 @@ Proof.
   intros TR; induction TR.
   - destruct IHTR as [m STAR STEP].
     exists m; [| apply STEP].
-    eapply estar_cons; [ | apply STAR ].
+    eapply EstarTheory.estar_cons_epsilon; [ | apply STAR ].
     eapply TransAlt.Transbr; [ apply H | apply H0 ].
   - destruct IHTR as [m STAR STEP].
     exists m; [| apply STEP].
-    eapply estar_cons; [ | apply STAR ].
+    eapply EstarTheory.estar_cons_epsilon; [ | apply STAR ].
     eapply TransAlt.Transguard; [ apply H | reflexivity ].
   - apply trans_star_l. eapply TransAlt.Transstep; [ apply H | apply H0 ].
   - apply trans_star_l. eapply TransAlt.Transask; apply H.

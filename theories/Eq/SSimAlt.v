@@ -14,6 +14,7 @@ From CTree Require Import
      Utils
      Eq.Equ
      Eq.TransAlt
+     Eq.EstarTheory
      Eq.Epsilon.
 
 From RelationAlgebra Require Export
@@ -140,14 +141,6 @@ Section ssim'_theory.
     exists u', (trans_alt ε)^* u u' /\ R L t' u'.
   Proof.
     intros * (_ & H); apply H.
-  Qed.
-
-  Lemma trans_alt_estar_l {G : Type -> Type} :
-    forall (t t' : @S G C X) l,
-    trans_alt l t t' ->
-    ((trans_alt ε)^* ⋅ trans_alt l) t t'.
-  Proof.
-    intros. use_steps O. assumption.
   Qed.
 
 End ssim'_theory.
@@ -290,7 +283,7 @@ Section Proof_Rules.
     intros Rstuck Lval. split.
     - intros t' l Hl TR. apply trans_ret_inv' in TR as (EQ & ->).
       exists (val y), (Active Stuck). split; [| split].
-      + apply trans_alt_estar_l, trans_ret.
+      + apply estar_l_lift, trans_ret.
       + rewrite EQ. apply Rstuck.
       + assumption.
     - intros t' TR. apply trans_ret_inv' in TR as (_ & abs). discriminate.
@@ -306,7 +299,7 @@ Section Proof_Rules.
     - intros t' l Hl TRl. apply trans_ret_inv' in TRl as (EQ & ->).
       pose proof (trans_val_inv' TR) as EQ'.
       exists (val y), u'. split; [| split].
-      + apply trans_alt_estar_l, TR.
+      + apply estar_l_lift, TR.
       + rewrite EQ, EQ'. apply Rstuck.
       + assumption.
     - intros t' TRl. apply trans_ret_inv' in TRl as (_ & abs). discriminate.
@@ -326,7 +319,7 @@ Section Proof_Rules.
     intros HRpas Lask. split.
     - intros t' l Hl TR. apply trans_vis_inv' in TR as (EQ & ->).
       exists (ask f), (Passive f k'). split; [| split].
-      + apply trans_alt_estar_l, trans_ask.
+      + apply estar_l_lift, trans_ask.
       + rewrite EQ. apply HRpas.
       + assumption.
     - intros t' TR. apply trans_vis_inv' in TR as (_ & abs). discriminate.
@@ -392,55 +385,7 @@ Section Proof_Rules.
       + apply (str_refl (trans_alt ε)); cbn; reflexivity.
       + rewrite EQ. apply HReps'.
   Qed.
-
-  Lemma estar_trans {G B : Type -> Type} {V : Type} (a b c : @S G B V) :
-    (trans_alt ε)^* a b -> (trans_alt ε)^* b c -> (trans_alt ε)^* a c.
-  Proof.
-    intros S1 S2.
-    assert (H : (@trans_alt G B V ε)^* ⋅ (trans_alt ε)^* ≦ (trans_alt ε)^*) by ka.
-    apply H; eexists; eassumption.
-  Qed.
-
-  Lemma estar_cons0 {G B : Type -> Type} {V : Type} (a b c : @S G B V) :
-    trans_alt ε a b -> (trans_alt ε)^* b c -> (trans_alt ε)^* a c.
-  Proof.
-    intros S1 S2.
-    assert (H : @trans_alt G B V ε ⋅ (trans_alt ε)^* ≦ (trans_alt ε)^*) by ka.
-    apply H; eexists; eassumption.
-  Qed.
-
-  Lemma estar_single' {G B : Type -> Type} {V : Type} :
-    (@trans_alt G B V ε) ≦ (trans_alt ε)^*.
-  Proof.
-    ka.
-  Qed.
-
-  Lemma estar_single {G B : Type -> Type} {V : Type} (a b : @S G B V) :
-    trans_alt ε a b -> (trans_alt ε)^* a b.
-  Proof.
-    apply estar_single'.
-  Qed.
-
-  Lemma estar_cons {G B : Type -> Type} {V : Type} (a b c : @S G B V) l :
-    trans_alt ε a b -> ((trans_alt ε)^* ⋅ trans_alt l) b c ->
-    ((trans_alt ε)^* ⋅ trans_alt l) a c.
-  Proof.
-    intros S1 S2.
-    assert (H : @trans_alt G B V ε ⋅ ((trans_alt ε)^* ⋅ trans_alt l)
-                ≦ (trans_alt ε)^* ⋅ trans_alt l) by ka.
-    apply H; eexists; eassumption.
-  Qed.
-
-  Lemma estar_app {G B : Type -> Type} {V : Type} (a b c : @S G B V) l :
-    (trans_alt ε)^* a b -> ((trans_alt ε)^* ⋅ trans_alt l) b c ->
-    ((trans_alt ε)^* ⋅ trans_alt l) a c.
-  Proof.
-    intros S1 S2.
-    assert (H : (@trans_alt G B V ε)^* ⋅ ((trans_alt ε)^* ⋅ trans_alt l)
-                ≦ (trans_alt ε)^* ⋅ trans_alt l) by ka.
-    apply H; eexists; eassumption.
-  Qed.
-
+  
   Lemma step_ss'_br_r {Z} (c : D Z) x
         (k : Z -> ctree F D Y) (t: @S E C X):
     ss'_gen R Reps L t (k x) ->
@@ -449,10 +394,10 @@ Section Proof_Rules.
     intros (HA & HB); split.
     - intros t' l Hl TR. apply HA in TR as (l' & u' & STEP & HRtu & HL); auto.
       exists l', u'; split; [| split; assumption].
-      eapply estar_cons; [ apply trans_br | exact STEP ].
+      eapply estar_cons_label; [ apply trans_br | exact STEP ].
     - intros t' TR. apply HB in TR as (u' & STEP & HRep).
       exists u'; split; [| assumption].
-      eapply estar_cons0; [ apply trans_br | exact STEP ].
+      eapply estar_cons_epsilon; [ apply trans_br | exact STEP ].
   Qed.
 
   Lemma step_ss'_br {Z Z'} (a: C Z) (b: D Z')
@@ -496,10 +441,10 @@ Section Proof_Rules.
     intros (HA & HB); split.
     - intros s l Hl TR. apply HA in TR as (l' & u' & STEP & HRtu & HL); auto.
       exists l', u'; split; [| split; assumption].
-      eapply estar_cons; [ apply trans_guard | exact STEP ].
+      eapply estar_cons_label; [ apply trans_guard | exact STEP ].
     - intros s TR. apply HB in TR as (u' & STEP & HRep).
       exists u'; split; [| assumption].
-      eapply estar_cons0; [ apply trans_guard | exact STEP ].
+      eapply estar_cons_epsilon; [ apply trans_guard | exact STEP ].
   Qed.
 
   Lemma step_ss'_guard
@@ -562,7 +507,7 @@ Section Proof_Rules.
     intros Ltau HRtt; split.
     - intros s l Hl TR. apply trans_step_inv' in TR as (EQ & ->).
       exists τ, (Active t'). split; [| split].
-      + apply trans_alt_estar_l, trans_step.
+      + apply estar_l_lift, trans_step.
       + rewrite EQ. apply HRtt.
       + assumption.
     - intros s TR. apply trans_step_inv' in TR as (_ & abs). discriminate.
@@ -914,10 +859,10 @@ Proof.
     now rewrite EQ.
   - destruct STAR as [mid STEP REST].
     unfold trans_alt in STEP; cbn in STEP; dependent destruction STEP.
-    + eapply estar_cons0.
+    + eapply estar_cons_epsilon.
       * apply trans_bind_l_ε; eapply Transbr; eauto.
       * apply IHn; exact REST.
-    + eapply estar_cons0.
+    + eapply estar_cons_epsilon.
       * apply trans_bind_l_ε; eapply Transguard; eauto.
       * apply IHn; exact REST.
 Qed.
