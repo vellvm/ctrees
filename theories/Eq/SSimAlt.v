@@ -85,18 +85,16 @@ Section ssim'_theory.
           {L: lrel E F X Y}.
 
 (*|
-   Strong simulation up-to [equ] is valid
+   Strong simulation up-to [equ] is valid. Note Seq is eq lifted to SS
+   (active/passive tags).
    ----------------------------------------
 |*)
 
   #[global] Instance Seq_proper_ss'_chain_goal {c: Chain (@ss' E F C D)} :
     Proper (Seq ==> Seq ==> flip impl) (`c X Y L).
   Proof.
-    do 5 red.  
-    apply tower. 
-    - intros T HT a b Hseq x y Hseq2 Hinf i Hi. red. eapply HT; eauto. 
-      now apply Hinf. 
-    - clear c; intros c CIH x y Hseq x' y' Hseq2 [Hnonep Hep]. 
+    tower induction.   
+    - intros CIH x y Hseq x' y' Hseq2 [Hnonep Hep]. 
     split; intros. 
     + rewrite Hseq in H0. destruct (Hnonep _ _ H H0) as 
     (l' & u' & Htr & Hc & HL). rewrite <- Hseq2 in Htr. 
@@ -109,11 +107,8 @@ Section ssim'_theory.
   #[global] Instance Seq_proper_ss'_chain_ctx  {c: Chain (@ss' E F C D)} :
     Proper (Seq ==> Seq ==> impl) (`c X Y L).
   Proof.
-    do 4 red.  
-    apply tower. 
-    - intros T HT a b Hseq x y Hseq2 Hinf i Hi. red. eapply HT; eauto. 
-      now apply Hinf. 
-    - clear c; intros c CIH x y Hseq x' y' Hseq2 [Hnonep Hep]. 
+    tower induction. 
+    - intros CIH x y Hseq x' y' Hseq2 [Hnonep Hep]. 
     split; intros. 
     + rewrite <- Hseq in H0. destruct (Hnonep _ _ H H0) as 
     (l' & u' & Htr & Hc & HL). rewrite Hseq2 in Htr. 
@@ -184,10 +179,12 @@ Section ssim'_homogenous_theory.
           {L: lrel E E X X}
           {R Reps: forall X Y : Type, lrel E E X Y -> rel (S E C X) (S E C Y)}. 
 
+    (** Theory of chains of ss' *)
+
   Notation ss' := (@ss' E E C C).
   Notation ssim' := (@ssim' E E C C X X).
 
-  #[global] Instance Reflexive_ss' `{Reflexive _ (R L)} `{Reflexive _ (Reps L)} `{Reflexive _ L}:
+  #[global] Instance Reflexive_ss'_gen `{Reflexive _ (R L)} `{Reflexive _ (Reps L)} `{Reflexive _ L}:
     Reflexive (@ss'_gen E E C C R Reps X X L).
   Proof.
     split; intros.
@@ -197,10 +194,10 @@ Section ssim'_homogenous_theory.
     use_steps (1 : nat). econstructor; eauto.  
   Qed.
 
-  #[global] Instance refl_ss' {LR: Reflexive L} {c: Chain (ss')}: Reflexive (`c X X L).
+  #[global] Instance Reflexive_ss'_chain {LR: Reflexive L} {c: Chain (ss')}: Reflexive (`c X X L).
   Proof.
-    (* of note: Reflexive chain fails here because elem has arguments.. we should fix that. *)   
-    tower induction. (* it works! sometimes *)
+    (* of note: Reflexive_chain fails here because elem has arguments.. we should fix that. *)   
+    tower induction.
     split; intros.
     - do 2 eexists. split. use_steps O. apply H1. now split.  
     - exists t'; split; auto.
@@ -219,8 +216,6 @@ Section ssim'_heterogenous_theory.
   Context {E F C D : Type -> Type} {X Y : Type}
           {L: lrel E F X Y}.
 
-  (* Notation ss' := (@ss' E F C D).
-  Notation ssim'  := (@ssim' E F C D X Y). *)
 
 (*|
   stuck ctrees can be simulated by anything.
@@ -233,10 +228,7 @@ Section ssim'_heterogenous_theory.
   Qed.
 
   Lemma ssim'_stuck (t : @S F D Y) : ssim' L (Stuck : ctree E C X) t.
-  Proof.
-    (* todo: step doesn't work here: the type of sub_bChain seems to demand
-       the two trees have the same type, which is too restrictive. *)
-    Fail (red; Coinduction.tactics.step).
+  Proof. 
     step. apply ss'_stuck.
   Qed.
 
@@ -782,91 +774,7 @@ Proof.
     Unshelve. exact E. exact F. all: auto.
 Qed.
 
-Variant update_val_rel {E F X X'}
-  (L : rel (@label E X') (@label F X')) (R0 : rel X X)
-  : rel (@label E X) (@label F X) :=
-| uvr_τ :
-    L τ τ ->
-    update_val_rel L R0 τ τ
-| uvr_ask {Z Z'} (e : E Z) (f : F Z') :
-    L (ask e) (ask f) ->
-    update_val_rel L R0 (ask e) (ask f)
-| uvr_rcv {Z Z'} (e : E Z) (v : Z) (f : F Z') (w : Z') :
-    L (rcv e v) (rcv f w) ->
-    update_val_rel L R0 (rcv e v) (rcv f w)
-| uvr_val (v w : X) :
-    R0 v w ->
-    update_val_rel L R0 (val v) (val w).
-
-Section uvr_inv.
-
-  Context {E F : Type -> Type} {X X' : Type}
-          {L : rel (@label E X') (@label F X')} {R0 : rel X X}.
-
-  Lemma update_val_rel_val_l (v : X) (l2 : @label F X) :
-    update_val_rel L R0 (val v) l2 ->
-    exists w, l2 = val w /\ R0 v w.
-  Proof.
-    intros H; dependent destruction H; eauto.
-  Qed.
-
-  Lemma update_val_rel_τ_l (l2 : @label F X) :
-    update_val_rel L R0 τ l2 ->
-    l2 = τ /\ L τ τ.
-  Proof.
-    intros H; dependent destruction H; eauto.
-  Qed.
-
-  Lemma update_val_rel_ask_l {Z} (e : E Z) (l2 : @label F X) :
-    update_val_rel L R0 (ask e) l2 ->
-    exists Z' (f : F Z'), l2 = ask f /\ L (ask e) (ask f).
-  Proof.
-    intros H; dependent destruction H; eauto.
-  Qed.
-
-  Lemma update_val_rel_rcv_l {Z} (e : E Z) (v : Z) (l2 : @label F X) :
-    update_val_rel L R0 (rcv e v) l2 ->
-    exists Z' (f : F Z') (w : Z'), l2 = rcv f w /\ L (rcv e v) (rcv f w).
-  Proof.
-    intros H; dependent destruction H; eauto.
-  Qed.
-
-End uvr_inv.
-
-Lemma estar_seq {E B X} (a b : @SS E B X) :
-  a ⩸ b -> (trans_alt ε)^* a b.
-Proof.
-  intros H; exists O; exact H.
-Qed.
-
-Lemma estar_passive {E B X Z} (e : E Z) (g : Z -> ctree E B X) (m : @SS E B X) :
-  (trans_alt ε)^* (Passive e g) m ->
-  (Passive e g : @SS E B X) ⩸ m.
-Proof.
-  intros [n STAR]; destruct n.
-  - exact STAR.
-  - destruct STAR as [mid STEP _].
-    apply trans_passive_inv' in STEP as (z & _ & Habs); easy.
-Qed.
-
-Lemma estar_bind {E B X Y} (t u : ctree E B X) (k : X -> ctree E B Y) :
-  (trans_alt ε)^* (Active t) (Active u) ->
-  (trans_alt ε)^* (Active (x <- t;; k x)) (Active (x <- u;; k x)).
-Proof.
-  intros [n STAR]; revert t STAR; induction n; intros t STAR.
-  - cbn in STAR; dependent destruction STAR.
-    apply estar_seq; constructor.
-    now rewrite EQ.
-  - destruct STAR as [mid STEP REST].
-    unfold trans_alt in STEP; cbn in STEP; dependent destruction STEP.
-    + eapply estar_cons_epsilon.
-      * apply trans_bind_l_ε; eapply Transbr; eauto.
-      * apply IHn; exact REST.
-    + eapply estar_cons_epsilon.
-      * apply trans_bind_l_ε; eapply Transguard; eauto.
-      * apply IHn; exact REST.
-Qed.
-
+Section Sbind. 
 
 Definition Sbind {E B X Y} (s : @S E B X) (k : X -> ctree E B Y) : @S E B Y :=
   match s with
@@ -874,16 +782,7 @@ Definition Sbind {E B X Y} (s : @S E B X) (k : X -> ctree E B Y) : @S E B Y :=
   | Passive e g => Passive e (fun z => x <- g z;; k x)
   end.
 
-Lemma estar_active {E B X} (t : ctree E B X) (u : @S E B X) :
-  (trans_alt ε)^* (Active t) u -> exists u0 : ctree E B X, u ⩸ (Active u0).
-Proof.
-  intros [n STAR]; revert t STAR; induction n; intros t STAR.
-  - cbn in STAR; dependent destruction STAR. eexists; reflexivity.
-  - destruct STAR as [mid STEP REST].
-    unfold trans_alt in STEP; cbn in STEP; dependent destruction STEP.
-    + eapply IHn; exact REST.
-    + eapply IHn; exact REST.
-Qed.
+(* theory of Sbind, from which we derive bind *)
 
 Lemma Sbind_Seq {E B X Y} (s u : @S E B X) (k : X -> ctree E B Y) :
   s ⩸ u -> (Sbind s k) ⩸ (Sbind u k).
@@ -935,6 +834,8 @@ Proof.
     { transitivity (Sbind (Active (g z)) k); [ now apply Sbind_Seq | reflexivity ]. }
     rewrite HS. econstructor; reflexivity.
 Qed.
+
+End Sbind. 
 
 Section bind_restore.
 
@@ -1073,14 +974,7 @@ Section bind_restore.
 
 End bind_restore.
 
-Lemma update_val_rel_eq_refl {E X X'} :
-  forall (l : @label E X),
-    l <> ε -> @update_val_rel E E X X' eq eq l l.
-Proof.
-  destruct l; intro Hne. 
-  all: easy || now constructor. 
-Qed.
-
+(** Finally, up-to bind closure for trees of the same type. *)
 Lemma ssim'_clo_bind_eq {E B X X'} :
   forall (t t' : ctree E B X) (k k' : X -> ctree E B X'),
     ssim' (upd_rel (@Leq E X') eq) (Active t) (Active t') ->

@@ -96,3 +96,22 @@ Proof.
     + eapply IHn; exact REST.
     + eapply IHn; exact REST.
 Qed.
+
+Import CTreeNotations. 
+Lemma estar_bind {E B X Y} (t u : ctree E B X) (k : X -> ctree E B Y) :
+  (trans_alt ε)^* (Active t) (Active u) ->
+  (trans_alt ε)^* (Active (x <- t;; k x)) (Active (x <- u;; k x)).
+Proof.
+  intros [n STAR]; revert t STAR; induction n; intros t STAR.
+  - cbn in STAR; dependent destruction STAR.
+    apply estar_seq; constructor.
+    now rewrite EQ.
+  - destruct STAR as [mid STEP REST].
+    unfold trans_alt in STEP; cbn in STEP; dependent destruction STEP.
+    + eapply estar_cons_epsilon.
+      * apply trans_bind_l_ε; eapply Transbr; eauto.
+      * apply IHn; exact REST.
+    + eapply estar_cons_epsilon.
+      * apply trans_bind_l_ε; eapply Transguard; eauto.
+      * apply IHn; exact REST.
+Qed.
