@@ -2284,6 +2284,12 @@ Proof.
   intros f e; split; cbn; intros []; constructor; auto.
 Qed. 
 
+Lemma flipL_flipL {E F X Y} (L : lrel E F X Y) :
+  flipL (flipL L) = L.
+Proof.
+  now destruct L.
+Qed.
+
 Lemma lequiv_sub_lrel {E F X Y} (L L' : lrel E F X Y):
   sub_lrel L L' ->
   sub_lrel (flipL L) (flipL L').

@@ -43,21 +43,51 @@ Definition ss'_gen {E F C D : Type -> Type}
     /\
       (forall t', trans_alt (B:=C) ε t t' -> exists u', (trans_alt (B:=D) ε)^* u u' /\ Reps L t' u'). 
 
-  Program Definition ss' {E F C D : Type -> Type} :
-    mon (forall (X Y : Type), 
+(*|
+[ss'_gen] is monotone in both of its relational arguments independently.
+|*)
+#[global] Instance ss'_gen_mon {E F C D} :
+  Proper (leq ==> leq ==> leq) (@ss'_gen E F C D).
+Proof.
+  intros R R' HR Reps Reps' HReps X Y L t u [Hprogress Heps].
+  split; intros.
+    - destruct (Hprogress _ _ H H0) as (l'' & u'' & Htrans & HRtu & HL').
+      cbn in HR. eauto 12.
+    - apply Heps in H as (u' & Htrans & HRtu).
+      cbn in HReps. eauto 12.
+  Qed.
+
+  Definition ss'_ {E F C D : Type -> Type} :
+  (forall (X Y : Type),
+    lrel E F X Y -> (* L *)
+    hrel (@S E C X) (* t *)
+         (@S F D Y) (* u *)
+    ) ->
+  (forall (X Y : Type),
     lrel E F X Y -> (* L *)
     hrel (@S E C X) (* t *)
          (@S F D Y) (* u *)
     ) :=
-    {| body R := @ss'_gen E F C D R R (* simulation: R and Reps are the same relation *)
-    |}. 
-Next Obligation.
-Proof.  
-  split; intros; destruct H0. 
-    - destruct (H0 _ _ H1 H2) as (l'' & u'' & Htrans & HRtu & HL').
-      eauto 12. 
-    - apply H2 in H1 as (u' & Htrans & HRtu). eauto. 
+    fun (R : forall (X Y : Type),
+    lrel E F X Y -> (* L *)
+    hrel (@S E C X) (* t *)
+         (@S F D Y) (* u *)
+    ) => @ss'_gen E F C D R R. (* simulation: R and Reps are the same relation *)
+
+#[global] Instance ss'__mon {E F C D} : Proper (leq ==> leq) (@ss'_ E F C D).
+Proof.
+  intros R R' HR. now apply ss'_gen_mon.
   Qed.
+
+
+  Program Definition ss' {E F C D : Type -> Type} :
+    mon (forall (X Y : Type),
+    lrel E F X Y -> (* L *)
+    hrel (@S E C X) (* t *)
+         (@S F D Y) (* u *)
+    ) :=
+    {| body R := @ss'_ E F C D R ; Hbody := ss'__mon (* simulation: R and Reps are the same relation *)
+    |}.
 
   #[global] Instance weq_ss' {E F C D} :
     Proper (weq ==> weq) (@ss' E F C D).
@@ -744,8 +774,7 @@ Section upto.
     - intros ? INC X Y L x y (? & ? & ?) ??; red.
       apply INC; auto.
       eexists; split; eauto.
-      apply leq_infx in H1.
-      now apply H1.
+      apply H0, H1. 
     - clear.
       intros R IH X Y L t u (u' & STAR & HSS).
       eapply step_ss'_epsilon_r; [ exact HSS | exact STAR ].

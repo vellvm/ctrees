@@ -32,13 +32,15 @@ An alternative definition [sb'] of strong bisimulation.
 The simulation challenge does not involve an inductive transition relation,
 thus simplifying proofs.
 |*)
-  Program Definition sb' {E F B : Type -> Type} {X : Type}
-    (L : rel (@label E X) (@label F X)) 
-    : mon (bool -> SS -> SS -> Prop) 
-    :=
-    {| body R side t u :=
-      (side = true -> @ss'_gen E F B X L (fun t u => forall side, R side t u) (R true) t u) /\
-      (side = false -> ss'_gen (flip L) (fun u t => forall side, R side t u) (flip (R false)) u t)
+ 
+  Program Definition sb' {E F C D : Type -> Type} 
+  : mon (bool -> forall X Y : Type, lrel E F X Y -> rel (S E C X) (S F D Y)) 
+    := 
+    {| body (R : bool -> forall X Y : Type, lrel E F X Y -> rel (S E C X) (S F D Y)) side X Y (L : lrel E F X Y) t u :=
+      (side = true -> @ss'_gen E F C D (fun X Y L t' u' => forall side, R side X Y L t' u') (R true) X Y L t u) 
+      /\
+      (side = false -> @ss'_gen F E D C (fun Y X L t' u' => forall side, R side X Y (flipL L) u' t') 
+      (fun Y X (L : lrel F E Y X) u' t' => R false X Y (flipL L) t' u') Y X (flipL L) u t)
     |}.
   Next Obligation.
     split; intro; subst; [specialize (H0 eq_refl); clear H1 | specialize (H1 eq_refl); clear H0]. 
@@ -50,59 +52,61 @@ End StrongBisimAlt.
 
 Section Symmetry.
 
-  Program Definition sb'l {E F B X} L :
-    mon (bool -> rel SS SS) :=
-    {| body R side t u := side = true -> @sb' E F B X L R side t u |}.
+  Program Definition sb'l {E F C D} :
+    mon (bool -> forall X Y, lrel E F X Y -> rel SS SS) :=
+    {| body R side X Y L t u := side = true -> @sb' E F C D R side X Y L t u |}.
   Next Obligation. 
-      eapply (Hbody (sb' L)).
-      2: { specialize (H0 eq_refl). apply H0. }
-      cbn. apply H.
+  split; intro Hb; try easy.
+  eapply (Hbody sb').
+  cbn. apply H.  
+  apply H0.
+   (* dispatch true = true *)
+  all: trivial. 
+Qed.
+
+(*|
+[converse_neg] now swaps type indices and L
+|*)
+  Program Definition converse_neg {E C : Type -> Type} :
+    mon (bool -> forall X Y : Type, lrel E E X Y -> rel (@S E C X) (@S E C Y)) :=
+    {| body R b X Y L t u := R (negb b) Y X (flipL L) u t |}.
+
+  #[global] Instance converse_neg_invol {E C} : Involution (@converse_neg E C).
+  Proof.
+    cbn. intros R b X Y L t u.
+    rewrite Bool.negb_involutive, flipL_flipL.
+    reflexivity.
   Qed.
 
-  Program Definition converse_neg {A : Type} : mon (bool -> relation A) :=
-  {| body := fun (R : bool -> rel A A) b (x y : A) => R (negb b) y x |}.
-
-  #[global] Instance converse_neg_invol {A} : Involution (@converse_neg A).
+  #[global] Instance sbisim'_sym {E C} :
+    Symmetrical converse_neg (@sb' E E C C) (@sb'l E E C C).
   Proof.
-    cbn. intros.
-    now rewrite Bool.negb_involutive.
-  Qed.
-
-  #[global] Instance sbisim'_sym {E C X L} :
-    `{Symmetric L} ->
-    Symmetrical converse_neg (@sb' E E C X L) (sb'l L).
-  Proof.
-    intros SYM.
-    assert (HL: L == flip L). { cbn. intuition. }
-    eapply weq_ss'_gen in HL.
-    cbn -[sb']. split; intros.
-    - split; cbn -[sb']; intro.
-      + apply H.
-      + intros. apply Bool.negb_true_iff in H0. subst.
-        destruct H as [_ ?].
-        specialize (H eq_refl).
-        apply HL in H.
-        split; intros; subst; try easy.
-        eapply ss'_gen_mon. 3: now apply H.
-        * cbn. intros. apply H1.
-        * cbn. intros. apply H1.
-    - split; intros; subst.
-      + now apply H.
-      + intros.
-        apply HL.
-        eapply ss'_gen_mon. 3: now apply H.
-        * cbn. intros.
-          specialize (H0 (negb side)).
-          rewrite Bool.negb_involutive in H0. apply H0.
-        * cbn. intros. apply H0.
+    cbn -[sb' ss'_gen]. intros R b X Y L t u.
+    split.
+    - intros [Ht Hf]; split; intro Hb.
+      + split; assumption.
+      + apply Bool.negb_true_iff in Hb; subst.
+        split; [| now intro].
+        intros _.
+        eapply ss'_gen_mon. 3: now apply Hf.
+        * cbn. intros ? ? ? ? ? Hall side. apply Hall.
+        * cbn. intros. assumption.
+    - intros [Ht Hf]; split; intro Hb; subst.
+      + now apply (Ht eq_refl).
+      + cbn in Hf. destruct (Hf eq_refl) as [Hf' _]; specialize (Hf' eq_refl).
+        eapply ss'_gen_mon. 3: now apply Hf'.
+        * cbn. intros ? ? ? ? ? Hall side.
+          specialize (Hall (negb side)).
+          now rewrite Bool.negb_involutive in Hall.
+        * cbn. intros. assumption.
   Qed.
 
 End Symmetry.
 
-Lemma sb'_flip {E F B X} {L : rel (label E X) (label F X)}
+Lemma sb'_flip {E F C D X Y} {L : lrel E F X Y}
     side (t: SS) (u: SS) R :
-  @sb' F E B X (flip L) (fun b => flip (R (negb b))) (negb side) u t ->
-  sb' L R side t u.
+  @sb' F E D C (fun b X Y L t u => R (negb b) Y X (flipL L) u t) (negb side) Y X (flipL L) u t ->
+  sb' R side X Y L t u.
 Proof.
   split; intros; subst; destruct H; cbn in H.
   - specialize (H0 eq_refl).
