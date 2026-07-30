@@ -16,6 +16,7 @@ From CTree Require Import
      Eq.Equ
      Eq.TransAlt
      Eq.Epsilon
+     Eq.EstarTheory
      Eq.SSimAlt
      Misc.Pure.
 
@@ -108,23 +109,22 @@ Lemma sb'_flip {E F C D X Y} {L : lrel E F X Y}
   @sb' F E D C (fun b X Y L t u => R (negb b) Y X (flipL L) u t) (negb side) Y X (flipL L) u t ->
   sb' R side X Y L t u.
 Proof.
-  split; intros; subst; destruct H; cbn in H.
-  - specialize (H0 eq_refl).
-    cbn -[ss'_gen] in H0. unfold flip in H0.
-    eapply (ss'_gen_mon (x := fun t u => forall side, R (negb side) t u)).
-    { cbn. intros. specialize (H1 (negb side)). rewrite Bool.negb_involutive in H1. apply H1. }
-    { cbn. intros. apply H1. }
-    apply H0.
-  - specialize (H eq_refl).
-    cbn -[ss'_gen] in H.
-    eapply (ss'_gen_mon (x := fun t u => forall side, R (negb side) u t)).
-      { cbn. intros. specialize (H1 (negb side)). rewrite Bool.negb_involutive in H1. apply H1. }
-      { cbn. intros. apply H1. }
-      apply H.
+  intros [Ht Hf].
+  split; intros; subst.
+  - specialize (Hf eq_refl).
+    eapply ss'_gen_mon. 3: now apply Hf.
+    + cbn. intros ? ? ? ? ? Hall s.
+      specialize (Hall (negb s)). now rewrite Bool.negb_involutive in Hall.
+    + cbn. intros. assumption.
+  - specialize (Ht eq_refl).
+    eapply ss'_gen_mon. 3: now apply Ht.
+    + cbn. intros ? ? ? ? ? Hall s.
+      specialize (Hall (negb s)). now rewrite Bool.negb_involutive in Hall.
+    + cbn. intros. assumption.
 Qed.
 
-Definition sbisim' {E F B X} L t u :=
-  forall side, gfp (@sb' E F B X L) side t u.
+Definition sbisim' {E F C D X Y} (L : lrel E F X Y) (t : S E C X) (u : S F D Y) :=
+  forall side, gfp (@sb' E F C D) side X Y L t u.
 
 Program Definition lift_rel3 {A B} : mon (rel A B) -> mon (bool -> rel A B) :=
     fun f => {| body R side := f (R side) |}.
@@ -146,66 +146,130 @@ Qed.
 
 Section sbisim'_theory.
   Arguments label: clear implicits.
-  Context {E F B: Type -> Type} {X : Type}
-          {L: rel (@label E X) (@label F X)}.
+  Context {E F C D: Type -> Type} {X Y : Type}
+          {L: lrel E F X Y}.
 
 (*|
    Strong bisimulation up-to [Seq] is valid
    ----------------------------------------
 |*)
-  Lemma Seq_clos_sb' {c: Chain (@sb' E F B X L)}:
-    forall b x y, lift_rel3 Seq_clos `c b x y -> `c b x y.
+  #[global] Instance Seq_proper_sb'_chain_goal {c: Chain (@sb' E F C D)} :
+    forall side, Proper (Seq ==> Seq ==> flip impl) (`c side X Y L).
   Proof.
-    apply tower.
-    - intros ? INC side x y [t t' u' u EQt HR EQu] ??. red.
-      apply INC; auto.
-      econstructor; eauto.
-      apply leq_infx in H.
-      now apply H.
-    - clear.
-      intros R IH side x y [t t' u' u EQt HR EQu].
+    tower induction.
+    - intros CIH side x y Hseq x' y' Hseq2 [Ht Hf].
       split; intro; subst.
-      + destruct HR as [HR _]; specialize (HR eq_refl).
-        rewrite EQt, <- EQu; exact HR.
-      + destruct HR as [_ HR]; specialize (HR eq_refl).
-        rewrite EQt, <- EQu; exact HR.
+      + destruct (Ht eq_refl) as [Hnonep Hep]; split; intros.
+        * rewrite Hseq in H0. destruct (Hnonep _ _ H H0) as
+            (l' & u' & Htr & Hc & HL).
+          rewrite <- Hseq2 in Htr.
+          exists l', u'; split; eauto.
+        * rewrite Hseq in H. apply Hep in H as (u' & Htr & Hc).
+          rewrite <- Hseq2 in Htr.
+          exists u'; split; eauto.
+      + destruct (Hf eq_refl) as [Hnonep Hep]; split; intros.
+        * rewrite Hseq2 in H0. destruct (Hnonep _ _ H H0) as
+            (l' & u' & Htr & Hc & HL).
+          rewrite <- Hseq in Htr.
+          exists l', u'; split; eauto.
+        * rewrite Hseq2 in H. apply Hep in H as (u' & Htr & Hc).
+          rewrite <- Hseq in Htr.
+          exists u'; split; eauto.
   Qed.
 
-  #[global] Instance Seq_clos_sb'_chain {c: Chain (@sb' E F B X L)} :
-    forall side, Proper (Seq ==> Seq ==> iff) (`c side).
+  #[global] Instance Seq_proper_sb'_chain_ctx {c: Chain (@sb' E F C D)} :
+    forall side, Proper (Seq ==> Seq ==> impl) (`c side X Y L).
   Proof.
-    split; intros.  
-    - symmetry in H. 
-    apply Seq_clos_sb'; econstructor; eauto.
-    - symmetry in H0. apply Seq_clos_sb'; econstructor; eauto.
+    tower induction.
+    - intros CIH side x y Hseq x' y' Hseq2 [Ht Hf].
+      split; intro; subst.
+      + destruct (Ht eq_refl) as [Hnonep Hep]; split; intros.
+        * rewrite <- Hseq in H0. destruct (Hnonep _ _ H H0) as
+            (l' & u' & Htr & Hc & HL).
+          rewrite Hseq2 in Htr.
+          exists l', u'; split; eauto.
+        * rewrite <- Hseq in H. apply Hep in H as (u' & Htr & Hc).
+          rewrite Hseq2 in Htr.
+          exists u'; split; eauto.
+      + destruct (Hf eq_refl) as [Hnonep Hep]; split; intros.
+        * rewrite <- Hseq2 in H0. destruct (Hnonep _ _ H H0) as
+            (l' & u' & Htr & Hc & HL).
+          rewrite Hseq in Htr.
+          exists l', u'; split; eauto.
+        * rewrite <- Hseq2 in H. apply Hep in H as (u' & Htr & Hc).
+          rewrite Hseq in Htr.
+          exists u'; split; eauto.
   Qed.
 
-  #[global] Instance Seq_clos_st'_ctx4 {c: Chain (@sb' E F B X L)} :
-    Proper (eq ==> Seq ==> Seq ==> impl) `c.
+  #[global] Instance Seq_proper_sb'_chain_ctx4 {c: Chain (@sb' E F C D)} :
+    Proper (eq ==> Seq ==> Seq ==> impl) (fun side => `c side X Y L).
   Proof.
     intros ? side -> ? ? eq1 ? ? eq2 H.
     now rewrite <- eq1, <- eq2.
   Qed.
 
-  #[global] Instance Seq_clos_sb'_gfp : forall side, Proper (Seq ==> Seq ==> iff) (gfp (@sb' E F B X L) side).
+  #[global] Instance Seq_proper_sb'_gfp_goal :
+    forall side, Proper (Seq ==> Seq ==> flip impl) (gfp (@sb' E F C D) side X Y L).
   Proof.
-    exact (@Seq_clos_sb'_chain (chain_gfp (sb' L))).
+    exact (@Seq_proper_sb'_chain_goal (chain_gfp (@sb' E F C D))).
   Qed.
 
-  #[global] Instance Seq_clos_sbisim' : Proper (Seq ==> Seq ==> iff) (@sbisim' E F B X L).
+  #[global] Instance Seq_proper_sb'_gfp_ctx :
+    forall side, Proper (Seq ==> Seq ==> impl) (gfp (@sb' E F C D) side X Y L).
   Proof.
-    unfold sbisim'. repeat red; split; intros. 
-    - now rewrite <- H, <- H0. 
-    - now rewrite H, H0. 
+    exact (@Seq_proper_sb'_chain_ctx (chain_gfp (@sb' E F C D))).
+  Qed.
+
+  #[global] Instance Seq_proper_sbisim'_goal :
+    Proper (Seq ==> Seq ==> flip impl) (@sbisim' E F C D X Y L).
+  Proof.
+    intros x y Hseq x' y' Hseq2 H side.
+    now rewrite Hseq, Hseq2.
+  Qed.
+
+  #[global] Instance Seq_proper_sbisim'_ctx :
+    Proper (Seq ==> Seq ==> impl) (@sbisim' E F C D X Y L).
+  Proof.
+    intros x y Hseq x' y' Hseq2 H side.
+    now rewrite <- Hseq, <- Hseq2.
   Qed.
 
 End sbisim'_theory.
 
+Lemma lequiv_sb'_chain {E F C D} {c : Chain (@sb' E F C D)} :
+  forall side X Y (L L' : lrel E F X Y),
+    lequiv L L' -> `c side X Y L <= `c side X Y L'.
+Proof.
+  tower induction. 
+  - intros IH side X Y L L' HL t u [Ht Hf].
+    split; intro; subst.
+    + specialize (Ht eq_refl).
+      revert Ht. apply lequiv_ss'_gen.
+      * assumption.
+      * cbn. intros ? ? H s. eapply IH; [exact HL | apply H].
+      * cbn. intros ? ? H. eapply IH; [exact HL | exact H].
+    + specialize (Hf eq_refl).
+      revert Hf. apply lequiv_ss'_gen.
+      * now apply lequiv_flipL.
+      * cbn. intros ? ? H s. eapply IH; [exact HL | apply H].
+      * cbn. intros ? ? H. eapply IH; [exact HL | exact H].
+Qed.
+
+Lemma sb'_chain_flip {E C} {c : Chain (@sb' E E C C)} :
+  forall side X Y (L : lrel E E X Y) t u,
+    `c (negb side) Y X (flipL L) u t <-> `c side X Y L t u.
+Proof.
+  intros side X Y L t u.
+  exact (invol_chain (i := @converse_neg E C) c side X Y L t u).
+Qed.
+
 Ltac fold_sbisim' :=
   repeat
     match goal with
-    | h: context[gfp (@sb' ?E ?F ?B ?X ?L)] |- _ => try fold (@sbisim' E F B X L) in h
-    | |- context[gfp (@sb' ?E ?F ?B ?X ?L)]      => try fold (@sbisim' E F B X L)
+    | h: context[gfp (@sb' ?E ?F ?C ?D) ?side ?X ?Y ?L] |- _ =>
+        try fold (@sbisim' E F C D X Y L) in h
+    | |- context[gfp (@sb' ?E ?F ?C ?D) ?side ?X ?Y ?L]      =>
+        try fold (@sbisim' E F C D X Y L)
     end.
 
 Tactic Notation "__coinduction_sbisim'" simple_intropattern(r) simple_intropattern(cih) :=
@@ -213,42 +277,49 @@ Tactic Notation "__coinduction_sbisim'" simple_intropattern(r) simple_intropatte
 
 Tactic Notation "__step_sbisim'" :=
   match goal with
-  | |- context[@sbisim' ?E ?F ?B ?X ?LR] =>
+  | |- context[@sbisim' ?E ?F ?C ?D ?X ?Y ?LR] =>
       unfold sbisim';
       intro; step
   end.
 
-Tactic Notation "step" := __step_sbisim' || step.
+Ltac __step_sb' :=
+  first [ apply (b_chain (b := @sb' _ _ _ _) _)
+        | apply (gfp_fp (@sb' _ _ _ _)) ].
+
+Tactic Notation "step" := __step_sbisim' || __step_sb' || step.
 
 Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
   __coinduction_sbisim' R H || coinduction R H.
 
 Ltac __step_in_sbisim' H :=
   match type of H with
-  | context[@sbisim' ?E ?F ?B ?X ?LR] =>
+  | context[@sbisim' ?E ?F ?C ?D ?X ?Y ?LR] =>
       unfold sbisim' in H;
       let Hl := fresh H "l" in
       let Hr := fresh H "r" in
       pose proof (H true) as Hl;
       pose proof (H false) as Hr;
       step in Hl; step in Hr;
-      try fold (@sbisim' E F B X LR) in Hl;
-      try fold (@sbisim' E F B X LR) in Hr
+      try fold (@sbisim' E F C D X Y LR) in Hl;
+      try fold (@sbisim' E F C D X Y LR) in Hr
   end.
 
-Tactic Notation "step" "in" ident(H) := __step_in_sbisim' H || step in H.
+Ltac __step_in_sb' H := apply (gfp_pfp (@sb' _ _ _ _)) in H.
+
+Tactic Notation "step" "in" ident(H) :=
+  __step_in_sbisim' H || __step_in_sb' H || step in H.
 
 Import CTreeNotations.
 Import EquNotations.
 Section sbisim'_homogenous_theory.
   Context {E B: Type -> Type} {X: Type}
-          {L: relation (@label E X)}.
+          {L: lrel E E X X}.
 
-  Notation sb' := (@sb' E E B X).
-  Notation sbisim' := (@sbisim' E E B X).
+  Notation sb' := (@sb' E E B B).
+  Notation sbisim' := (@sbisim' E E B B X X).
 
-  #[global] Instance refl_sb' {LR: Reflexive L} {C: Chain (sb' L)}
-    : forall side, Reflexive (`C side).
+  #[global] Instance refl_sb' {LR: Reflexive L} {C: Chain sb'}
+    : forall side, Reflexive (`C side X X L).
   Proof.
     apply tower.
     - cbv. firstorder.
@@ -256,7 +327,7 @@ Section sbisim'_homogenous_theory.
       split; intros _; split.
       + intros t' l Hne TR.
         exists l, t'; ssplit.
-        * apply trans_alt_estar_l; exact TR.
+        * apply estar_l_lift; exact TR.
         * intro; apply IH.
         * apply LR.
       + intros t' TR.
@@ -265,17 +336,17 @@ Section sbisim'_homogenous_theory.
         * apply IH.
       + intros t' l Hne TR.
         exists l, t'; ssplit.
-        * apply trans_alt_estar_l; exact TR.
+        * apply estar_l_lift; exact TR.
         * intro; apply IH.
-        * apply LR.
+        * reflexivity.
       + intros t' TR.
         exists t'; split.
         * apply estar_single; exact TR.
         * apply IH.
   Qed.
 
-  #[global] Instance refl_bsb' {LR: Reflexive L} {C: Chain (sb' L)}
-    : forall side, Reflexive (sb' L `C side).
+  #[global] Instance refl_bsb' {LR: Reflexive L} {C: Chain sb'}
+    : forall side, Reflexive (sb' `C side X X L).
   Proof.
     intros ??.
     apply refl_sb'.
@@ -287,33 +358,18 @@ Section sbisim'_homogenous_theory.
     intros ??; apply refl_sb'.
   Qed.
 
-  Lemma sym_sb {LT: Symmetric L} {C: Chain (sb' L)} :
-    forall side x y, `C (negb side) x y -> `C side y x.
+  Lemma sym_sb {LT: Symmetric L} {C: Chain sb'} :
+    forall side x y, `C (negb side) X X L x y -> `C side X X L y x.
   Proof.
-    apply tower.
-    - cbv. firstorder.
-    - clear C.
-      intros R IH ? x y EQC.
-      split; intros EQ.
-      + subst.
-        destruct EQC as [_ EQC]; specialize (EQC eq_refl).
-        eapply (weq_ss'_gen (x := L)) in EQC. 2: { split; apply LT. }
-        eapply ss'_gen_mon.
-        3:apply EQC.
-        { cbn. intros. apply IH; auto. }
-        { cbn. intros. apply IH, H. }
-      + subst.
-        destruct EQC as [EQC _]; specialize (EQC eq_refl).
-        eapply (weq_ss'_gen (x := flip L)) in EQC. 2: { split; apply LT. }
-        eapply ss'_gen_mon.
-        3:apply EQC.
-        { cbn. intros. apply IH, H. }
-        { cbn. intros. apply IH, H. }
+    intros side x y H.
+    apply sb'_chain_flip.
+    eapply lequiv_sb'_chain; [| exact H].
+    symmetry. apply lequiv_flipL_sym.
   Qed.
 
-  Lemma st'_flip `{SL: Symmetric _ L} {C: Chain (sb' L)}:
+  Lemma st'_flip `{SL: Symmetric _ L} {C: Chain sb'}:
     forall b t u,
-    `C b t u <-> `C (negb b) u t.
+    `C b X X L t u <-> `C (negb b) X X L u t.
   Proof.
     split; intro; apply sym_sb; auto.
     now rewrite Bool.negb_involutive.
@@ -328,10 +384,10 @@ Section sbisim'_homogenous_theory.
 
 End sbisim'_homogenous_theory.
 
-Lemma split_st' : forall {E B X L} `{SL: Symmetric _ L} (t u : ctree E B X)
-                    {C: Chain (sb' L)},
-    (forall side, `C side t u) <->
-      `C true t u /\ `C true u t.
+Lemma split_st' : forall {E B X} {L : lrel E E X X} `{SL: Symmetric _ L}
+                    (t u : ctree E B X) {C: Chain (@sb' E E B B)},
+    (forall side, `C side X X L t u) <->
+      `C true X X L t u /\ `C true X X L u t.
 Proof.
   intros. split; intros.
   - split; auto.
@@ -340,23 +396,23 @@ Proof.
     now apply st'_flip.
 Qed.
 
-Lemma split_st'_eq : forall {E B X} (t u : ctree E B X) {C: Chain (sb' eq)},
-    (forall side, `C side t u) <->
-      `C true t u /\ `C true u t.
+Lemma split_st'_eq : forall {E B X} (t u : ctree E B X) {C: Chain (@sb' E E B B)},
+    (forall side, `C side X X Leq t u) <->
+      `C true X X Leq t u /\ `C true X X Leq u t.
 Proof.
   intros. apply split_st'.
 Qed.
 
 Section sbisim'_heterogenous_theory.
   Arguments label: clear implicits.
-  Context {E F B: Type -> Type} {X: Type}
-          {L: rel (@label E X) (@label F X)}.
+  Context {E F C D: Type -> Type} {X Y: Type}
+          {L: lrel E F X Y}.
 
-  Notation sb' := (@sb' E F B X).
-  Notation sbisim'  := (@sbisim' E F B X).
+  Notation sb' := (@sb' E F C D).
+  Notation sbisim'  := (@sbisim' E F C D X Y).
 
   #[global] Instance Seq_sb'_goal {RR} :
-    forall b, Proper (Seq ==> Seq ==> flip impl) (sb' L RR b).
+    forall b, Proper (Seq ==> Seq ==> flip impl) (sb' RR b X Y L).
   Proof.
     intros b x x' eq1 y y' eq2 H.
     split; intro; subst.
@@ -367,15 +423,16 @@ Section sbisim'_heterogenous_theory.
   Qed.
 
   #[global] Instance Seq_sb'_ctx {RR} :
-    Proper (eq ==> Seq ==> Seq ==> impl) (sb' L RR).
+    Proper (eq ==> Seq ==> Seq ==> impl) (fun b => sb' RR b X Y L).
   Proof.
     intros ? b -> ? ? eq1 ? ? eq2 H.
     now rewrite <- eq1, <- eq2.
   Qed.
 
   Lemma sb'_true_ss' R :
-    forall (t : @SS E B X) (u : @SS F B X),
-    sb' L R true t u <-> ss'_gen L (fun t u => forall side, R side t u) (R true) t u.
+    forall (t : @S E C X) (u : @S F D Y),
+    sb' R true X Y L t u <->
+      ss'_gen (fun X Y L t u => forall side, R side X Y L t u) (R true) L t u.
   Proof.
     split; intros.
     - now apply H.
@@ -383,8 +440,11 @@ Section sbisim'_heterogenous_theory.
   Qed.
 
   Lemma sb'_false_ss' R :
-    forall (t : @SS E B X) (u : @SS F B X),
-    sb' L R false t u <-> ss'_gen (flip L) (fun u t => forall side, R side t u) (flip (R false)) u t.
+    forall (t : @S E C X) (u : @S F D Y),
+    sb' R false X Y L t u <->
+      @ss'_gen F E D C (fun Y X L t' u' => forall side, R side X Y (flipL L) u' t')
+        (fun Y X (L : lrel F E Y X) u' t' => R false X Y (flipL L) t' u')
+        Y X (flipL L) u t.
   Proof.
     split; intros.
     - now apply H.
@@ -392,8 +452,8 @@ Section sbisim'_heterogenous_theory.
   Qed.
 
   Lemma sb'_true_stuck R :
-    forall (u : @SS F B X),
-    sb' L R true (Stuck : ctree E B X) u.
+    forall (u : @S F D Y),
+    sb' R true X Y L (Stuck : ctree E C X) u.
   Proof.
     intros. apply sb'_true_ss'.
     apply ss'_stuck.
@@ -401,9 +461,9 @@ Section sbisim'_heterogenous_theory.
 
 End sbisim'_heterogenous_theory.
 
-Lemma sb'_stuck {E F B X L} R :
+Lemma sb'_stuck {E F C D X Y} {L : lrel E F X Y} R :
   forall side,
-    sb' L R side (Stuck : ctree E B X) (Stuck : ctree F B X).
+    sb' R side X Y L (Stuck : ctree E C X) (Stuck : ctree F D Y).
 Proof.
   intros. destruct side.
   - apply sb'_true_stuck.
@@ -417,60 +477,66 @@ Qed.
   [R true] and [flip (R false)]; the following instances discharge
   those side-conditions from a single Properness assumption on [R].
 |*)
-#[global] Instance Proper_forall_R {E F B X}
-  {R : bool -> rel (@SS E B X) (@SS F B X)}
-  {HR: Proper (eq ==> Seq ==> Seq ==> impl) R} :
-  Proper (Seq ==> Seq ==> impl) (fun t u => forall side, R side t u).
+Notation sb'R E F C D :=
+  (bool -> forall X Y : Type, lrel E F X Y -> rel (@S E C X) (@S F D Y)).
+
+Notation sb'Proper R :=
+  (forall X Y (L : lrel _ _ X Y),
+      Proper (eq ==> Seq ==> Seq ==> impl) (fun b => R b X Y L)).
+
+#[global] Instance Proper_forall_R {E F C D X Y}
+  {R : sb'R E F C D} {L : lrel E F X Y}
+  {HR: sb'Proper R} :
+  Proper (Seq ==> Seq ==> impl) (fun t u => forall side, R side X Y L t u).
 Proof.
   intros ? ? eq1 ? ? eq2 H side; eapply HR; eauto.
 Qed.
 
-#[global] Instance Proper_forall_R_flip {E F B X}
-  {R : bool -> rel (@SS E B X) (@SS F B X)}
-  {HR: Proper (eq ==> Seq ==> Seq ==> impl) R} :
-  Proper (Seq ==> Seq ==> impl) (fun u t => forall side, R side t u).
+#[global] Instance Proper_forall_R_flip {E F C D X Y}
+  {R : sb'R E F C D} {L : lrel E F X Y}
+  {HR: sb'Proper R} :
+  Proper (Seq ==> Seq ==> impl) (fun u t => forall side, R side X Y L t u).
 Proof.
   intros ? ? eq1 ? ? eq2 H side; eapply HR; eauto.
 Qed.
 
-#[global] Instance Proper_R_side {E F B X}
-  {R : bool -> rel (@SS E B X) (@SS F B X)}
-  {HR: Proper (eq ==> Seq ==> Seq ==> impl) R} side :
-  Proper (Seq ==> Seq ==> impl) (R side).
+#[global] Instance Proper_R_side {E F C D X Y}
+  {R : sb'R E F C D} {L : lrel E F X Y}
+  {HR: sb'Proper R} side :
+  Proper (Seq ==> Seq ==> impl) (R side X Y L).
 Proof.
   intros ? ? eq1 ? ? eq2 H; eapply HR; eauto.
 Qed.
 
-#[global] Instance Proper_R_side_flip {E F B X}
-  {R : bool -> rel (@SS E B X) (@SS F B X)}
-  {HR: Proper (eq ==> Seq ==> Seq ==> impl) R} side :
-  Proper (Seq ==> Seq ==> impl) (flip (R side)).
+#[global] Instance Proper_R_side_flip {E F C D X Y}
+  {R : sb'R E F C D} {L : lrel E F X Y}
+  {HR: sb'Proper R} side :
+  Proper (Seq ==> Seq ==> impl) (fun u t => R side X Y L t u).
 Proof.
-  intros ? ? eq1 ? ? eq2 H; unfold flip in *; eapply HR; eauto.
+  intros ? ? eq1 ? ? eq2 H; eapply HR; eauto.
 Qed.
 
 Section Proof_Rules.
 
   Arguments label: clear implicits.
-  Context {E F B: Type -> Type}
-          {X: Type}
-          {L : rel (@label E X) (@label F X)}.
+  Context {E F C D: Type -> Type}
+          {X Y: Type}
+          {L : lrel E F X Y}.
 
-  Lemma step_sb'_ret {R : bool -> rel (@SS E B X) (@SS F B X)}
-    {HR: Proper (eq ==> Seq ==> Seq ==> impl) R}
-    (x : X) (y : X) :
+  Lemma step_sb'_ret {R : sb'R E F C D} {HR: sb'Proper R}
+    (x : X) (y : Y) :
     L (val x) (val y) ->
-    (forall side, R side Stuck Stuck) ->
-    forall side, sb' L R side (Ret x : ctree E B X) (Ret y : ctree F B X).
+    (forall side, R side X Y L Stuck Stuck) ->
+    forall side, sb' R side X Y L (Ret x : ctree E C X) (Ret y : ctree F D Y).
   Proof.
     intros Lval Rstuck side; split; intro; subst.
     - apply step_ss'_ret; [apply Rstuck | exact Lval].
-    - apply step_ss'_ret; [apply Rstuck | exact Lval].
+    - apply step_ss'_ret; [apply Rstuck | now apply flipL_flip].
   Qed.
 
-  Lemma step_sbt'_ret (x y : X) {R : Chain (sb' L)} :
+  Lemma step_sbt'_ret (x : X) (y : Y) {R : Chain (@sb' E F C D)} :
     L (val x) (val y) ->
-    forall side, `R side (Ret x : ctree E B X) (Ret y : ctree F B X).
+    forall side, `R side X Y L (Ret x : ctree E C X) (Ret y : ctree F D Y).
   Proof.
     intros HL side.
     apply (b_chain R), step_sb'_ret.
@@ -482,36 +548,33 @@ Section Proof_Rules.
  The vis nodes are deterministic from the perspective of the labeled
  transition system: both sides step to the corresponding passive states.
 |*)
-  Lemma step_sb'_vis {R : bool -> rel (@SS E B X) (@SS F B X)}
-    {HR: Proper (eq ==> Seq ==> Seq ==> impl) R}
+  Lemma step_sb'_vis {R : sb'R E F C D} {HR: sb'Proper R}
     {Z Z'} (e : E Z) (f: F Z')
-    (k : Z -> ctree E B X) (k' : Z' -> ctree F B X) :
-    (forall side, R side (Passive e k) (Passive f k')) ->
+    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) :
+    (forall side, R side X Y L (Passive e k) (Passive f k')) ->
     L (ask e) (ask f) ->
-    forall side, sb' L R side (Vis e k) (Vis f k').
+    forall side, sb' R side X Y L (Vis e k) (Vis f k').
   Proof.
     intros HRpas Lask side; split; intro; subst.
     - apply step_ss'_vis; [apply HRpas | exact Lask].
-    - apply step_ss'_vis; [apply HRpas | exact Lask].
+    - apply step_ss'_vis; [apply HRpas | now apply flipL_flip].
   Qed.
 
-  Lemma step_sb'_vis_id {R : bool -> rel (@SS E B X) (@SS F B X)}
-    {HR: Proper (eq ==> Seq ==> Seq ==> impl) R}
+  Lemma step_sb'_vis_id {R : sb'R E F C D} {HR: sb'Proper R}
     {Z} (e : E Z) (f: F Z)
-    (k : Z -> ctree E B X) (k' : Z -> ctree F B X) :
-    (forall side, R side (Passive e k) (Passive f k')) ->
+    (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) :
+    (forall side, R side X Y L (Passive e k) (Passive f k')) ->
     L (ask e) (ask f) ->
-    forall side, sb' L R side (Vis e k) (Vis f k').
+    forall side, sb' R side X Y L (Vis e k) (Vis f k').
   Proof.
     intros; now apply step_sb'_vis.
   Qed.
 
-  Lemma step_sb'_vis_l {R : bool -> rel (@SS E B X) (@SS F B X)}
-    {HR: Proper (eq ==> Seq ==> Seq ==> impl) R} {Z} :
-    forall (e : E Z) (k : Z -> ctree E B X) (u : @SS F B X),
+  Lemma step_sb'_vis_l {R : sb'R E F C D} {HR: sb'Proper R} {Z} :
+    forall (e : E Z) (k : Z -> ctree E C X) (u : @S F D Y),
       (exists l' u', ((trans_alt ε)^* ⋅ trans_alt l') u u'
-        /\ (forall side, R side (Passive e k) u') /\ L (ask e) l') ->
-      sb' L R true (Vis e k) u.
+        /\ (forall side, R side X Y L (Passive e k) u') /\ L (ask e) l') ->
+      sb' R true X Y L (Vis e k) u.
   Proof.
     intros e k u (l' & u' & STEP & HRu & Hask).
     split; intro; [| easy].
@@ -525,30 +588,29 @@ Section Proof_Rules.
 (*|
   With this definition [sb'] of bisimulation, delayed nodes allow to perform a coinductive step.
 |*)
-  Lemma step_sb'_guard {R : bool -> rel (@SS E B X) (@SS F B X)}
-    {HR: Proper (eq ==> Seq ==> Seq ==> impl) R}
-    (t: ctree E B X) (t': ctree F B X) side :
-      R side t t' ->
-      sb' L R side (Guard t) (Guard t').
+  Lemma step_sb'_guard {R : sb'R E F C D} {HR: sb'Proper R}
+    (t: ctree E C X) (t': ctree F D Y) side :
+      R side X Y L t t' ->
+      sb' R side X Y L (Guard t) (Guard t').
   Proof.
     intros HRtt'; split; intro; subst; apply step_ss'_guard; exact HRtt'.
   Qed.
 
   Lemma step_sb'_true_guard_l
-    {R : Chain (sb' L)}
-    (t: ctree E B X) (t': @SS F B X) :
-    ` R true t t' ->
-    sb' L `R true (Guard t) t'.
+    {R : Chain (@sb' E F C D)}
+    (t: ctree E C X) (t': @S F D Y) :
+    ` R true X Y L t t' ->
+    sb' `R true X Y L (Guard t) t'.
   Proof.
     intros H; split; intro; [| easy].
     apply step_ss'_guard_l; exact H.
   Qed.
 
   Lemma step_sb'_guard_l
-    {R : Chain (sb' L)}
-    (t: ctree E B X) (t': @SS F B X) side :
-    sb' L (` R) side t t' ->
-    sb' L `R side (Guard t) t'.
+    {R : Chain (@sb' E F C D)}
+    (t: ctree E C X) (t': @S F D Y) side :
+    sb' (` R) side X Y L t t' ->
+    sb' `R side X Y L (Guard t) t'.
   Proof.
     intros H; split; intro; subst.
     - apply step_ss'_guard_l.
@@ -557,20 +619,20 @@ Section Proof_Rules.
   Qed.
 
   Lemma step_sb'_false_guard_r
-    {R : Chain (sb' L)}
-    (t: @SS E B X) (t': ctree F B X) :
-    ` R false t t' ->
-    sb' L `R false t (Guard t').
+    {R : Chain (@sb' E F C D)}
+    (t: @S E C X) (t': ctree F D Y) :
+    ` R false X Y L t t' ->
+    sb' `R false X Y L t (Guard t').
   Proof.
     intros H; split; intro; [easy |].
     apply step_ss'_guard_l; exact H.
   Qed.
 
   Lemma step_sb'_guard_r
-    {R : Chain (sb' L)}
-    (t: @SS E B X) (t': ctree F B X) side :
-    sb' L (` R) side t t' ->
-    sb' L `R side t (Guard t').
+    {R : Chain (@sb' E F C D)}
+    (t: @S E C X) (t': ctree F D Y) side :
+    sb' (` R) side X Y L t t' ->
+    sb' `R side X Y L t (Guard t').
   Proof.
     intros H; split; intro; subst.
     - apply step_ss'_guard_r; now apply H.
@@ -578,43 +640,41 @@ Section Proof_Rules.
       apply (b_chain R); exact H.
   Qed.
 
-  Lemma step_sb'_br {R : bool -> rel (@SS E B X) (@SS F B X)}
-    {HR: Proper (eq ==> Seq ==> Seq ==> impl) R}
-    {Z Z'} (a: B Z) (b: B Z')
-    (k : Z -> ctree E B X) (k' : Z' -> ctree F B X) side :
-    (forall x, exists y, R side (k x) (k' y)) ->
-    (forall y, exists x, R side (k x) (k' y)) ->
-    sb' L R side (Br a k) (Br b k').
+  Lemma step_sb'_br {R : sb'R E F C D} {HR: sb'Proper R}
+    {Z Z'} (a: C Z) (b: D Z')
+    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) side :
+    (forall x, exists y, R side X Y L (k x) (k' y)) ->
+    (forall y, exists x, R side X Y L (k x) (k' y)) ->
+    sb' R side X Y L (Br a k) (Br b k').
   Proof.
     intros H1 H2; split; intro; subst; apply step_ss'_br.
     - intro x; destruct (H1 x) as (y & ?); eauto.
     - intro y; destruct (H2 y) as (x & ?); eauto.
   Qed.
 
-  Lemma step_sb'_br_id {R : bool -> rel (@SS E B X) (@SS F B X)}
-    {HR: Proper (eq ==> Seq ==> Seq ==> impl) R}
-    {Z} (c: B Z) (d: B Z)
-    (k : Z -> ctree E B X) (k' : Z -> ctree F B X) side :
-    (forall x, R side (k x) (k' x)) ->
-    sb' L R side (Br c k) (Br d k').
+  Lemma step_sb'_br_id {R : sb'R E F C D} {HR: sb'Proper R}
+    {Z} (c: C Z) (d: D Z)
+    (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) side :
+    (forall x, R side X Y L (k x) (k' x)) ->
+    sb' R side X Y L (Br c k) (Br d k').
   Proof.
     intros. apply step_sb'_br; eauto.
   Qed.
 
-  Lemma step_sb'_true_br_l {R : Chain (sb' L)} {Z} :
-    forall (c : B Z) (k : Z -> ctree E B X) (u : @SS F B X),
-    (forall x, `R true (k x) u) ->
-    sb' L `R true (Br c k) u.
+  Lemma step_sb'_true_br_l {R : Chain (@sb' E F C D)} {Z} :
+    forall (c : C Z) (k : Z -> ctree E C X) (u : @S F D Y),
+    (forall x, `R true X Y L (k x) u) ->
+    sb' `R true X Y L (Br c k) u.
   Proof.
     intros c k u H; split; intro; [| easy].
     apply step_ss'_br_l.
     intro x; apply H.
   Qed.
 
-  Lemma step_sb'_br_l {R : Chain (sb' L)} {Z} :
-    forall (c : B Z) (z : Z) (k : Z -> ctree E B X) (u : @SS F B X) side,
-    (forall x, sb' L `R side (k x) u) ->
-    sb' L `R side (Br c k) u.
+  Lemma step_sb'_br_l {R : Chain (@sb' E F C D)} {Z} :
+    forall (c : C Z) (z : Z) (k : Z -> ctree E C X) (u : @S F D Y) side,
+    (forall x, sb' `R side X Y L (k x) u) ->
+    sb' `R side X Y L (Br c k) u.
   Proof.
     intros c z k u side H; split; intro; subst.
     - apply step_ss'_br_l.
@@ -625,16 +685,15 @@ Section Proof_Rules.
 (*|
   Step
 |*)
-  Lemma step_sb'_step {R : bool -> rel (@SS E B X) (@SS F B X)}
-    {HR: Proper (eq ==> Seq ==> Seq ==> impl) R}
-    (t : ctree E B X) (t': ctree F B X) :
+  Lemma step_sb'_step {R : sb'R E F C D} {HR: sb'Proper R}
+    (t : ctree E C X) (t': ctree F D Y) :
     L τ τ ->
-    (forall side, R side t t') ->
-    forall side, sb' L R side (Step t) (Step t').
+    (forall side, R side X Y L t t') ->
+    forall side, sb' R side X Y L (Step t) (Step t').
   Proof.
     intros Hτ HRtt' side; split; intro; subst.
     - apply step_ss'_step; [exact Hτ | apply HRtt'].
-    - apply step_ss'_step; [exact Hτ | apply HRtt'].
+    - apply step_ss'_step; [now apply flipL_flip | apply HRtt'].
   Qed.
 
 End Proof_Rules.
@@ -645,14 +704,14 @@ End Proof_Rules.
     A useful special case is the one where the arity coincide and we simply use the identity
     in both directions. We can in this case have [n] rather than [2n] obligations.
 |*)
-Lemma step_sb'_brS {E F B X L}
-  {R : Chain (sb' L)}
-  {Z Z'} (c : B Z) (d : B Z')
-  (k : Z -> ctree E B X) (k' : Z' -> ctree F B X) :
-  (forall x, exists y, forall side, `R side (k x) (k' y)) ->
-  (forall y, exists x, forall side, `R side (k x) (k' y)) ->
+Lemma step_sb'_brS {E F C D X Y} {L : lrel E F X Y}
+  {R : Chain (@sb' E F C D)}
+  {Z Z'} (c : C Z) (d : D Z')
+  (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) :
+  (forall x, exists y, forall side, `R side X Y L (k x) (k' y)) ->
+  (forall y, exists x, forall side, `R side X Y L (k x) (k' y)) ->
   L τ τ ->
-  forall side, sb' L `R side (BrS c k) (BrS d k').
+  forall side, sb' `R side X Y L (BrS c k) (BrS d k').
 Proof.
   intros H1 H2 Hτ side.
   apply step_sb'_br.
@@ -662,25 +721,25 @@ Proof.
     step. now apply step_sb'_step.
 Qed.
 
-Lemma step_sb'_brS_id {E F B X L}
-  {R : Chain (sb' L)}
-  {Z} (c : B Z) (d: B Z)
-  (k: Z -> ctree E B X) (k': Z -> ctree F B X) :
+Lemma step_sb'_brS_id {E F C D X Y} {L : lrel E F X Y}
+  {R : Chain (@sb' E F C D)}
+  {Z} (c : C Z) (d: D Z)
+  (k: Z -> ctree E C X) (k': Z -> ctree F D Y) :
   L τ τ ->
-  (forall x side, `R side (k x) (k' x)) ->
-  forall side, sb' L `R side (BrS c k) (BrS d k').
+  (forall x side, `R side X Y L (k x) (k' x)) ->
+  forall side, sb' `R side X Y L (BrS c k) (BrS d k').
 Proof.
   intros Hτ H side.
   apply step_sb'_br_id.
   intro x; apply (b_chain R), step_sb'_step; auto.
 Qed.
 
-Lemma step_sb'_true_step_l {E F B X L}
-  {R : Chain (sb' L)} :
-  forall (t : ctree E B X) (u : @SS F B X),
+Lemma step_sb'_true_step_l {E F C D X Y} {L : lrel E F X Y}
+  {R : Chain (@sb' E F C D)} :
+  forall (t : ctree E C X) (u : @S F D Y),
     (exists l' u', ((trans_alt ε)^* ⋅ trans_alt l') u u'
-      /\ (forall side, `R side t u') /\ L τ l') ->
-    sb' L `R true (Step t) u.
+      /\ (forall side, `R side X Y L t u') /\ L τ l') ->
+    sb' `R true X Y L (Step t) u.
 Proof.
   intros t u (l' & u' & STEP & HR' & Hτ).
   split; intro; [| easy].
@@ -691,13 +750,13 @@ Proof.
   - exact Hτ.
 Qed.
 
-Lemma step_sb'_true_brS_l {E F B X L}
-  {R : Chain (sb' L)}
+Lemma step_sb'_true_brS_l {E F C D X Y} {L : lrel E F X Y}
+  {R : Chain (@sb' E F C D)}
   {Z} :
-  forall (c : B Z) (k : Z -> ctree E B X) (u : @SS F B X),
+  forall (c : C Z) (k : Z -> ctree E C X) (u : @S F D Y),
     (forall x, exists l' u', ((trans_alt ε)^* ⋅ trans_alt l') u u'
-      /\ (forall side, `R side (k x) u') /\ L τ l') ->
-    sb' L `R true (BrS c k) u.
+      /\ (forall side, `R side X Y L (k x) u') /\ L τ l') ->
+    sb' `R true X Y L (BrS c k) u.
 Proof.
   intros c k u H.
   apply step_sb'_true_br_l; intro x.
@@ -707,15 +766,15 @@ Qed.
 
 Section Inversion_Rules.
 
-  Context {E F B: Type -> Type}
-          {X: Type}.
-  Variable (L : rel (@label E X) (@label F X)).
+  Context {E F C D: Type -> Type}
+          {X Y: Type}.
+  Variable (L : lrel E F X Y).
 
   (* Lemmas to exploit sb' and sbisim' hypotheses *)
 
-  Lemma estar_vis_inv {G : Type -> Type} {Z} (e : G Z) (k : Z -> ctree G B X) (m : @SS G B X) :
+  Lemma estar_vis_inv {G K : Type -> Type} {W Z} (e : G Z) (k : Z -> ctree G K W) (m : @S G K W) :
     (trans_alt ε)^* (Active (Vis e k)) m ->
-    (Active (Vis e k) : @SS G B X) ⩸ m.
+    (Active (Vis e k) : @S G K W) ⩸ m.
   Proof.
     intros [n STAR]; destruct n.
     - exact STAR.
@@ -724,20 +783,20 @@ Section Inversion_Rules.
   Qed.
 
   Lemma sb'_true_vis_l_inv {Z R} :
-    forall (e : E Z) (k : Z -> ctree E B X) (u : @SS F B X),
-    sb' L R true (Vis e k) u ->
+    forall (e : E Z) (k : Z -> ctree E C X) (u : @S F D Y),
+    sb' R true X Y L (Vis e k) u ->
     exists l' u', ((trans_alt ε)^* ⋅ trans_alt l') u u'
-      /\ (forall side, R side (Passive e k) u') /\ L (ask e) l'.
+      /\ (forall side, R side X Y L (Passive e k) u') /\ L (ask e) l'.
   Proof.
     intros. apply sb'_true_ss' in H.
     now apply ss'_vis_l_inv in H.
   Qed.
 
   Lemma sb'_true_vis_inv {Z Z' R} :
-    forall (e : E Z) (f : F Z') (k : Z -> ctree E B X) (k' : Z' -> ctree F B X),
-    (Proper (eq ==> Seq ==> Seq ==> impl) R) ->
-    sb' L R true (Vis e k) (Vis f k') ->
-    (forall side, R side (Passive e k) (Passive f k')) /\ L (ask e) (ask f).
+    forall (e : E Z) (f : F Z') (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y),
+    sb'Proper R ->
+    sb' R true X Y L (Vis e k) (Vis f k') ->
+    (forall side, R side X Y L (Passive e k) (Passive f k')) /\ L (ask e) (ask f).
   Proof.
     intros * HP H.
     apply sb'_true_vis_l_inv in H as (l' & u' & STEP & HR & HL).
@@ -751,9 +810,9 @@ Section Inversion_Rules.
   Qed.
 
   Lemma sb'_true_br_l_inv {Z R} :
-    forall (c : B Z) (k : Z -> ctree E B X) (u : @SS F B X),
-    sb' L R true (Br c k) u ->
-    forall x, exists u', (trans_alt ε)^* u u' /\ R true (k x) u'.
+    forall (c : C Z) (k : Z -> ctree E C X) (u : @S F D Y),
+    sb' R true X Y L (Br c k) u ->
+    forall x, exists u', (trans_alt ε)^* u u' /\ R true X Y L (k x) u'.
   Proof.
     intros * H x.
     destruct H as [H _]; specialize (H eq_refl); destruct H as [_ HB].
@@ -762,9 +821,9 @@ Section Inversion_Rules.
   Qed.
 
   Lemma sb'_false_br_l_inv {Z R} :
-    forall (t : @SS E B X) (c : B Z) (k : Z -> ctree F B X),
-    sb' L R false t (Br c k) ->
-    forall x, exists t', (trans_alt ε)^* t t' /\ R false t' (k x).
+    forall (t : @S E C X) (c : D Z) (k : Z -> ctree F D Y),
+    sb' R false X Y L t (Br c k) ->
+    forall x, exists t', (trans_alt ε)^* t t' /\ R false X Y L t' (k x).
   Proof.
     intros * H x.
     destruct H as [_ H]; specialize (H eq_refl); destruct H as [_ HB].
@@ -773,9 +832,9 @@ Section Inversion_Rules.
   Qed.
 
   Lemma sb'_true_guard_l_inv {R} :
-    forall (t : ctree E B X) (u : @SS F B X),
-    sb' L R true (Guard t) u ->
-    exists u', (trans_alt ε)^* u u' /\ R true t u'.
+    forall (t : ctree E C X) (u : @S F D Y),
+    sb' R true X Y L (Guard t) u ->
+    exists u', (trans_alt ε)^* u u' /\ R true X Y L t u'.
   Proof.
     intros * H.
     destruct H as [H _]; specialize (H eq_refl); destruct H as [_ HB].
@@ -784,9 +843,9 @@ Section Inversion_Rules.
   Qed.
 
   Lemma sb'_false_guard_l_inv {R} :
-    forall (t : @SS E B X) (u : ctree F B X),
-    sb' L R false t (Guard u) ->
-    exists t', (trans_alt ε)^* t t' /\ R false t' u.
+    forall (t : @S E C X) (u : ctree F D Y),
+    sb' R false X Y L t (Guard u) ->
+    exists t', (trans_alt ε)^* t t' /\ R false X Y L t' u.
   Proof.
     intros * H.
     destruct H as [_ H]; specialize (H eq_refl); destruct H as [_ HB].
@@ -794,9 +853,9 @@ Section Inversion_Rules.
     exists t'; split; [exact STAR | exact HR].
   Qed.
 
-  Lemma sbisim'_br_l_inv {Z} c x (k : Z -> ctree E B X) (t' : @SS F B X) :
-    gfp (sb' L) true (Br c k) t' ->
-    gfp (sb' L) true (k x) t'.
+  Lemma sbisim'_br_l_inv {Z} c x (k : Z -> ctree E C X) (t' : @S F D Y) :
+    gfp (@sb' E F C D) true X Y L (Br c k) t' ->
+    gfp (@sb' E F C D) true X Y L (k x) t'.
   Proof.
     intros H. step in H.
     eapply sb'_true_br_l_inv with (x := x) in H as (u' & STAR & HR).
@@ -805,9 +864,9 @@ Section Inversion_Rules.
     step in HR. now apply HR.
   Qed.
 
-  Lemma sbisim'_br_r_inv {Z} c x (k : Z -> ctree F B X) (t : @SS E B X) :
-    gfp (sb' L) false t (Br c k) ->
-    gfp (sb' L) false t (k x).
+  Lemma sbisim'_br_r_inv {Z} c x (k : Z -> ctree F D Y) (t : @S E C X) :
+    gfp (@sb' E F C D) false X Y L t (Br c k) ->
+    gfp (@sb' E F C D) false X Y L t (k x).
   Proof.
     intros H. step in H.
     eapply sb'_false_br_l_inv with (x := x) in H as (t0 & STAR & HR).
@@ -816,9 +875,9 @@ Section Inversion_Rules.
     step in HR. now apply HR.
   Qed.
 
-  Lemma sbisim'_guard_l_inv (t : ctree E B X) (t' : @SS F B X) :
-    gfp (sb' L) true (Guard t) t' ->
-    gfp (sb' L) true t t'.
+  Lemma sbisim'_guard_l_inv (t : ctree E C X) (t' : @S F D Y) :
+    gfp (@sb' E F C D) true X Y L (Guard t) t' ->
+    gfp (@sb' E F C D) true X Y L t t'.
   Proof.
     intros H. step in H.
     apply sb'_true_guard_l_inv in H as (u' & STAR & HR).
@@ -827,9 +886,9 @@ Section Inversion_Rules.
     step in HR. now apply HR.
   Qed.
 
-  Lemma sbisim'_guard_r_inv (t : @SS E B X) (t' : ctree F B X) :
-    gfp (sb' L) false t (Guard t') ->
-    gfp (sb' L) false t t'.
+  Lemma sbisim'_guard_r_inv (t : @S E C X) (t' : ctree F D Y) :
+    gfp (@sb' E F C D) false X Y L t (Guard t') ->
+    gfp (@sb' E F C D) false X Y L t t'.
   Proof.
     intros H. step in H.
     apply sb'_false_guard_l_inv in H as (t0 & STAR & HR).
@@ -844,47 +903,45 @@ End Inversion_Rules.
 [eq]-specialized inversions, stated outside the section so [L] can be
 instantiated with [eq].
 |*)
-Lemma sb'_eq_vis_invT {E B X Z Z' R} :
-  forall side (e : E Z) (f : E Z') (k : Z -> ctree E B X) (k' : Z' -> ctree E B X),
-  sb' eq R side (Vis e k) (Vis f k') ->
+Lemma sb'_eq_vis_invT {E C X Z Z' R} :
+  forall side (e : E Z) (f : E Z') (k : Z -> ctree E C X) (k' : Z' -> ctree E C X),
+  sb' R side X X Leq (Vis e k) (Vis f k') ->
   Z = Z'.
 Proof.
   intros side e f k k' H.
   destruct side.
   - apply sb'_true_vis_l_inv in H as (l' & u' & STEP & _ & HL).
-    subst l'.
     destruct STEP as [m STAR STEPa].
     apply estar_vis_inv in STAR; rewrite <- STAR in STEPa.
-    apply trans_vis_inv' in STEPa as (_ & Heq).
-    now apply ask_invT in Heq.
+    apply trans_vis_inv' in STEPa as (_ & ->).
+    apply build_rel_ask in HL.
+    now dependent destruction HL.
   - apply sb'_false_ss' in H.
     apply ss'_vis_l_inv in H as (l' & u' & STEP & _ & HL).
-    unfold flip in HL; subst l'.
     destruct STEP as [m STAR STEPa].
     apply estar_vis_inv in STAR; rewrite <- STAR in STEPa.
-    apply trans_vis_inv' in STEPa as (_ & Heq).
-    apply ask_invT in Heq.
-    now symmetry.
+    apply trans_vis_inv' in STEPa as (_ & ->).
+    apply build_rel_ask in HL.
+    now dependent destruction HL.
 Qed.
 
-Lemma sb'_eq_vis_inv {E B X Z R} :
-  forall side (e f : E Z) (k k' : Z -> ctree E B X),
-  (Proper (eq ==> Seq ==> Seq ==> impl) R) ->
-  sb' eq R side (Vis e k) (Vis f k') ->
-  e = f /\ (forall side, R side (Passive e k) (Passive f k')).
+Lemma sb'_eq_vis_inv {E C X Z R} :
+  forall side (e f : E Z) (k k' : Z -> ctree E C X),
+  sb'Proper R ->
+  sb' R side X X Leq (Vis e k) (Vis f k') ->
+  e = f /\ (forall side, R side X X Leq (Passive e k) (Passive f k')).
 Proof.
   intros side e f k k' HP H.
   destruct side.
   - apply sb'_true_vis_inv in H as (HR & Heq); [| exact HP].
-    apply ask_inv in Heq; subst f.
+    apply build_rel_ask in Heq; dependent destruction Heq.
     auto.
   - apply sb'_false_ss' in H.
     apply ss'_vis_l_inv in H as (l' & u' & STEP & HR & HL).
-    unfold flip in HL; subst l'.
     destruct STEP as [m STAR STEPa].
     apply estar_vis_inv in STAR; rewrite <- STAR in STEPa.
-    apply trans_vis_inv' in STEPa as (EQ & Heq).
-    apply ask_inv in Heq; subst f.
+    apply trans_vis_inv' in STEPa as (EQ & ->).
+    apply build_rel_ask in HL; dependent destruction HL.
     split; [reflexivity |].
     intro side'; rewrite <- EQ; apply HR.
 Qed.
@@ -898,94 +955,63 @@ Lemma epsilon_det_estar {E B X} (t t' : ctree E B X) :
 Proof.
   induction 1.
   - apply estar_seq; constructor; exact H.
-  - eapply estar_cons0.
+  - eapply estar_cons_epsilon.
     + eapply Transguard; [exact H0 | reflexivity].
     + exact IHepsilon_det.
 Qed.
 
 Section upto.
-  Context {E F B: Type -> Type} {X: Type}
-          (L : rel (@label E X) (@label F X)).
+  Context {E F C D: Type -> Type}.
 
   #[local] Obligation Tactic := idtac.
 
-  Program Definition ss_ctx3_l : mon (bool -> rel (@SS E B X) (@SS F B X))
-    := {| body R b t u := b = true /\ ss L (fun t u => forall side, R side t u) t u |}.
+  Program Definition ss_ctx3_l : mon (sb'R E F C D)
+    := {| body R b X Y L t u :=
+            b = true /\
+            ss' (fun X Y L t u => forall side, R side X Y L t u) X Y L t u |}.
   Next Obligation.
-    intros R R' HRR' b t u (-> & Hss); split; auto.
-    intros t' l Hne TR.
-    destruct (Hss _ _ Hne TR) as (l' & u' & STEP & HR & HL).
-    exists l', u'; ssplit; auto.
-    intro side; apply HRR', HR.
+    intros R R' HRR' b X Y L t u (-> & Hss); split; [reflexivity |].
+    revert Hss; apply ss'_gen_mon;
+      cbn; intros ? ? ? ? ? H side; apply HRR', H.
   Qed.
 
-  Lemma ss_st'_l (r : Chain (sb' L)) :
-    forall side x y, ss_ctx3_l `r side x y -> `r side x y.
+  Lemma ss_st'_l (r : Chain (@sb' E F C D)) :
+    forall side X Y L x y, ss_ctx3_l `r side X Y L x y -> `r side X Y L x y.
   Proof.
-    apply tower.
-    - intros ? INC side x y [-> Hss] ? ?. red.
-      apply INC; auto.
-      split; auto.
-      intros t' l Hne TR.
-      destruct (Hss _ _ Hne TR) as (l' & u' & STEP & HR & HL).
-      exists l', u'; ssplit.
-      + assumption.
-      + intro side'; apply leq_infx in H; apply H, HR.
-      + assumption.
-    - clear.
-      intros R IH side x y [-> Hss].
-      split; intro; [| easy].
-      split.
-      + intros t' l Hne TR.
-        assert (cTR : ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) x t')
-          by (apply trans_star_l; exact TR).
-        destruct (Hss _ _ Hne cTR) as (l' & u' & STEP & HR & HL).
-        exists l', u'; ssplit.
-        * assumption.
-        * intro side'; apply (b_chain R), HR.
-        * assumption.
-      + intros t' TR.
-        exists y; split.
-        * apply trans_star_self.
-        * apply IH.
-          split; auto.
-          intros t'' l Hne cTR.
-          assert (cTR2 : ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) x t'')
-            by (eapply estar_cons; [exact TR | exact cTR]).
-          destruct (Hss _ _ Hne cTR2) as (l' & u' & STEP & HR & HL).
-          exists l', u'; ssplit.
-          -- assumption.
-          -- intro side'; apply (b_chain R), HR.
-          -- assumption.
+    intros side X Y L x y (-> & Hss).
+    apply (b_chain r); split; intro; [| easy].
+    revert Hss; apply ss'_gen_mon.
+    - cbn; intros ? ? ? ? ? HH; exact HH.
+    - cbn; intros ? ? ? ? ? HH; apply HH.
   Qed.
 
   (* Up-to guard *)
 
-  Program Definition guard_ctx3_l : mon (bool -> rel (@SS E B X) (@SS F B X))
-    := {| body R b t u := guard_ctx (fun t => R b t u) t |}.
+  Program Definition guard_ctx3_l : mon (sb'R E F C D)
+    := {| body R b X Y L t u := guard_ctx (fun t => R b X Y L t u) t |}.
   Next Obligation.
-    intros R R' HRR' b t u (t0 & EQ & HR).
+    intros R R' HRR' b X Y L t u (t0 & EQ & HR).
     exists t0; split; [exact EQ | apply HRR', HR].
   Qed.
 
-  Program Definition guard_ctx3_r : mon (bool -> rel (@SS E B X) (@SS F B X))
-    := {| body R b t u := guard_ctx (fun u => R b t u) u |}.
+  Program Definition guard_ctx3_r : mon (sb'R E F C D)
+    := {| body R b X Y L t u := guard_ctx (fun u => R b X Y L t u) u |}.
   Next Obligation.
-    intros R R' HRR' b t u (u0 & EQ & HR).
+    intros R R' HRR' b X Y L t u (u0 & EQ & HR).
     exists u0; split; [exact EQ | apply HRR', HR].
   Qed.
 
-  Lemma guard_ctx3_l_sbisim' (r : Chain (sb' L)) :
-    forall side x y, guard_ctx3_l `r side x y -> `r side x y.
+  Lemma guard_ctx3_l_sbisim' (r : Chain (@sb' E F C D)) :
+    forall side X Y L x y, guard_ctx3_l `r side X Y L x y -> `r side X Y L x y.
   Proof.
     apply tower.
-    - intros ? INC side x y (t0 & EQ & HR) ? ?; red.
+    - intros ? INC side X Y L x y (t0 & EQ & HR) ? ?; red.
       apply INC; auto.
       exists t0; split; [exact EQ |].
       apply leq_infx in H.
       apply H, HR.
     - clear.
-      intros R IH side x y (t0 & EQ & HR).
+      intros R IH side X Y L x y (t0 & EQ & HR).
       split; intro; subst.
       + rewrite EQ.
         apply step_ss'_guard_l.
@@ -995,17 +1021,17 @@ Section upto.
         now apply HR.
   Qed.
 
-  Lemma guard_ctx3_r_sbisim' (r : Chain (sb' L)) :
-    forall side x y, guard_ctx3_r `r side x y -> `r side x y.
+  Lemma guard_ctx3_r_sbisim' (r : Chain (@sb' E F C D)) :
+    forall side X Y L x y, guard_ctx3_r `r side X Y L x y -> `r side X Y L x y.
   Proof.
     apply tower.
-    - intros ? INC side x y (u0 & EQ & HR) ? ?; red.
+    - intros ? INC side X Y L x y (u0 & EQ & HR) ? ?; red.
       apply INC; auto.
       exists u0; split; [exact EQ |].
       apply leq_infx in H.
       apply H, HR.
     - clear.
-      intros R IH side x y (u0 & EQ & HR).
+      intros R IH side X Y L x y (u0 & EQ & HR).
       split; intro; subst.
       + rewrite EQ.
         apply step_ss'_guard_r.
@@ -1017,12 +1043,12 @@ Section upto.
 
   (* Up-to epsilon *)
 
-  Program Definition epsilon_det_ctx3_l : mon (bool -> rel (@SS E B X) (@SS F B X))
-    := {| body R b t u :=
+  Program Definition epsilon_det_ctx3_l : mon (sb'R E F C D)
+    := {| body R b X Y L t u :=
             b = true /\ exists t0 t1, t ⩸ (Active t0) /\ epsilon_det t0 t1
-                        /\ R b (Active t1) u |}.
+                        /\ R b X Y L (Active t1) u |}.
   Next Obligation.
-    intros R R' HRR' b t u (-> & t0 & t1 & EQ & DET & HR).
+    intros R R' HRR' b X Y L t u (-> & t0 & t1 & EQ & DET & HR).
     split; auto.
     exists t0, t1; ssplit.
     - exact EQ.
@@ -1030,18 +1056,19 @@ Section upto.
     - apply HRR', HR.
   Qed.
 
-  Definition pure_bind_ctx {X0} (P : X0 -> Prop) (R : @SS E B X -> Prop)
-    (t : @SS E B X) :=
-    exists (t0 : ctree E B X0) k0,
+  Definition pure_bind_ctx {W X0} (P : X0 -> Prop) (R : @S E C W -> Prop)
+    (t : @S E C W) :=
+    exists (t0 : ctree E C X0) k0,
       t ⩸ (Active (CTree.bind t0 k0)) /\
       (forall l t', l <> ε -> ((trans_alt ε)^* ⋅ trans_alt l) (Active t0) t' ->
          exists v, l = val v /\ P v) /\
       forall x, P x -> R (Active (k0 x)).
 
-  Program Definition pure_bind_ctx3_l {X0} (P : X0 -> Prop) : mon (bool -> rel (@SS E B X) (@SS F B X))
-    := {| body R b t u := b = true /\ pure_bind_ctx P (fun t => R b t u) t |}.
+  Program Definition pure_bind_ctx3_l {X0} (P : X0 -> Prop) : mon (sb'R E F C D)
+    := {| body R b X Y L t u :=
+            b = true /\ pure_bind_ctx P (fun t => R b X Y L t u) t |}.
   Next Obligation.
-    intros X0 P R R' HRR' b t u (-> & t0 & k0 & EQ & HTR & HB).
+    intros X0 P R R' HRR' b X Y L t u (-> & t0 & k0 & EQ & HTR & HB).
     split; auto.
     exists t0, k0; ssplit.
     - exact EQ.
@@ -1049,19 +1076,20 @@ Section upto.
     - intros v Pv; apply HRR', HB, Pv.
   Qed.
 
-  Program Definition epsilon_ctx3_r : mon (bool -> rel (@SS E B X) (@SS F B X))
-    := {| body R b t u := b = true /\ exists u', (trans_alt ε)^* u u' /\ R b t u' |}.
+  Program Definition epsilon_ctx3_r : mon (sb'R E F C D)
+    := {| body R b X Y L t u :=
+            b = true /\ exists u', (trans_alt ε)^* u u' /\ R b X Y L t u' |}.
   Next Obligation.
-    intros R R' HRR' b t u (-> & u' & STAR & HR).
+    intros R R' HRR' b X Y L t u (-> & u' & STAR & HR).
     split; auto.
     exists u'; split; [exact STAR | apply HRR', HR].
   Qed.
 
-  Lemma epsilon_det_ctx3_l_sbisim' (r : Chain (sb' L)) :
-    forall side x y, epsilon_det_ctx3_l `r side x y -> `r side x y.
+  Lemma epsilon_det_ctx3_l_sbisim' (r : Chain (@sb' E F C D)) :
+    forall side X Y L x y, epsilon_det_ctx3_l `r side X Y L x y -> `r side X Y L x y.
   Proof.
     apply tower.
-    - intros ? INC side x y (-> & t0 & t1 & EQ & DET & HR) ? ?; red.
+    - intros ? INC side X Y L x y (-> & t0 & t1 & EQ & DET & HR) ? ?; red.
       apply INC; auto.
       split; auto.
       exists t0, t1; ssplit.
@@ -1070,15 +1098,15 @@ Section upto.
       + apply leq_infx in H.
         apply H, HR.
     - clear.
-      intros R IH side x y (-> & t0 & t1 & EQ & DET & HR).
+      intros R IH side X Y L x y (-> & t0 & t1 & EQ & DET & HR).
       split; intro; [| easy].
       rewrite EQ; clear x EQ.
       revert HR; induction DET as [ta tb EQ01 | ta tb tc DET' IHDET EQg]; intro HR.
-      + assert (SQ : (Active ta : @SS E B X) ⩸ (Active tb))
+      + assert (SQ : (Active ta : @S E C X) ⩸ (Active tb))
           by (constructor; exact EQ01).
         rewrite SQ.
         now apply HR.
-      + assert (SQ : (Active tc : @SS E B X) ⩸ (Active (Guard ta)))
+      + assert (SQ : (Active tc : @S E C X) ⩸ (Active (Guard ta)))
           by (constructor; exact EQg).
         rewrite SQ.
         apply step_ss'_guard_l.
@@ -1090,11 +1118,11 @@ Section upto.
         * apply (b_chain R); exact HR.
   Qed.
 
-  Lemma pure_bind_ctx3_l_sbisim' {X0} (P : X0 -> Prop) (r : Chain (sb' L)) :
-    forall side x y, pure_bind_ctx3_l P `r side x y -> `r side x y.
+  Lemma pure_bind_ctx3_l_sbisim' {X0} (P : X0 -> Prop) (r : Chain (@sb' E F C D)) :
+    forall side X Y L x y, pure_bind_ctx3_l P `r side X Y L x y -> `r side X Y L x y.
   Proof.
     apply tower.
-    - intros ? INC side x y (-> & t0 & k0 & EQ & HTR & HB) ? ?; red.
+    - intros ? INC side X Y L x y (-> & t0 & k0 & EQ & HTR & HB) ? ?; red.
       apply INC; auto.
       split; auto.
       exists t0, k0; ssplit.
@@ -1104,7 +1132,7 @@ Section upto.
         apply leq_infx in H.
         apply H, HB, Pv.
     - clear.
-      intros R IH side x y (-> & t0 & k0 & EQ & HTR & HB).
+      intros R IH side X Y L x y (-> & t0 & k0 & EQ & HTR & HB).
       split; intro; [| easy].
       rewrite EQ.
       split.
@@ -1116,7 +1144,7 @@ Section upto.
           | (Z & e & g & -> & TRt & SQ) ]]].
         * assert (HneV : (val v : @label E X0) <> ε) by easy.
           assert (cV : ((trans_alt ε)^* ⋅ trans_alt (val v))
-                         (Active t0) (Active (Stuck : ctree E B X0))).
+                         (Active t0) (Active (Stuck : ctree E C X0))).
           { apply trans_star_l; eapply Transval; [exact EQt | reflexivity]. }
           destruct (HTR _ _ HneV cV) as (w & Hvw & Pw).
           apply val_eq_inv in Hvw; subst w.
@@ -1146,7 +1174,7 @@ Section upto.
           | (Z & e & g & Habs & _) ]]].
         * assert (HneV : (val v : @label E X0) <> ε) by easy.
           assert (cV : ((trans_alt ε)^* ⋅ trans_alt (val v))
-                         (Active t0) (Active (Stuck : ctree E B X0))).
+                         (Active t0) (Active (Stuck : ctree E C X0))).
           { apply trans_star_l; eapply Transval; [exact EQt | reflexivity]. }
           destruct (HTR _ _ HneV cV) as (w & Hvw & Pw).
           apply val_eq_inv in Hvw; subst w.
@@ -1165,31 +1193,32 @@ Section upto.
              ++ reflexivity.
              ++ intros l t' Hne cTR.
                 eapply (HTR l t'); [exact Hne |].
-                eapply estar_cons; [exact TRt | exact cTR].
+                eapply estar_cons_label; [exact TRt | exact cTR].
              ++ intros v Pv; apply (b_chain R), HB, Pv.
         * easy.
   Qed.
 
-  Lemma epsilon_ctx3_r_sbisim' (r : Chain (sb' L)) :
-    forall side x y, epsilon_ctx3_r `r side x y -> `r side x y.
+  Lemma epsilon_ctx3_r_sbisim' (r : Chain (@sb' E F C D)) :
+    forall side X Y L x y, epsilon_ctx3_r `r side X Y L x y -> `r side X Y L x y.
   Proof.
     apply tower.
-    - intros ? INC side x y (-> & u' & STAR & HR) ? ?; red.
+    - intros ? INC side X Y L x y (-> & u' & STAR & HR) ? ?; red.
       apply INC; auto.
       split; auto.
       exists u'; split; [exact STAR |].
       apply leq_infx in H.
       apply H, HR.
     - clear.
-      intros R IH side x y (-> & u' & STAR & HR).
+      intros R IH side X Y L x y (-> & u' & STAR & HR).
       split; intro; [| easy].
       eapply step_ss'_epsilon_r; [| exact STAR].
       now apply HR.
   Qed.
 
-  #[global] Instance epsilon_det_st' : forall (R : Chain (@sb' E F B X L)),
+  #[global] Instance epsilon_det_st' {X Y} {L : lrel E F X Y} :
+    forall (R : Chain (@sb' E F C D)),
     Proper (epsilon_det ==> epsilon_det ==> flip impl)
-           (fun (t : ctree E B X) (u : ctree F B X) => ` R true t u).
+           (fun (t : ctree E C X) (u : ctree F D Y) => ` R true X Y L t u).
   Proof.
     intros R t t' DETt u u' DETu H.
     apply epsilon_det_ctx3_l_sbisim'.
@@ -1210,11 +1239,11 @@ End upto.
 Epsilon-absorption for the [sb'] game: the left player of the [true] side
 (resp. the right player of the [false] side) may be advanced by ε-steps.
 |*)
-Lemma sbisim'_epsilon_l {E F B X} L :
-  forall (t t' : @SS E B X) (u : @SS F B X),
-  gfp (@sb' E F B X L) true t u ->
+Lemma sbisim'_epsilon_l {E F C D X Y} (L : lrel E F X Y) :
+  forall (t t' : @S E C X) (u : @S F D Y),
+  gfp (@sb' E F C D) true X Y L t u ->
   (trans_alt ε)^* t t' ->
-  gfp (sb' L) true t' u.
+  gfp (@sb' E F C D) true X Y L t' u.
 Proof.
   intros t t' u H STAR. step. split; intro; [| easy].
   eapply ss'_gen_epsilon_l.
@@ -1223,11 +1252,11 @@ Proof.
   - exact STAR.
 Qed.
 
-Lemma sbisim'_epsilon_r {E F B X} L :
-  forall (t : @SS E B X) (u u' : @SS F B X),
-  gfp (@sb' E F B X L) false t u ->
+Lemma sbisim'_epsilon_r {E F C D X Y} (L : lrel E F X Y) :
+  forall (t : @S E C X) (u u' : @S F D Y),
+  gfp (@sb' E F C D) false X Y L t u ->
   (trans_alt ε)^* u u' ->
-  gfp (sb' L) false t u'.
+  gfp (@sb' E F C D) false X Y L t u'.
 Proof.
   intros t u u' H STAR. step. split; intro; [easy |].
   eapply ss'_gen_epsilon_l.
@@ -1796,7 +1825,7 @@ Proof.
       split; auto.
       intros t'' l Hne cTR.
       assert (cTR2 : ((trans_alt (B:=B) ε)^* ⋅ trans_alt l) t t'')
-        by (eapply estar_cons; [exact TR | exact cTR]).
+        by (eapply estar_cons_label; [exact TR | exact cTR]).
       destruct (HSS _ _ Hne cTR2) as (l' & u' & STEP & HR & HL).
       exists l', u'; ssplit; assumption.
 Qed.
@@ -1838,7 +1867,7 @@ Proof.
       * apply CH.
         intros u2 l Hne cTR.
         apply (H u2 l Hne).
-        eapply estar_cons; [exact TR | exact cTR].
+        eapply estar_cons_label; [exact TR | exact cTR].
 Qed.
 
 Lemma gfp_sb'_true_ss_sbisim {E F B X} :

@@ -2290,6 +2290,18 @@ Proof.
   now destruct L.
 Qed.
 
+Lemma lequiv_flipL_sym {E X} (L : lrel E E X X) {SL : Symmetric L} :
+  lequiv (flipL L) L.
+Proof.
+  split3; cbn.
+  - intros x y; split; intro H;
+      apply build_rel_val, SL; now constructor.
+  - intros A B e f; split; intro H;
+      apply build_rel_ask, SL; now constructor.
+  - intros A B e f a b; split; intro H;
+      apply build_rel_rcv, SL; now constructor.
+Qed.
+
 Lemma lequiv_sub_lrel {E F X Y} (L L' : lrel E F X Y):
   sub_lrel L L' ->
   sub_lrel (flipL L) (flipL L').

@@ -57,6 +57,47 @@ Proof.
       cbn in HReps. eauto 12.
   Qed.
 
+Lemma lequiv_ss'_gen {E F C D}
+  (R Reps : forall X Y, lrel E F X Y -> rel (@S E C X) (@S F D Y))
+  {X Y} (L L' : lrel E F X Y) :
+  lequiv L L' ->
+  R X Y L <= R X Y L' ->
+  Reps X Y L <= Reps X Y L' ->
+  ss'_gen R Reps L <= ss'_gen R Reps L'.
+Proof.
+  intros HL HR HReps t u [Hprogress Heps]; split; intros.
+  - destruct (Hprogress _ _ H H0) as (l'' & u'' & Htrans & HRtu & HL').
+    exists l'', u''; split; [| split].
+    + assumption.
+    + now apply HR.
+    + now apply (lequiv_build_rel HL l l'').
+  - apply Heps in H as (u' & Htrans & HRtu).
+    exists u'; split; [assumption | now apply HReps].
+Qed.
+
+#[global] Instance Seq_proper_ss'_gen_ctx {E F C D}
+  {R Reps : forall X Y, lrel E F X Y -> rel (@S E C X) (@S F D Y)}
+  {X Y} {L : lrel E F X Y} :
+  Proper (Seq ==> Seq ==> impl) (ss'_gen R Reps L).
+Proof.
+  intros t t' Ht u u' Hu [Hprogress Heps]; split; intros.
+  - rewrite <- Ht in H0.
+    destruct (Hprogress _ _ H H0) as (l'' & u'' & Htrans & HRtu & HL').
+    rewrite Hu in Htrans. eauto 12.
+  - rewrite <- Ht in H.
+    apply Heps in H as (u'' & Htrans & HRtu).
+    rewrite Hu in Htrans. eauto 12.
+Qed.
+
+#[global] Instance Seq_proper_ss'_gen_goal {E F C D}
+  {R Reps : forall X Y, lrel E F X Y -> rel (@S E C X) (@S F D Y)}
+  {X Y} {L : lrel E F X Y} :
+  Proper (Seq ==> Seq ==> flip impl) (ss'_gen R Reps L).
+Proof.
+  intros t t' Ht u u' Hu H.
+  eapply Seq_proper_ss'_gen_ctx; [symmetry; exact Ht | symmetry; exact Hu | exact H].
+Qed.
+
   Definition ss'_ {E F C D : Type -> Type} :
   (forall (X Y : Type),
     lrel E F X Y -> (* L *)
