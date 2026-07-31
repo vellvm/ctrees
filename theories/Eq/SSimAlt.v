@@ -936,7 +936,7 @@ Section bind_restore.
              destruct RESP as [m STAR STEPv].
              unfold trans_alt in STEPv; cbn in STEPv.
              dependent destruction STEPv; inversion HL2; subst.
-             specialize (kk x r ltac:(assumption)).
+             specialize (kk x r H3).
              destruct kk as (kkA & _).
              destruct (kkA _ _ Hne TRk) as (l' & u' & RESP2 & Hgfp & HL').
              exists l', u'; ssplit.
