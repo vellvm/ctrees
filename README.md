@@ -55,5 +55,5 @@ dune build
 
 We currently unset locally universe checking in several places of the library. This is an annoying, but purely technical issue that affects in no way the soundness of our results.
 
-Given the complexity of the issue, and its root tracing back to other libraries (for instance, importing simultaneously some parts of the [Interaction Tree] library and of the [RelationAlgebra] library triggers a universe inconsistency), we project to tackle the issue as part of the future support in Rocq for alegbraic universes and the release of a universe polymorphic prelude.
+Given the complexity of the issue, and its root tracing back to other libraries (for instance, importing simultaneously some parts of the [Interaction Tree] library and of the [RelationAlgebra] library triggers a universe inconsistency), we project to tackle the issue as part of the future support in Rocq for algebraic universes and the release of a universe polymorphic prelude.
 
