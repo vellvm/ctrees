@@ -18,37 +18,36 @@ Proof. step. cbn. reflexivity. Qed.
 Lemma unfold_u : u ≅ br2 (trigger (print true);; u) u.
 Proof. step. cbn. reflexivity. Qed.
 
-Theorem bisim_t_u : t ~ u.
+Theorem bisim_t_u : t ≃ u.
 Proof.
-  coinduction R CH.
+  __coinduction_sbisim R CH.
   rewrite unfold_t, unfold_u.
-  apply step_sb_br; intros [].
+  apply sb_br; intros [].
   2: {
     exists true.
     rewrite !bind_trigger.
-    apply step_sb_vis_id. intros [].
-    split; [| auto].
-    apply CH.
+    apply sb_vis_id; [constructor |]. intros [].
+    split; [apply CH | constructor].
   }
   {
     exists false.
-    Fail apply CH.
+    Fail apply CH. 
 Abort.
 
-Theorem bisim_t_u : t ~ u.
+Theorem bisim_t_u : t ≃ u.
 Proof.
   (* We switch to the alternative characterization of bisimulation. *)
   rewrite sbisim_sbisim'.
   (* The rest of the proof proceeds as before, but this time it succeeds. *)
   coinduction R CH. intros.
-  rewrite unfold_t, unfold_u.
+  cbn [AltEquiv.o2n_S]. rewrite unfold_t, unfold_u.
   apply step_sb'_br; intros [].
   (* Notice that unlike step_sb_br, step_sb'_br has unlocked the coinduction hypothesis. *)
   2: {
     exists true.
     rewrite !bind_trigger.
-    step. apply step_sb'_vis_id. intros [].
-    split; [| auto].
+    step. apply step_sb'_vis_id; [| constructor; constructor]. intros.
+    apply (b_chain R). apply step_sb'_passive_id; [| constructor; constructor]. intros ? [].
     apply CH.
   }
   {
@@ -59,8 +58,8 @@ Proof.
   {
     exists false.
     rewrite !bind_trigger.
-    step. apply step_sb'_vis_id. intros [].
-    split; [| auto].
+    step. apply step_sb'_vis_id; [| constructor; constructor]. intros.
+    apply (b_chain R). apply step_sb'_passive_id; [| constructor; constructor]. intros ? [].
     apply CH.
   }
   {
@@ -78,7 +77,7 @@ Definition t' : ctree PrintE B2 void :=
 Definition u' : ctree PrintE B2 void :=
   CTree.iter (fun _ => br2 (trigger (print true);; Ret (inl tt)) (Ret (inl tt))) tt.
 
-Theorem bisim_t'_u'_simple : t' ~ u'.
+Theorem bisim_t'_u'_simple : t' ≃ u'.
 Proof.
   unfold t', u'.
   apply sbisim_eq_iter. intros _.

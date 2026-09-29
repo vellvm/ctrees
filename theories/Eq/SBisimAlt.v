@@ -322,7 +322,7 @@ Section sbisim'_homogenous_theory.
   Notation sb' := (@sb' E E B B).
   Notation sbisim' := (@sbisim' E E B B X X).
 
-  #[global] Instance refl_sb' {LR: Reflexive L} {C: Chain sb'}
+  #[global] Instance refl_sb' {LR: ReflexiveL L} {C: Chain sb'}
     : forall side, Reflexive (`C side X X L).
   Proof.
     apply tower.
@@ -333,7 +333,7 @@ Section sbisim'_homogenous_theory.
         exists l, t'; ssplit.
         * apply estar_l_lift; exact TR.
         * intro; apply IH.
-        * apply LR.
+        * now apply LR.
       + intros t' TR.
         exists t'; split.
         * apply estar_single; exact TR.
@@ -342,21 +342,21 @@ Section sbisim'_homogenous_theory.
         exists l, t'; ssplit.
         * apply estar_l_lift; exact TR.
         * intro; apply IH.
-        * reflexivity.
+        * now apply flipL_reflexiveL.
       + intros t' TR.
         exists t'; split.
         * apply estar_single; exact TR.
         * apply IH.
   Qed.
 
-  #[global] Instance refl_bsb' {LR: Reflexive L} {C: Chain sb'}
+  #[global] Instance refl_bsb' {LR: ReflexiveL L} {C: Chain sb'}
     : forall side, Reflexive (sb' `C side X X L).
   Proof.
     intros ??.
     apply refl_sb'.
   Qed.
 
-  #[global] Instance refl_sbisim' {LR: Reflexive L}
+  #[global] Instance refl_sbisim' {LR: ReflexiveL L}
     : Reflexive (sbisim' L).
   Proof.
     intros ??; apply refl_sb'.
@@ -572,6 +572,31 @@ Section Proof_Rules.
     forall side, sb' R side X Y L (Vis e k) (Vis f k').
   Proof.
     intros; now apply step_sb'_vis.
+  Qed.
+
+  Lemma step_sb'_passive {R : sb'R E F C D} {HR: sb'Proper R}
+    {Z Z'} (e : E Z) (f : F Z')
+    (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) :
+    (forall x, exists y, (forall side, R side X Y L (k x) (k' y)) /\ L (rcv e x) (rcv f y)) ->
+    (forall y, exists x, (forall side, R side X Y L (k x) (k' y)) /\ L (rcv e x) (rcv f y)) ->
+    forall side, sb' R side X Y L (Passive e k) (Passive f k').
+  Proof.
+    intros Hl Hr side; split; intro; subst.
+    - apply step_ss'_passive. intros x.
+      destruct (Hl x) as (y & HRxy & Lrcv). eauto.
+    - apply step_ss'_passive. intros y.
+      destruct (Hr y) as (x & HRxy & Lrcv).
+      exists x; split; [apply HRxy | now apply flipL_flip].
+  Qed.
+
+  Lemma step_sb'_passive_id {R : sb'R E F C D} {HR: sb'Proper R}
+    {Z} (e : E Z) (f : F Z)
+    (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) :
+    (forall side x, R side X Y L (k x) (k' x)) ->
+    (forall x, L (rcv e x) (rcv f x)) ->
+    forall side, sb' R side X Y L (Passive e k) (Passive f k').
+  Proof.
+    intros; apply step_sb'_passive; eauto.
   Qed.
 
   Lemma step_sb'_vis_l {R : sb'R E F C D} {HR: sb'Proper R} {Z} :
@@ -1610,9 +1635,9 @@ Equivalence of old and new bisimilarities
 *)
 Section sbisim_sbisim'. 
 
-Lemma o_ss_br_step {E F B X} (L : Trans.lrel E F X X)
-  (Rel : rel (Trans.S E B X) (Trans.S F B X))
-  Z (c : B Z) (k : Z -> ctree E B X) (t u : ctree E B X) (b : Trans.S F B X) x :
+Lemma o_ss_br_step {E F C D X Y} (L : Trans.lrel E F X Y)
+  (Rel : rel (Trans.S E C X) (Trans.S F D Y))
+  Z (c : C Z) (k : Z -> ctree E C X) (t u : ctree E C X) (b : Trans.S F D Y) x :
   SSim.ss L Rel (Trans.Active t) b -> t ≅ Br c k -> u ≅ k x ->
   SSim.ss L Rel (Trans.Active u) b.
 Proof.
@@ -1621,9 +1646,9 @@ Proof.
   eapply Trans.Transbr; [apply Hbr | apply Hu | apply TR].
 Qed.
 
-Lemma o_ss_guard_step {E F B X} (L : Trans.lrel E F X X)
-  (Rel : rel (Trans.S E B X) (Trans.S F B X))
-  (t tg u : ctree E B X) (b : Trans.S F B X) :
+Lemma o_ss_guard_step {E F C D X Y} (L : Trans.lrel E F X Y)
+  (Rel : rel (Trans.S E C X) (Trans.S F D Y))
+  (t tg u : ctree E C X) (b : Trans.S F D Y) :
   SSim.ss L Rel (Trans.Active t) b -> t ≅ Guard tg -> u ≅ tg ->
   SSim.ss L Rel (Trans.Active u) b.
 Proof.
@@ -1633,19 +1658,19 @@ Proof.
   eapply Trans.Transguard; [apply Htu | apply TR].
 Qed.
 
-Lemma lift_L_flipL {E F X} (L : Trans.lrel E F X X) :
+Lemma lift_L_flipL {E F X Y} (L : Trans.lrel E F X Y) :
   lift_L (Trans.flipL L) = TransAlt.flipL (lift_L L).
 Proof.
   now destruct L.
 Qed.
 
 (* need to split at [side] so that the simulation game lines up. *)
-Theorem gfp_sb'_ss_sbisim {E F B X} (L : Trans.lrel E F X X) :
-  forall (a : Trans.S E B X) (b : Trans.S F B X),
+Theorem gfp_sb'_ss_sbisim {E F C D X Y} (L : Trans.lrel E F X Y) :
+  forall (a : Trans.S E C X) (b : Trans.S F D Y),
   (SSim.ss L (SBisim.sbisim L) a b ->
-     gfp (@sb' E F B B) true X X (lift_L L) (o2n_S a) (o2n_S b)) /\
+     gfp (@sb' E F C D) true X Y (lift_L L) (o2n_S a) (o2n_S b)) /\
   (SSim.ss (Trans.flipL L) (flip (SBisim.sbisim L)) b a ->
-     gfp (@sb' E F B B) false X X (lift_L L) (o2n_S a) (o2n_S b)).
+     gfp (@sb' E F C D) false X Y (lift_L L) (o2n_S a) (o2n_S b)).
 Proof.
   coinduction R CH. intros a b.
   split; intro H.
@@ -1659,7 +1684,7 @@ Proof.
       destruct (H lo (n2o_S x) oTR) as (lo' & bo' & TRb & Hrel & HL).
       exists (o2n_label lo'), (o2n_S bo'); ssplit.
       * apply transR_o2n; exact TRb.
-      * apply (gfp_pfp (@SBisim.sb E F B B X X L)) in Hrel.
+      * apply (gfp_pfp (@SBisim.sb E F C D X Y L)) in Hrel.
         destruct Hrel as [Hf Hb].
         pose proof (CH (n2o_S x) bo') as CHx.
         rewrite o2n_n2o_S in CHx.
@@ -1687,7 +1712,7 @@ Proof.
       exists (o2n_label lo'), (o2n_S ao'); ssplit.
       * apply transR_o2n; exact TRa.
       * unfold flip in Hrel.
-        apply (gfp_pfp (@SBisim.sb E F B B X X L)) in Hrel.
+        apply (gfp_pfp (@SBisim.sb E F C D X Y L)) in Hrel.
         destruct Hrel as [Hf Hb].
         pose proof (CH ao' (n2o_S x)) as CHx.
         rewrite o2n_n2o_S in CHx.
@@ -1706,16 +1731,16 @@ Proof.
         eapply o_ss_guard_step; eauto.
 Qed.
 
-Lemma gfp_sb'_true_ss_sbisim {E F B X} (L : Trans.lrel E F X X) :
-  forall (a : Trans.S E B X) (b : Trans.S F B X),
+Lemma gfp_sb'_true_ss_sbisim {E F C D X Y} (L : Trans.lrel E F X Y) :
+  forall (a : Trans.S E C X) (b : Trans.S F D Y),
   SSim.ss L (SBisim.sbisim L) a b ->
-  gfp (@sb' E F B B) true X X (lift_L L) (o2n_S a) (o2n_S b).
+  gfp (@sb' E F C D) true X Y (lift_L L) (o2n_S a) (o2n_S b).
 Proof.
   intros a b; apply (gfp_sb'_ss_sbisim L a b).
 Qed.
 
-Theorem sbisim_sbisim' {E F B X} (L : Trans.lrel E F X X) :
-  forall (a : Trans.S E B X) (b : Trans.S F B X),
+Theorem sbisim_sbisim' {E F C D X Y} (L : Trans.lrel E F X Y) :
+  forall (a : Trans.S E C X) (b : Trans.S F D Y),
     SBisim.sbisim L a b <-> sbisim' (lift_L L) (o2n_S a) (o2n_S b).
 Proof.
   intros a b; split; intro H.
@@ -1763,26 +1788,26 @@ Proof.
       * apply Trans.flipL_flip; exact HLab.
 Qed.
 
-Corollary sbisim_gfp_sb' {E F B X} (L : Trans.lrel E F X X) :
-  forall side (a : Trans.S E B X) (b : Trans.S F B X),
+Corollary sbisim_gfp_sb' {E F C D X Y} (L : Trans.lrel E F X Y) :
+  forall side (a : Trans.S E C X) (b : Trans.S F D Y),
     SBisim.sbisim L a b ->
-    gfp (@sb' E F B B) side X X (lift_L L) (o2n_S a) (o2n_S b).
+    gfp (@sb' E F C D) side X Y (lift_L L) (o2n_S a) (o2n_S b).
 Proof.
   intros. apply sbisim_sbisim' in H. apply H.
 Qed.
 
-Theorem ss_sbisim_gfp_sb' {E F B X} (L : Trans.lrel E F X X) :
-  forall (a : Trans.S E B X) (b : Trans.S F B X),
-  (gfp (@sb' E F B B) true X X (lift_L L) (o2n_S a) (o2n_S b) ->
+Theorem ss_sbisim_gfp_sb' {E F C D X Y} (L : Trans.lrel E F X Y) :
+  forall (a : Trans.S E C X) (b : Trans.S F D Y),
+  (gfp (@sb' E F C D) true X Y (lift_L L) (o2n_S a) (o2n_S b) ->
      SSim.ss L (SBisim.sbisim L) a b) /\
-  (gfp (@sb' E F B B) false X X (lift_L L) (o2n_S a) (o2n_S b) ->
+  (gfp (@sb' E F C D) false X Y (lift_L L) (o2n_S a) (o2n_S b) ->
      SSim.ss (Trans.flipL L) (flip (SBisim.sbisim L)) b a).
 Proof.
   intros a b; split; intro H.
   - intros lo x oTR.
     apply transR_o2n in oTR; destruct oTR as [m STAR STEP].
     eapply sbisim'_epsilon_l in H; [| exact STAR].
-    apply (gfp_pfp (@sb' E F B B)) in H.
+    apply (gfp_pfp (@sb' E F C D)) in H.
     destruct H as [H _]; specialize (H eq_refl); destruct H as [HA _].
     assert (Hne : o2n_label lo <> ε) by (destruct lo; cbn [o2n_label]; easy).
     destruct (HA _ _ Hne STEP) as (l' & u' & RESP & Hall & HL).
@@ -1795,7 +1820,7 @@ Proof.
   - intros lo x oTR.
     apply transR_o2n in oTR; destruct oTR as [m STAR STEP].
     eapply sbisim'_epsilon_r in H; [| exact STAR].
-    apply (gfp_pfp (@sb' E F B B)) in H.
+    apply (gfp_pfp (@sb' E F C D)) in H.
     destruct H as [_ H]; specialize (H eq_refl); destruct H as [HA _].
     assert (Hne : o2n_label lo <> ε) by (destruct lo; cbn [o2n_label]; easy).
     destruct (HA _ _ Hne STEP) as (l' & t'' & RESP & Hall & HL).
@@ -1806,6 +1831,23 @@ Proof.
     + rewrite <- (n2o_o2n_S a). apply transR_n2o; exact RESP.
     + unfold flip. apply sbisim_sbisim'. rewrite o2n_n2o_S. exact Hall.
     + apply Trans.flipL_flip; exact HLab.
+Qed.
+
+Lemma sb'_clo_bind_lift_eq {E B X X'} {R : Chain (@sb' E E B B)} side
+  (t t' : ctree E B X) (k k' : X -> ctree E B X') :
+  SBisim.sbisim (@Trans.Leq E X) (Trans.Active t) (Trans.Active t') ->
+  (forall side x, elem R side X' X' (lift_L (@Trans.Leq E X'))
+                    (TransAlt.Active (k x)) (TransAlt.Active (k' x))) ->
+  elem R side X' X' (lift_L (@Trans.Leq E X'))
+    (TransAlt.Active (x <- t;; k x)) (TransAlt.Active (x <- t';; k' x)).
+Proof.
+  intros tt kk.
+  eapply bind_chain_gen with (SS := @eq X).
+  - apply (gfp_chain R).
+    change (gfp (@sb' E E B B) side X X (lift_L (@Trans.Leq E X))
+              (o2n_S (Trans.Active t)) (o2n_S (Trans.Active t'))).
+    now apply sbisim_gfp_sb'.
+  - intros ? x ? <-; apply kk.
 Qed.
 
 End sbisim_sbisim'. 

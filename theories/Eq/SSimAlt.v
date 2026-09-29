@@ -255,22 +255,22 @@ Section ssim'_homogenous_theory.
   Notation ss' := (@ss' E E C C).
   Notation ssim' := (@ssim' E E C C X X).
 
-  #[global] Instance Reflexive_ss'_gen `{Reflexive _ (R L)} `{Reflexive _ (Reps L)} `{Reflexive _ L}:
+  #[global] Instance Reflexive_ss'_gen `{Reflexive _ (R L)} `{Reflexive _ (Reps L)} {LR: ReflexiveL L}:
     Reflexive (@ss'_gen E E C C R Reps X X L).
   Proof.
     split; intros.
-    exists l, t'. split; auto.  
+    exists l, t'. split; [| split; [reflexivity | now apply LR]].
     use_steps O. assumption. 
     exists t'; split; eauto.
     use_steps (1 : nat). econstructor; eauto.  
   Qed.
 
-  #[global] Instance Reflexive_ss'_chain {LR: Reflexive L} {c: Chain (ss')}: Reflexive (`c X X L).
+  #[global] Instance Reflexive_ss'_chain {LR: ReflexiveL L} {c: Chain (ss')}: Reflexive (`c X X L).
   Proof.
     (* of note: Reflexive_chain fails here because elem has arguments.. we should fix that. *)   
     tower induction.
     split; intros.
-    - do 2 eexists. split. use_steps O. apply H1. now split.  
+    - do 2 eexists. split. use_steps O. apply H1. split; [now apply H | now apply LR].  
     - exists t'; split; auto.
       use_steps (1 : nat). econstructor; eauto. 
   Qed.
@@ -395,6 +395,30 @@ Section Proof_Rules.
     ss'_gen R Reps L (Vis e k) (Vis f k').
   Proof.
     intros; apply step_ss'_vis; auto.
+  Qed.
+
+  Lemma step_ss'_passive {Z Z'} (e : E Z) (f : F Z')
+        (k : Z -> ctree E C X) (k' : Z' -> ctree F D Y) :
+    (forall x, exists y, R L (k x) (k' y) /\ L (rcv e x) (rcv f y)) ->
+    ss'_gen R Reps L (Passive e k) (Passive f k').
+  Proof.
+    intros HRk. split.
+    - intros t' l Hl TR. apply trans_passive_inv' in TR as (x & EQ & ->).
+      destruct (HRk x) as (y & HRxy & Lrcv).
+      exists (rcv f y), (Active (k' y)). split; [| split].
+      + apply estar_l_lift, trans_rcv.
+      + rewrite EQ. apply HRxy.
+      + assumption.
+    - intros t' TR. apply trans_passive_inv' in TR as (? & _ & abs). discriminate.
+  Qed.
+
+  Lemma step_ss'_passive_id {Z} (e : E Z) (f : F Z)
+        (k : Z -> ctree E C X) (k' : Z -> ctree F D Y) :
+    (forall x, R L (k x) (k' x)) ->
+    (forall x, L (rcv e x) (rcv f x)) ->
+    ss'_gen R Reps L (Passive e k) (Passive f k').
+  Proof.
+    intros; apply step_ss'_passive; eauto.
   Qed.
 
   Lemma step_ss'_vis_l {Z} :

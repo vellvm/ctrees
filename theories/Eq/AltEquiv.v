@@ -172,6 +172,11 @@ Proof.
   - exists (Trans.val x), (Trans.val y); cbn [o2n_label]; repeat split; now constructor.
 Qed.
 
+#[global] Instance lift_L_Leq_reflexiveL {E X} : ReflexiveL (lift_L (@Trans.Leq E X)).
+Proof.
+  intros [] Hne; try easy; constructor; cbn; first [reflexivity | constructor].
+Qed.
+
 Lemma label_non_eps_image {E X} (l : TransAlt.label E X) :
   l <> ε -> exists lo, l = o2n_label lo.
 Proof.

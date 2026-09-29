@@ -71,7 +71,6 @@ Proof.
   red. coinduction R CH. intros.
   rewrite !unfold_iter.  
   eapply SSimAlt.bind_chain_gen with (SS:=(sum_rel Ra Rb)).
-  Locate upd_rel. 
   - cbn -[ss']. 
     (* coinduction library: want [base] tactic that does this and always works *)
     apply (gfp_chain (chain_b R)).
@@ -87,52 +86,61 @@ Qed.
 
 #[global] Instance ssim_eq_iter {E B X Y} :
   @Proper ((X -> ctree E B (X + Y)) -> X -> ctree E B Y)
-    (pointwise_relation _ (ssim eq) ==> eq ==> (ssim eq))
+    (pointwise_relation _ (fun t u => ssim Leq (α t) (α u)) ==> eq ==>
+       (fun t u => ssim Leq (α t) (α u)))
     iter.
 Proof.
-  repeat intro.
-  eapply ssim_iter with (L := eq) (L0 := eq) (Ra := eq) (Rb := eq).
-  - eassert (@weq (relation (X + Y)) _ (sum_rel eq eq) eq).
-    { cbn. intros [] []; cbn; split; intro; subst; try easy. now inv H1. now inv H1. }
-    rewrite H1; auto. apply update_val_rel_eq.
-  - split; intro. now subst. now apply val_eq_inv in H1.
-  - intros. subst. apply H.
-  - apply H0.
+  repeat intro. subst.
+  eapply ssim_iter with (L := Leq) (Ra := eq) (Rb := eq).
+  - intros b b'. split; [intros ->; reflexivity | intros EQ; apply Leq_eq in EQ; now apply val_eq_inv in EQ].
+  - intros a ? <-.
+    assert (LEQ : lequiv (upd_rel (@Leq E Y) (sum_rel (@eq X) (@eq Y))) (@Leq E (X + Y))).
+    { split3; cbn; try reflexivity.
+      intros [] []; cbn; split; intro EQ; subst; try easy; now inv EQ. }
+    apply (weq_ssim LEQ). apply H.
+  - reflexivity.
 Qed.
 
 Theorem sbisim_iter {E F C D A A' B B'}
-  (L : rel (@label E) (@label F)) (Ra : rel A A') (Rb : rel B B') L0
-  (HL0 : is_update_val_rel L (sum_rel Ra Rb) L0)
+  (L : lrel E F _ _) (Ra : rel A A') (Rb : rel B B')
   (HRb : forall b b', Rb b b' <-> L (val b) (val b')) :
   forall (step : A -> ctree E C (A + B)) (step' : A' -> ctree F D (A' + B')),
-  (forall a a', Ra a a' -> step a (~L0) step' a') ->
+  (forall a a', Ra a a' -> step a (≃(upd_rel L (sum_rel Ra Rb))) step' a') ->
   forall a a', Ra a a' ->
-  iter step a (~L) iter step' a'.
+  iter step a (≃L) iter step' a'.
 Proof.
   intros. apply sbisim_sbisim'.
   revert step a a' H H0.
   red. coinduction R CH. intros.
-  rewrite !unfold_iter.
-  eapply sbt'_clo_bind_gen.
-  - apply HL0.
-  - apply H in H0. apply sbisim_sbisim' in H0. apply H0.
-  - intros. destruct x, y; try destruct H1.
+  cbn [o2n_S]. rewrite !unfold_iter.
+  eapply (@SBisimAlt.bind_chain_gen _ _ _ _ _ _ _ _ _ (chain_b R)) with (SS := sum_rel Ra Rb).
+  - apply (gfp_chain (chain_b R)).
+    change (gfp sb' side _ _ (lift_L (Trans.upd_rel L (sum_rel Ra Rb)))
+              (o2n_S (α step a)) (o2n_S (α step' a'))).
+    apply sbisim_gfp_sb'. now apply H.
+  - intros side0 x x' Hx. destruct x, x'; try destruct Hx.
     + apply step_sb'_guard. apply CH; auto.
-    + apply step_sbt'_ret. now apply HRb.
+    + apply step_sbt'_ret.
+      change (TransAlt.val b) with (@o2n_label E _ (val b)).
+      change (TransAlt.val b0) with (@o2n_label F _ (val b0)).
+      eapply AltEquiv.lift_L_o2n.
+      now apply HRb.
 Qed.
 
 #[global] Instance sbisim_eq_iter {E B X Y} :
   @Proper ((X -> ctree E B (X + Y)) -> X -> ctree E B Y)
-    (pointwise_relation _ (sbisim eq) ==> pointwise_relation _ (sbisim eq))
+    (pointwise_relation _ (fun t u => sbisim Leq (α t) (α u)) ==>
+       pointwise_relation _ (fun t u => sbisim Leq (α t) (α u)))
     iter.
 Proof.
   repeat intro.
-  eapply sbisim_iter with (L := eq) (L0 := eq) (Ra := eq) (Rb := eq).
-  - eassert (@weq (relation (X + Y)) _ (sum_rel eq eq) eq).
-    { cbn. intros [] []; cbn; split; intro; subst; try easy. now inv H0. now inv H0. }
-    rewrite H0; auto. apply update_val_rel_eq.
-  - split; intro. now subst. now apply val_eq_inv in H0.
-  - intros. subst. apply H.
+  eapply sbisim_iter with (L := Leq) (Ra := eq) (Rb := eq).
+  - intros b b'. split; [intros ->; reflexivity | intros EQ; apply Leq_eq in EQ; now apply val_eq_inv in EQ].
+  - intros ? ? <-.
+    assert (LEQ : lequiv (upd_rel (@Leq E Y) (sum_rel (@eq X) (@eq Y))) (@Leq E (X + Y))).
+    { split3; cbn; try reflexivity.
+      intros [] []; cbn; split; intro EQ; subst; try easy; now inv EQ. }
+    apply (weq_sbisim LEQ). apply H.
   - reflexivity.
 Qed.
 
@@ -168,7 +176,7 @@ Lemma iter_dinatural_ctree_inner {E C X Y Z} :
         | inl y => g y
         | inr z => Ret (inr z)
         end)) x
-  ~ CTree.bind (f x)
+  ≃ CTree.bind (f x)
       (fun yz : Y + Z =>
        match yz with
        | inl y =>
@@ -184,8 +192,8 @@ Lemma iter_dinatural_ctree_inner {E C X Y Z} :
        end).
 Proof.
   intros. apply sbisim_sbisim'. red. revert x. coinduction R CH. intros.
-  rewrite unfold_iter, bind_bind.
-  apply sbt'_clo_bind_eq. { reflexivity. }
+  cbn [o2n_S]. rewrite unfold_iter, bind_bind.
+  apply (sb'_clo_bind_lift_eq (R := chain_b R)). { reflexivity. }
   intros. destruct x0.
   2: { rewrite bind_ret_l. reflexivity. }
   destruct (observe (g y)) eqn:?.
@@ -206,9 +214,9 @@ Proof.
   - setoid_rewrite (ctree_eta (g y)). rewrite Heqc, bind_step.
     rewrite unfold_iter, bind_bind, (ctree_eta (g y)), Heqc, bind_step.
     apply step_sb'_guard_r'.
-    apply step_sb'_step; auto.
+    apply step_sb'_step; [constructor |].
     intros.
-    apply st'_clo_bind_eq; auto.
+    apply (sb'_clo_bind_lift_eq (R := R)); auto.
     intros. destruct x0.
     + apply step_sb'_guard_l'. intros; apply CH.
     + rewrite bind_ret_l. reflexivity.
@@ -218,7 +226,7 @@ Proof.
     apply step_sb'_guard.
     apply step_sb'_guard_r'.
     intros.
-    apply st'_clo_bind_eq; auto.
+    apply (sb'_clo_bind_lift_eq (R := R)); auto.
     intros. destruct x0.
     + apply step_sb'_guard_l'. intros; apply CH.
     + rewrite bind_ret_l. reflexivity.
@@ -226,9 +234,9 @@ Proof.
   - setoid_rewrite (ctree_eta (g y)). rewrite Heqc, bind_vis.
     apply step_sb'_guard_r.
     rewrite unfold_iter, bind_bind, (ctree_eta (g y)), Heqc, bind_vis.
-    apply step_sb'_vis_id. intros.
-    split; auto. intros.
-    apply st'_clo_bind_eq. { reflexivity. }
+    apply step_sb'_vis_id; [| constructor; constructor].
+    intros. apply (b_chain R). apply step_sb'_passive_id; [| constructor; constructor].
+    intros. apply (sb'_clo_bind_lift_eq (R := R)). { reflexivity. }
     intros. destruct x1.
     + apply step_sb'_guard_l'. apply CH.
     + rewrite bind_ret_l. reflexivity.
@@ -237,7 +245,7 @@ Proof.
     apply step_sb'_guard_r'. intros.
     rewrite unfold_iter, bind_bind, (ctree_eta (g y)), Heqc, bind_br.
     apply step_sb'_br_id; auto. intros.
-    apply st'_clo_bind_eq. { reflexivity. }
+    apply (sb'_clo_bind_lift_eq (R := R)). { reflexivity. }
     intros. destruct x1.
     + apply step_sb'_guard_l'. intros. apply CH.
     + rewrite bind_ret_l. reflexivity.
@@ -253,7 +261,7 @@ Lemma iter_dinatural_ctree {E C X Y Z} :
         | inl y => g y
         | inr z => Ret (inr z)
         end)) x
-  ~ CTree.bind (f x)
+  ≃ CTree.bind (f x)
       (fun yz : Y + Z =>
        match yz with
        | inl y =>
@@ -270,13 +278,13 @@ Lemma iter_dinatural_ctree {E C X Y Z} :
 Proof.
   intros.
   rewrite unfold_iter, bind_bind.
-  upto_bind_eq.
+  apply sbisim_bind_eq; [reflexivity | intros x0].
   destruct x0.
   2: { rewrite bind_ret_l. reflexivity. }
-  rewrite unfold_iter, bind_bind. upto_bind_eq.
+  rewrite unfold_iter, bind_bind. apply sbisim_bind_eq; [reflexivity | intros x0].
   destruct x0.
   2: { rewrite bind_ret_l. reflexivity. }
-  rewrite sb_guard. apply iter_dinatural_ctree_inner.
+  rewrite sbisim_guard. apply iter_dinatural_ctree_inner.
 Qed.
 
 Theorem iter_codiagonal_ctree {E C A B} :

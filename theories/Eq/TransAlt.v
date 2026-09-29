@@ -2371,6 +2371,21 @@ Proof.
   split; typeclasses eauto.
 Qed.
 
+Class ReflexiveL {E X} (L : lrel E E X X) : Prop :=
+  reflL : forall l, l <> ε -> build_rel L l l.
+
+#[global] Instance flipL_reflexiveL {E X} (L : lrel E E X X) {LR: ReflexiveL L} : ReflexiveL (flipL L).
+Proof.
+  intros l Hne.
+  apply flipL_flip.
+  now apply LR.
+Qed.
+
+#[global] Instance Leq_reflexiveL {E X} : ReflexiveL (@Leq E X).
+Proof.
+  intros [] Hne; try easy; constructor; cbn; auto with trans_alt.
+Qed.
+
 #[global] Instance build_rel_symmetric {E X L} `{Symmetric X L} : Symmetric (@build_rel E E X X (Lvrel L)).
 Proof.
   intros l l' HL.
