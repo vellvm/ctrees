@@ -1,12 +1,8 @@
 name: Docker CI
 
 on:
-  push:
-    branches:
-      - master
   pull_request:
-    branches:
-      - '**'
+  push:
 
 jobs:
   build:
@@ -14,20 +10,33 @@ jobs:
     strategy:
       matrix:
         coq_version:
-          - '8.15.2'
+          - "9.0"
         ocaml_version:
-          - '4.14.0-flambda'
+          - "4.14-flambda"
       max-parallel: 4
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: coq-community/docker-coq-action@v1
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile under docker
+        uses: coq-community/docker-coq-action@v1
         with:
-          opam_file: 'coq-ctree.opam'
+          opam_file: 'rocq-ctree.opam'
           coq_version: ${{ matrix.coq_version }}
           ocaml_version: ${{ matrix.ocaml_version }}
           export: 'OPAMWITHTEST'
+          before_install: |
+            startGroup "Workaround permission issue"
+              sudo chown -R 1000:1000 .
+            endGroup
+            startGroup "Generate Opam File"
+              dune build rocq-ctree.opam
+            endGroup
+            startGroup "Print opam config"
+              opam config list; opam repo list; opam list
+            endGroup
         env:
           OPAMWITHTEST: 'true'
 
