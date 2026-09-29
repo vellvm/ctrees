@@ -76,14 +76,7 @@ The upto [Vis] context principle for [sbisim]
 (* are identical: assumes [reflexivity] will solve the first goal, and proceed to substitute the equality *)
 (* - [upto_bind with SS]: for [equ], provides explicitly the intermediate relation *)
 (* |*) *)
-(* #[global] Tactic Notation "upto_bind" := *)
-(*   __eupto_bind_equ || __eupto_bind_sbisim. *)
 
-(* #[global] Tactic Notation "upto_bind_eq" := *)
-(*   __upto_bind_equ_eq || __upto_bind_sbisim_eq. *)
-
-(* #[global] Tactic Notation "upto_bind" "with" uconstr(SS) := *)
-(*   __upto_bind_equ SS || __upto_bind_sbisim SS. *)
 
 (*|
 Weakens equalities into respectively [equ] and [sbisim] equations ---

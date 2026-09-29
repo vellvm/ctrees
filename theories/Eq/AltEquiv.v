@@ -27,13 +27,13 @@ Set Implicit Arguments.
 (* label and S conversion *)
 (* convention: "o" is old, "n" is new. *)
 
-Definition o2n_S {E B X} (s : Trans.S E B X) : TransAlt.S E B X :=
+Definition o2n_S {E C X} (s : Trans.S E C X) : TransAlt.S E C X :=
   match s with
   | Trans.Active t => TransAlt.Active t
   | Trans.Passive e k => TransAlt.Passive e k
   end.
 
-Definition n2o_S {E B X} (s : TransAlt.S E B X) : Trans.S E B X :=
+Definition n2o_S {E C X} (s : TransAlt.S E C X) : Trans.S E C X :=
   match s with
   | TransAlt.Active t => Trans.Active t
   | TransAlt.Passive e k => Trans.Passive e k
@@ -47,13 +47,13 @@ Definition o2n_label {E X} (l : Trans.label E X) : TransAlt.label E X :=
   | Trans.val v => TransAlt.val v
   end.
 
-Lemma n2o_o2n_S {E B X} (s : Trans.S E B X) : n2o_S (o2n_S s) = s.
+Lemma n2o_o2n_S {E C X} (s : Trans.S E C X) : n2o_S (o2n_S s) = s.
 Proof. now destruct s. Qed.
 
-Lemma o2n_n2o_S {E B X} (s : TransAlt.S E B X) : o2n_S (n2o_S s) = s.
+Lemma o2n_n2o_S {E C X} (s : TransAlt.S E C X) : o2n_S (n2o_S s) = s.
 Proof. now destruct s. Qed.
 
-Lemma transR_o2n {E B X} (l : Trans.label E X) (a a' : Trans.S E B X) :
+Lemma transR_o2n {E C X} (l : Trans.label E X) (a a' : Trans.S E C X) :
   Trans.transR l a a' ->
   ((trans_alt ε)^* ⋅ trans_alt (o2n_label l)) (o2n_S a) (o2n_S a').
 Proof.
@@ -72,13 +72,13 @@ Proof.
   - apply trans_star_l. eapply TransAlt.Transval; [ apply H | apply H0 ].
 Qed.
 
-Lemma n2o_S_Seq {E B X} (a b : TransAlt.S E B X) :
+Lemma n2o_S_Seq {E C X} (a b : TransAlt.S E C X) :
   TransAlt.Seq a b -> Trans.Seq (n2o_S a) (n2o_S b).
 Proof. intros H; inv H; cbn [n2o_S]; constructor; assumption. Qed.
 
-Lemma trans_alt_eps_inv {E B X} (a mid : TransAlt.S E B X) :
+Lemma trans_alt_eps_inv {E C X} (a mid : TransAlt.S E C X) :
   trans_alt ε a mid ->
-  (exists Z (c : B Z) (k : Z -> ctree E B X) t u x,
+  (exists Z (c : C Z) (k : Z -> ctree E C X) t u x,
       a = TransAlt.Active t /\ mid = TransAlt.Active u /\ t ≅ Br c k /\ u ≅ k x)
   \/ (exists t t' u,
       a = TransAlt.Active t /\ mid = TransAlt.Active u /\ t ≅ Guard t' /\ u ≅ t').
@@ -89,7 +89,7 @@ Proof.
   - right. eauto 12.
 Qed.
 
-Lemma eps_absorb1 {E B X} (l : Trans.label E X) (a mid c : TransAlt.S E B X) :
+Lemma eps_absorb1 {E C X} (l : Trans.label E X) (a mid c : TransAlt.S E C X) :
   trans_alt ε a mid ->
   Trans.transR l (n2o_S mid) (n2o_S c) ->
   Trans.transR l (n2o_S a) (n2o_S c).
@@ -115,7 +115,7 @@ Proof.
     rewrite S2. apply Hold.
 Qed.
 
-Lemma estar_absorb {E B X} (l : Trans.label E X) (a m : TransAlt.S E B X) :
+Lemma estar_absorb {E C X} (l : Trans.label E X) (a m : TransAlt.S E C X) :
   (trans_alt ε)^* a m ->
   forall c, Trans.transR l (n2o_S m) (n2o_S c) -> Trans.transR l (n2o_S a) (n2o_S c).
 Proof.
@@ -127,7 +127,7 @@ Proof.
     eapply IHn; [ apply REST | apply Hold ].
 Qed.
 
-Lemma transR_label_base {E B X} (l : Trans.label E X) (m b : TransAlt.S E B X) :
+Lemma transR_label_base {E C X} (l : Trans.label E X) (m b : TransAlt.S E C X) :
   trans_alt (o2n_label l) m b -> Trans.transR l (n2o_S m) (n2o_S b).
 Proof.
   destruct l; cbn [o2n_label]; intros TR; unfold trans_alt in TR; cbn in TR.
@@ -137,7 +137,7 @@ Proof.
   - dependent destruction TR; cbn [n2o_S]. eapply Trans.Transval; eassumption.
 Qed.
 
-Lemma transR_n2o {E B X} (l : Trans.label E X) (a b : TransAlt.S E B X) :
+Lemma transR_n2o {E C X} (l : Trans.label E X) (a b : TransAlt.S E C X) :
   ((trans_alt ε)^* ⋅ trans_alt (o2n_label l)) a b ->
   Trans.transR l (n2o_S a) (n2o_S b).
 Proof.
@@ -146,22 +146,22 @@ Proof.
   apply transR_label_base; apply STEP.
 Qed.
 
-Definition lift_L {E F X} (L : Trans.lrel E F X X) : TransAlt.lrel E F X X :=
+Definition lift_L {E F X Y} (L : Trans.lrel E F X Y) : TransAlt.lrel E F X Y :=
   {| TransAlt.RR   := Trans.RR L ;
      TransAlt.Rask := Trans.Rask L ;
      TransAlt.Rrcv := Trans.Rrcv L |}.
 
 (* old to new through lifting *)
-Lemma lift_L_o2n {E F X} (L : Trans.lrel E F X X)
-  (la : Trans.label E X) (lb : Trans.label F X) :
+Lemma lift_L_o2n {E F X Y} (L : Trans.lrel E F X Y)
+  (la : Trans.label E X) (lb : Trans.label F Y) :
   Trans.build_rel L la lb ->
   TransAlt.build_rel (lift_L L) (o2n_label la) (o2n_label lb).
 Proof.
   intros H; destruct H; cbn [o2n_label]; now constructor.
 Qed.
 
-Lemma lift_L_o2n_inv {E F X} (L : Trans.lrel E F X X)
-  (a : TransAlt.label E X) (b : TransAlt.label F X) :
+Lemma lift_L_o2n_inv {E F X Y} (L : Trans.lrel E F X Y)
+  (a : TransAlt.label E X) (b : TransAlt.label F Y) :
   TransAlt.build_rel (lift_L L) a b ->
   exists la lb, a = o2n_label la /\ b = o2n_label lb /\ Trans.build_rel L la lb.
 Proof.
@@ -190,8 +190,8 @@ Proof.
     dependent destruction H; reflexivity.
 Qed.
 
-Lemma o_ssim_br_step {E F B X} (L : Trans.lrel E F X X)
-  Z (c : B Z) (k : Z -> ctree E B X) (t u : ctree E B X) (b : Trans.S F B X) x :
+Lemma o_ssim_br_step {E F C D X Y} (L : Trans.lrel E F X Y)
+  Z (c : C Z) (k : Z -> ctree E C X) (t u : ctree E C X) (b : Trans.S F D Y) x :
   SSim.ssim L (Trans.Active t) b -> t ≅ Br c k -> u ≅ k x ->
   SSim.ssim L (Trans.Active u) b.
 Proof.
@@ -207,8 +207,8 @@ Proof.
   - apply TR.
 Qed.
 
-Lemma o_ssim_guard_step {E F B X} (L : Trans.lrel E F X X)
-  (t tg u : ctree E B X) (b : Trans.S F B X) :
+Lemma o_ssim_guard_step {E F C D X Y} (L : Trans.lrel E F X Y)
+  (t tg u : ctree E C X) (b : Trans.S F D Y) :
   SSim.ssim L (Trans.Active t) b -> t ≅ Guard tg -> u ≅ tg ->
   SSim.ssim L (Trans.Active u) b.
 Proof.
@@ -223,8 +223,8 @@ Proof.
 Qed.
 
 (* main result *)
-Lemma o_ssim_to_ssim' {E F B X} (L : Trans.lrel E F X X) :
-  forall (a : Trans.S E B X) (b : Trans.S F B X),
+Lemma o_ssim_to_ssim' {E F C D X Y} (L : Trans.lrel E F X Y) :
+  forall (a : Trans.S E C X) (b : Trans.S F D Y),
     SSim.ssim L a b -> SSimAlt.ssim' (lift_L L) (o2n_S a) (o2n_S b).
 Proof.
   unfold SSimAlt.ssim'.
@@ -233,10 +233,10 @@ Proof.
   split.
   - intros x l Hne TR.
     apply label_non_eps_image in Hne as [lo ->].
-    step in H. 
+    step in H.
     assert (oTR : Trans.transR lo a (n2o_S x)).
     { rewrite <- (n2o_o2n_S a). apply transR_n2o. apply trans_star_l. apply TR. }
-    repeat red in H. 
+    repeat red in H.
     destruct (H lo (n2o_S x) oTR) as (lo' & bo' & TRb & Hrel & HL).
     exists (o2n_label lo'), (o2n_S bo').
     split; [| split].
@@ -252,9 +252,9 @@ Proof.
         | (t & tg & u & Ha & Hx & Hg & Hu) ].
       (* t is a branch,  *)
         * subst x. destruct a as [ta | YY e0 k0]; cbn in Ha; [| easy].
-          inv Ha. 
+          inv Ha.
           apply (cih (Trans.Active u) b).
-          eapply o_ssim_br_step; eauto. 
+          eapply o_ssim_br_step; eauto.
       (* t is a guard, one epsilon step and coinduction *)
         * subst x. destruct a as [ta | YY e0 k0]; cbn in Ha; [| easy].
           inv Ha.
@@ -262,8 +262,8 @@ Proof.
           eapply o_ssim_guard_step; eauto.
 Qed.
 
-Lemma ssim'_to_o_ssim {E F B X} (L : Trans.lrel E F X X) :
-  forall (a : Trans.S E B X) (b : Trans.S F B X),
+Lemma ssim'_to_o_ssim {E F C D X Y} (L : Trans.lrel E F X Y) :
+  forall (a : Trans.S E C X) (b : Trans.S F D Y),
     SSimAlt.ssim' (lift_L L) (o2n_S a) (o2n_S b) -> SSim.ssim L a b.
 Proof.
   unfold SSim.ssim.
@@ -273,7 +273,7 @@ Proof.
   apply transR_o2n in oTR.
   destruct oTR as [m STAR STEP].
   eapply SSimAlt.ssim'_epsilon_l in H. 2: apply STAR.
-  apply (gfp_pfp (@SSimAlt.ss' E F B B) X X (lift_L L)) in H.
+  apply (gfp_pfp (@SSimAlt.ss' E F C D) X Y (lift_L L)) in H.
   destruct H as (Hchal & _).
   destruct (Hchal (o2n_S ao') (o2n_label l)) as (nl' & u' & RESP & Hgfp & HL).
   { destruct l; cbn [o2n_label]; easy. }
@@ -288,8 +288,8 @@ Proof.
   - apply HLab.
 Qed.
 
-Theorem ssim_ssim' {E F B X} (L : Trans.lrel E F X X)
-  (t : ctree E B X) (t' : ctree F B X) :
+Theorem ssim_ssim' {E F C D X Y} (L : Trans.lrel E F X Y)
+  (t : ctree E C X) (t' : ctree F D Y) :
   SSim.ssim L (Trans.Active t) (Trans.Active t') <->
   SSimAlt.ssim' (lift_L L) (TransAlt.Active t) (TransAlt.Active t').
 Proof.

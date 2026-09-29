@@ -1505,7 +1505,7 @@ Expliciting the reasoning rule provided by the up-to principles.
 (* Note: In this section, I changed the relation between t1 and t2 to 
    be at the gfp.  *)
 
-Lemma st'_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : lrel E F X' Y'}
+Lemma sb'_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : lrel E F X' Y'}
       (SS : rel X Y)
       side
       (t1 : ctree E C X) (t2: ctree F D Y)
@@ -1531,11 +1531,11 @@ Lemma sbisim'_clo_bind {E F C D: Type -> Type} {X Y X' Y': Type} {L : lrel E F X
   gfp (@sb' E F C D) side X' Y' L (Active (x <- t1;; k1 x)) (Active (x <- t2;; k2 x)).
 Proof.
   intros H1 H2.
-  apply (@st'_clo_bind E F C D X Y X' Y' L SS side t1 t2 k1 k2
+  apply (@sb'_clo_bind E F C D X Y X' Y' L SS side t1 t2 k1 k2
            (chain_gfp (@sb' E F C D))); assumption.
 Qed.
 
-Lemma st'_clo_bind_eq {E C: Type -> Type} {X X': Type}
+Lemma sb'_clo_bind_eq {E C: Type -> Type} {X X': Type}
       side (t1 t2 : ctree E C X)
       (k1 k2 : X -> ctree E C X')
       (R : Chain (@sb' E E C C)) :
@@ -1544,7 +1544,7 @@ Lemma st'_clo_bind_eq {E C: Type -> Type} {X X': Type}
   ` R side X' X' (@Leq E X') (Active (x <- t1;; k1 x)) (Active (x <- t2;; k2 x)).
 Proof.
   intros H1 H2.
-  eapply st'_clo_bind with (SS := eq); [exact H1 |].
+  eapply sb'_clo_bind with (SS := eq); [exact H1 |].
   intros x y ->; apply H2.
 Qed.
 
@@ -1555,7 +1555,7 @@ Lemma sbisim'_clo_bind_eq {E C: Type -> Type} {X X': Type} :
   gfp (@sb' E E C C) side X' X' (@Leq E X') (Active (x <- t1;; k1 x)) (Active (x <- t2;; k2 x)).
 Proof.
   intros.
-  apply (@st'_clo_bind_eq E C X X' side t1 t2 k1 k2 (chain_gfp (@sb' E E C C))); assumption.
+  apply (@sb'_clo_bind_eq E C X X' side t1 t2 k1 k2 (chain_gfp (@sb' E E C C))); assumption.
 Qed.
 
 Lemma step_sb'_guard_l' {E F C D X Y} {L : lrel E F X Y}
@@ -1579,13 +1579,31 @@ Proof.
   exists t'; split; [reflexivity | apply H].
 Qed.
 
+(* gfp-gfp / gfp-elem *)
+
+Ltac __upto_bind_sbisim' R :=
+  first [apply sbisim'_clo_bind with (R0 := R) | apply sb'_clo_bind with (R0 := R)].
+
+Ltac __eupto_bind_sbisim' :=
+  first [eapply sbisim'_clo_bind | eapply sb'_clo_bind].
+
+Ltac __upto_bind_sbisim'_eq := 
+  first [apply sb'_clo_bind_eq | apply sbisim'_clo_bind_eq].
 
 
+Tactic Notation "__upto_bind_sbisim'" uconstr(R0) := __upto_bind_sbisim' R0. 
+Tactic Notation "__upto_bind_sbisim'_eq" := __upto_bind_sbisim'_eq. 
 
-(*
-Tactic Notation "__upto_bind_sbisim'" uconstr(R0) := TODO
-Tactic Notation "__upto_bind_eq_sbisim'" uconstr(R0) := TODO
-*)
+
+#[global] Tactic Notation "upto_bind" :=
+  __eupto_bind_equ || __eupto_bind_sbisim'.
+
+#[global] Tactic Notation "upto_bind_eq" :=
+  __upto_bind_equ_eq || __upto_bind_sbisim'_eq.
+
+#[global] Tactic Notation "upto_bind" "with" uconstr(SS) :=
+  __upto_bind_equ SS || __upto_bind_sbisim' SS.
+
 
 (* 
 Equivalence of old and new bisimilarities

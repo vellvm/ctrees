@@ -11,6 +11,7 @@ From CTree Require Import
      Utils
      Eq
      Eq.SSimAlt
+     Eq.AltEquiv
      Eq.SBisimAlt.
 
 Import CTree.
@@ -39,8 +40,12 @@ Qed.
 Proof.
   cbn. intros step step' ? t t' EQ.
   unfold iter_gen.
-  revert t t' EQ. coinduction CR CH. intros.
-  subs. upto_bind_eq. red in H.
+  revert t t' EQ.
+  unfold equ at -1. 
+  (* coinduction library bug:  *)
+  coinduction CR CH. intros.
+  subs. 
+  upto_bind_eq. red in H.
   destruct x; [| reflexivity].
   constructor.
   rewrite !iter_iter_gen. apply CH. now apply H.
@@ -52,27 +57,32 @@ Proof.
   cbn. intros step step' ? i i' EQ.
   rewrite !iter_iter_gen. apply iter_gen_equ; auto.
 Qed.
-
 (* Thanks to SSimAlt, this proof does not need an helper inductive. *)
 Theorem ssim_iter {E F C D A A' B B'}
-  (L : rel (@label E) (@label F)) (Ra : rel A A') (Rb : rel B B') L0
-  (HL0 : is_update_val_rel L (sum_rel Ra Rb) L0)
+  (L : lrel E F _ _) (Ra : rel A A') (Rb : rel B B')
   (HRb : forall b b', Rb b b' <-> L (val b) (val b')) :
   forall (step : A -> ctree E C (A + B)) (step' : A' -> ctree F D (A' + B')),
-  (forall a a', Ra a a' -> step a (≲L0) step' a') ->
+  (forall a a', Ra a a' -> step a (≲(upd_rel L (sum_rel Ra Rb))) step' a') ->
   forall a a', Ra a a' ->
   iter step a (≲L) iter step' a'.
 Proof.
-  intros. apply ssim_ssim'.
+  intros. apply (ssim_ssim').
   revert step a a' H H0.
   red. coinduction R CH. intros.
-  unfold iter_gen. rewrite !unfold_iter.
-  eapply SSimAlt.bind_chain_gen.
-  - apply HL0.
-  - now apply H.
+  rewrite !unfold_iter.  
+  eapply SSimAlt.bind_chain_gen with (SS:=(sum_rel Ra Rb)).
+  Locate upd_rel. 
+  - cbn -[ss']. 
+    (* coinduction library: want [base] tactic that does this and always works *)
+    apply (gfp_chain (chain_b R)).
+    apply H in H0. now apply ssim_ssim' in H0.  
   - intros. destruct x, x'; try destruct H1.
     + apply step_ss'_guard. apply CH; auto.
-    + apply step_ssbt'_ret. now apply HRb.
+    + apply step_ssbt'_ret. 
+    change (TransAlt.val b) with (@o2n_label E _ (val b)). 
+    change (TransAlt.val b0) with (@o2n_label F _ (val b0)). 
+    eapply AltEquiv.lift_L_o2n.
+    now apply HRb.
 Qed.
 
 #[global] Instance ssim_eq_iter {E B X Y} :

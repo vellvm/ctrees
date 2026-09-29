@@ -683,10 +683,10 @@ Proof.
   apply update_val_rel_correct.
 Qed.
 
-Ltac __upto_bind_sbisim' R :=
+(* Ltac __upto_bind_sbisim' R :=
   first [apply sbisim_clo_bind with (R0 := R) |
           apply sb_chain_bind with (R0 := R)].
-Tactic Notation "__upto_bind_sbisim" uconstr(t) := __upto_bind_sbisim' t.
+Tactic Notation "__upto_bind_sbisim" uconstr(t) := __upto_bind_sbisim' t. *)
 
 Ltac __eupto_bind_sbisim :=
   first [eapply sbisim_clo_bind | eapply sb_chain_bind].
