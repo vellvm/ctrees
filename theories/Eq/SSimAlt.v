@@ -14,8 +14,7 @@ From CTree Require Import
      Utils
      Eq.Equ
      Eq.TransAlt
-     Eq.EstarTheory
-     Eq.Epsilon.
+     Eq.EstarTheory.
 
 From RelationAlgebra Require Export
      monoid kat kat_tac rel srel.
@@ -808,14 +807,6 @@ Section Inversion_Rules.
   Qed.
 
 End Inversion_Rules.
-
-Definition epsilon_ctx {E B X} (R : ctree E B X -> Prop)
-  (t : ctree E B X) :=
-  exists t', epsilon t t' /\ R t'.
-
-Definition epsilon_det_ctx {E B X} (R : ctree E B X -> Prop)
-  (t : ctree E B X) :=
-  exists t', epsilon_det t t' /\ R t'.
 
 Section upto.
 

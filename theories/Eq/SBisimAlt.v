@@ -16,7 +16,7 @@ From CTree Require Import
      Utils
      Eq.Equ
      Eq.TransAlt
-     Eq.Epsilon
+     Eq.EpsilonAlt
      Eq.EstarTheory
      Eq.SSimAlt
      Misc.Pure.
@@ -979,16 +979,6 @@ Definition guard_ctx {E B X} (R : @SS E B X -> Prop)
   (t : @SS E B X) :=
   exists t', t ⩸ (Active (Guard t')) /\ R (Active t').
 
-Lemma epsilon_det_estar {E B X} (t t' : ctree E B X) :
-  epsilon_det t t' -> (trans_alt ε)^* (Active t) (Active t').
-Proof.
-  induction 1.
-  - apply estar_seq; constructor; exact H.
-  - eapply estar_cons_epsilon.
-    + eapply Transguard; [exact H0 | reflexivity].
-    + exact IHepsilon_det.
-Qed.
-
 Section upto.
   Context {E F C D: Type -> Type}.
 
@@ -1054,15 +1044,11 @@ Section upto.
 
   Program Definition epsilon_det_ctx3_l : mon (sb'R E F C D)
     := {| body R b X Y L t u :=
-            b = true /\ exists t0 t1, t ⩸ (Active t0) /\ epsilon_det t0 t1
-                        /\ R b X Y L (Active t1) u |}.
+            b = true /\ exists t1, epsilon_det' t t1 /\ R b X Y L t1 u |}.
   Next Obligation.
-    intros R R' HRR' b X Y L t u (-> & t0 & t1 & EQ & DET & HR).
+    intros R R' HRR' b X Y L t u (-> & t1 & DET & HR).
     split; auto.
-    exists t0, t1; ssplit.
-    - exact EQ.
-    - exact DET.
-    - apply HRR', HR.
+    exists t1; split; [exact DET | apply HRR', HR].
   Qed.
 
   Definition pure_bind_ctx {W X0} (P : X0 -> Prop) (R : @S E C W -> Prop)
@@ -1098,32 +1084,31 @@ Section upto.
     forall side X Y L x y, epsilon_det_ctx3_l `r side X Y L x y -> `r side X Y L x y.
   Proof.
     apply tower.
-    - intros ? INC side X Y L x y (-> & t0 & t1 & EQ & DET & HR) ? ?; red.
+    - intros ? INC side X Y L x y (-> & t1 & DET & HR) ? ?; red.
       apply INC; auto.
       split; auto.
-      exists t0, t1; ssplit.
-      + exact EQ.
+      exists t1; split.
       + exact DET.
       + apply leq_infx in H.
         apply H, HR.
     - clear.
-      intros R IH side X Y L x y (-> & t0 & t1 & EQ & DET & HR).
+      intros R IH side X Y L x y (-> & t1 & [n DET] & HR).
       split; intro; [| easy].
-      rewrite EQ; clear x EQ.
-      revert HR; induction DET as [ta tb EQ01 | ta tb tc DET' IHDET EQg]; intro HR.
-      + assert (SQ : (Active ta : @S E C X) ⩸ (Active tb))
-          by (constructor; exact EQ01).
-        rewrite SQ.
+      destruct n as [| n].
+      + cbn in DET. rewrite DET.
         now apply HR.
-      + assert (SQ : (Active tc : @S E C X) ⩸ (Active (Guard ta)))
+      + destruct DET as [m STEP REST].
+        destruct STEP as [t t' u EQg EQu].
+        assert (SQ : (Active t : @S E C X) ⩸ (Active (Guard t')))
           by (constructor; exact EQg).
         rewrite SQ.
         apply step_ss'_guard_l.
         apply IH.
         split; auto.
-        exists ta, tb; ssplit.
-        * reflexivity.
-        * exact DET'.
+        exists t1; split.
+        * assert (SQ' : (Active t' : @S E C X) ⩸ (Active u))
+            by (constructor; symmetry; exact EQu).
+          exists n. rewrite SQ'. exact REST.
         * apply (b_chain R); exact HR.
   Qed.
 
@@ -1226,19 +1211,17 @@ Section upto.
 
   #[global] Instance epsilon_det_st' {X Y} {L : lrel E F X Y} :
     forall (R : Chain (@sb' E F C D)),
-    Proper (epsilon_det ==> epsilon_det ==> flip impl)
-           (fun (t : ctree E C X) (u : ctree F D Y) => ` R true X Y L t u).
+    Proper (epsilon_det' ==> epsilon_det' ==> flip impl) (` R true X Y L).
   Proof.
     intros R t t' DETt u u' DETu H.
     apply epsilon_det_ctx3_l_sbisim'.
     split; auto.
-    exists t, t'; ssplit.
-    - reflexivity.
+    exists t'; split.
     - exact DETt.
     - apply epsilon_ctx3_r_sbisim'.
       split; auto.
-      exists (Active u'); split.
-      + apply epsilon_det_estar; exact DETu.
+      exists u'; split.
+      + apply epsilon_det'_estar; exact DETu.
       + exact H.
   Qed.
 

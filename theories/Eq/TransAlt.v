@@ -45,7 +45,7 @@ From ITree Require Import
      Indexed.Sum.
 
 From CTree Require Import
-     CTree Eq.Shallow Eq.Equ Eq.Epsilon.
+     CTree Eq.Shallow Eq.Equ.
 
 From RelationAlgebra Require Import
      monoid
@@ -177,15 +177,6 @@ node, labelling the transition by the returned value.
 
 Definition sss {R1 R2} RR := @SeqR E B _ _ (@equ E B R1 R2 RR). 
 
-(* epsilon lifted through S *)
-
-  Inductive epsilon_S : TransAlt.S E B R -> TransAlt.S E B R -> Prop := 
-  | epsilon_id_AA t t' : epsilon t t' -> epsilon_S (Active t) (Active t')
-  | epsilon_id_AP {X} t e k : forall x, epsilon t (k x) -> epsilon_S (Active t) (@Passive E B R X e k)
-  | epsilon_id_PA {X} t e k : forall x, epsilon (k x) t -> epsilon_S (@Passive E B R X e k) (Active t)
-  | epsilon_id_PP {X} e k1 k2 : forall x y, epsilon (k1 x) (k2 y) -> epsilon_S (@Passive E B R X e k1) (@Passive E B R X e k2)
-  . 
-
 (* question: equ constraints as before or direct constructors? *)
   Variant transR : label -> hrel S S :=
 
@@ -232,23 +223,6 @@ Definition sss {R1 R2} RR := @SeqR E B _ _ (@equ E B R1 R2 RR).
   Proof.
     now intros ?? EQ; constructor.
   Qed. 
-
-Ltac epsilon_congr := 
-      repeat match goal with | [HE : epsilon_S (Active _) (Active _) |- _] => inv HE 
-      | [HE : epsilon_S _ (Passive _ _) |- _] => dependent destruction HE 
-      | [HE : epsilon_S (Passive _ _ ) _ |- _] => dependent destruction HE 
-      | [|- epsilon_S _ _] => econstructor
-      end; 
-      match goal with 
-      H: epsilon ?t1 ?t2 |- epsilon ?t3 ?t4 => 
-       try match goal with [EQ13 : t1 ≅ t3 |- _] => rewrite <- EQ13; eauto end;  
-       try match goal with [EQ31 : t3 ≅ t1 |- _] => rewrite EQ31; eauto end;  
-       try match goal with [EQ24 : t2 ≅ t4 |- _] => rewrite <- EQ24; eauto end;  
-       try match goal with [EQ42 : t4 ≅ t2 |- _] => rewrite EQ42; eauto end; 
-       try match goal with [EQ : forall a, (?k a) ≅ ?g a |- epsilon _ (?g _)] => rewrite <- EQ; eauto end;  
-       try match goal with [EQ : forall a, (?k a) ≅ ?g a |- epsilon _ (?k _)] => rewrite EQ; eauto end
-    end. 
- 
 
   #[global] Instance transR_equ_ l :
     Proper (Seq ==> Seq ==> iff) (transR l).
