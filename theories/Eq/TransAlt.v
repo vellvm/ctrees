@@ -45,7 +45,7 @@ From ITree Require Import
      Indexed.Sum.
 
 From CTree Require Import
-     CTree Eq.Shallow Eq.Equ.
+     CTree Eq.Equ.
 
 From RelationAlgebra Require Import
      monoid
@@ -2638,30 +2638,4 @@ Ltac inv_label_eq EQl :=
 
 Ltac inv_trans := repeat (inv_trans_one). *)
 
-Ltac use_steps n := 
-lazymatch goal with 
-|- context [(str _)] => 
-  repeat red; 
-  
-  repeat match goal with 
-  
-  (* ^* case *)
-  | |- exists2 _, _ & _ => eexists; repeat red 
-  (* base case: just ^* *)
-  | |- exists n : nat, _ =>
-  exists (n : nat); 
-  cbn; try solve [reflexivity] end
-  end. 
-
-  (* break iter *)
-  (* Unset Printing Notations.  *)
-Lemma trans_star_self {E B R} (x : SS) l: (@trans_alt E B R l)^* x x.
-Proof. use_steps O. Qed.   
-
-Lemma trans_star_l {E B R} (x y : SS) l1 l2 : 
-trans_alt l2 x y -> 
-((@trans_alt E B R l1)^* ⋅ trans_alt l2) x y.
-Proof. intros. use_steps O. assumption. Qed. 
-
-Tactic Notation "use" ident(n) "steps" := use_steps n.
  

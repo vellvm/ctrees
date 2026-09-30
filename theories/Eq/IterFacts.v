@@ -11,7 +11,9 @@ From CTree Require Import
      Utils
      Eq
      Eq.SSimAlt
-     Eq.AltEquiv
+     Eq.OldAltEquiv.TransEquiv
+     Eq.OldAltEquiv.SSimEquiv
+     Eq.OldAltEquiv.SBisimEquiv
      Eq.SBisimAlt.
 
 Import CTree.
@@ -41,8 +43,6 @@ Proof.
   cbn. intros step step' ? t t' EQ.
   unfold iter_gen.
   revert t t' EQ.
-  unfold equ at -1. 
-  (* coinduction library bug:  *)
   coinduction CR CH. intros.
   subs. 
   upto_bind_eq. red in H.
@@ -80,7 +80,7 @@ Proof.
     + apply step_ssbt'_ret. 
     change (TransAlt.val b) with (@o2n_label E _ (val b)). 
     change (TransAlt.val b0) with (@o2n_label F _ (val b0)). 
-    eapply AltEquiv.lift_L_o2n.
+    eapply TransEquiv.lift_L_o2n.
     now apply HRb.
 Qed.
 
@@ -123,7 +123,7 @@ Proof.
     + apply step_sbt'_ret.
       change (TransAlt.val b) with (@o2n_label E _ (val b)).
       change (TransAlt.val b0) with (@o2n_label F _ (val b0)).
-      eapply AltEquiv.lift_L_o2n.
+      eapply TransEquiv.lift_L_o2n.
       now apply HRb.
 Qed.
 

@@ -14,7 +14,7 @@ From CTree Require Import
      Utils
      Eq.Equ
      Eq.TransAlt
-     Eq.EstarTheory.
+     Eq.EpsilonAlt.
 
 From RelationAlgebra Require Export
      monoid kat kat_tac rel srel.
@@ -227,7 +227,7 @@ Tactic Notation "__step_ssim'" :=
       fold (@ssim' E F C D X Y L)
   end.
 
-Tactic Notation "step" := __step_ssim' || step.
+#[local] Tactic Notation "step" := __step_ssim' || step.
 
 Ltac __step_in_ssim' H :=
   match type of H with
@@ -236,11 +236,11 @@ Ltac __step_in_ssim' H :=
       apply (gfp_pfp (@ss' E F C D));
       fold (@ssim' E F C D X Y L) in H
   end.
-Tactic Notation "step" "in" ident(H) := __step_in_ssim' H || step in H.
+#[local] Tactic Notation "step" "in" ident(H) := __step_in_ssim' H || step in H.
 
 Tactic Notation "__coinduction_ssim'" simple_intropattern(r) simple_intropattern(cih) :=
   first [unfold ssim' at 4 | unfold ssim' at 3 | unfold ssim' at 2 | unfold ssim' at 1]; coinduction r cih.
-Tactic Notation "coinduction" simple_intropattern(r) simple_intropattern(cih) := __coinduction_ssim' r cih || coinduction r cih.
+#[local] Tactic Notation "coinduction" simple_intropattern(r) simple_intropattern(cih) := __coinduction_ssim' r cih || coinduction r cih.
 
 Import CTreeNotations.
 Import EquNotations.
@@ -861,34 +861,7 @@ Qed.
 
 Section Sbind. 
 
-Definition Sbind {E B X Y} (s : @S E B X) (k : X -> ctree E B Y) : @S E B Y :=
-  match s with
-  | Active t => Active (x <- t;; k x)
-  | Passive e g => Passive e (fun z => x <- g z;; k x)
-  end.
-
 (* theory of Sbind, from which we derive bind *)
-
-Lemma Sbind_Seq {E B X Y} (s u : @S E B X) (k : X -> ctree E B Y) :
-  s ⩸ u -> (Sbind s k) ⩸ (Sbind u k).
-Proof.
-  intros EQ; destruct EQ; cbn; constructor.
-  - now rewrite EQ.
-  - intros; now rewrite EQ.
-Qed.
-
-Lemma estar_Sbind {E B X Y} (s u : @S E B X) (k : X -> ctree E B Y) :
-  (trans_alt ε)^* s u -> (trans_alt ε)^* (Sbind s k) (Sbind u k).
-Proof.
-  destruct s as [t | Z e g]; intros STAR.
-  - destruct (estar_active STAR) as [u0 EQ].
-    assert (STAR2 : (trans_alt ε)^* (Active t) (Active u0))
-      by (eapply estar_trans; [ exact STAR | apply estar_seq, EQ ]).
-    eapply (estar_trans (b := Sbind (Active u0 : @S E B X) k)).
-    + cbn. apply estar_bind; exact STAR2.
-    + apply estar_seq. apply Sbind_Seq. now symmetry.
-  - apply estar_passive in STAR. now apply estar_seq, Sbind_Seq.
-Qed.
 
 Lemma trans_Sbind_τ {E B X Y} (s u : @S E B X) (k : X -> ctree E B Y) :
   trans_alt τ s u -> trans_alt τ (Sbind s k) (Sbind u k).

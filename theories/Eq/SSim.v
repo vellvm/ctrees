@@ -15,7 +15,8 @@ From CTree Require Import
      Utils
      Eq.Equ
      Eq.Shallow
-     Eq.Trans.
+     Eq.Trans
+     Eq.Epsilon.
 
 From RelationAlgebra Require Export
      rel srel.
@@ -1114,3 +1115,125 @@ Question: are the principles useful over [ss] as well?
   Qed.
 
 End Proof_Rules.
+
+Section ssim_epsilon.
+
+    Lemma ss_epsilon_l {E F C D X Y L R}
+        (t t0 : ctree E C X) (u : ctree F D Y) :
+      epsilon t0 t ->
+      ss L R t0 u ->
+      ss L R t u.
+    Proof.
+      intros. cbn. intros.
+      eapply epsilon_trans in H1; [| eassumption].
+      apply H0 in H1 as (? & ? & ? & ? & ?). eauto 6.
+    Qed.
+
+    (* Is this one really useful? *)
+    Lemma ss_epsilon_l' {E F C D X Y L R}
+        (t : ctree E C X) (u : ctree F D Y) :
+      (forall t0, epsilon t t0 -> productive t0 -> ss L R t0 u) ->
+      ss L R t u.
+    Proof.
+      intros. cbn. intros. apply trans_epsilon in H0 as (? & ? & ? & ?).
+      red in H0.
+      setoid_rewrite (ctree_eta t) in H. genobs t ot. clear t Heqot.
+      rewrite (ctree_eta x) in H1, H2. genobs x ox. clear x Heqox.
+      induction H0.
+      - apply H in H1 as ?. 2: { rewrite H0. now constructor. }
+        apply H3 in H2. apply H2.
+      - apply IHepsilon_; auto. intros. apply H; auto. econstructor 2. apply H3.
+      - apply IHepsilon_; auto. intros. apply H; auto. econstructor 3. apply H3.
+    Qed.
+
+    Lemma ss_epsilon_r {E F C D X Y L R}
+        (t : ctree E C X) (u u0 : ctree F D Y) :
+      epsilon u u0 ->
+      ss L R t u0 ->
+      ss L R t u.
+    Proof.
+      intros. cbn. intros. apply H0 in H1 as (? & ? & ? & ? & ?).
+      eapply epsilon_trans in H1; eauto.
+    Qed.
+
+    Lemma ssim_epsilon_l {E F C D X Y L}
+        (t0 t : ctree E C X) (u : ctree F D Y) :
+      epsilon t0 t ->
+      ssim L t0 u ->
+      ssim L t u.
+    Proof.
+      intros. cbn. intros.
+      step in H0. step. eapply ss_epsilon_l in H0; eauto.
+    Qed.
+
+    Lemma ssim_epsilon_l' {E F C D X Y L}
+        (t : ctree E C X) (u : ctree F D Y) :
+      (forall t0, epsilon t t0 -> productive t0 -> ssim L t0 u) ->
+      ssim L t u.
+    Proof.
+      intros. step. apply ss_epsilon_l'.
+      intros. apply H in H1. now step in H1. assumption.
+    Qed.
+
+    Lemma ssim_epsilon_r {E F C D X Y L}
+        (t : ctree E C X) (u u0 : ctree F D Y) :
+      epsilon u u0 ->
+      ssim L t u0 ->
+      ssim L t u.
+    Proof.
+      intros. cbn. intros.
+      step in H0. step. eapply ss_epsilon_r in H0; eauto.
+    Qed.
+
+    Notation "l ⊢ x → y" := (hrel_of (trans l) x y) (at level 10, x at next level, y at next level, only printing).
+    Notation "x" := (α x) (at level 9, only printing).
+    
+    Lemma ssim_ret_epsilon {E F C D X Y L} :
+      forall r (u : ctree F D Y),
+      (Ret r : ctree E C X) (≲L) u ->
+      exists r', epsilon u (Ret r') /\ L (val r) (val r').
+    Proof.
+      intros * SIM *.
+      play in SIM.
+      invL.
+      apply trans_val_epsilon in TR.
+      etrans.
+    Qed.
+
+    Lemma ssim_vis_epsilon {E F C D X Y Z L} :
+      forall e (k : Z -> ctree E C X) (u : ctree F D Y),
+      Vis e k (≲L) u ->
+      forall x, exists Z' (e' : F Z') k' y,
+        epsilon u (Vis e' k') /\
+        k x (≲L) k' y /\
+        L (ask e) (ask e') /\
+        L (rcv e x) (rcv e' y).
+    Proof.
+      intros * SIM *.
+      apply ssim_vis_l_inv in SIM as (? & ? & ? & TR & ? & SIM).
+      apply trans_epsilon in TR. destruct TR as (u' & EPS & PROD & TR).
+      destruct PROD; subs; inv_trans.
+      dependent induction EQ.
+      pose proof ask_invT EQl; subst.
+      pose proof ask_inv EQl; subst.
+      destruct (SIM x) as (? & ? & ?).
+      rewrite EQ in H2.
+      ex4; split4; eauto; etrans.
+    Qed.
+
+    Lemma ssim_brS_epsilon {E F C D X Y Z L} :
+      forall c (k : Z -> ctree E C X) (u : ctree F D Y),
+      BrS c k (≲L) u ->
+      forall x,
+      (exists v, epsilon u (Step v) /\ k x (≲L) v).
+    Proof.
+      intros * SIM *.
+      step in SIM. cbn in SIM. specialize (SIM τ (k x) (trans_brS _ _ _)).
+      destruct SIM as (l' & u'' & TR & SIM & EQ).
+      apply trans_epsilon in TR. destruct TR as (u' & EPS & PROD & TR).
+      destruct PROD; subs; inv_trans; etrans.
+      invL.
+      invL.
+    Qed.
+
+End ssim_epsilon.

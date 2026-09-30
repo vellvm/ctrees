@@ -46,8 +46,8 @@ From CTree Require Import
      Eq.Equ
      Eq.Shallow
      Eq.Trans
-     Eq.SSim
-     Eq.CSSim.
+     Eq.Epsilon
+     Eq.SSim.
 
 From RelationAlgebra Require Export
      rel srel.
@@ -151,7 +151,7 @@ Tactic Notation "__step_sbisim" :=
       step;
       fold (@sbisim E F C D X Y L)
   end.
-#[local] Tactic Notation "step" := __step_sbisim || __step_cssim || __step_ssim || step.
+#[local] Tactic Notation "step" := __step_sbisim || __step_ssim || step.
 
 Ltac __step_in_sbisim H :=
   match type of H with
@@ -165,7 +165,7 @@ Ltac __step_in_sbisim H :=
 Tactic Notation "__coinduction_sbisim" simple_intropattern(r) simple_intropattern(cih) :=
   first [unfold sbisim at 4 | unfold sbisim at 3 | unfold sbisim at 2 | unfold sbisim at 1]; coinduction r cih.
 #[local] Tactic Notation "coinduction" simple_intropattern(r) simple_intropattern(cih) :=
-  __coinduction_sbisim r cih || __coinduction_cssim r cih || __coinduction_ssim r cih || coinduction r cih.
+  __coinduction_sbisim r cih || __coinduction_ssim r cih || coinduction r cih.
 
 Ltac __play_sbisim := (try step); split; cbn; intros ? ? ?TR.
 
@@ -462,21 +462,13 @@ Section sbisim_heterogenous_theory.
   
   (*| Subrelations. |*)
 
-  Lemma sbisim_cssim_subrelation_gen :
-    forall x y, sbisim L x y -> cssim L x y.
+  Lemma sbisim_ssim_subrelation_gen :
+    forall x y, sbisim L x y -> ssim L x y.
   Proof.
     red.
     coinduction r cih; intros * SB.
-    step in SB; destruct SB as [fwd bwd].
-    split.
-    - intros ?? TR; apply fwd in TR as (? & ? & ? & ? & ?); eauto 10.
-    - intros (? & ? & TR). apply bwd in TR as (? & ? & ? & ? & ?); eauto 10.
-  Qed.
-
-  Lemma sbisim_ssim_subrelation_gen :
-    forall x y, sbisim L x y -> ssim L x y.
-  Proof. 
-    intros. now apply cssim_ssim_subrelation_gen, sbisim_cssim_subrelation_gen.
+    step in SB; destruct SB as [fwd _].
+    intros ?? TR; apply fwd in TR as (? & ? & ? & ? & ?); eauto 10.
   Qed.
   
 End sbisim_heterogenous_theory.
@@ -490,12 +482,6 @@ Lemma equ_sbisim_subrelation_gen {E B X Y} (RR : rel X Y) :
   subrelation (@Seq E B X) sbisimeq.
 Proof.
   red; intros * EQ; now rewrite EQ.
-Qed.
-
-#[global] Instance sbisim_cssim_subrelation {E C X L} :
-  subrelation (@sbisim E E C C X X L) (cssim L).
-Proof.
-  red; apply sbisim_cssim_subrelation_gen. 
 Qed.
 
 #[global] Instance sbisim_ssim_subrelation {E C X L} :
@@ -1692,118 +1678,10 @@ Section Two_ss_is_not_sb.
 
 End Two_ss_is_not_sb.
 
-Section SBisim_vs_CSSim.
-
-  Section withParam.
-    
-    Context {E F C D : Type -> Type} {X Y : Type}
-      {L : lrel E F X Y}.
-
-    Notation css   := (@css   E F C D X Y).
-    Notation cssim := (@cssim E F C D X Y).
-
-    Tactic Notation "dec3" ident(h) "as"
-      simple_intropattern(a) simple_intropattern(b) simple_intropattern(c)
-      := destruct h as (a & b & c).
-    
-    #[global] Instance sbisim_css_chain_goal {c : Chain (css L)} :
-      Proper (sbisimeq ==> sbisimeq ==> flip impl) `c.
-    Proof.
-      apply tower.
-      - intros ? INC x y EQ x' y' EQ' ?? HP; red.
-        eapply INC; eauto.
-        eapply leq_infx in HP.
-        now apply HP.
-      - clear.
-        intros c IH x y EQ x' y' EQ'; split.
-        + intros ?? TR.
-          playL in EQ.
-          play in H.
-          playR in EQ'.
-          answer.
-          eapply IH; eauto.
-          now simpL.
-        + intros (? & ? & TR).
-          playL in EQ'.
-          destruct H as [_ LIV].
-          dec3 LIV as ? ? TR'; eauto.
-          playR in EQ.
-          eauto.
-    Qed.
-
-    #[global] Instance sbisim_css_chain_ctx {c : Chain (css L)} :
-      Proper (sbisimeq ==> sbisimeq ==> impl) `c.
-    Proof.
-      apply tower.
-      - intros ? INC x y EQ x' y' EQ' ?? HP; red.
-        eapply INC; eauto.
-        eapply leq_infx in HP.
-        now apply HP.
-      - clear.
-        intros c IH x y EQ x' y' EQ'; split.
-        + intros ?? TR.
-          playR in EQ.
-          play in H.
-          playL in EQ'.
-          answer.
-          eapply IH; eauto.
-          now simpL.
-        + intros (? & ? & TR).
-          playR in EQ'.
-          destruct H as [_ LIV].
-          dec3 LIV as ? ? TR'; eauto.
-          playL in EQ.
-          eauto.
-    Qed.
-
-    #[global] Instance sbisim_cssim_goal :
-      Proper (sbisim Leq ==> sbisim Leq ==> flip impl) (cssim L).
-    Proof.
-      repeat intro; eapply sbisim_css_chain_goal; eauto.
-    Qed.
-
-    #[global] Instance sbisim_cssim_ctx :
-      Proper (sbisim Leq ==> sbisim Leq ==> impl) (cssim L).
-    Proof.
-      repeat intro; eapply sbisim_css_chain_ctx; eauto.
-    Qed.
-
-    Lemma css_sb (R : rel _ _) (t : ctree E C X) (u : ctree F D Y) :
-      css L R t u ->
-      CSSim.css (flipL L) (flip R) u t ->
-      sb L R t u.
-    Proof.
-      split; cbn; intros.
-      - apply H in H1 as (? & ? & ? & ? & ?); eauto.
-      - apply H0 in H1 as (? & ? & ? & ? & ?); eauto.
-    Qed.
-
-  End withParam.
-
-  (* Bisimilarity entails co-similarity. *)
-  Lemma sbisim_cssim {E C X} (t u : ctree E C X) :
-    t ≃ u ->
-    cssim Leq t u /\ cssim Leq u t.
-  Proof.
-    intros SB.
-    split.
-    - coinduction r cih.
-      split.
-      + intros ?? TR.
-        playL in SB.
-        answer.
-        now rewrite EQ.
-      + intros (? & ? & TR).
-        playR in SB; eauto.
-    - coinduction r cih.
-      split.
-      + intros ?? TR.
-        playR in SB.
-        simpL.
-        answer.
-        now rewrite EQ.
-      + intros (? & ? & TR).
-        playL in SB; eauto.
-  Qed.
-
-End SBisim_vs_CSSim.
+Lemma sbisim_epsilon_det {E C X}:
+  forall (t t' : ctree E C X), epsilon_det t t' -> t ≃ t'.
+Proof.
+  intros. induction H.
+  - now rewrite H.
+  - rewrite H0. rewrite sbisim_guard. apply IHepsilon_det.
+Qed.

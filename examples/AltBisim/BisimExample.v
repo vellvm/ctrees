@@ -1,4 +1,4 @@
-From CTree Require Import CTree Eq Eq.SBisimAlt Eq.IterFacts.
+From CTree Require Import CTree Eq Eq.SBisimAlt Eq.OldAltEquiv.TransEquiv Eq.OldAltEquiv.SBisimEquiv Eq.IterFacts.
 
 Import CoindNotations.
 Import CTreeNotations.
@@ -20,7 +20,7 @@ Proof. step. cbn. reflexivity. Qed.
 
 Theorem bisim_t_u : t ≃ u.
 Proof.
-  __coinduction_sbisim R CH.
+  coinduction R CH.
   rewrite unfold_t, unfold_u.
   apply sb_br; intros [].
   2: {
@@ -40,7 +40,7 @@ Proof.
   rewrite sbisim_sbisim'.
   (* The rest of the proof proceeds as before, but this time it succeeds. *)
   coinduction R CH. intros.
-  cbn [AltEquiv.o2n_S]. rewrite unfold_t, unfold_u.
+  cbn [TransEquiv.o2n_S]. rewrite unfold_t, unfold_u.
   apply step_sb'_br; intros [].
   (* Notice that unlike step_sb_br, step_sb'_br has unlocked the coinduction hypothesis. *)
   2: {

@@ -17,6 +17,7 @@ From CTree.Eq Require Export
      Shallow
      Equ
      Trans
+     Epsilon
      SBisim
      SSim
      CSSim
@@ -37,14 +38,53 @@ The [step], [step in] and [coinduction] tactics from [coinduction]
  with additional unfolding and refolding of [equ] and [sbisim]
 |*)
 
+From CTree.Eq Require Import
+     TransAlt
+     EpsilonAlt
+     SSimAlt
+     SBisimAlt.
+
+Ltac __concl_is t :=
+  assert_succeeds (repeat match goal with |- forall _, _ => intro end; t).
+
 #[global] Tactic Notation "step" :=
-  __step_equ || __step_sbisim || __step_ssim || __step_cssim || step.
+  first [ __step_equ | __step_sbisim | __step_ssim | __step_cssim
+        | __step_sbisim' | __step_sb' | __step_ssim' | step
+        | match goal with |- ?G =>
+            fail 1 "step: the goal is not an equ, sbisim, ssim, cssim, sbisim' or ssim' goal, nor a chain element or gfp of one:" G
+          end ].
 
 #[global] Tactic Notation "coinduction" simple_intropattern(R) simple_intropattern(H) :=
-  __coinduction_equ R H || __coinduction_sbisim R H || __coinduction_ssim R H || __coinduction_cssim R H || coinduction R H.
+  first
+    [ __concl_is ltac:(lazymatch goal with |- equ _ _ _ => idtac end);
+      first [ __coinduction_equ R H
+            | fail 2 "coinduction: the conclusion is an equ goal, but coinduction on equ failed" ]
+    | __concl_is ltac:(lazymatch goal with |- sbisim _ _ _ => idtac end);
+      first [ __coinduction_sbisim R H
+            | fail 2 "coinduction: the conclusion is an sbisim goal, but coinduction on sbisim failed" ]
+    | __concl_is ltac:(lazymatch goal with |- ssim _ _ _ => idtac end);
+      first [ __coinduction_ssim R H
+            | fail 2 "coinduction: the conclusion is an ssim goal, but coinduction on ssim failed" ]
+    | __concl_is ltac:(lazymatch goal with |- cssim _ _ _ => idtac end);
+      first [ __coinduction_cssim R H
+            | fail 2 "coinduction: the conclusion is a cssim goal, but coinduction on cssim failed" ]
+    | __concl_is ltac:(lazymatch goal with |- sbisim' _ _ _ => idtac end);
+      first [ __coinduction_sbisim' R H
+            | fail 2 "coinduction: the conclusion is an sbisim' goal, but coinduction on sbisim' failed" ]
+    | __concl_is ltac:(lazymatch goal with |- ssim' _ _ _ => idtac end);
+      first [ __coinduction_ssim' R H
+            | fail 2 "coinduction: the conclusion is an ssim' goal, but coinduction on ssim' failed" ]
+    | __coinduction_equ R H | __coinduction_sbisim R H | __coinduction_ssim R H | __coinduction_cssim R H
+    | __coinduction_sbisim' R H | __coinduction_ssim' R H
+    | coinduction R H
+    | match goal with |- ?G =>
+        fail 1 "coinduction: the goal is not an equ, sbisim, ssim, cssim, sbisim' or ssim' goal, nor a gfp:" G
+      end ].
 
 #[global] Tactic Notation "step" "in" ident(H) :=
-  __step_in_equ H || __step_in_sbisim H || __step_in_ssim H || __step_in_cssim H || step_in H.
+  first [ __step_in_equ H | __step_in_sbisim H | __step_in_ssim H | __step_in_cssim H
+        | __step_in_sbisim' H | __step_in_sb' H | __step_in_ssim' H | step_in H
+        | fail "step in: the hypothesis" H "is not an equ, sbisim, ssim, cssim, sbisim' or ssim' fact, nor a chain element or gfp of one" ].
 
 (*|
 Assuming a goal of the shape [t ~ u], initialize the two challenges
@@ -77,6 +117,18 @@ The upto [Vis] context principle for [sbisim]
 (* - [upto_bind with SS]: for [equ], provides explicitly the intermediate relation *)
 (* |*) *)
 
+#[global] Tactic Notation "upto_bind" :=
+  first [ __eupto_bind_equ | __eupto_bind_sbisim'
+        | fail "upto_bind: the goal is not an equ or sbisim' goal (or chain element of one) relating two binds" ].
+
+#[global] Tactic Notation "upto_bind_eq" :=
+  first [ __upto_bind_equ_eq | __upto_bind_sbisim'_eq
+        | fail "upto_bind_eq: the goal is not an equ or sbisim' goal (or chain element of one) relating two binds with the same prefix" ].
+
+#[global] Tactic Notation "upto_bind" "with" uconstr(SS) :=
+  first [ __upto_bind_equ SS | __upto_bind_sbisim' SS
+        | fail "upto_bind with: the goal is not an equ or sbisim' goal (or chain element of one) relating two binds" ].
+
 
 (*|
 Weakens equalities into respectively [equ] and [sbisim] equations ---
@@ -92,4 +144,4 @@ Ltac eq2sb H :=
   | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≃ t) by (rewrite H; reflexivity); clear H
   end.
 
-#[global] Opaque wtrans.
+#[global] Opaque Trans.wtrans.

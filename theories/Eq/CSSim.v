@@ -16,7 +16,8 @@ From CTree Require Import
      Eq.Equ
      Eq.Shallow
      Eq.Trans
-     Eq.SSim.
+     Eq.SSim
+     Eq.SBisim.
 
 From RelationAlgebra Require Export
      rel srel.
@@ -1194,3 +1195,147 @@ TODO: these principles are mirrored on ssim directly. We should be able to deriv
 
 End Proof_Rules.
 
+Import SBisimNotations.
+
+Section sbisim_cssim.
+  Context {E F C D : Type -> Type} {X Y : Type} {L : lrel E F X Y}.
+
+  Lemma sbisim_cssim_subrelation_gen :
+    forall x y, @sbisim E F C D X Y L x y -> cssim L x y.
+  Proof.
+    red.
+    coinduction r cih; intros * SB.
+    __step_in_sbisim SB; destruct SB as [fwd bwd].
+    split.
+    - intros ?? TR; apply fwd in TR as (? & ? & ? & ? & ?); eauto 10.
+    - intros (? & ? & TR). apply bwd in TR as (? & ? & ? & ? & ?); eauto 10.
+  Qed.
+
+End sbisim_cssim.
+
+#[global] Instance sbisim_cssim_subrelation {E C X L} :
+  subrelation (@sbisim E E C C X X L) (cssim L).
+Proof.
+  red; apply sbisim_cssim_subrelation_gen. 
+Qed.
+
+#[local] Tactic Notation "playL" "in" ident(H)  := __playL_sbisim H.
+#[local] Tactic Notation "playR" "in" ident(H)  := __playR_sbisim H.
+#[local] Tactic Notation "play"  "in" ident(H)  := first [playL in H; [] | playR in H; []].
+#[local] Tactic Notation "answer"               := __answer_sbisim.
+
+Section SBisim_vs_CSSim.
+
+  Section withParam.
+    
+    Context {E F C D : Type -> Type} {X Y : Type}
+      {L : lrel E F X Y}.
+
+    Notation css   := (@css   E F C D X Y).
+    Notation cssim := (@cssim E F C D X Y).
+
+    Tactic Notation "dec3" ident(h) "as"
+      simple_intropattern(a) simple_intropattern(b) simple_intropattern(c)
+      := destruct h as (a & b & c).
+    
+    #[global] Instance sbisim_css_chain_goal {c : Chain (css L)} :
+      Proper (sbisimeq ==> sbisimeq ==> flip impl) `c.
+    Proof.
+      apply tower.
+      - intros ? INC x y EQ x' y' EQ' ?? HP; red.
+        eapply INC; eauto.
+        eapply leq_infx in HP.
+        now apply HP.
+      - clear.
+        intros c IH x y EQ x' y' EQ'; split.
+        + intros ?? TR.
+          playL in EQ.
+          play in H.
+          playR in EQ'.
+          __answer_sbisim.
+          eapply IH; eauto.
+          now simpL.
+        + intros (? & ? & TR).
+          playL in EQ'.
+          destruct H as [_ LIV].
+          dec3 LIV as ? ? TR'; eauto.
+          playR in EQ.
+          eauto.
+    Qed.
+
+    #[global] Instance sbisim_css_chain_ctx {c : Chain (css L)} :
+      Proper (sbisimeq ==> sbisimeq ==> impl) `c.
+    Proof.
+      apply tower.
+      - intros ? INC x y EQ x' y' EQ' ?? HP; red.
+        eapply INC; eauto.
+        eapply leq_infx in HP.
+        now apply HP.
+      - clear.
+        intros c IH x y EQ x' y' EQ'; split.
+        + intros ?? TR.
+          playR in EQ.
+          play in H.
+          playL in EQ'.
+          __answer_sbisim.
+          eapply IH; eauto.
+          now simpL.
+        + intros (? & ? & TR).
+          playR in EQ'.
+          destruct H as [_ LIV].
+          dec3 LIV as ? ? TR'; eauto.
+          playL in EQ.
+          eauto.
+    Qed.
+
+    #[global] Instance sbisim_cssim_goal :
+      Proper (sbisim Leq ==> sbisim Leq ==> flip impl) (cssim L).
+    Proof.
+      repeat intro; eapply sbisim_css_chain_goal; eauto.
+    Qed.
+
+    #[global] Instance sbisim_cssim_ctx :
+      Proper (sbisim Leq ==> sbisim Leq ==> impl) (cssim L).
+    Proof.
+      repeat intro; eapply sbisim_css_chain_ctx; eauto.
+    Qed.
+
+    Lemma css_sb (R : rel _ _) (t : ctree E C X) (u : ctree F D Y) :
+      css L R t u ->
+      CSSim.css (flipL L) (flip R) u t ->
+      sb L R t u.
+    Proof.
+      split; cbn; intros.
+      - apply H in H1 as (? & ? & ? & ? & ?); eauto.
+      - apply H0 in H1 as (? & ? & ? & ? & ?); eauto.
+    Qed.
+
+  End withParam.
+
+  (* Bisimilarity entails co-similarity. *)
+  Lemma sbisim_cssim {E C X} (t u : ctree E C X) :
+    t ≃ u ->
+    cssim Leq t u /\ cssim Leq u t.
+  Proof.
+    intros SB.
+    split.
+    - coinduction r cih.
+      split.
+      + intros ?? TR.
+        __playL_sbisim SB.
+        __answer_sbisim.
+        now rewrite EQ.
+      + intros (? & ? & TR).
+        __playR_sbisim SB; eauto.
+    - coinduction r cih.
+      split.
+      + intros ?? TR.
+        __playR_sbisim SB.
+        simpL.
+        __answer_sbisim.
+        now rewrite EQ.
+      + intros (? & ? & TR).
+        __playL_sbisim SB; eauto.
+  Qed.
+
+End SBisim_vs_CSSim.
