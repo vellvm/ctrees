@@ -44,6 +44,7 @@ From CTree Require Import
      CTree
      Utils
      Eq.Equ
+     Eq.Shallow
      Eq.Trans
      Eq.Epsilon
      Eq.SSim.
@@ -88,12 +89,15 @@ End StrongBisim.
 Definition sbisim {E F C D X Y} L :=
   (gfp (@sb E F C D X Y L) : hrel _ _).
 
+Definition sbisimT {E F C D X Y} (L : lrel E F X Y) (t : ctree E C X) (u : ctree F D Y) : Prop :=
+  sbisim L (Active t) (Active u).
+
 Module SBisimNotations.
 
   Notation sbisimeq := (sbisim Leq).
-  Infix "≃" := (sbisim Leq) (at level 70).
-  Notation "t (≃ [ Q ] ) u" := (sbisim (Lvrel Q) t u) (at level 79).
-  Notation "t (≃ L ) u" := (sbisim L t u) (at level 79).
+  Infix "≃" := (sbisimT Leq) (at level 70).
+  Notation "t (≃ [ Q ] ) u" := (sbisimT (Lvrel Q) t u) (at level 79).
+  Notation "t (≃ L ) u" := (sbisimT L t u) (at level 79).
 
   Notation "t '[≃]' u" := (sb Leq _ t u) (at level 90, only printing).
   Notation "t '[≃' [ R ] ']' u" := (sb (Lvrel R) _ t u) (at level 90, only printing).
@@ -144,6 +148,7 @@ Ltac fold_sbisim :=
     end.
 
 Tactic Notation "__step_sbisim" :=
+  (try unfold sbisimT);
   match goal with
   | |- context[@sbisim ?E ?F ?C ?D ?X ?Y ?L] =>
       unfold sbisim;
@@ -153,6 +158,7 @@ Tactic Notation "__step_sbisim" :=
 #[local] Tactic Notation "step" := __step_sbisim || __step_ssim || step.
 
 Ltac __step_in_sbisim H :=
+  (try unfold sbisimT in H);
   match type of H with
   | context[@sbisim ?E ?F ?C ?D ?X ?Y ?L] =>
       unfold sbisim in H;
@@ -162,6 +168,7 @@ Ltac __step_in_sbisim H :=
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_sbisim H || step in H.
 
 Tactic Notation "__coinduction_sbisim" simple_intropattern(r) simple_intropattern(cih) :=
+  (try unfold sbisimT);
   first [unfold sbisim at 4 | unfold sbisim at 3 | unfold sbisim at 2 | unfold sbisim at 1]; coinduction r cih.
 #[local] Tactic Notation "coinduction" simple_intropattern(r) simple_intropattern(cih) :=
   __coinduction_sbisim r cih || __coinduction_ssim r cih || coinduction r cih.
@@ -185,12 +192,14 @@ Ltac __playR_sbisim H :=
 Ltac __eplayL_sbisim :=
   match goal with
   | h : @sbisim ?E _ ?C _ ?X _ ?RR _ _ |- _ => __playL_sbisim h
+  | h : @sbisimT ?E _ ?C _ ?X _ ?RR _ _ |- _ => __playL_sbisim h
   | h : body (sb ?L) ?R _ _ |- _ => __playL_sbisim h
   end.
 
 Ltac __eplayR_sbisim :=
   match goal with
   | h : @sbisim ?E _ ?C _ ?X _ ?RR _ _ |- _ => __playR_sbisim h
+  | h : @sbisimT ?E _ ?C _ ?X _ ?RR _ _ |- _ => __playR_sbisim h
   | h : body (sb ?L) ?R _ _ |- _ => __playR_sbisim h
   end.
 
@@ -272,6 +281,14 @@ Section sbisim_homogenous_theory.
   Proof. split; typeclasses eauto. Qed.
 
 End sbisim_homogenous_theory.
+
+#[global] Instance sbisimT_equiv {E C X} : Equivalence (@sbisimT E E C C X X Leq).
+Proof.
+  unfold sbisimT; split; red; intros.
+  - reflexivity.
+  - now symmetry.
+  - etransitivity; eauto.
+Qed.
 
 (*|
 Heterogeneous theory
@@ -471,6 +488,14 @@ Section sbisim_heterogenous_theory.
   Qed.
   
 End sbisim_heterogenous_theory.
+
+#[global] Instance sbisimT_goal {E F C D X Y} {L : lrel E F X Y} :
+  Proper (sbisimT Leq ==> sbisimT Leq ==> iff) (@sbisimT E F C D X Y L).
+Proof.
+  unfold sbisimT; intros t t' Ht u u' Hu; split; intros H.
+  - eapply (@sbisim_chain_goal E F C D X Y L (chain_gfp _)); [symmetry; exact Ht | symmetry; exact Hu | exact H].
+  - eapply (@sbisim_chain_goal E F C D X Y L (chain_gfp _)); [exact Ht | exact Hu | exact H].
+Qed.
 
 (* TODO (?) : generalize
 Lemma equ_sbisim_subrelation_gen {E B X Y} (RR : rel X Y) :
@@ -1291,7 +1316,7 @@ Inversion principles
   
   Lemma sbisim_step_l_inv L (t : ctree E C X) (u : ctree F D Y) :
     (Step t) (≃ L) u ->
-    exists u', trans τ u u' /\ t (≃ L) u'.
+    exists u', trans τ u u' /\ sbisim L t u'.
   Proof.
     intros.
     eplayL. invL.
@@ -1300,7 +1325,7 @@ Inversion principles
 
   Lemma sbisim_step_r_inv L (t : ctree E C X) (u : ctree F D Y) :
     t (≃ L) (Step u) ->
-    exists t', trans τ t t' /\ t' (≃ L) u.
+    exists t', trans τ t t' /\ sbisim L t' u.
   Proof.
     intros.
     eplayR. invL.
@@ -1323,7 +1348,7 @@ Inversion principles
   Lemma sbisim_brS_l_inv L
     {A} (c : C A) (k1 : A -> ctree E C X) (u : ctree F D Y) :
     (BrS c k1) (≃ L) u ->
-    forall a, exists u', trans τ u u' /\ (k1 a) (≃ L) u'.
+    forall a, exists u', trans τ u u' /\ sbisim L (k1 a) u'.
   Proof.
     intros.
     unshelve eplayL; auto; inv_trans; invL; eauto.
@@ -1332,7 +1357,7 @@ Inversion principles
   Lemma sbisim_brS_r_inv L
     {B} (d : D B) (k2 : B -> ctree F D Y) (t : ctree E C X) :
     t (≃ L) (BrS d k2) ->
-    forall b, exists t', trans τ t t' /\ t' (≃ L) (k2 b).
+    forall b, exists t', trans τ t t' /\ sbisim L t' (k2 b).
   Proof.
     intros.
     unshelve eplayR; auto; inv_trans; invL; eauto.
@@ -1684,3 +1709,60 @@ Proof.
   - now rewrite H.
   - rewrite H0. rewrite sbisim_guard. apply IHepsilon_det.
 Qed.
+
+#[global] Instance equ_sbisimT {E C X} :
+  subrelation (equ eq) (@sbisimT E E C C X X Leq).
+Proof. intros t u EQ; apply equ_sbisim_subrelation; now constructor. Qed.
+
+#[global] Instance Active_sbisimT {E C X} :
+  Proper (sbisimT Leq ==> @sbisim E E C C X X Leq) Active.
+Proof. intros t u H; exact H. Qed.
+
+#[global] Instance bind_sbisimT {E C X Y} :
+  Proper (sbisimT Leq ==> pointwise_relation X (sbisimT Leq) ==> sbisimT Leq) (@bind E C X Y).
+Proof. intros t t' Ht k k' Hk; now apply sbisim_bind_eq. Qed.
+
+#[global] Instance GuardF_sbisimT {E C X} :
+  Proper (sbisimT Leq ==> going (sbisimT Leq)) (@GuardF E C X _).
+Proof. intros t u H; constructor; now rewrite !sbisim_guard. Qed.
+
+#[global] Instance StepF_sbisimT {E C X} :
+  Proper (sbisimT Leq ==> going (sbisimT Leq)) (@StepF E C X _).
+Proof. intros t u H; constructor; now apply sbisim_step. Qed.
+
+#[global] Instance BrF_sbisimT {E C X Z} (c : C Z) :
+  Proper (pointwise_relation Z (sbisimT Leq) ==> going (sbisimT Leq)) (@BrF E C X _ Z c).
+Proof. intros k k' H; constructor; now apply sbisim_br_id. Qed.
+
+#[global] Instance VisF_sbisimT {E C X Z} (e : E Z) :
+  Proper (pointwise_relation Z (sbisimT Leq) ==> going (sbisimT Leq)) (@VisF E C X _ Z e).
+Proof. intros k k' H; constructor; apply sbisim_vis_id; [constructor | intros z; split; [apply H | constructor]]. Qed.
+
+#[global] Instance sbisimT_ssimT_goal {E F C D X Y} {L : lrel E F X Y} :
+  Proper (sbisimT Leq ==> sbisimT Leq ==> flip impl) (@ssimT E F C D X Y L).
+Proof. intros t t' Ht u u' Hu H; unfold ssimT in *; now rewrite Ht, Hu. Qed.
+
+Lemma sb_vis_eq {E C X Z} (e : E Z) (k k' : Z -> ctree E C X)
+  {R : Chain (@sb E E C C X X Leq)} :
+  (forall z, ` R (k z) (k' z)) ->
+  sb Leq ` R (Vis e k) (Vis e k').
+Proof. intros; apply sb_vis_id; [constructor | intros z; split; [auto | constructor]]. Qed.
+
+Lemma sbisim_clo_bind_eq {E C X Y} (t : ctree E C X) (k1 k2 : X -> ctree E C Y) :
+  (forall x, k1 x ≃ k2 x) -> t >>= k1 ≃ t >>= k2.
+Proof. intros; apply sbisim_bind_eq; [reflexivity | auto]. Qed.
+
+Lemma sbisim_clo_bind_gen_eq {E C X Y} {R : Chain (@sb E E C C Y Y Leq)}
+  (t : ctree E C X) (k1 k2 : X -> ctree E C Y) :
+  (forall x, ` R (k1 x) (k2 x)) -> ` R (t >>= k1) (t >>= k2).
+Proof. intros; apply bind_chain_eq; [reflexivity | auto]. Qed.
+
+Ltac __upto_bind_sbisim_with R :=
+  first [apply sbisim_bind_gen with (SS := R) | apply bind_chain_gen with (SS := R)].
+Tactic Notation "__upto_bind_sbisim" uconstr(t) := __upto_bind_sbisim_with t.
+
+Ltac __eupto_bind_sbisim :=
+  first [eapply sbisim_bind_gen | eapply bind_chain_gen].
+
+Ltac __upto_bind_sbisim_eq :=
+  first [apply sbisim_clo_bind_eq | apply sbisim_clo_bind_gen_eq].

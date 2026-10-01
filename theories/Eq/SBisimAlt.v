@@ -23,6 +23,9 @@ From CTree Require Import
 From RelationAlgebra Require Export
      rel srel.
 
+From RelationAlgebra Require Import
+     monoid kat kat_tac.
+
 Import CoindNotations.
 Import CTree.
 Set Implicit Arguments.

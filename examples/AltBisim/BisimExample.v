@@ -37,7 +37,7 @@ Abort.
 Theorem bisim_t_u : t ≃ u.
 Proof.
   (* We switch to the alternative characterization of bisimulation. *)
-  rewrite sbisim_sbisim'.
+  unfold sbisimT; rewrite sbisim_sbisim'.
   (* The rest of the proof proceeds as before, but this time it succeeds. *)
   coinduction R CH. intros.
   cbn [TransEquiv.o2n_S]. rewrite unfold_t, unfold_u.

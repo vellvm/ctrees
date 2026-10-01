@@ -44,8 +44,8 @@ Import CTreeNotations.
 Lemma sbisim_vis_visible {E R X}
   (t2 : ctree E void1 R) (e : E X) (k1 : X -> ctree E void1 R)
       (Hin: inhabited X) :
-  Vis e k1 ~ t2 ->
-  exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ~ k2 x).
+  Vis e k1 ≃ t2 ->
+  exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ≃ k2 x).
 Proof.
   unfold trans in *; intros.
   step in H. destruct H as [Hf Hb].
@@ -85,9 +85,9 @@ Qed.
 Lemma sbisim_visible
   {E R X} (t1 t2 : ctree E void1 R) (e : E X)
   (k1 : X -> ctree E void1 R) (Hin: inhabited X) :
-  t1 ~ t2 ->
+  t1 ≃ t2 ->
   visible t1 (Vis e k1) ->
-  exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ~ k2 x).
+  exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ≃ k2 x).
 Proof.
   unfold trans; intros. cbn in *. red in H0. remember (observe t1). remember (observe (Vis e k1)).
   revert X t1 e k1 t2 H Heqc Heqc0 Hin.
@@ -1018,10 +1018,10 @@ Section Vector_brD_bound.
         (Hqp : forall i, q (p i) = i)
         (Hpq' : forall i, p' (q' i) = i)
         (Hqp' : forall i, q' (p' i) = i)
-        (Hsb1 : forall i, v1 i ~ v2 (p i))
-        (Hsb2 : forall i, v2 i ~ v1 (q i)) :
-    (forall j, remove_vec v1 i j ~ remove_vec v2 (p i) (p' j)) /\
-    (forall j, remove_vec v2 (p i) j ~ remove_vec v1 i (q' j)).
+        (Hsb1 : forall i, v1 i ≃ v2 (p i))
+        (Hsb2 : forall i, v2 i ≃ v1 (q i)) :
+    (forall j, remove_vec v1 i j ≃ remove_vec v2 (p i) (p' j)) /\
+    (forall j, remove_vec v2 (p i) j ≃ remove_vec v1 i (q' j)).
   Proof.
     split; intros j.
     {

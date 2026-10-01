@@ -208,13 +208,13 @@ Section State.
   Qed.
 
   Lemma fold_state_trigger_sb (e : E R) (s : S)
-    : fold_state h g (CTree.trigger e) s ~ h e s.
+    : fold_state h g (CTree.trigger e) s ≃ h e s.
   Proof.
     unfold CTree.trigger. rewrite fold_state_vis.
     rewrite <- (bind_ret_r (h e s)) at 2.
     cbn.
     upto_bind_eq; intros [].
-    now rewrite sb_guard, fold_state_ret.
+    now rewrite sbisim_guard, fold_state_ret.
   Qed.
 
   (** Unfolding of [interp]. *)

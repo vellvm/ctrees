@@ -16,7 +16,7 @@ From CTree Require Import
      Eq.TransAlt
      Eq.EpsilonAlt.
 
-From RelationAlgebra Require Export
+From RelationAlgebra Require Import
      monoid kat kat_tac rel srel.
 From Coinduction Require Import all.
 

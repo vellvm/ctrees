@@ -14,6 +14,7 @@ From CTree Require Import
      CTree
      Utils
      Eq.Equ
+     Eq.Shallow
      Eq.Trans
      Eq.Epsilon.
 
@@ -88,12 +89,15 @@ End StrongSim.
 Definition ssim {E F C D X Y} L :=
   (gfp (@ss E F C D X Y L): hrel _ _).
 
+Definition ssimT {E F C D X Y} (L : lrel E F X Y) (t : ctree E C X) (u : ctree F D Y) : Prop :=
+  ssim L (Active t) (Active u).
+
 (* TODO :  TESTER LVREL COERCION *)
 Module SSimNotations.
 
-  Infix "≲" := (ssim Leq) (at level 70).
-  Notation "t (≲ [ Q ] ) u" := (ssim (Lvrel Q) t u) (at level 79).
-  Notation "t (≲ Q ) u" := (ssim Q t u) (at level 79).
+  Infix "≲" := (ssimT Leq) (at level 70).
+  Notation "t (≲ [ Q ] ) u" := (ssimT (Lvrel Q) t u) (at level 79).
+  Notation "t (≲ Q ) u" := (ssimT Q t u) (at level 79).
 
   Notation "t '[≲]' u" := (ss Leq (` _) t u) (at level 90, only printing).
   Notation "t '[≲' [ R ] ']' u" := (ss (Lvrel R) (` _) t u) (at level 90, only printing).
@@ -114,6 +118,7 @@ Import CTreeNotations.
 Import EquNotations.
 
 Tactic Notation "__step_ssim" :=
+  (try unfold ssimT);
   match goal with
   | |- context[@ssim ?E ?F ?C ?D ?X ?Y ?LR] =>
       unfold ssim;
@@ -124,6 +129,7 @@ Tactic Notation "__step_ssim" :=
 #[local] Tactic Notation "step" := __step_ssim || step.
 
 Ltac __step_in_ssim H :=
+  (try unfold ssimT in H);
   match type of H with
   | context[@ssim ?E ?F ?C ?D ?X ?Y ?LR] =>
       unfold ssim in H;
@@ -134,6 +140,7 @@ Ltac __step_in_ssim H :=
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_ssim H || step in H.
 
 Tactic Notation "__coinduction_ssim" simple_intropattern(r) simple_intropattern(cih) :=
+  (try unfold ssimT);
   first [unfold ssim at 4 | unfold ssim at 3 | unfold ssim at 2 | unfold ssim at 1]; coinduction r cih.
 #[local] Tactic Notation "coinduction" simple_intropattern(r) simple_intropattern(cih) := __coinduction_ssim r cih || coinduction r cih.
 
@@ -147,6 +154,7 @@ Ltac __play_ssim_in H :=
 Ltac __eplay_ssim :=
   match goal with
   | h : ssim ?L ?u ?v |- _ => __play_ssim_in h
+  | h : ssimT ?L ?u ?v |- _ => __play_ssim_in h
   | h : body (ss ?L) ?R ?u ?v |- _ => __play_ssim_in h
   end.
 
@@ -1236,3 +1244,40 @@ Section ssim_epsilon.
     Qed.
 
 End ssim_epsilon.
+
+#[global] Instance ssimT_preorder {E C X} : PreOrder (@ssimT E E C C X X Leq).
+Proof.
+  unfold ssimT; split; red; intros.
+  - reflexivity.
+  - etransitivity; eauto.
+Qed.
+
+#[global] Instance Active_ssimT {E C X} :
+  Proper (ssimT Leq ==> @ssim E E C C X X Leq) Active.
+Proof. intros t u H; exact H. Qed.
+
+#[global] Instance bind_ssimT {E C X Y} :
+  Proper (ssimT Leq ==> pointwise_relation X (ssimT Leq) ==> ssimT Leq) (@bind E C X Y).
+Proof. intros t t' Ht k k' Hk; now apply ssim_bind_eq. Qed.
+
+#[global] Instance GuardF_ssimT {E C X} :
+  Proper (ssimT Leq ==> going (ssimT Leq)) (@GuardF E C X _).
+Proof. intros t u H; constructor; now apply ssim_guard. Qed.
+
+#[global] Instance StepF_ssimT {E C X} :
+  Proper (ssimT Leq ==> going (ssimT Leq)) (@StepF E C X _).
+Proof. intros t u H; constructor; now apply ssim_step. Qed.
+
+#[global] Instance BrF_ssimT {E C X Z} (c : C Z) :
+  Proper (pointwise_relation Z (ssimT Leq) ==> going (ssimT Leq)) (@BrF E C X _ Z c).
+Proof. intros k k' H; constructor; now apply ssim_br_id. Qed.
+
+#[global] Instance VisF_ssimT {E C X Z} (e : E Z) :
+  Proper (pointwise_relation Z (ssimT Leq) ==> going (ssimT Leq)) (@VisF E C X _ Z e).
+Proof. intros k k' H; constructor; apply ssim_vis_id; [constructor | intros z; split; [apply H | constructor]]. Qed.
+
+Lemma ss_vis_eq {E C X Z} (e : E Z) (k k' : Z -> ctree E C X)
+  {R : Chain (@ss E E C C X X Leq)} :
+  (forall z, ` R (k z) (k' z)) ->
+  ss Leq ` R (Vis e k) (Vis e k').
+Proof. intros; apply ss_vis_id; [constructor | intros z; split; [auto | constructor]]. Qed.

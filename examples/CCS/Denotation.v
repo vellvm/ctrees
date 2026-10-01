@@ -1063,25 +1063,25 @@ Qed.
 
 Section Theory.
 
-  Lemma plsC: forall (p q : ccs), p+q ~ q+p.
+  Lemma plsC: forall (p q : ccs), p+q ≃ q+p.
   Proof.
     apply br2_commut.
   Qed.
 
-  Lemma plsA (p q r : ccs): p+(q+r) ~ (p+q)+r.
+  Lemma plsA (p q r : ccs): p+(q+r) ≃ (p+q)+r.
   Proof.
     symmetry; apply br2_assoc.
   Qed.
 
-  Lemma pls0p (p : ccs) : 0 + p ~ p.
+  Lemma pls0p (p : ccs) : 0 + p ≃ p.
   Proof.
     apply br2_stuck_l.
   Qed.
 
-  Lemma plsp0 (p : ccs) : p + 0 ~ p.
+  Lemma plsp0 (p : ccs) : p + 0 ≃ p.
   Proof. now rewrite plsC, pls0p. Qed.
 
-  Lemma plsidem (p : ccs) : p + p ~ p.
+  Lemma plsidem (p : ccs) : p + p ≃ p.
   Proof.
     apply br2_idem.
   Qed.
@@ -1093,7 +1093,7 @@ Section Theory.
     all:rewrite eqb_sym; auto.
   Qed.
 
-  Lemma paraC: forall (p q : ccs), p ∥ q ~ q ∥ p.
+  Lemma paraC: forall (p q : ccs), p ∥ q ≃ q ∥ p.
   Proof.
     coinduction r CIH; symmetric.
     intros p q ? ? tr.
@@ -1113,7 +1113,7 @@ Section Theory.
       reflexivity.
   Qed.
 
-  Lemma para0p : forall (p : ccs), 0 ∥ p ~ p.
+  Lemma para0p : forall (p : ccs), 0 ∥ p ≃ p.
   Proof.
     coinduction R CIH.
     intros.
@@ -1130,12 +1130,12 @@ Section Theory.
       cbn; auto.
   Qed.
 
-  Lemma parap0 : forall (p : ccs), p ∥ 0 ~ p.
+  Lemma parap0 : forall (p : ccs), p ∥ 0 ≃ p.
   Proof.
     intros; rewrite paraC; apply para0p.
   Qed.
 
-  Lemma paraA : forall (p q r : ccs), p ∥ (q ∥ r) ~ (p ∥ q) ∥ r.
+  Lemma paraA : forall (p q r : ccs), p ∥ (q ∥ r) ≃ (p ∥ q) ∥ r.
   Proof.
     coinduction r CIH; intros.
     split.
@@ -1194,7 +1194,7 @@ Section Theory.
 End Theory.
 
 Lemma para_parabang : forall p q r,
-    parabang (p ∥ q) r ~ p ∥ parabang q r.
+    parabang (p ∥ q) r ≃ p ∥ parabang q r.
 Proof.
   coinduction R CIH.
   intros; split.
@@ -1310,7 +1310,7 @@ Proof.
 Qed.
 
 Lemma parabang_aux : forall p q,
-    parabang (p ∥ q) q ~ parabang p q.
+    parabang (p ∥ q) q ≃ parabang p q.
 Proof.
   coinduction R CIH.
   split.
@@ -1381,7 +1381,7 @@ Proof.
 Qed.
 
 Lemma parabang_eq : forall p q,
-    parabang p q ~ p ∥ !q.
+    parabang p q ≃ p ∥ !q.
 Proof.
   coinduction R CIH.
   intros p q; split.
@@ -1451,7 +1451,7 @@ Proof.
 Qed.
 
 Lemma unfold_bang' : forall p,
-    !p ~ !p ∥ p.
+    !p ≃ !p ∥ p.
 Proof.
   intros; unfold bang at 1.
   rewrite parabang_eq. rewrite paraC; reflexivity.

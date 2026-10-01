@@ -197,12 +197,12 @@ Section Denote1.
   Qed.
 
   Lemma schedule_order (t1 t1' t2 t2' : ctree E void1 unit)
-    (Ht1 : t1 ~ t1')
-    (Ht2 : t2 ~ t2') :
+    (Ht1 : t1 ≃ t1')
+    (Ht2 : t2 ≃ t2') :
     BrS (branchn 2) (fun i' : fin 2 =>
                  schedule 2
                           (cons_vec t1 (fun _ => t2))
-                          (Some i')) ~
+                          (Some i')) ≃
     BrS (branchn 2) (fun i' : fin 2 =>
                  schedule 2
                           (cons_vec t2' (fun _ => t1'))
@@ -219,12 +219,12 @@ Section Denote1.
   Qed.
 
   Lemma schedule_order' (t1 t1' t2 t2' : ctree E void1 unit)
-    (Ht1 : t1 ~ t1')
-    (Ht2 : t2 ~ t2') :
+    (Ht1 : t1 ≃ t1')
+    (Ht2 : t2 ≃ t2') :
     Br (branchn 2) (fun i' : fin 2 =>
                  schedule 2
                           (cons_vec t1 (fun _ => t2))
-                          (Some i')) ~
+                          (Some i')) ≃
     Br (branchn 2) (fun i' : fin 2 =>
                  schedule 2
                           (cons_vec t2' (fun _ => t1'))
@@ -241,9 +241,9 @@ Section Denote1.
   Qed.
 
   Lemma schedule_order'' (t1 t1' t2 t2' : ctree E void1 unit)
-    (Ht1 : t1 ~ t1')
-        (Ht2 : t2 ~ t2') :
-    schedule 2 (cons_vec t1 (fun _ => t2)) None ~
+    (Ht1 : t1 ≃ t1')
+        (Ht2 : t2 ≃ t2') :
+    schedule 2 (cons_vec t1 (fun _ => t2)) None ≃
     schedule 2 (cons_vec t2' (fun _ => t1')) None.
   Proof.
     do 2 rewrite rewrite_schedule. simp schedule_match.
@@ -251,7 +251,7 @@ Section Denote1.
   Qed.
 
   Lemma commut_forks s1 s2 :
-    interp_concurrency (Fork s1 (Fork s2 Skip)) ~
+    interp_concurrency (Fork s1 (Fork s2 Skip)) ≃
     interp_concurrency (Fork s2 (Fork s1 Skip)).
   Proof.
     unfold interp_concurrency.
@@ -325,7 +325,7 @@ Section Denote1.
   Qed.
 
   Lemma br1_guard {F X} (t : ctree F Bn X) :
-    br1 t ~ Guard t.
+    br1 t ≃ Guard t.
   Proof.
     step; split; intros ?? TR; inv_trans.
     - exists l, t'; split; [| split]; etrans.
@@ -336,7 +336,7 @@ Section Denote1.
 
   (* first one has one more yield *)
   Lemma yield_yield_fork s :
-    interp_yield (interp_spawn (interp_concurrency (Seq YieldS (Seq YieldS s)))) ~
+    interp_yield (interp_spawn (interp_concurrency (Seq YieldS (Seq YieldS s)))) ≃
     interp_yield (interp_spawn (interp_concurrency (Fork s Skip))).
   Proof.
     rewrite yield_equ, fork_skip_equ.
@@ -355,7 +355,7 @@ Section Denote1.
   Qed.
 
   Lemma fork_skip_yield s :
-    interp_spawn (interp_concurrency (Seq YieldS s)) ~
+    interp_spawn (interp_concurrency (Seq YieldS s)) ≃
     interp_spawn (interp_concurrency (Fork s Skip)).
   Proof.
     rewrite yield_equ, fork_skip_equ.
@@ -366,7 +366,7 @@ Section Denote1.
   Qed.
 
   Lemma spawn_skip s :
-    interp_yield (interp_spawn (interp_concurrency (Fork s Skip))) ~
+    interp_yield (interp_spawn (interp_concurrency (Fork s Skip))) ≃
     interp_yield (interp_spawn (interp_concurrency s)).
   Proof.
     rewrite fork_skip_equ.
@@ -378,7 +378,7 @@ Section Denote1.
   Qed.
 
   Lemma while_true_unfold_sbisim s1 :
-    denote_imp (While (Lit 1%nat) s1) ~ denote_imp s1;; denote_imp (While (Lit 1%nat) s1).
+    denote_imp (While (Lit 1%nat) s1) ≃ denote_imp s1;; denote_imp (While (Lit 1%nat) s1).
   Proof.
     cbn. unfold while. rewrite unfold_iter at 1.
     rewrite bind_ret_l. unfold is_true.
@@ -389,7 +389,7 @@ Section Denote1.
   Qed.
 
   Lemma commut_forks_unfold s :
-    interp_concurrency (Fork (While (Lit 1%nat) YieldS) (Fork s Skip)) ~
+    interp_concurrency (Fork (While (Lit 1%nat) YieldS) (Fork s Skip)) ≃
     interp_concurrency (Fork s (Fork (Seq YieldS (While (Lit 1%nat) YieldS)) Skip)).
   Proof.
     unfold interp_concurrency.
@@ -473,7 +473,7 @@ Section Denote1.
 
   Lemma interp_fork_assign_assign s :
     interp_imp (Fork (Assign "x" (Lit 2))
-                             (Assign "x" (Lit 1%nat))) s ~
+                             (Assign "x" (Lit 1%nat))) s ≃
     interp_imp (Assign "x" (Lit 2)) s.
   Proof.
     unfold interp_imp.

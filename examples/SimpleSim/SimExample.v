@@ -43,27 +43,27 @@ Theorem sim_t_u : t ≲ u.
 Proof.
   coinduction R CH.
   rewrite unfold_t, unfold_u.
-  apply step_ss_br_r with (x := true).
-  apply step_ss_vis_id. intros []. split; auto.
+  apply ss_br_r with (x := true).
+  apply ss_vis_eq. intros [].
   rewrite unfold_u.
-  step. apply step_ss_br_r with (x := false).
-  apply step_ss_vis_id. intros []. split; [| auto].
+  step. apply ss_br_r with (x := false).
+  apply ss_vis_eq. intros [].
   apply CH.
 Qed.
 
-Theorem bisim_u_u' : u ~ u'.
+Theorem bisim_u_u' : u ≃ u'.
 Proof.
   coinduction R CH.
   rewrite unfold_u, unfold_u'.
   unfold br2. rewrite bind_br.
-  apply step_sb_br_id. intros.
+  apply sb_br_id. intros.
   destruct x.
   - rewrite bind_trigger.
-    apply step_sb_vis_id. intros []. split; [| auto].
-    rewrite sb_guard.
+    apply sb_vis_eq. intros [].
+    rewrite sbisim_guard.
     apply CH.
   - rewrite bind_trigger.
-    apply step_sb_vis_id. intros []. split; [| auto].
-    rewrite sb_guard.
+    apply sb_vis_eq. intros [].
+    rewrite sbisim_guard.
     apply CH.
 Qed.

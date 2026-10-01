@@ -682,9 +682,9 @@ Section parallel.
   Lemma schedule_permutation n (v1 v2 : vec n) i (p q : fin n -> fin n)
         (Hpq : forall i, p (q i) = i)
         (Hqp : forall i, q (p i) = i)
-        (Hsb1 : forall i, v1 i ~ v2 (p i))
-        (Hsb2 : forall i, v2 i ~ v1 (q i)) :
-    schedule n v1 (Some i) ~ schedule n v2 (Some (p i)).
+        (Hsb1 : forall i, v1 i ≃ v2 (p i))
+        (Hsb2 : forall i, v2 i ≃ v1 (q i)) :
+    schedule n v1 (Some i) ≃ schedule n v2 (Some (p i)).
   Proof.
     revert n v1 v2 i p q Hpq Hqp Hsb1 Hsb2.
     coinduction r CIH.
@@ -882,8 +882,8 @@ Section parallel.
   Definition perm_id {n} : fin n -> fin n := fun i => i.
 
   Lemma sbisim_schedule n (v1 v2 : vec n) i
-        (Hsb : forall i, v1 i ~ v2 i) :
-    schedule n v1 (Some i) ~ schedule n v2 (Some i).
+        (Hsb : forall i, v1 i ≃ v2 i) :
+    schedule n v1 (Some i) ≃ schedule n v2 (Some i).
   Proof.
     replace i with (perm_id i) at 2; auto.
     eapply schedule_permutation; auto. symmetry. auto.

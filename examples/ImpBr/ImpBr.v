@@ -137,41 +137,41 @@ Section Theory.
   at the level of uninterpreted ctrees.
 |*)
   Lemma branch_commut : forall (a b : stmt),
-      ⟦Branch a b⟧ ~ ⟦Branch b a⟧.
+      ⟦Branch a b⟧ ≃ ⟦Branch b a⟧.
   Proof.
     intros; apply br2_commut.
   Qed.
 
   Lemma branch_assoc : forall (a b c : stmt),
-      ⟦Branch a (Branch b c)⟧ ~ ⟦Branch (Branch a b) c⟧.
+      ⟦Branch a (Branch b c)⟧ ≃ ⟦Branch (Branch a b) c⟧.
   Proof.
     intros; cbn.
     now rewrite br2_assoc.
   Qed.
 
   Lemma branch_idem : forall a : stmt,
-      ⟦Branch a a⟧ ~ ⟦a⟧.
+      ⟦Branch a a⟧ ≃ ⟦a⟧.
   Proof.
     intros; apply br2_idem.
   Qed.
 
   Lemma branch_congr : forall a a' b b',
-      ⟦a⟧ ~ ⟦a'⟧ ->
-      ⟦b⟧ ~ ⟦b'⟧ ->
-      ⟦Branch a b⟧ ~ ⟦Branch a' b'⟧.
+      ⟦a⟧ ≃ ⟦a'⟧ ->
+      ⟦b⟧ ≃ ⟦b'⟧ ->
+      ⟦Branch a b⟧ ≃ ⟦Branch a' b'⟧.
   Proof.
-    intros. cbn. apply sb_br_id.
+    intros. cbn. apply sbisim_br_id.
     intro; destruct x; rewrite ?H, ?H0; reflexivity.
   Qed.
 
   Lemma branch_block_l : forall a : stmt,
-      ⟦Branch Block a⟧ ~ ⟦a⟧.
+      ⟦Branch Block a⟧ ≃ ⟦a⟧.
   Proof.
     intros; apply br2_stuck_l.
   Qed.
 
   Lemma branch_block_r : forall a : stmt,
-      ⟦Branch a Block⟧ ~ ⟦a⟧.
+      ⟦Branch a Block⟧ ≃ ⟦a⟧.
   Proof.
     intros; apply br2_stuck_r.
   Qed.
@@ -189,7 +189,7 @@ Section Theory.
   Qed.
 
   Lemma branch_block_r_interp : forall (a : stmt) s,
-    ℑ (Branch a Block) s ~
+    ℑ (Branch a Block) s ≃
     ℑ a s.
   Proof.
     intros.
@@ -222,7 +222,7 @@ from Section 2 are indeed equivalent.
            (Seq
               (Assign "x" (Lit 0))
               (Assign "x" (Lit 1)))
-           Block) s ~
+           Block) s ≃
         ℑ (Assign "x" (Lit 1)) s.
   Proof with (unfold interp_imp).
     intros...

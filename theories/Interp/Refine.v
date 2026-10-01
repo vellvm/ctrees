@@ -9,6 +9,8 @@ From CTree Require Import
      Eq
      Eq.Epsilon
      Eq.SSimAlt
+     Eq.OldAltEquiv.TransEquiv
+     Eq.OldAltEquiv.SSimEquiv
      Interp.Fold
      Interp.FoldCTree
      Interp.FoldStateT
@@ -18,14 +20,14 @@ Import ITree.Basics.Basics.Monads.
 Import MonadNotation.
 Open Scope monad_scope.
 
-Theorem ssim_pure {E F B C X} : forall (L : rel _ _) (t : ctree E B X),
+Theorem ssim_pure {E F B C X} : forall (L : lrel E F X unit) (t : ctree E B X),
   pure_finite t ->
   (forall x : X, L (val x) (val tt)) ->
   ssim L t (Ret tt : ctree F C unit).
 Proof.
   intros. induction H; subs.
-  - now apply ssim_ret.
-  - now apply Stuck_ssim.
+  - apply ssim_ret. now apply build_rel_val.
+  - now apply ssim_stuck.
   - now apply ssim_br_l.
   - now apply ssim_guard_l.
 Qed.
@@ -37,7 +39,7 @@ Theorem refine_ctree_ssim {E B B' X} :
   (forall X c, pure_finite (h X c)) ->
   refine h t ≲ t.
 Proof.
-  intros. rewrite ssim_ssim'. red. revert t. coinduction R CH. intros.
+  intros. unfold ssimT. rewrite ssim_ssim'. red. revert t. coinduction R CH. intros.
   rewrite (ctree_eta t) at 2.
   setoid_rewrite unfold_refine. cbn.
   destruct (observe t) eqn:?.
@@ -66,7 +68,7 @@ Theorem refine_state_ssim {E B B' X St} :
   (forall X c s, pure_finite (h X c s)) ->
   forall s, refine h t s (≲@Lrr St E X) t.
 Proof.
-  intros. rewrite ssim_ssim'. red. revert t s. coinduction R CH. intros.
+  intros. unfold ssimT. rewrite ssim_ssim'. red. revert t s. coinduction R CH. intros.
   rewrite (ctree_eta t) at 2.
   setoid_rewrite unfold_refine_state. cbn.
   destruct (observe t) eqn:?.

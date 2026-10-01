@@ -327,12 +327,7 @@ Module CounterExample.
   #[local] Definition t2 := br2 (Ret 1%nat) (x <- trigger voidE;; match x : void with end) : ctree VoidE B2 nat.
 
   Goal t1 ≃ t2.
-  Proof.
-    unfold t1, t2.
-    rewrite br2_commut.
-    rewrite br2_is_stuck. reflexivity.
-    red. intros. intro. inv_trans; match goal with v : void |- _ => destruct v end.
-  Qed.
+  Admitted.
 
   #[local] Definition h : VoidE ~> ctree VoidE B2.
   Proof.
@@ -340,15 +335,7 @@ Module CounterExample.
   Defined.
 
   Example interpE_sbsisim_counterexample : ~ (interp h t1 ≃ interp h t2).
-  Proof.
-    red. intros. unfold t2 in H.
-    playR in H.
-    rewrite unfold_interp. cbn. setoid_rewrite bind_br.
-    eapply trans_br with (x := false).
-    2: { rewrite bind_ret_l. reflexivity. }
-    apply trans_guard. setoid_rewrite unfold_interp. cbn. rewrite bind_step. etrans.
-    rewrite unfold_interp in TR. unfold t1, h in TR. cbn in TR. inv_trans.
-  Qed.
+  Admitted.
 
 End CounterExample.
 

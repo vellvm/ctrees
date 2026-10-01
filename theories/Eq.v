@@ -57,10 +57,10 @@ Ltac __concl_is t :=
     [ __concl_is ltac:(lazymatch goal with |- equ _ _ _ => idtac end);
       first [ __coinduction_equ R H
             | fail 2 "coinduction: the conclusion is an equ goal, but coinduction on equ failed" ]
-    | __concl_is ltac:(lazymatch goal with |- sbisim _ _ _ => idtac end);
+    | __concl_is ltac:(lazymatch goal with |- sbisim _ _ _ => idtac | |- sbisimT _ _ _ => idtac end);
       first [ __coinduction_sbisim R H
             | fail 2 "coinduction: the conclusion is an sbisim goal, but coinduction on sbisim failed" ]
-    | __concl_is ltac:(lazymatch goal with |- ssim _ _ _ => idtac end);
+    | __concl_is ltac:(lazymatch goal with |- ssim _ _ _ => idtac | |- ssimT _ _ _ => idtac end);
       first [ __coinduction_ssim R H
             | fail 2 "coinduction: the conclusion is an ssim goal, but coinduction on ssim failed" ]
     | __concl_is ltac:(lazymatch goal with |- cssim _ _ _ => idtac end);
@@ -116,16 +116,16 @@ The upto [Vis] context principle for [sbisim]
 (* |*) *)
 
 #[global] Tactic Notation "upto_bind" :=
-  first [ __eupto_bind_equ | __eupto_bind_sbisim'
-        | fail "upto_bind: the goal is not an equ or sbisim' goal (or chain element of one) relating two binds" ].
+  first [ __eupto_bind_equ | __eupto_bind_sbisim | __eupto_bind_sbisim'
+        | fail "upto_bind: the goal is not an equ, sbisim or sbisim' goal (or chain element of one) relating two binds" ].
 
 #[global] Tactic Notation "upto_bind_eq" :=
-  first [ __upto_bind_equ_eq | __upto_bind_sbisim'_eq
-        | fail "upto_bind_eq: the goal is not an equ or sbisim' goal (or chain element of one) relating two binds with the same prefix" ].
+  first [ __upto_bind_equ_eq | __upto_bind_sbisim_eq | __upto_bind_sbisim'_eq
+        | fail "upto_bind_eq: the goal is not an equ, sbisim or sbisim' goal (or chain element of one) relating two binds with the same prefix" ].
 
 #[global] Tactic Notation "upto_bind" "with" uconstr(SS) :=
-  first [ __upto_bind_equ SS | __upto_bind_sbisim' SS
-        | fail "upto_bind with: the goal is not an equ or sbisim' goal (or chain element of one) relating two binds" ].
+  first [ __upto_bind_equ SS | __upto_bind_sbisim SS | __upto_bind_sbisim' SS
+        | fail "upto_bind with: the goal is not an equ, sbisim or sbisim' goal (or chain element of one) relating two binds" ].
 
 
 (*|

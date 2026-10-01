@@ -103,7 +103,7 @@ Proof.
     exists R; split; auto.
 Qed.
 
-Definition bisim_model := fun P (q: ccs) => ⟦P⟧ ~ q.
+Definition bisim_model := fun P (q: ccs) => ⟦P⟧ ≃ q.
 
 Lemma complete : forward bisim_model.
 Proof.
@@ -321,7 +321,7 @@ Lemma cross_model_compose : forall T t u U,
     bisimilar t T ->
     Operational.bisim t u ->
     bisimilar u U ->
-    T ~ U.
+    T ≃ U.
 Proof.
   coinduction r cih.
   intros * EQtT EQtu EQuU.
@@ -343,7 +343,7 @@ Qed.
 
 Lemma cross_model_compose' : forall T t u U,
     bisimilar t T ->
-    T ~ U ->
+    T ≃ U ->
     bisimilar u U ->
     Operational.bisim t u.
 Proof.
@@ -373,7 +373,7 @@ Proof.
   red; intros; edestruct F; eauto.
 Qed.
 
-Lemma embed_sound : forall t u, Operational.bisim t u -> ⟦t⟧ ~ ⟦u⟧.
+Lemma embed_sound : forall t u, Operational.bisim t u -> ⟦t⟧ ≃ ⟦u⟧.
 Proof.
   intros * BIS.
   apply (gfp_fp b t u) in BIS; destruct BIS as [F B]; cbn in *.
@@ -402,7 +402,7 @@ Proof.
     eapply cross_model_compose; eauto.
 Qed.
 
-Lemma embed_complete : forall t u, ⟦t⟧ ~ ⟦u⟧ -> Operational.bisim t u.
+Lemma embed_complete : forall t u, ⟦t⟧ ≃ ⟦u⟧ -> Operational.bisim t u.
 Proof.
   intros * BIS.
   step in BIS; destruct BIS as [F B]; cbn in *.
@@ -431,7 +431,7 @@ Proof.
     eapply cross_model_compose'; eauto.
 Qed.
 
-Theorem equiv_bisims : forall t u, ⟦t⟧ ~ ⟦u⟧ <-> Operational.bisim t u.
+Theorem equiv_bisims : forall t u, ⟦t⟧ ≃ ⟦u⟧ <-> Operational.bisim t u.
 Proof.
   intros; split; eauto using embed_complete, embed_sound.
 Qed.
