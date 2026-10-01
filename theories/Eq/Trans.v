@@ -45,7 +45,7 @@ From ITree Require Import
      Indexed.Sum.
 
 From CTree Require Import
-     CTree Eq.Shallow Eq.Equ.
+     CTree Eq.Equ.
 
 From RelationAlgebra Require Import
      monoid

@@ -14,7 +14,6 @@ From CTree Require Import
      CTree
      Utils
      Eq.Equ
-     Eq.Shallow
      Eq.Trans
      Eq.SSim
      Eq.SBisim.

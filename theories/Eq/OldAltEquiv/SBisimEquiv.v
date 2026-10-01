@@ -11,7 +11,7 @@ From CTree Require Import
 
 From CTree Require Eq.Trans Eq.SSim Eq.SBisim.
 
-From CTree Require Import Eq.TransAlt Eq.EpsilonAlt Eq.SSimAlt Eq.SBisimAlt Eq.OldAltEquiv.TransEquiv Eq.OldAltEquiv.EpsilonEquiv Eq.OldAltEquiv.SSimEquiv.
+From CTree Require Import Eq.TransAlt Eq.EpsilonAlt Eq.SSimAlt Eq.SBisimAlt Eq.OldAltEquiv.TransEquiv Eq.OldAltEquiv.EpsilonEquiv.
 
 From RelationAlgebra Require Import
      monoid kat kat_tac prop rel srel comparisons rewriting normalisation.
@@ -118,14 +118,6 @@ Proof.
         eapply o_ss_guard_step; eauto.
 Qed.
 
-Lemma gfp_sb'_true_ss_sbisim {E F C D X Y} (L : Trans.lrel E F X Y) :
-  forall (a : Trans.S E C X) (b : Trans.S F D Y),
-  SSim.ss L (SBisim.sbisim L) a b ->
-  gfp (@sb' E F C D) true X Y (lift_L L) (o2n_S a) (o2n_S b).
-Proof.
-  intros a b; apply (gfp_sb'_ss_sbisim L a b).
-Qed.
-
 Theorem sbisim_sbisim' {E F C D X Y} (L : Trans.lrel E F X Y) :
   forall (a : Trans.S E C X) (b : Trans.S F D Y),
     SBisim.sbisim L a b <-> sbisim' (lift_L L) (o2n_S a) (o2n_S b).
@@ -181,43 +173,6 @@ Corollary sbisim_gfp_sb' {E F C D X Y} (L : Trans.lrel E F X Y) :
     gfp (@sb' E F C D) side X Y (lift_L L) (o2n_S a) (o2n_S b).
 Proof.
   intros. apply sbisim_sbisim' in H. apply H.
-Qed.
-
-Theorem ss_sbisim_gfp_sb' {E F C D X Y} (L : Trans.lrel E F X Y) :
-  forall (a : Trans.S E C X) (b : Trans.S F D Y),
-  (gfp (@sb' E F C D) true X Y (lift_L L) (o2n_S a) (o2n_S b) ->
-     SSim.ss L (SBisim.sbisim L) a b) /\
-  (gfp (@sb' E F C D) false X Y (lift_L L) (o2n_S a) (o2n_S b) ->
-     SSim.ss (Trans.flipL L) (flip (SBisim.sbisim L)) b a).
-Proof.
-  intros a b; split; intro H.
-  - intros lo x oTR.
-    apply transR_o2n in oTR; destruct oTR as [m STAR STEP].
-    eapply sbisim'_epsilon_l in H; [| exact STAR].
-    apply (gfp_pfp (@sb' E F C D)) in H.
-    destruct H as [H _]; specialize (H eq_refl); destruct H as [HA _].
-    assert (Hne : o2n_label lo <> ε) by (destruct lo; cbn [o2n_label]; easy).
-    destruct (HA _ _ Hne STEP) as (l' & u' & RESP & Hall & HL).
-    apply lift_L_o2n_inv in HL as (la & lb & Hla & Hlb & HLab).
-    apply o2n_label_inj in Hla; subst la; subst l'.
-    exists lb, (n2o_S u'); ssplit.
-    + rewrite <- (n2o_o2n_S b). apply transR_n2o; exact RESP.
-    + apply sbisim_sbisim'. rewrite o2n_n2o_S. exact Hall.
-    + exact HLab.
-  - intros lo x oTR.
-    apply transR_o2n in oTR; destruct oTR as [m STAR STEP].
-    eapply sbisim'_epsilon_r in H; [| exact STAR].
-    apply (gfp_pfp (@sb' E F C D)) in H.
-    destruct H as [_ H]; specialize (H eq_refl); destruct H as [HA _].
-    assert (Hne : o2n_label lo <> ε) by (destruct lo; cbn [o2n_label]; easy).
-    destruct (HA _ _ Hne STEP) as (l' & t'' & RESP & Hall & HL).
-    apply flipL_flip in HL.
-    apply lift_L_o2n_inv in HL as (la & lb & Hla & Hlb & HLab).
-    apply o2n_label_inj in Hlb; subst lb; subst l'.
-    exists la, (n2o_S t''); ssplit.
-    + rewrite <- (n2o_o2n_S a). apply transR_n2o; exact RESP.
-    + unfold flip. apply sbisim_sbisim'. rewrite o2n_n2o_S. exact Hall.
-    + apply Trans.flipL_flip; exact HLab.
 Qed.
 
 Lemma sb'_clo_bind_lift_eq {E B X X'} {R : Chain (@sb' E E B B)} side

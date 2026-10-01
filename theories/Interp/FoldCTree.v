@@ -227,10 +227,10 @@ Section FoldCTree.
     Proof. now rewrite unfold_refine. Qed.
 
     Lemma refine_trigger `{E -< F} (e: E X) :
-        refine g (trigger e : ctree E C X) ~ (trigger e : ctree F D X).
+        refine g (trigger e : ctree E C X) ≃ (trigger e : ctree F D X).
     Proof.
       rewrite unfold_refine; cbn.
-      setoid_rewrite sb_guard.
+      setoid_rewrite sbisim_guard.
       setoid_rewrite refine_ret.
       now rewrite bind_ret_r.
     Qed.
@@ -326,7 +326,7 @@ Module CounterExample.
   #[local] Definition t1 := Ret 1 : ctree VoidE B2 nat.
   #[local] Definition t2 := br2 (Ret 1) (x <- trigger voidE;; match x : void with end) : ctree VoidE B2 nat.
 
-  Goal t1 ~ t2.
+  Goal t1 ≃ t2.
   Proof.
     unfold t1, t2.
     rewrite br2_commut.
@@ -339,7 +339,7 @@ Module CounterExample.
     intros. destruct X. exact (Step Stuck).
   Defined.
 
-  Example interpE_sbsisim_counterexample : ~ (interp h t1 ~ interp h t2).
+  Example interpE_sbsisim_counterexample : ~ (interp h t1 ≃ interp h t2).
   Proof.
     red. intros. unfold t2 in H.
     playR in H.

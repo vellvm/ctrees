@@ -39,8 +39,6 @@ The [step], [step in] and [coinduction] tactics from [coinduction]
 |*)
 
 From CTree.Eq Require Import
-     TransAlt
-     EpsilonAlt
      SSimAlt
      SBisimAlt.
 

@@ -132,17 +132,3 @@ Proof.
   - apply ssim'_to_o_ssim. apply H.
 Qed.
 
-Lemma ss'_clo_bind_eq {E B X X'}
-  (t t' : ctree E B X) (k k' : X -> ctree E B X') :
-  SSim.ssim (@Trans.Leq E X) (Trans.Active t) (Trans.Active t') ->
-  (forall x, SSimAlt.ssim' (lift_L (@Trans.Leq E X'))
-               (TransAlt.Active (k x)) (TransAlt.Active (k' x))) ->
-  SSimAlt.ssim' (lift_L (@Trans.Leq E X'))
-    (TransAlt.Active (x <- t;; k x)) (TransAlt.Active (x <- t';; k' x)).
-Proof.
-  intros tt kk.
-  apply ssim_ssim' in tt.
-  eapply SSimAlt.ssim'_clo_bind with (SS := @eq X).
-  - exact tt.
-  - intros x x' ->; apply kk.
-Qed.

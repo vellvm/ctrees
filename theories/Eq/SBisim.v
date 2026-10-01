@@ -44,7 +44,6 @@ From CTree Require Import
      CTree
      Utils
      Eq.Equ
-     Eq.Shallow
      Eq.Trans
      Eq.Epsilon
      Eq.SSim.

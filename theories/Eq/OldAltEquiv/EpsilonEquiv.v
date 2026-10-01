@@ -7,7 +7,7 @@ From ITree Require Import
      Indexed.Sum.
 
 From CTree Require Import
-     CTree Eq Eq.Equ.
+     CTree Eq.Equ.
 
 From CTree Require Eq.Trans.
 
