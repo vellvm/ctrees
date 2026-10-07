@@ -418,38 +418,56 @@ Proof.
   etrans.
 Qed.
 
-Lemma trans_obs_interp_step {E F B X Y}
+Lemma trans_ask_interp {E F B X Y}
   (h : E ~> ctree F B) :
-  forall (t u : ctree E B X) u' (e : E Y) x l,
-  trans (obs e x) t u ->
-  trans l (h _ e) u' ->
-  ~ is_val l ->
-  epsilon_det u' (Ret x) ->
-  trans l (interp h t) (u';; Guard (interp h u)).
+  forall (t : ctree E B X) (k : Y -> ctree E B X) (e : E Y),
+  trans (ask e) t (β e k) ->
+  epsilon (interp h t) (x <- h _ e;; Guard (interp h (k x))).
 Proof.
-  intros.
-  apply trans_obs_epsilon in H as (? & ? & ?).
-  setoid_rewrite H3. clear H3.
-  apply epsilon_interp with (h := h) in H.
-  rewrite interp_vis in H.
-  eapply epsilon_trans. apply H.
-  epose proof (epsilon_det_bind_ret_l_equ u' (fun x => Guard (interp h (x0 x))) x H2).
-  rewrite <- H3; auto.
-  apply trans_bind_l; auto.
-Qed.
-
-Lemma trans_obs_interp_pure {E F B X Y}
-  (h : E ~> ctree F B) :
-  forall (t u : ctree E B X) (e : E Y) x,
-  trans (obs e x) t u ->
-  trans (val x) (h _ e) Stuck ->
-  epsilon (interp h t) (Guard (interp h u)).
-Proof.
-  intros t u e x TR TRh.
-  apply trans_obs_epsilon in TR as (k & EPS & ?). subs.
+  intros t k e TR.
+  apply trans_ask_epsilon in TR as (k' & EPS & EQ).
   apply epsilon_interp with (h := h) in EPS.
   rewrite interp_vis in EPS.
-  apply trans_val_epsilon in TRh as [EPSh _].
+  dependent destruction EQ.
+  setoid_rewrite EQ. exact EPS.
+Qed.
+
+Lemma trans_ask_interp_pure {E F B X Y}
+  (h : E ~> ctree F B) :
+  forall (t : ctree E B X) (k : Y -> ctree E B X) (e : E Y) (x : Y),
+  trans (ask e) t (β e k) ->
+  trans (val x) (h _ e) Stuck ->
+  epsilon (interp h t) (Guard (interp h (k x))).
+Proof.
+  intros t k e x TR TRh.
+  apply trans_ask_interp with (h := h) in TR.
+  apply trans_val_epsilon in TRh as EPSh.
   eapply epsilon_bind_ret in EPSh.
-  apply (epsilon_transitive _ _ _ EPS EPSh).
+  apply (epsilon_transitive _ _ _ TR EPSh).
+Qed.
+
+Lemma trans_ask_interp_τ {E F B X Y}
+  (h : E ~> ctree F B) :
+  forall (t : ctree E B X) (k : Y -> ctree E B X) (e : E Y) (u' : ctree F B Y),
+  trans (ask e) t (β e k) ->
+  trans τ (h _ e) u' ->
+  trans τ (interp h t) (x <- u';; Guard (interp h (k x))).
+Proof.
+  intros t k e u' TR TRh.
+  apply trans_ask_interp with (h := h) in TR.
+  eapply epsilon_trans; [apply TR |].
+  now apply trans_bind_l_τ.
+Qed.
+
+Lemma trans_ask_interp_ask {E F B X Y Z}
+  (h : E ~> ctree F B) :
+  forall (t : ctree E B X) (k : Y -> ctree E B X) (e : E Y) (f : F Z) (g : Z -> ctree F B Y),
+  trans (ask e) t (β e k) ->
+  trans (ask f) (h _ e) (β f g) ->
+  trans (ask f) (interp h t) (β f (fun z => x <- g z;; Guard (interp h (k x)))).
+Proof.
+  intros t k e f g TR TRh.
+  apply trans_ask_interp with (h := h) in TR.
+  eapply epsilon_trans; [apply TR |].
+  now apply trans_bind_l_ask.
 Qed.
