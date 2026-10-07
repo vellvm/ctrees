@@ -2537,6 +2537,14 @@ Ltac inv_label_eq EQl :=
 
 Ltac inv_trans_one :=
   match goal with
+  | h : htrans _ (α CTree.bind _ _) _ |- _ =>
+      apply trans_bind_inv in h as
+        [(?EQl & ?t' & ?TR & ?EQ) | [(?Z & ?e & ?EQl & ?g & ?TR & ?EQ) | (?x & ?TRv & ?TR)]];
+      try subst
+
+  | h : htrans _ (α CTree.trigger _) _ |- _ =>
+      unfold CTree.trigger in h
+
   (* Ret *)
   | h : htrans _ (α Ret _) _ |- _ =>
       let EQl := fresh "EQl" in

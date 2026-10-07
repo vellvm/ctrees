@@ -43,25 +43,27 @@ Proof.
   rewrite (ctree_eta t) at 2.
   setoid_rewrite unfold_refine. cbn.
   destruct (observe t) eqn:?.
-  - apply step_ssbt'_ret. reflexivity.
+  - apply step_ssbt'_ret. apply TransAlt.reflL. discriminate.
   - apply step_ss'_stuck.
-  - apply step_ss'_step; auto.
-    step. now apply step_ss'_guard_l.
+  - apply step_ss'_step.
+    + apply TransAlt.reflL. discriminate.
+    + apply (b_chain R). now apply step_ss'_guard_l.
   - now apply step_ss'_guard.
   - setoid_rewrite bind_trigger.
-    apply step_ss'_vis_id. intros. split; [|auto].
-    step. apply step_ss'_guard_l. apply CH.
-  - change (Br c k) with ((fun _ => Br c k) tt).
-    setoid_rewrite <- bind_ret_l at 6.
-    eapply ss'_clo_bind with (R0 := (fun _ _ => True)).
-    { apply ssim_pure. apply H. intros. now constructor. }
-    intros ? _ _. cbn.
-    apply step_ss'_br_r with (x := x).
-    apply step_ss'_guard_l. apply CH.
+    apply step_ss'_vis_id.
+    + apply (b_chain R). apply step_ss'_passive_id; intros.
+      * now apply (b_chain R), step_ss'_guard_l.
+      * apply TransAlt.reflL. discriminate.
+    + apply TransAlt.reflL. discriminate.
+  - pose proof (H X0 c) as PF. red in PF. induction PF.
+    + rewrite EQ, bind_ret_l. apply step_ss'_br_r with (x := v). apply step_ss'_guard_l. apply CH.
+    + rewrite EQ, bind_stuck. apply ss'_stuck.
+    + rewrite EQ, bind_br. apply step_ss'_br_l. intros. apply (b_chain R), H0.
+    + rewrite EQ, bind_guard. apply step_ss'_guard_l. apply (b_chain R), IHPF.
 Qed.
 
 Definition Rrr {St X} (p : St * X) (x : X) := snd p = x.
-Definition Lrr {St E X} := @lift_val_rel E _ X (@Rrr St X).
+Definition Lrr {St E X} := @Lvrel E _ X (@Rrr St X).
 
 Theorem refine_state_ssim {E B B' X St} :
   forall (t : ctree E B X) (h : B ~> stateT St (ctree E B')),
@@ -74,19 +76,19 @@ Proof.
   destruct (observe t) eqn:?.
   - apply step_ssbt'_ret. constructor. reflexivity.
   - apply step_ss'_stuck.
-  - apply step_ss'_step; auto.
-    red. constructor; etrans.
-    step. apply step_ss'_guard_l.
-    apply CH.
+  - apply step_ss'_step.
+    + constructor.
+    + apply (b_chain R). apply step_ss'_guard_l. apply CH.
   - apply step_ss'_guard. apply CH.
   - setoid_rewrite bind_trigger.
-    apply step_ss'_vis_id. intros. split; [| constructor; etrans].
-    step. apply step_ss'_guard_l. apply CH.
-  - change (Br c k) with ((fun _ => Br c k) tt).
-    setoid_rewrite <- bind_ret_l at 6.
-    eapply ss'_clo_bind with (R0 := (fun _ _ => True)).
-    { apply ssim_pure. apply H. intros. now constructor. }
-    intros ? _ _. cbn.
-    apply step_ss'_br_r with (x := snd x).
-    apply step_ss'_guard_l. apply CH.
+    apply step_ss'_vis_id.
+    + apply (b_chain R). apply step_ss'_passive_id; intros.
+      * apply (b_chain R), step_ss'_guard_l, CH.
+      * constructor. constructor.
+    + constructor. constructor.
+  - pose proof (H X0 c s) as PF. red in PF. induction PF.
+    + rewrite EQ, bind_ret_l. apply step_ss'_br_r with (x := snd v). apply step_ss'_guard_l. apply CH.
+    + rewrite EQ, bind_stuck. apply ss'_stuck.
+    + rewrite EQ, bind_br. apply step_ss'_br_l. intros. apply (b_chain R), H0.
+    + rewrite EQ, bind_guard. apply step_ss'_guard_l. apply (b_chain R), IHPF.
 Qed.

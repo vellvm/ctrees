@@ -314,40 +314,31 @@ Section FoldCTree.
 End FoldCTree.
 
 (*|
-Counter-example showing that interp does not preserve sbisim in the general case.
+However, [refine] does not preserve sbisim in the general case.
 |*)
 
 Module CounterExample.
 
-  Inductive VoidE : Type -> Type :=
-  | voidE : VoidE void.
-
-  (* Notation B012 := (B01 +' B2). *)
-  #[local] Definition t1 := Ret 1%nat : ctree VoidE B2 nat.
-  #[local] Definition t2 := br2 (Ret 1%nat) (x <- trigger voidE;; match x : void with end) : ctree VoidE B2 nat.
+  #[local] Definition t1 := Ret 1%nat : ctree void1 B2 nat.
+  #[local] Definition t2 := br2 (Ret 1%nat) (Ret 1%nat) : ctree void1 B2 nat.
 
   Goal t1 ≃ t2.
   Proof.
-    unfold t1, t2.
-    rewrite br2_commut.
-    rewrite br2_is_stuck. reflexivity.
-    red. intros. intro. inv_trans; match goal with v : void |- _ => destruct v end.
+    unfold t1, t2. now rewrite br2_idem.
   Qed.
 
-  #[local] Definition h : VoidE ~> ctree VoidE B2.
+  #[local] Definition g : B2 ~> ctree void1 B2.
   Proof.
-    intros. destruct X. exact (Step Stuck).
+    intros X c. destruct c. exact (Step (Ret true)).
   Defined.
 
-  Example interpE_sbsisim_counterexample : ~ (interp h t1 ≃ interp h t2).
+  Example refine_sbisim_counterexample : ~ (refine g t1 ≃ refine g t2).
   Proof.
-    red. intros. unfold t2 in H.
-    playR in H.
-    rewrite unfold_interp. cbn. setoid_rewrite bind_br.
-    eapply trans_br with (x := false).
-    2: { rewrite bind_ret_l. reflexivity. }
-    apply trans_guard. setoid_rewrite unfold_interp. cbn. rewrite bind_step. etrans.
-    rewrite unfold_interp in TR. unfold t1, h in TR. cbn in TR. inv_trans.
+    intros H. unfold sbisimT in H. step in H. destruct H as [Hf _].
+    edestruct Hf as (l' & u' & TR & _ & EQL).
+    { unfold t1. rewrite refine_ret. etrans. }
+    simpL. unfold t2 in TR.
+    rewrite unfold_refine in TR. cbn in TR. rewrite bind_step in TR. inv_trans.
   Qed.
 
 End CounterExample.

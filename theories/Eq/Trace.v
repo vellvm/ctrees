@@ -75,26 +75,34 @@ Tactic Notation "__trace_play" "in" hyp(H) :=
 Trace inclusion is weaker than similarity,
 and trace equivalence is weaker than bisimilarity.
 |*)
+Lemma transR_active_not_ask {E C X} : forall l (s : S E C X) t,
+  transR l s (Active t) -> forall Y (e : E Y), l <> ask e.
+Proof.
+  intros * TR. remember (Active t) as u. induction TR; intros; subst; try discriminate; eauto.
+Qed.
+
+Lemma transR_not_ask_active {E C X} : forall l (s s' : S E C X),
+  transR l s s' -> (forall Y (e : E Y), l <> ask e) -> exists u, s' = Active u.
+Proof.
+  intros * TR NA. induction TR; eauto.
+  exfalso. eapply NA; reflexivity.
+Qed.
+
 Lemma ssim_tracincl : forall {E C X} (t t' : ctree E C X),
 ssim Leq t t' -> tracincl t t'.
 Proof.
-  red. red. intros. 
-  revert t t' H s H0. coinduction R CH. intros.
-  simpl. destruct s; auto.
-  (* Unset Printing Notations.  *)
-  step in H0. cbn in H0. destruct H0 as (? & ? & ?).
-  step in H. apply H in H0. destruct H0 as (? & ? & ? & ? & ?). subst.
-  inv H0; try easy. 
-  exists x. split. 
-  2: eapply CH; eauto.
-  (* Print transR.  *)
-  unfold Leq in H3. assert (eq l x0). 
-  erewrite (ActAct) with (t:=x). 
-  rewrite H2. apply H0. eapply CH. apply H2. red. apply H1.
+  intros E C X t t' H s H0. revert t t' H s H0.
+  unfold has_trace at 2. coinduction R CH. intros.
+  destruct s; [| exact I].
+  step in H0. destruct H0 as (x & TR & HT).
+  step in H. cbn in H. apply H in TR as TR'. destruct TR' as (l' & st' & TR' & SIM & EQL).
+  apply Leq_eq in EQL. subst l'.
+  destruct (transR_not_ask_active _ _ _ TR' (transR_active_not_ask _ _ _ TR)) as (u & ->).
+  exists u. split; [exact TR' |]. eapply CH; eauto.
 Qed.
 
 Lemma sbisim_traceq : forall {E C X} (t t' : ctree E C X),
-  sbisim eq t t' -> traceq t t'.
+  sbisim Leq t t' -> traceq t t'.
 Proof.
   intros. split; apply ssim_tracincl; now apply sbisim_ssim_subrelation.
 Qed.
