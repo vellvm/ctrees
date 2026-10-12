@@ -28,6 +28,7 @@ jobs:
           coq_version: ${{ matrix.coq_version }}
           ocaml_version: ${{ matrix.ocaml_version }}
           before_install: |
+            sudo chown -R "$(id -u):$(id -g)" .
             opam pin remove -n -y dune
             opam update -y
             opam install -y dune.3.23.1
