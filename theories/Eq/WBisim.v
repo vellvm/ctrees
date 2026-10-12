@@ -378,24 +378,24 @@ on the setoid side.
       unfold wtrans, etrans. ka.
     Qed.
 
-    Lemma cnv_wt (R : Chain wb) : (elem R: hrel _ _)^° ≡ elem R.
+    Lemma cnv_wt (R : Chain wb) : cnv _ _ (elem R: hrel _ _) ≡ elem R.
     Proof. apply RelationAlgebra.lattice.antisym; intros ???; apply sym_t,H. Qed.
-    Lemma cnv_gfp: RelationAlgebra.lattice.weq ((gfp wb: hrel _ _)^°) (gfp wb).
+    Lemma cnv_gfp: RelationAlgebra.lattice.weq (cnv _ _ (gfp wb: hrel _ _)) (gfp wb).
     Proof. apply cnv_wt. Qed.
-    Lemma cnv_wbisim: wbisimT^° ≡ wbisimT.
+    Lemma cnv_wbisim: cnv _ _ wbisimT ≡ wbisimT.
     Proof. apply cnv_wt. Qed.
-    Lemma cnv_wbisim': wbisim^° ≡ wbisim.
+    Lemma cnv_wbisim': cnv _ _ wbisim ≡ wbisim.
     Proof. apply cnv_wt. Qed.
 
 
 (*|
 By symmetry, similar results for left-to-right game
 |*)
-    Lemma wbisim_trans_front l: (trans l)^° ⋅ wbisimT ≦ wbisimT ⋅ (wtrans l)^°.
+    Lemma wbisim_trans_front l: cnv _ _ (trans l) ⋅ wbisimT ≦ wbisimT ⋅ cnv _ _ (wtrans l).
     Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_trans_back. Qed.
-    Lemma wbisim_etrans_front l: (etrans l)^° ⋅ wbisimT ≦ wbisimT ⋅ (wtrans l)^°.
+    Lemma wbisim_etrans_front l: cnv _ _ (etrans l) ⋅ wbisimT ≦ wbisimT ⋅ cnv _ _ (wtrans l).
     Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_etrans_back. Qed.
-    Lemma wbisim_wtrans_front l: (wtrans l)^° ⋅ wbisimT ≦ wbisimT ⋅ (wtrans l)^°.
+    Lemma wbisim_wtrans_front l: cnv _ _ (wtrans l) ⋅ wbisimT ≦ wbisimT ⋅ cnv _ _ (wtrans l).
     Proof. cnv_switch. rewrite 2cnvdot, cnv_invol, cnv_wbisim. apply wbisim_wtrans_back. Qed.
 
 (*|

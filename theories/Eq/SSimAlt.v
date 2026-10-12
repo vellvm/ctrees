@@ -500,7 +500,7 @@ Section Proof_Rules.
     split; [| split]; intros; inv_equ.
     inv_trans; subst.
     cbn; do 3 eexists; intuition; subs; eauto.
-    apply trans_step.
+    all: apply trans_step.
   Qed.
 
   Lemma step_ss'_step_l :

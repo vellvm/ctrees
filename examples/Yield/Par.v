@@ -297,8 +297,7 @@ Section parallel.
       invert. destruct n'; inv_equ.
       rewrite <- ctree_eta in Hequ.
       rewrite rewrite_schedule in Hequ. simp schedule_match in Hequ.
-      step in Hequ. inv Hequ. invert. exists n'.
-      dependent destruction H4.
+      step in Hequ. inv Hequ. repeat invert. exists n'.
       rewrite ctree_eta. rewrite <- Heq. rewrite <- H. rewrite REL. split; auto.
     }
     - destruct n'; inv_equ.
@@ -632,7 +631,7 @@ Section parallel.
       rewrite rewrite_schedule at 1. simp schedule_match.
       econstructor. step. constructor. intros. apply equ_schedule.
       apply replace_vec_relation; repeat intro; auto.
-    invert; apply H.
+    all: invert; apply H.
   Qed.
 
   (** when the thread is a fork *)
@@ -654,7 +653,7 @@ Section parallel.
       rewrite <- Heqc. constructor.
       rewrite <- (replace_vec_twice _ v i t (k false)).
       eapply IHvisible_; auto; rewrite replace_vec_eq; eauto.
-    - invert. invert.
+    - repeat invert.
       rewrite rewrite_schedule at 1. simp schedule_match.
       rewrite <- Heqc. econstructor. apply equ_schedule.
       apply cons_vec_relation; auto.

@@ -1,4 +1,4 @@
-(lang dune 3.24)
+(lang dune 3.23)
 (using rocq 0.11)
 (name rocq-ctree)
 

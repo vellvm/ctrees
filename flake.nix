@@ -20,9 +20,9 @@
       let
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
-        rocq = pkgs.rocq-core;
         rocqPkgs = pkgs.rocqPackages_9_0;
         coqPkgs = pkgs.coqPackages_9_0;
+        rocq = rocqPkgs.rocq-core;
 
         coinduction = rocqPkgs.callPackage
           ( { rocq, stdenv }:
@@ -36,7 +36,7 @@
                 with rocqPkgs;
                 with coqPkgs;
                 with rocq.ocamlPackages;
-                [ ocaml camlp5 rocq pkgs.coq dune_3 stdlib rocq-core findlib ];
+                [ ocaml camlp5 rocq coqPkgs.coq dune_3 stdlib rocq-core findlib ];
               propagatedBuildInputs =
                 with rocqPkgs;
                 with coqPkgs;
@@ -56,7 +56,7 @@
                 with rocqPkgs;
                 with coqPkgs;
                 with rocq.ocamlPackages;
-                [ ocaml camlp5 rocq pkgs.coq dune_3 stdlib rocq-core findlib ];
+                [ ocaml camlp5 rocq coqPkgs.coq dune_3 stdlib rocq-core findlib ];
               propagatedBuildInputs =
                 with rocqPkgs;
                 with coqPkgs;
@@ -74,12 +74,13 @@
               opam-name = "rocq-ctree";
               useDune = true;
               src = ./.;
+              preBuild = "dune build rocq-ctree.opam && cp _build/default/rocq-ctree.opam .";
 
               buildInputs =
                 with rocqPkgs;
                 with coqPkgs;
                 with rocq.ocamlPackages;
-                [ ocaml camlp5 rocq pkgs.coq dune_3 ITree coinduction relation-algebra stdlib equations ExtLib zarith findlib ];
+                [ ocaml camlp5 rocq coqPkgs.coq dune_3 ITree coinduction relation-algebra stdlib equations ExtLib zarith findlib ];
               propagatedBuildInputs = [ rocq ];
 
             }) { inherit rocq; };

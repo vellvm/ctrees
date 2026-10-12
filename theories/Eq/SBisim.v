@@ -1317,9 +1317,9 @@ produce any challenge for the other.
     intros R.
     coinduction S _; split; cbn.
     - intros * TR; exfalso.
-      exact (spinD_gen_is_stuck l (spin_gen c) t' c TR).
+      now apply spinD_gen_is_stuck in TR.
     - intros * TR; exfalso.
-      exact (spinD_gen_is_stuck l (spin_gen c') t' c' TR).
+      now apply spinD_gen_is_stuck in TR.
   Qed.
 
 (*|
@@ -1380,7 +1380,8 @@ produce any challenge for the other.
   Lemma br2_spin_l {X} : forall (t : ctree E C X),
 	    br2 spin t ~ t.
   Proof.
-    intros; apply br2_is_stuck; exact (spin_is_stuck τ t t).
+    intros; apply br2_is_stuck.
+    red; intros l u TR; now apply spin_is_stuck in TR.
   Qed.
 
   Lemma br2_spin_r {X} : forall (t : ctree E C X),
@@ -1548,7 +1549,7 @@ Not fond of this, need to give some thoughts about them
       do 2 eexists; intuition; eauto.
       apply trans_val_inv in TR0.
       rewrite TR0; eauto.
-    apply trans_ret.
+    all: apply trans_ret.
   Qed.
 
 End WithParams.

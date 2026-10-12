@@ -14,19 +14,26 @@ jobs:
     strategy:
       matrix:
         coq_version:
-          - '8.15.2'
+          - '9.2'
         ocaml_version:
-          - '4.14.0-flambda'
+          - '4.14-flambda'
       max-parallel: 4
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: coq-community/docker-coq-action@v1
         with:
-          opam_file: 'coq-ctree.opam'
+          opam_file: 'rocq-ctree.opam'
           coq_version: ${{ matrix.coq_version }}
           ocaml_version: ${{ matrix.ocaml_version }}
+          before_install: |
+            opam pin remove -n -y dune
+            opam update -y
+            opam install -y dune.3.23.1
+            dune build rocq-ctree.opam
+            cp _build/default/rocq-ctree.opam .
+          before_script: dune build -j 2
           export: 'OPAMWITHTEST'
         env:
           OPAMWITHTEST: 'true'
