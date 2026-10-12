@@ -66,6 +66,7 @@ From RelationAlgebra Require Export
 
 Import CoindNotations.
 Set Implicit Arguments.
+Set Universe Polymorphism.
 Import CTree.
 Import CTreeNotations.
 Import EquNotations.
@@ -625,12 +626,17 @@ Lemma vis_chain_gen {E F C D: Type -> Type} {X X' Y Y': Type} L
 Proof.
   intros.
   apply (b_chain R).
-  split; intros ?? TR; inv_trans; subst.
-  do 2 eexists; intuition; eauto.
-  rewrite EQ; auto.
-  do 2 eexists; intuition; eauto.
-  rewrite EQ; apply H2.
-  apply H0.
+  split; intros ? ? TR; inv_trans; subst.
+  - exists (obs e' (right x)), (k' (right x)); repeat split.
+    + apply trans_vis.
+    + eapply equ_clos_sb_ctx;
+        [symmetry; exact EQ | reflexivity | exact (H1 x)].
+    + exact (H x).
+  - exists (obs e (left x)), (k (left x)); repeat split.
+    + apply trans_vis.
+    + eapply equ_clos_sb_ctx;
+        [reflexivity | symmetry; exact EQ | exact (H2 x)].
+    + exact (H0 x).
 Qed.
 
 Lemma vis_chain {E C X Y}
@@ -1309,8 +1315,11 @@ produce any challenge for the other.
       @spin_gen E C Z X c ~ @spin_gen E C Z Y c'.
   Proof.
     intros R.
-    coinduction S _; split; cbn;
-      intros * TR; exfalso; eapply spinD_gen_is_stuck, TR.
+    coinduction S _; split; cbn.
+    - intros * TR; exfalso.
+      exact (spinD_gen_is_stuck l (spin_gen c) t' c TR).
+    - intros * TR; exfalso.
+      exact (spinD_gen_is_stuck l (spin_gen c') t' c' TR).
   Qed.
 
 (*|
@@ -1371,13 +1380,13 @@ produce any challenge for the other.
   Lemma br2_spin_l {X} : forall (t : ctree E C X),
 	    br2 spin t ~ t.
   Proof.
-    intros; apply br2_is_stuck, spin_is_stuck.
+    intros; apply br2_is_stuck; exact (spin_is_stuck τ t t).
   Qed.
 
   Lemma br2_spin_r {X} : forall (t : ctree E C X),
 	    br2 t spin ~ t.
   Proof.
-    intros; rewrite br2_commut; apply br2_is_stuck, spin_is_stuck.
+    intros; rewrite br2_commut; apply br2_spin_l.
   Qed.
 
 (*|
@@ -1539,6 +1548,7 @@ Not fond of this, need to give some thoughts about them
       do 2 eexists; intuition; eauto.
       apply trans_val_inv in TR0.
       rewrite TR0; eauto.
+    apply trans_ret.
   Qed.
 
 End WithParams.
@@ -1689,9 +1699,10 @@ Section StrongSimulations.
         rewrite EQ; auto.
       - step; intros ?? TR.
         inv_trans; subst.
-        exists τ, (Ret tt); intuition; now rewrite EQ.
-        exists τ, (Ret tt). intuition.
-        rewrite EQ; apply Stuck_ssim.
+        exists τ, (Ret tt); split; [apply trans_step |].
+        split; [now rewrite EQ | reflexivity].
+        exists τ, (Ret tt); split; [apply trans_step |].
+        split; [rewrite EQ; apply Stuck_ssim | reflexivity].
       - step in H. cbn in H. destruct H as [_ ?].
         specialize (H τ Stuck). lapply H; [| etrans].
         intros. destruct H0 as (? & ? & ? & ? & ?).

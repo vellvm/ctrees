@@ -9,7 +9,6 @@ From ExtLib Require Import
      Structures.Functor
      Structures.Monad.
 
-Unset Universe Checking.
 From CTree Require Import
   CTreeDefinitions
   Eq
@@ -42,13 +41,16 @@ From ITree Require Import
 
 Import CoindNotations.
 
-Section Facts.
+Set Universe Polymorphism.
 
-Context {D E B : Type -> Type} (ctx : D ~> ctree (D +' E) B).
+Section Facts.
+Universes d q d' q' d0 q0.
+Context {D E B} (ctx : D ~> @ctree@{_ _ _ _ d q} (D +' E) B).
 
 (** Unfolding of [interp_mrec]. *)
 
-Definition _interp_mrec {R : Type} (ot : ctreeF (D +' E) B R _) : ctree E B R :=
+Definition _interp_mrec@{d' q' +} {R : Type} (ot : ctreeF (D +' E) B R _) :
+  @ctree@{_ _ _ _ d' q'} E B R :=
   match ot with
   | RetF r => Ret r
   | StuckF => Stuck
@@ -88,9 +90,11 @@ Qed.
 
 (** [mrec ctx] is equivalent to [interp (mrecursive ctx)],
     where [mrecursive] is defined as follows. *)
-Definition mrecursive (f : D ~> ctree (D +' E) B)
-  : (D +' E) ~> ctree E B :=
-  case_ (mrec f) CTree.trigger.
+Definition mrecursive@{d' q' +} (f : D ~> @ctree@{_ _ _ _ d q} (D +' E) B) :
+    (D +' E) ~> @ctree@{_ _ _ _ d' q'} E B :=
+  case_sum1 (fun _ d => mrec f d) (fun _ e => CTree.trigger e).
+Arguments mrecursive f [T] _.
+
 
 Global Instance eq_itree_mrec {R} :
   Proper (equ eq ==> equ eq) (@interp_mrec _ _ _ ctx R).
@@ -158,12 +162,12 @@ Qed.
 
 Theorem interp_mrec_trigger {U} (a : (D +' E) U) :
     interp_mrec ctx (CTree.trigger a)
-  ≲ mrecursive ctx _ a.
+  ≲ mrecursive ctx a.
 Proof.
-  rewrite unfold_interp_mrec; unfold mrecursive.
-  destruct a; cbn.
-  rewrite bind_ret_r.  apply ssim_guard_l. reflexivity.
-  unfold CTree.trigger.
+  rewrite Equ.unfold_trigger, unfold_interp_mrec; unfold mrecursive.
+  destruct a; cbn -[CTree.trigger].
+  rewrite bind_ret_r. apply ssim_guard_l. reflexivity.
+  rewrite Equ.unfold_trigger.
   apply ssim_vis_id.
   intros. split; auto.
   apply ssim_guard_l. rewrite unfold_interp_mrec. cbn.  reflexivity.
@@ -180,6 +184,7 @@ Qed.
 
 
 
+
 Theorem interp_mrec_as_interp {T} (c : ctree _ _ T) :
   interp_mrec ctx c ~ interp (mrecursive ctx) c.
 Proof.
@@ -188,62 +193,44 @@ Proof.
   red.
   revert_until T.
   coinduction R CIH. intros.
-  rewrite unfold_interp_mrec. unfold _interp_mrec, fold.
-  unfold interp, fold. 
-  setoid_rewrite unfold_iter.
+  rewrite unfold_interp_mrec. unfold _interp_mrec.
+  rewrite FoldCTree.unfold_interp.
   destruct (observe c).
-  - unfold ret, Monad_ctree. 
-    apply step_sb'_guard_r.
-    rewrite bind_ret_l.    
+  - apply step_sb'_guard_r.
     reflexivity.
-  - unfold mstuck, MonadStuck_ctree. rewrite bind_stuck.
-    apply step_sb'_guard_r.
+  - apply step_sb'_guard_r.
     reflexivity.
-  - unfold mstep, MonadStep_ctree.
-    unfold fmap, Functor_ctree.  rewrite bind_map.
-    apply step_sb'_guard_r.
-    rewrite bind_step. rewrite bind_ret_l.
+  - apply step_sb'_guard_r.
     apply step_sb'_step; auto.
     intros side'.
     apply step_sb'_guard_l'.
     intros. 
     apply CIH.
-  - unfold ret, Monad_ctree. rewrite bind_ret_l.
-    apply step_sb'_guard.
+  - apply step_sb'_guard.
     apply CIH.
   - destruct e.
-    + unfold mrecursive, case_, Case_sum1, case_sum1.
-      unfold fmap at 1, Functor_ctree at 1.
-      rewrite bind_map.
+    + cbn.
       apply step_sb'_guard.
-      rewrite interp_mrec_bind.
+      change ((elem R) side (interp_mrec ctx (ctx _ d >>= k))
+        (x <- mrec ctx d;; Guard (interp (mrecursive ctx) (k x)))).
+      setoid_rewrite (interp_mrec_bind (ctx _ d) k).
       apply st'_clo_bind_eq. reflexivity.
       intros.
       apply CIH.
-    + unfold mrecursive, case_, Case_sum1, case_sum1.
-      unfold CTree.trigger. 
-      unfold fmap, Functor_ctree.
-      rewrite bind_map.
-      rewrite bind_vis.
-      setoid_rewrite bind_ret_l.
+    + cbn -[CTree.trigger CTree.bind].
       apply step_sb'_guard_r.
+      eapply (@equ_sb'_goal _ _ _ _ _ _ _ _ side); [reflexivity | |].
+      { cbn -[CTree.trigger CTree.bind]; rewrite bind_trigger; reflexivity. }
       apply step_sb'_vis_id. intros. split; auto.
       intros.
       apply step_sb'_guard_l'.
       intros.
       apply CIH.
   - apply step_sb'_guard_r.
-    unfold mbr, MonadBr_ctree, branch.
-    unfold fmap, Functor_ctree.
-    rewrite bind_map.
-    rewrite bind_br.
-    setoid_rewrite bind_ret_l.
-    apply step_sb'_br.
-    intros x. exists x.
-    apply step_sb'_guard_l'.
+    eapply (@equ_sb'_goal _ _ _ _ _ _ _ _ side); [reflexivity | |].
+    { unfold mbr, MonadBr_ctree; cbn -[CTree.branch CTree.bind]; apply Equ.bind_branch. }
+    apply step_sb'_br_id.
     intros.
-    apply CIH.
-    intros x. exists x.
     apply step_sb'_guard_l'.
     intros.
     apply CIH.
@@ -264,12 +251,11 @@ Lemma interp_trigger {E' D' F' C U} `{C -< D'} (h : E' ~> ctree F' D')  (e: E' U
   interp h (CTree.trigger e) ~ Guard (h _ e).
  *)
 
-Lemma interp_trigger {E' F' B' U} (h : E' ~> ctree F' B')  (e: E' U) :
-  interp h (@CTree.trigger _ B' _ e) ~ Guard (h _ e).
+Lemma interp_trigger {E' F' B' U}
+    (h : E' ~> @ctree@{_ _ _ _ d' q'} F' B') (e : E' U) :
+  interp h (CTree.trigger e : @ctree@{_ _ _ _ d0 q0} E' B' U) ~ Guard (h _ e).
 Proof.
-  unfold CTree.trigger.
-  rewrite interp_vis.
-  setoid_rewrite interp_ret.
+  rewrite FoldCTree.interp_trigger.
   setoid_rewrite sb_guard.
   rewrite bind_ret_r.
   reflexivity.
@@ -278,7 +264,7 @@ Qed.
 Lemma interp_mrecursive {T} (d : D T) :
   interp (mrecursive ctx) (@trigger_inl1 D E B _ d) ~ mrec ctx d.
 Proof.
-  unfold mrecursive. unfold trigger_inl1.
+  unfold trigger_inl1.
   rewrite interp_trigger.
   cbn.
   setoid_rewrite sb_guard.
@@ -334,25 +320,28 @@ Local Opaque interp_mrec.
 
 (** [rec body] is equivalent to [interp (recursive body)],
     where [recursive] is defined as follows. *)
-Definition recursive {E B } {X Y} (f : X -> ctree (callE X Y +' E) B Y) : (callE X Y +' E) ~> ctree E B :=
-  case_ (calling' (rec f)) CTree.trigger.
+Section RecursiveFacts.
+  Context {E : Type -> Type} {B : Type -> Type} {X Y : Type}.
+  Variable f : X -> ctree (callE X Y +' E) B Y.
 
-(* SAZ: TODO - update this after the change to sbisim *)
-Lemma rec_as_interp {E B} {X Y} (f : X -> ctree (callE X Y +' E) B Y) (x : X) :
-  rec f x ~ interp (recursive f) (f x).
-Proof.
-  unfold rec.
-  rewrite mrec_as_interp.
-Admitted.
+  Definition recursive@{d q +} : (callE X Y +' E) ~> @ctree@{_ _ _ _ d q} E B :=
+    case_sum1 (calling (rec f)) (fun _ e => CTree.trigger e).
+  Arguments recursive [T] _.
 
-Lemma interp_recursive_call {E B} {X Y} (f : X -> ctree ((callE X Y) +' E) B Y) (x:X) :
-  interp (recursive f) (@call E B X Y x) ~ rec f x.
-Proof.
-  unfold recursive. unfold call.
-  rewrite interp_trigger. cbn.
-  setoid_rewrite sb_guard.
-  reflexivity.
-Qed.
+  (* SAZ: TODO - update this after the change to sbisim *)
+  Lemma rec_as_interp (x : X) :
+    rec f x ~ interp recursive (f x).
+  Admitted.
+
+  Lemma interp_recursive_call (x : X) :
+    interp recursive (@call E B X Y x) ~ rec f x.
+  Proof.
+    unfold recursive, call.
+    rewrite interp_trigger. cbn [case_sum1 calling].
+    setoid_rewrite sb_guard.
+    reflexivity.
+  Qed.
+End RecursiveFacts.
 
 (*
   SAZ: TODO: Not sure what the appropriate analogue of this is for ctrees

@@ -1,16 +1,12 @@
-Unset Universe Checking.
 
 From Paco Require Import paco.
 
 From CTree Require Import
 	   CTree Eq Interp.Internalize Interp.FoldCTree.
 
-(* Universe issue, TO FIX *)
-Unset Universe Checking.
-Unset Auto Template Polymorphism.
 
 From ITree Require Import
-	   ITree Eq Interp InterpFacts.
+	   ITree Eq Interp.
 
 From Stdlib Require Import
 	   Morphisms Program.
@@ -18,12 +14,19 @@ Open Scope ctree.
 
 Set Implicit Arguments.
 Set Contextual Implicit.
+Set Universe Polymorphism.
 
-Definition h_embed {E C} : E ~> ctree E C :=
+Definition h_embed@{d q +} {E C} : E ~> @ctree@{_ _ _ _ d q} E C :=
   fun _ e => CTree.trigger e.
-Definition embed' {E} : itree E ~> ctree E (B01) := interp h_embed.
-Definition embed {E C} : itree (C +' E) ~> ctree E (B01 +' C) :=
+
+Definition embed'@{d q +} {E} : itree E ~> @ctree@{_ _ _ _ d q} E B01 :=
+  interp h_embed.
+
+Definition embed@{d q +} {E C} : itree (C +' E) ~> @ctree@{_ _ _ _ d q} E (B01 +' C) :=
   fun _ t => internalize (embed' t).
+
+Arguments embed' {E} [T] _.
+Arguments embed {E C} [T] _.
 
 Notation "t '-' l '→' u" := (trans l t u)
                               (at level 50, only printing,
@@ -45,16 +48,21 @@ Notation "t '-' l '→' u" := (transR l t u)
 #[local] Notation cVis e k  := (CTreeDefinitions.Vis e k).
 
 (** Unfolding of [interp]. *)
-Definition _interp {E F C R} (f : E ~> ctree F C) (ot : itreeF E R _)
-  : ctree F C R :=
+Section ITreeInterp.
+  Universes d q.
+Definition _interp {E F C R}
+    (f : E ~> @ctree@{_ _ _ _ d q} F C)
+    (ot : itreeF E R _) : @ctree@{_ _ _ _ d q} F C R :=
   match ot with
   | RetF r => CTreeDefinitions.Ret r
   | TauF t => cGuard (interp f t)
   | VisF e k => CTree.bind (f _ e) (fun x => cGuard (interp f (k x)))
   end.
 
-Lemma unfold_interp_ctree {E F C X} (h: E ~> ctree F C) (t : itree E X):
-  (interp h t ≅ _interp h (iobserve t))%ctree.
+Lemma unfold_interp_ctree {E F C X}
+    (f : E ~> @ctree@{_ _ _ _ d q} F C)
+    (t : itree E X) :
+  (interp f t ≅ _interp f (iobserve t))%ctree.
 Proof.
   revert t.
   coinduction R CIH.
@@ -64,8 +72,7 @@ Proof.
   destruct (iobserve t) eqn:ot; try now cbn; auto.
   match goal with
     |- equb _ _ (_cobserve ?t) (_cobserve ?u) =>
-      fold (cobserve t);
-      fold (cobserve u)
+      fold (cobserve t); fold (cobserve u)
   end.
   Transparent CTree.bind.
   cbn.
@@ -74,25 +81,25 @@ Proof.
   intros ?.
   now constructor.
 Qed.
+End ITreeInterp.
 
 #[global] Instance embed_eq {E C X}:
 	Proper (eq_itree eq ==> equ eq) (@embed E C X).
 Proof.
-	unfold Proper, respectful.
-	coinduction r CIH.
-	intros t u bisim. unfold embed, embed', internalize.
+  unfold Proper, respectful.
+  coinduction r CIH.
+  intros t u bisim. unfold embed, embed', internalize.
   rewrite 2 unfold_interp_ctree.
-  rewrite 2 FoldCTree.unfold_interp.
-	punfold bisim.
-	inv bisim; pclearbot; try easy.
-	- cbn.
+  punfold bisim.
+  inv bisim; pclearbot; try discriminate; cbn [_interp h_embed].
+  - reflexivity.
+  - rewrite 2 FoldCTree.interp_guard.
     constructor.
     now apply CIH.
-  - cbn.
+  - rewrite 2 FoldCTree.interp_bind.
     apply fequ_bind_chain_eq; intros.
-    rewrite 2 FoldCTree.unfold_interp.
-    cbn; constructor.
-    step; cbn; constructor.
+    setoid_rewrite FoldCTree.interp_guard.
+    constructor.
     apply CIH, REL.
 Qed.
 
@@ -130,29 +137,18 @@ Notation embed_ t :=
 Lemma unfold_embed {E C X} (t : itree (C +' E) X) : (embed t ≅ embed_ t)%ctree.
 Proof.
   unfold embed, embed', internalize at 1.
-  rewrite unfold_interp_ctree, FoldCTree.unfold_interp.
-  cbn.
-  destruct (iobserve t) eqn:EQ; cbn; auto.
-  - destruct e.
-    + cbn.
-      rewrite Equ.unfold_bind at 1.
-      cbn.
-      step; cbn; constructor; intros ?.
-      rewrite Equ.bind_step.
-      step; cbn; constructor.
-      rewrite Equ.bind_ret_l.
-      step; cbn; constructor.
-      step; cbn; constructor.
-      reflexivity.
-    + cbn.
-      rewrite Equ.unfold_bind at 1.
-      cbn.
-      step; cbn; constructor; intros ?.
-      rewrite Equ.bind_ret_l.
-      step; cbn; constructor.
-      rewrite FoldCTree.unfold_interp; cbn.
-      step; cbn; constructor.
-      reflexivity.
+  rewrite unfold_interp_ctree.
+  destruct (iobserve t) eqn:EQ; cbn [_interp h_embed].
+  - rewrite FoldCTree.interp_ret; reflexivity.
+  - rewrite FoldCTree.interp_guard; reflexivity.
+  - rewrite FoldCTree.interp_bind, FoldCTree.interp_trigger, Equ.bind_bind.
+    setoid_rewrite Equ.bind_guard.
+    setoid_rewrite Equ.bind_ret_l.
+    setoid_rewrite FoldCTree.interp_guard.
+    destruct e; unfold internalize_h', internalize_h;
+      cbn -[CTree.trigger CTree.branchS CTree.bind].
+    + rewrite Equ.bind_branchS; reflexivity.
+    + rewrite Equ.bind_trigger; reflexivity.
 Qed.
 
 (* TODO THIS IS REDUNDANT WITH THE DEF IN FOLDCTREE! *)

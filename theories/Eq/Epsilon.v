@@ -10,6 +10,7 @@ From CTree Require Import
 
 Import CTreeNotations.
 Open Scope ctree_scope.
+Set Universe Polymorphism.
 
 (* end hide *)
 

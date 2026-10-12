@@ -22,6 +22,7 @@ From RelationAlgebra Require Export
 Import CoindNotations.
 Import CTree.
 Set Implicit Arguments.
+Set Universe Polymorphism.
 
 (* TODO: Decide where to set this *)
 Arguments trans : simpl never.
@@ -335,9 +336,10 @@ Section Proof_Rules.
     intros. split; [| split]; intros; inv_equ.
     cbn; inv_trans; subst;
       destruct (H x) as (x' & RR & LL);
-      cbn; do 3 eexists; intuition.
-    - rewrite EQ; eauto.
-    - assumption.
+      cbn; exists (obs f x'), (k' x'); repeat split.
+    - apply trans_vis.
+    - eapply HR; [symmetry; exact EQ | reflexivity | exact RR].
+    - exact LL.
   Qed.
 
   Lemma step_ss'_vis_id {Z} (e : E Z) (f: F Z)
@@ -498,6 +500,7 @@ Section Proof_Rules.
     split; [| split]; intros; inv_equ.
     inv_trans; subst.
     cbn; do 3 eexists; intuition; subs; eauto.
+    apply trans_step.
   Qed.
 
   Lemma step_ss'_step_l :

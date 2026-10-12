@@ -21,9 +21,6 @@ From RelationAlgebra Require Import
 
 From Equations Require Import Equations.
 
-(* Universe issue, TO FIX *)
-Unset Universe Checking.
-Unset Auto Template Polymorphism.
 
 From ITree Require Import
      State.
@@ -50,10 +47,13 @@ Variant spawnE : Type -> Type :=
   | Spawn : spawnE unit.
 
 Section parallel.
+  Universes e q q'.
   Context {E : Type -> Type}.
 
-  Definition thread := ctree (yieldE +' forkE +' E) void1 unit.
-  Definition completed := ctree (yieldE +' spawnE +' E) Bn unit.
+  Definition thread :=
+    @ctree@{e _ _ _ e q} (yieldE +' forkE +' E) void1 unit.
+  Definition completed :=
+    @ctree@{e _ _ _ e q'} (yieldE +' spawnE +' E) Bn unit.
   Definition vec n := fin n -> thread.
 
   (** Scheduling a thread pool *)
@@ -160,7 +160,8 @@ Section parallel.
 
   (*** how the scheduler behaves affects a thread *)
   (** inverting the case when a [schedule] is a [Br] *)
-  Lemma Br_schedule_inv n1 (e : Bn (fin n1)) k n2 (v : vec n2) i :
+  Polymorphic Lemma Br_schedule_inv n1 (e : Bn (fin n1))
+      (k : fin n1 -> completed) n2 (v : vec n2) i :
     Br e k ≅ schedule n2 v (Some i) -> False.
   (*   (exists k', v i ≅ Br e k' /\ *)
   (*            forall i', k i' ≅ schedule n2 (replace_vec v i (k' i')) (Some i)). *)
@@ -174,7 +175,7 @@ Section parallel.
     destruct c.
   Qed.
 
-  Lemma guard_schedule_inv t n (v : vec (S n)) (i : fin (S n)) :
+  Polymorphic Lemma guard_schedule_inv (t : completed) n (v : vec (S n)) (i : fin (S n)) :
     Guard t ≅ schedule _ v (Some i) ->
     (exists  t', v i ≅ Guard t' /\
              t ≅ schedule (S n) (replace_vec v i t') (Some i)) \/
@@ -190,7 +191,7 @@ Section parallel.
     - right; right.
       destruct r.
       split; auto.
-      step; rewrite Heqc; reflexivity.
+      step; rewrite Heqc; constructor; reflexivity.
     - left; eexists; split; eauto.
       step; rewrite Heqc; reflexivity.
     - destruct e; [destruct y | destruct s]; inv_equ.
@@ -203,7 +204,7 @@ Section parallel.
   Qed.
 
   (** Helper lemmas for when [schedule] transitions with a [val] *)
-  Lemma trans_schedule_val_1 {X} n v i (x : X) t :
+  Polymorphic Lemma trans_schedule_val_1 {X} n v i (x : X) t :
     trans (val x) (schedule n v (Some i)) t ->
     n = 1%nat.
   Proof.
@@ -216,7 +217,7 @@ Section parallel.
     induction H; intros n' ?t' v i x' Heql Heq Hequ; try inv Heql; subst.
     - rewrite <- ctree_eta in Hequ.
       destruct c.
-      now exfalso; apply Br_schedule_inv in Hequ.
+      exfalso; eapply (Br_schedule_inv n (branchn n) k n' v i); exact Hequ.
     - rewrite <- ctree_eta in Hequ.
       destruct n' as [| n]; [inv i |].
       apply guard_schedule_inv in Hequ.
@@ -239,7 +240,7 @@ Section parallel.
       destruct c.
   Qed.
 
-  Lemma trans_schedule_thread_val {X} v i (x : X) t :
+  Polymorphic Lemma trans_schedule_thread_val {X} v i (x : X) t :
     trans (val x) (schedule 1 v (Some i)) t ->
     trans (val x) (v i) Stuck.
   Proof.
@@ -267,9 +268,9 @@ Section parallel.
       + destruct Hequ as [EQ EQ'].
         rewrite EQ' in H. rewrite rewrite_schedule in H.
         simp schedule_match in H.
-        apply trans_ret_inv in H. destruct H. inv H0. invert.
-        rewrite EQ.
-        cbn.
+        dependent destruction H.
+        unfold trans, transR; cbn.
+        step in EQ; inv EQ.
         constructor.
     - invert.
       rewrite rewrite_schedule in Hequ.
@@ -297,6 +298,7 @@ Section parallel.
       rewrite <- ctree_eta in Hequ.
       rewrite rewrite_schedule in Hequ. simp schedule_match in Hequ.
       step in Hequ. inv Hequ. invert. exists n'.
+      dependent destruction H4.
       rewrite ctree_eta. rewrite <- Heq. rewrite <- H. rewrite REL. split; auto.
     }
     - destruct n'; inv_equ.
@@ -328,7 +330,8 @@ Section parallel.
       - destruct e; [destruct y | destruct s; [destruct f |]].
           try solve [step in Hequ; inv Hequ].
         rewrite <- ctree_eta in Hequ. step in Hequ; inv Hequ. invert.
-        rewrite <- ctree_eta in Hequ. step in Hequ; inv Hequ. invert.
+        all: repeat invert.
+        step in Hequ; inv Hequ; invert.
       - destruct c.
     }
     {
@@ -372,7 +375,7 @@ Section parallel.
       apply trans_schedule_obs_yield_None in H.
       destruct H as (?n' & ? & ?). subst.
       eexists. split.
-      + rewrite Hvi. constructor.
+      + unfold transR; cbn. step in Hvi; inv Hvi; constructor.
       + exists eq_refl. auto.
   Qed.
 
@@ -382,9 +385,10 @@ Section parallel.
     False.
   Proof.
     intros Ht.
-    unfold trans in Ht. cbn in Ht. red in Ht.
-    rewrite rewrite_schedule in *. destruct n; inv Ht. invert.
-    destruct (observe (schedule_match schedule (S n) v None)) eqn:?; invert.
+    unfold trans, transR in Ht; cbn in Ht.
+    rewrite rewrite_schedule in Ht.
+    destruct n; [inv Ht; invert |].
+    simp schedule_match in Ht; inv Ht; invert.
   Qed.
 
   (** [schedule] transitions with an [obs] of a [Spawn] *)
@@ -526,7 +530,7 @@ Section parallel.
   (*** how a thread [trans] affects the scheduler [trans] *)
 
   (** thread transitions with a val *)
-  Lemma trans_thread_schedule_val_1 {X} v i (x : X) t :
+  Polymorphic Lemma trans_thread_schedule_val_1 {X} v i (x : X) t :
     trans (val x) (v i) t ->
     trans (val x) (schedule 1 v (Some i)) Stuck.
   Proof.
@@ -628,6 +632,7 @@ Section parallel.
       rewrite rewrite_schedule at 1. simp schedule_match.
       econstructor. step. constructor. intros. apply equ_schedule.
       apply replace_vec_relation; repeat intro; auto.
+    invert; apply H.
   Qed.
 
   (** when the thread is a fork *)
@@ -649,7 +654,7 @@ Section parallel.
       rewrite <- Heqc. constructor.
       rewrite <- (replace_vec_twice _ v i t (k false)).
       eapply IHvisible_; auto; rewrite replace_vec_eq; eauto.
-    - invert.
+    - invert. invert.
       rewrite rewrite_schedule at 1. simp schedule_match.
       rewrite <- Heqc. econstructor. apply equ_schedule.
       apply cons_vec_relation; auto.
@@ -679,7 +684,7 @@ Section parallel.
   Qed.
 
   (*** Putting everything together *)
-  Lemma schedule_permutation n (v1 v2 : vec n) i (p q : fin n -> fin n)
+  Polymorphic Lemma schedule_permutation n (v1 v2 : vec n) i (p q : fin n -> fin n)
         (Hpq : forall i, p (q i) = i)
         (Hqp : forall i, q (p i) = i)
         (Hsb1 : forall i, v1 i ~ v2 (p i))
@@ -696,8 +701,8 @@ Section parallel.
     intros n v1 v2 i p q Hpq Hqp Hsb1 Hsb2 l t Ht. cbn in *.
     destruct l.
     - apply trans_schedule_thread_tau_some in Ht; auto.
-      assert (Hinjp : FinFun.Injective p) by (eapply bijective_injective; eauto).
-      assert (Hinjq : FinFun.Injective q) by (eapply bijective_injective; eauto).
+      assert (Hinjp : Finite.Injective p) by (eapply bijective_injective; eauto).
+      assert (Hinjq : Finite.Injective q) by (eapply bijective_injective; eauto).
       destruct n; try inv i.
       destruct Ht as (t' & Ht & Hequ).
       pose proof (Hsb1 i). step in H. destruct H as [Hf _].
@@ -719,11 +724,16 @@ Section parallel.
       + apply trans_schedule_obs_yield_Some in Ht; auto. destruct Ht.
         * (* The thread finished *)
           destruct H as (n' & Ht & (? & Hequ)); subst. cbn in *.
-          assert (Hinjp : FinFun.Injective p) by (eapply bijective_injective; eauto).
-          assert (Hinjq : FinFun.Injective q) by (eapply bijective_injective; eauto).
+          assert (Hinjp : Finite.Injective p) by (eapply bijective_injective; eauto).
+          assert (Hinjq : Finite.Injective q) by (eapply bijective_injective; eauto).
 
           epose proof (@remove_at_permutation_correct (yieldE +' forkE +' E) _ unit _ _ _ i Hpq Hqp Hinjp Hinjq) as (Hpq' & Hqp').
-          edestruct (@remove_at_permutation_vectors (yieldE +' forkE +' E) void1 unit n') as (Hpq'' & Hqp''); eauto.
+          pose proof
+            (@remove_at_permutation_vectors (yieldE +' forkE +' E) void1 unit n'
+              v1 v2 i p q Hinjp Hinjq
+              _ _
+              eq_refl eq_refl Hpq Hqp Hpq' Hqp' Hsb1 Hsb2)
+            as (Hpq'' & Hqp'').
           pose proof (Hsb1 i). step in H. destruct H as [Hf _].
           edestruct Hf as (? & ? & ? & ? & ?); eauto; subst.
           apply trans_thread_schedule_val_SS in H.

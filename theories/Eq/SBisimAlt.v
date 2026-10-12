@@ -24,6 +24,7 @@ From RelationAlgebra Require Export
 Import CoindNotations.
 Import CTree.
 Set Implicit Arguments.
+Set Universe Polymorphism.
 
 (* TODO: Decide where to set this *)
 Arguments trans : simpl never.

@@ -17,6 +17,8 @@ From CTree Require Import
   Misc.Pure
   Fold.
 
+Set Universe Polymorphism.
+
 Import CTreeNotations.
 Open Scope ctree_scope.
 
@@ -77,10 +79,11 @@ Open Scope ctree_scope.
 
 (** Interpret an itree in the context of a mutually recursive
     definition ([ctx]). *)
-Definition interp_mrec {D E B : Type -> Type} 
-           (ctx : D ~> ctree (D +' E) B) : ctree (D +' E) B ~> ctree E B :=
-  fun R =>
-    CTree.iter (fun t : ctree (D +' E) B R =>
+Definition interp_mrec@{d q d' q' +} {D E B}
+    (ctx : D ~> @ctree@{_ _ _ _ d q} (D +' E) B) :
+  @ctree@{_ _ _ _ d q} (D +' E) B ~> @ctree@{_ _ _ _ d' q'} E B :=
+  fun T =>
+    CTree.iter (fun t =>
       match observe t with
       | RetF r => Ret (inr r)
       | StuckF => Stuck
@@ -90,20 +93,24 @@ Definition interp_mrec {D E B : Type -> Type}
       | VisF (inr1 e) k => Vis e (fun x => Ret (inl (k x)))
       | BrF c k => Br c (fun x => Ret (inl (k x)))
       end).
-
 Arguments interp_mrec {D E B} ctx [T].
+
+
 
 (** Unfold a mutually recursive definition into separate trees,
     resolving the mutual references. *)
-Definition mrec {D E B : Type -> Type}
-           (ctx : D ~> ctree (D +' E) B) : D ~> ctree E B :=
-  fun R d => interp_mrec ctx (ctx _ d).
+
+Definition mrec@{d q d' q' +} {D E B}
+    (ctx : D ~> @ctree@{_ _ _ _ d q} (D +' E) B) :
+  D ~> @ctree@{_ _ _ _ d' q'} E B :=
+  fun T d => interp_mrec ctx (ctx T d).
 
 Arguments mrec {D E B} ctx [T].
 
 (** Make a recursive call in the handler argument of [mrec]. *)
-Definition trigger_inl1 {D E B : Type -> Type} : D ~> ctree (D +' E) B
-  := fun _ d => CTree.trigger (inl1 d).
+Definition trigger_inl1@{d q +} {D E B} :
+  D ~> @ctree@{_ _ _ _ d q} (D +' E) B :=
+  fun _ d => CTree.trigger (inl1 d).
 
 Arguments trigger_inl1 {D E B} [T].
 
@@ -125,7 +132,7 @@ Arguments trigger_inl1 {D E B} [T].
 
 (** *** Simple recursion *)
 
-Inductive callE (A B : Type) : Type -> Type :=
+Inductive callE (A : Type) (B : Type) : Type -> Type :=
 | Call : A -> callE A B B.
 
 Arguments Call {A B}.
@@ -137,35 +144,31 @@ Definition unCall {A B T} (e : callE A B T) : A :=
   end.
 
 (** Lift a function on [A] to a morphism on [callE]. *)
-Definition calling {A B} {F : Type -> Type}
-           (f : A -> F B) : callE A B ~> F :=
+Definition calling@{i +} {A B} {F : Type -> Type}
+           (f : A -> F B) : forall T : Type@{i}, callE A B T -> F T :=
   fun _ e =>
     match e with
     | Call a => f a
     end.
 
-(* TODO: This is identical to [callWith] but [rec] finds a universe
-   inconsistency with [calling], and not with [calling'].
-   The inconsistency now pops up later (currently in [Events.Env]) *)
-Definition calling' {X Y} {F B : Type -> Type}
-           (f : X -> ctree F B Y) : callE X Y ~> ctree F B :=
-  fun _ e =>
-    match e with
-    | Call a => f a
-    end.
+(** Compatibility-specialized form of [calling]. *)
+Definition calling'@{i d q +} {X Y F B}
+    (f : X -> @ctree@{_ _ _ _ d q} F B Y) :
+    forall T : Type@{i}, callE X Y T -> @ctree@{_ _ _ _ d q} F B T :=
+  calling f.
 
 (* Interpret a single recursive definition. *)
-Definition rec {E B : Type -> Type} {X Y : Type}
-           (body : X -> ctree (callE X Y +' E) B Y) :
-  X -> ctree E B Y :=
-  fun a => mrec (calling' body) (Call a).
+Definition rec@{d q +} {E B X Y}
+    (body : X -> ctree (callE X Y +' E) B Y) : X -> @ctree@{_ _ _ _ d q} E B Y :=
+  fun a => mrec (calling body) (Call a).
 
 (** An easy way to construct an event suitable for use with [rec].
     [call] is an event representing the recursive call.  Since in general, the
     function might have other events of type [E], the resulting itree has
     type [(callE A B +' E)].
 *)
-Definition call {E B X Y} (x:X) : ctree (callE X Y +' E) B Y :=
+Definition call@{d q +} {E B X Y} (x:X) :
+    @ctree@{_ _ _ _ d q} (callE X Y +' E) B Y :=
   CTree.trigger (inl1 (Call x)).
 
 (* (** Here's some syntactic sugar with a notation [mrec-fix]. *) *)

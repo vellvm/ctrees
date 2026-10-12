@@ -61,6 +61,7 @@ Open Scope ctree.
 
 Set Implicit Arguments.
 Set Primitive Projections.
+Set Universe Polymorphism.
 
 #[local] Tactic Notation "step" := __step_equ.
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_equ H.
@@ -71,7 +72,10 @@ Set Primitive Projections.
 
 Section Trans.
 
-  Context {E B : Type -> Type} {R : Type}.
+  Universes e b v.
+  Context {E : Type@{e} -> Type}.
+  Context {B : Type@{b} -> Type}.
+  Context {R : Type}.
 
   Notation S' := (ctree' E B R).
   Notation S  := (ctree  E B R).
@@ -88,11 +92,11 @@ least annoying solution.
 |*)
   Variant label : Type :=
     | τ
-    | obs {X : Type} (e : E X) (v : X)
-    | val {X : Type} (v : X).
+    | obs {X : Type@{e} } (e : E X) (v : X)
+    | val {X : Type@{v} } (v : X).
 
   Variant is_val : label -> Prop :=
-    | Is_val : forall X (x : X), is_val (val x).
+    | Is_val : forall (X : Type@{v}) (x : X), is_val (val x).
 
   Lemma is_val_τ : ~ is_val τ.
   Proof.
@@ -115,7 +119,7 @@ node, labelling the transition by the returned value.
 |*)
   Inductive trans_ : label -> hrel S' S' :=
 
-  | Transbr {X} (c : B X) x k l t :
+  | Transbr {X : Type@{b} } (c : B X) x k l t :
     trans_ l (observe (k x)) t ->
     trans_ l (BrF c k) t
 
@@ -127,7 +131,7 @@ node, labelling the transition by the returned value.
     u ≅ t ->
     trans_ τ (StepF t) (observe u)
 
-  | Transobs {X} (e : E X) k x t :
+  | Transobs {X : Type@{e} } (e : E X) k x t :
     k x ≅ t ->
     trans_ (obs e x) (VisF e k) (observe t)
 
@@ -296,21 +300,27 @@ Elimination rules for [trans]
 |*)
   Lemma trans_etrans l: trans l ≦ etrans l.
   Proof.
-    unfold etrans; case l; ka.
+    unfold etrans; destruct l; cbn; intros p q step; try exact step.
+    now left.
   Qed.
   Lemma etrans_wtrans l: etrans l ≦ wtrans l.
   Proof.
-    unfold wtrans; ka.
+    unfold wtrans. rewrite <- dot1x at 1; rewrite <- dotx1 at 1.
+    apply dot_leq; [apply dot_leq; [apply str_refl | reflexivity] | apply str_refl].
   Qed.
   Lemma trans_wtrans l: trans l ≦ wtrans l.
   Proof. rewrite trans_etrans. apply etrans_wtrans. Qed.
   Lemma τtrans_wtrans : τtrans ≦ wtrans τ.
   Proof.
-    unfold τtrans, wtrans, etrans; ka.
+    unfold τtrans, wtrans, etrans. rewrite itr_str_l.
+    etransitivity; [apply str_cons |].
+    rewrite <- dotx1 at 1; rewrite <- dotx1 at 1.
+    apply dot_leq; [apply dot_leq; [reflexivity | apply leq_xcup; right; reflexivity] | apply str_refl].
   Qed.
   Lemma pwtrans_wtrans l : pwtrans l ≦ wtrans l.
   Proof.
-    unfold pwtrans, wtrans, etrans; case l; ka.
+    unfold pwtrans, wtrans.
+    apply dot_leq; [apply dot_leq; [reflexivity | apply trans_etrans] | reflexivity].
   Qed.
 
   Lemma trans_etrans_ l: forall p p', trans l p p' -> etrans l p p'.
@@ -332,35 +342,45 @@ Elimination rules for [trans]
   Lemma wcons l: forall p p' p'', trans τ p p' -> wtrans l p' p'' -> wtrans l p p''.
   Proof.
     assert ((trans τ: srel SS SS) ⋅ wtrans l ≦ wtrans l) as H
-        by (unfold wtrans; ka).
+        by (unfold wtrans; rewrite 2 dotA, str_cons; reflexivity).
     intros. apply H. eexists; eassumption.
   Qed.
   Lemma wsnoc l: forall p p' p'', wtrans l p p' -> trans τ p' p'' -> wtrans l p p''.
   Proof.
     assert (wtrans l ⋅ trans τ ≦ wtrans l) as H
-        by (unfold wtrans; ka).
-    intros. apply H. eexists; eassumption.
-  Qed.
-
-  Lemma wconss l: forall p p' p'', wtrans τ p p' -> wtrans l p' p'' -> wtrans l p p''.
-  Proof.
-    assert (wtrans τ ⋅ wtrans l ≦ wtrans l) as H by (unfold wtrans, etrans; ka).
-    intros. apply H. eexists; eassumption.
-  Qed.
-  Lemma wsnocs l: forall p p' p'', wtrans l p p' -> wtrans τ p' p'' -> wtrans l p p''.
-  Proof.
-    assert (wtrans l ⋅ wtrans τ ≦ wtrans l) as H by (unfold wtrans, etrans; ka).
+        by (unfold wtrans; rewrite <- dotA, str_snoc; reflexivity).
     intros. apply H. eexists; eassumption.
   Qed.
 
   Lemma wtrans_τ: wtrans τ ≡ (trans τ)^*.
   Proof.
-    unfold wtrans, etrans. ka.
+    unfold wtrans, etrans.
+    rewrite <- dotA, dotplsx, dot1x,
+      (proj1 (leq_iff_cup _ _) (str_cons (trans τ))), str_trans.
+    reflexivity.
   Qed.
+  Lemma wconss l: forall p p' p'', wtrans τ p p' -> wtrans l p' p'' -> wtrans l p p''.
+  Proof.
+    assert (wtrans τ ⋅ wtrans l ≦ wtrans l) as H.
+    { rewrite wtrans_τ. apply str_ind_l.
+      unfold wtrans; rewrite 2 dotA, str_cons; reflexivity. }
+    intros. apply H. eexists; eassumption.
+  Qed.
+  Lemma wsnocs l: forall p p' p'', wtrans l p p' -> wtrans τ p' p'' -> wtrans l p p''.
+  Proof.
+    assert (wtrans l ⋅ wtrans τ ≦ wtrans l) as H.
+    { rewrite wtrans_τ. apply str_ind_r.
+      unfold wtrans; rewrite <- dotA, str_snoc; reflexivity. }
+    intros. apply H. eexists; eassumption.
+  Qed.
+
 
   Lemma pwtrans_τ: pwtrans τ ≡ (trans τ)^+.
   Proof.
-    unfold pwtrans, etrans. ka.
+    unfold pwtrans.
+    rewrite <- itr_str_r.
+    rewrite !itr_str_l, <- dotA, str_trans.
+    reflexivity.
   Qed.
 
   #[global] Instance PreOrder_wtrans_τ: PreOrder (wtrans τ).
@@ -467,11 +487,14 @@ End backward.
 
 Section BackwardBounded.
 
-  Context {E B : Type -> Type} {X : Type}.
+  Context {E : Type -> Type}.
+  Context {B : Type -> Type}.
+  Context {X : Type}.
   Context `{B2 -< B}.
   Context `{B3 -< B}.
   Context `{B4 -< B}.
-  Variable (l : @label E) (t t' u u' v v' w w' : ctree E B X).
+  Variable (l : @label E).
+  Variable (t t' u u' v v' w w' : ctree E B X).
 
   Lemma trans_brS21 :
     trans τ (brS2 t u) t.
@@ -847,8 +870,9 @@ Lemma etrans_ret_inv {E B X} : forall x l (t : ctree E B X),
     (l = τ /\ t ≅ Ret x) \/ (l = val x /\ t ≅ Stuck).
 Proof.
   intros ? [] ? step; cbn in step.
-  - intuition; try (eapply trans_ret in step; now apply step).
-    inv H.
+  - destruct step as [step | step].
+    + apply trans_ret_inv in step as [_ abs]. inv abs.
+    + left; split; [reflexivity | now symmetry].
   - eapply trans_ret_inv in step; intuition.
   - eapply trans_ret_inv in step; intuition.
 Qed.
@@ -1018,7 +1042,7 @@ Section wtrans.
     rewrite EQ in step3; apply trans_τ_str_ret_inv in step3; auto.
     rewrite EQ in step3.
     apply transs_is_stuck_inv in step3; [| apply Stuck_is_stuck].
-    intuition.
+    right; split; [reflexivity | now symmetry].
   Qed.
 
   Lemma wtrans_val_inv' : forall (x : X) (t v : ctree E B X),
@@ -1494,40 +1518,33 @@ Proof.
     eapply wtrans_bind_r'; eauto.
 Qed.
 
-Lemma trans_trigger : forall {E B X Y} (e : E X) x (k : X -> ctree E B Y),
-    trans (obs e x) (trigger e >>= k) (k x).
+Section TriggerTransitions.
+  Universes d q d' q'.
+  Context {E : Type -> Type} {B : Type -> Type}.
+
+Lemma trans_trigger {X Y} (e : E X) x (k : X -> @ctree@{_ _ _ _ d' q'} E B Y) :
+  trans (obs e x) ((CTree.trigger e : @ctree@{_ _ _ _ d q} E B X) >>= k) (k x).
 Proof.
-  intros.
-  unfold CTree.trigger.
-  rewrite unfold_bind; cbn.
-  setoid_rewrite bind_ret_l.
-  constructor; auto.
+  rewrite bind_trigger; apply trans_vis.
 Qed.
 
-Lemma trans_trigger' : forall {E B X Y} (e : E X) x (t : ctree E B Y),
-    trans (obs e x) (trigger e;; t) t.
+Lemma trans_trigger' {X Y} (e : E X) x (t : @ctree@{_ _ _ _ d' q'} E B Y) :
+  trans (obs e x) ((CTree.trigger e : @ctree@{_ _ _ _ d q} E B X);; t) t.
 Proof.
-  intros.
-  unfold CTree.trigger.
-  rewrite unfold_bind; cbn.
-  setoid_rewrite bind_ret_l.
-  constructor; auto.
+  rewrite bind_trigger; apply trans_vis.
 Qed.
 
-Lemma trans_trigger_inv : forall {E B X Y} (e : E X) (k : X -> ctree E B Y) l u,
-    trans l (trigger e >>= k) u ->
-    exists x, u ≅ k x /\ l = obs e x.
+Lemma trans_trigger_inv {X Y} (e : E X) (k : X -> @ctree@{_ _ _ _ d' q'} E B Y)
+    l (u : @ctree@{_ _ _ _ d' q'} E B Y) :
+  trans l ((CTree.trigger e : @ctree@{_ _ _ _ d q} E B X) >>= k) u ->
+  exists x, u ≅ k x /\ l = obs e x.
 Proof.
-  intros * TR.
-  unfold trigger in TR.
-  apply trans_bind_inv in TR.
-  destruct TR as [(? & ? & TR & ?) |(? & TR & ?)].
-  - apply trans_vis_inv in TR.
-    destruct TR as (? & ? & ->); eexists; split; eauto.
-    rewrite H0, H1, bind_ret_l; reflexivity.
-  - apply trans_vis_inv in TR.
-    destruct TR as (? & ? & abs); inv abs.
+  intros TR.
+  rewrite bind_trigger in TR; apply trans_vis_inv in TR.
+  exact TR.
 Qed.
+
+End TriggerTransitions.
 
 Lemma trans_branch :
   forall {E B : Type -> Type} {X : Type} {Y : Type}

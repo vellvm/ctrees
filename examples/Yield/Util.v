@@ -21,9 +21,6 @@ From RelationAlgebra Require Import
 
 From Equations Require Import Equations.
 
-(* Universe issue, TO FIX *)
-Unset Universe Checking.
-Unset Auto Template Polymorphism.
 
 From ITree Require Import
      State.
@@ -346,10 +343,11 @@ Section Vectors.
 
 End Vectors.
 
+Set Universe Polymorphism.
 Section Vector_brD_bound.
-  Context {E B : Type -> Type}.
-  Context {R : Type}.
-  Context (vec := fun n => fin n -> ctree E B R).
+  Universes r q.
+  Context {E : Type -> Type} {B : Type -> Type} {R : Type}.
+  Context (vec := fun n => fin n -> @ctree@{_ _ _ _ r q} E B R).
 
 (*   Lemma remove_front_vec_brD_bound n n' (v : vec (S n)) : *)
 (*     (forall i, brD_bound n' (v i)) -> *)
@@ -673,7 +671,7 @@ Section Vector_brD_bound.
 
   Definition remove_at_permutation {n} (p : fin (S (S n)) -> fin (S (S n)))
              (r : fin (S (S n)))
-             (Hp : FinFun.Injective p)
+             (Hp : Finite.Injective p)
     :
     { p' : (fin (S n) -> fin (S n)) &
              (forall i, match (order_cases i r) with
@@ -761,7 +759,7 @@ Section Vector_brD_bound.
 
   Lemma bijective_injective {n} (p q : fin n -> fin n)
         (Hqp: forall i, q (p i) = i) :
-    FinFun.Injective p.
+    Finite.Injective p.
   Proof.
     intros i1 i2 ?. apply (f_equal q) in H. do 2 rewrite Hqp in H. auto.
   Qed.
@@ -1110,3 +1108,4 @@ Section Vector_brD_bound.
     }
   Qed.
 End Vector_brD_bound.
+Unset Universe Polymorphism.

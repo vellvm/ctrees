@@ -1,6 +1,8 @@
 From ITree Require Import Basics Indexed.Sum.
 From CTree Require Import Core.Utils.
 
+Set Universe Polymorphism.
+
 Section Index.
 
 (*|

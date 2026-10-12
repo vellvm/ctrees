@@ -35,6 +35,7 @@ From ExtLib Require Import
 Set Implicit Arguments.
 Set Contextual Implicit.
 Set Primitive Projections.
+Set Universe Polymorphism.
 
 (*|
 .. coq::
@@ -42,7 +43,8 @@ Set Primitive Projections.
 
 Section ctree.
 
-  Context {E : Type -> Type} {B : Type -> Type} {R : Type}.
+  Universe e b.
+  Context {E : Type@{e} -> Type} {B : Type@{b} -> Type} {R : Type}.
 
 (*|
 The type [ctree] is defined as the final coalgebra ("greatest fixed point") of the functor [ctreeF].
@@ -60,8 +62,8 @@ value returned by the environment
     | StuckF
     | StepF  (t : ctree)
     | GuardF (t : ctree)
-    | VisF {X : Type} (e : E X) (k : X -> ctree)           (* an external event *)
-    | BrF {X : Type} (c : B X) (k : X -> ctree)            (* an internal non-deterministic branching *)
+    | VisF {X : Type@{e}} (e : E X) (k : X -> ctree)      (* an external event *)
+    | BrF {X : Type@{b}} (c : B X) (k : X -> ctree)       (* an internal non-deterministic branching *)
   .
 
   CoInductive ctree : Type :=
@@ -258,22 +260,29 @@ Functorial map ([fmap] in Haskell)
     Definition map {R S} (f : R -> S)  (t : ctree E B R) : ctree E B S :=
       bind t (fun x => Ret (f x)).
 
+
+
+  End CTree.
+
+  Section AtomicTrees.
+    Universes d q.
+    Context {E : Type -> Type} {B : Type -> Type}.
 (*|
 Atomic itrees triggering a single event.
 |*)
 
-    Definition trigger : E ~> ctree E B :=
-      fun R e => Vis e (fun x => Ret x).
+    Definition trigger (T : Type) (e : E T) : @ctree@{_ _ _ _ d q} E B T :=
+      Vis e (fun x => Ret x).
 
 (*|
 Atomic ctrees with choice.
 |*)
 
-    Definition branch {X : Type} : forall (c : B X), ctree E B X :=
-      fun c => Br c (fun x => Ret x).
+    Definition branch {X : Type} (c : B X) : @ctree@{_ _ _ _ d q} E B X :=
+      Br c (fun x => Ret x).
 
-    Definition branchS {X : Type} : forall (c : B X), ctree E B X :=
-      fun c => BrS c (fun x => Ret x).
+    Definition branchS {X : Type} (c : B X) : @ctree@{_ _ _ _ d q} E B X :=
+      BrS c (fun x => Ret x).
 
 (*|
 Ignore the result of a tree.
@@ -282,7 +291,8 @@ Ignore the result of a tree.
     Definition ignore {R} : ctree E B R -> ctree E B unit :=
       map (fun _ => tt).
 
-  End CTree.
+  End AtomicTrees.
+  Arguments trigger {E B} [T] _.
 
   Ltac fold_bind :=
     repeat match goal with
@@ -403,17 +413,21 @@ Instances
 #[global] Instance MonadIter_ctree {E B} : MonadIter (ctree E B) :=
   fun R I => @CTree.iter E B R I.
 
-#[global] Instance MonadTrigger_ctree {E F B} `{E -< F} : MonadTrigger E (ctree F B) :=
-  fun _ e => trigger e.
+#[global] Instance MonadTrigger_ctree@{d q +} {E : Type -> Type} {F : Type -> Type} {B}
+  `{E -< F} : MonadTrigger E (@ctree@{_ _ _ _ d q} F B) :=
+  fun X e => (CTree.trigger (subevent _ e) : @ctree@{_ _ _ _ d q} F B X).
 
-#[global] Instance MonadBr_ctree {E C D} `{C -< D} : MonadBr C (ctree E D) :=
-  fun _ c => branch c.
+#[global] Instance MonadBr_ctree@{d q +} {E} {C : Type -> Type} {D : Type -> Type}
+  `{C -< D} : MonadBr C (@ctree@{_ _ _ _ d q} E D) :=
+  fun X c => (CTree.branch (subevent _ c) : @ctree@{_ _ _ _ d q} E D X).
 
 #[global] Instance MonadStuck_ctree {E C} : MonadStuck (ctree E C) :=
   fun _ => Stuck.
 
-#[global] Instance MonadStep_ctree {E C} : MonadStep (ctree E C) :=
+#[global] Instance MonadStep_ctree@{d q +} {E C} :
+  MonadStep (@ctree@{_ _ _ _ d q} E C) :=
   Step (Ret tt).
+
 
 (*|
 ====================================

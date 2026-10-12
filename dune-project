@@ -1,5 +1,5 @@
-(lang dune 3.8)
-(using coq 0.7)
+(lang dune 3.24)
+(using rocq 0.11)
 (name rocq-ctree)
 
 (license "MIT")

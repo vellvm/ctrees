@@ -15,6 +15,7 @@ From CTree Require Import
 
 Import CTree.
 Import CTreeNotations.
+Set Universe Polymorphism.
 
 Definition iter_gen {E B X I}
     (step : I -> ctree E B (I + X)) (t : ctree E B (I + X)) :=
