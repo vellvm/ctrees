@@ -300,27 +300,21 @@ Elimination rules for [trans]
 |*)
   Lemma trans_etrans l: trans l ≦ etrans l.
   Proof.
-    unfold etrans; destruct l; cbn; intros p q step; try exact step.
-    now left.
+    unfold etrans; case l; ka.
   Qed.
   Lemma etrans_wtrans l: etrans l ≦ wtrans l.
   Proof.
-    unfold wtrans. rewrite <- dot1x at 1; rewrite <- dotx1 at 1.
-    apply dot_leq; [apply dot_leq; [apply str_refl | reflexivity] | apply str_refl].
+    unfold wtrans; ka.
   Qed.
   Lemma trans_wtrans l: trans l ≦ wtrans l.
   Proof. rewrite trans_etrans. apply etrans_wtrans. Qed.
   Lemma τtrans_wtrans : τtrans ≦ wtrans τ.
   Proof.
-    unfold τtrans, wtrans, etrans. rewrite itr_str_l.
-    etransitivity; [apply str_cons |].
-    rewrite <- dotx1 at 1; rewrite <- dotx1 at 1.
-    apply dot_leq; [apply dot_leq; [reflexivity | apply leq_xcup; right; reflexivity] | apply str_refl].
+    unfold τtrans, wtrans, etrans; ka.
   Qed.
   Lemma pwtrans_wtrans l : pwtrans l ≦ wtrans l.
   Proof.
-    unfold pwtrans, wtrans.
-    apply dot_leq; [apply dot_leq; [reflexivity | apply trans_etrans] | reflexivity].
+    unfold pwtrans, wtrans, etrans; case l; ka.
   Qed.
 
   Lemma trans_etrans_ l: forall p p', trans l p p' -> etrans l p p'.
@@ -342,45 +336,35 @@ Elimination rules for [trans]
   Lemma wcons l: forall p p' p'', trans τ p p' -> wtrans l p' p'' -> wtrans l p p''.
   Proof.
     assert ((trans τ: srel SS SS) ⋅ wtrans l ≦ wtrans l) as H
-        by (unfold wtrans; rewrite 2 dotA, str_cons; reflexivity).
+        by (unfold wtrans; ka).
     intros. apply H. eexists; eassumption.
   Qed.
   Lemma wsnoc l: forall p p' p'', wtrans l p p' -> trans τ p' p'' -> wtrans l p p''.
   Proof.
     assert (wtrans l ⋅ trans τ ≦ wtrans l) as H
-        by (unfold wtrans; rewrite <- dotA, str_snoc; reflexivity).
+        by (unfold wtrans; ka).
+    intros. apply H. eexists; eassumption.
+  Qed.
+
+  Lemma wconss l: forall p p' p'', wtrans τ p p' -> wtrans l p' p'' -> wtrans l p p''.
+  Proof.
+    assert (wtrans τ ⋅ wtrans l ≦ wtrans l) as H by (unfold wtrans, etrans; ka).
+    intros. apply H. eexists; eassumption.
+  Qed.
+  Lemma wsnocs l: forall p p' p'', wtrans l p p' -> wtrans τ p' p'' -> wtrans l p p''.
+  Proof.
+    assert (wtrans l ⋅ wtrans τ ≦ wtrans l) as H by (unfold wtrans, etrans; ka).
     intros. apply H. eexists; eassumption.
   Qed.
 
   Lemma wtrans_τ: wtrans τ ≡ (trans τ)^*.
   Proof.
-    unfold wtrans, etrans.
-    rewrite <- dotA, dotplsx, dot1x,
-      (proj1 (leq_iff_cup _ _) (str_cons (trans τ))), str_trans.
-    reflexivity.
+    unfold wtrans, etrans. ka.
   Qed.
-  Lemma wconss l: forall p p' p'', wtrans τ p p' -> wtrans l p' p'' -> wtrans l p p''.
-  Proof.
-    assert (wtrans τ ⋅ wtrans l ≦ wtrans l) as H.
-    { rewrite wtrans_τ. apply str_ind_l.
-      unfold wtrans; rewrite 2 dotA, str_cons; reflexivity. }
-    intros. apply H. eexists; eassumption.
-  Qed.
-  Lemma wsnocs l: forall p p' p'', wtrans l p p' -> wtrans τ p' p'' -> wtrans l p p''.
-  Proof.
-    assert (wtrans l ⋅ wtrans τ ≦ wtrans l) as H.
-    { rewrite wtrans_τ. apply str_ind_r.
-      unfold wtrans; rewrite <- dotA, str_snoc; reflexivity. }
-    intros. apply H. eexists; eassumption.
-  Qed.
-
 
   Lemma pwtrans_τ: pwtrans τ ≡ (trans τ)^+.
   Proof.
-    unfold pwtrans.
-    rewrite <- itr_str_r.
-    rewrite !itr_str_l, <- dotA, str_trans.
-    reflexivity.
+    unfold pwtrans, etrans. ka.
   Qed.
 
   #[global] Instance PreOrder_wtrans_τ: PreOrder (wtrans τ).
@@ -487,14 +471,11 @@ End backward.
 
 Section BackwardBounded.
 
-  Context {E : Type -> Type}.
-  Context {B : Type -> Type}.
-  Context {X : Type}.
+  Context {E B : Type -> Type} {X : Type}.
   Context `{B2 -< B}.
   Context `{B3 -< B}.
   Context `{B4 -< B}.
-  Variable (l : @label E).
-  Variable (t t' u u' v v' w w' : ctree E B X).
+  Variable (l : @label E) (t t' u u' v v' w w' : ctree E B X).
 
   Lemma trans_brS21 :
     trans τ (brS2 t u) t.

@@ -19,6 +19,7 @@ From ITree Require Import
      ITree
      Basics.CategoryKleisli
      Events.State
+     Events.StateFacts
      Events.MapDefault.
 
 From Coinduction Require Import all.
@@ -70,7 +71,6 @@ Variant MemE : Type -> Type :=
 | rd (x : var) : MemE value
 | wr (x : var) (v : value) : MemE unit.
 
-Set Universe Polymorphism.
 Section Denote1.
   Universes d q sd sq yd yq md mq.
   Definition is_true (v : value) : bool := if (v =? 0)%nat then false else true.
@@ -288,8 +288,12 @@ Section Denote1.
   Proof.
     unfold interp_concurrency.
     do 2 rewrite schedule_forks_equ.
-    repeat setoid_rewrite bind_trigger.
-    do 2 (apply sb_vis; intros []).
+    unfold trigger.
+    (* not sure why we can't just rewrite twice, but we can below *)
+    rewrite bind_vis. symmetry. rewrite bind_vis.
+    apply sb_vis. intros []. do 2 rewrite bind_ret_l.
+    do 2 rewrite bind_vis.
+    apply sb_vis. intros []. do 2 rewrite bind_ret_l.
     apply sb_guard_lr.
 
     do 2 rewrite rewrite_schedule. simp schedule_match.
@@ -376,12 +380,17 @@ Section Denote1.
     interp_yield (interp_spawn (interp_concurrency (Fork s Skip))).
   Proof.
     rewrite yield_equ, fork_skip_equ.
-    setoid_rewrite (yield_equ s).
     unfold interp_yield, interp_spawn.
-    repeat (rewrite ?FoldCTree.interp_bind, ?FoldCTree.interp_trigger,
-      ?FoldCTree.interp_ret, ?FoldCTree.interp_guard, ?FoldCTree.interp_br',
-      ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard,
-      ?subevent_subevent, ?br1_guard; cbn -[schedule denote_imp]).
+
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
+    rewrite ?interp_br', ?subevent_subevent, ?br1_guard.
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
+    rewrite yield_equ.
+    rewrite ?interp_guard, sb_guard.
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
+    rewrite ?interp_br', ?subevent_subevent, ?br1_guard.
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
+    unfold trigger.
     reflexivity.
   Qed.
 
@@ -393,12 +402,8 @@ Section Denote1.
   Proof.
     rewrite yield_equ, fork_skip_equ.
     unfold interp_spawn.
-    repeat (rewrite ?FoldCTree.interp_bind, ?FoldCTree.interp_trigger,
-      ?FoldCTree.interp_ret, ?FoldCTree.interp_guard,
-      ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard;
-      cbn -[schedule denote_imp]).
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
     upto_bind_eq; intros [].
-    rewrite ?bind_ret_l, ?sb_guard.
     reflexivity.
   Qed.
 
@@ -408,10 +413,9 @@ Section Denote1.
   Proof.
     rewrite fork_skip_equ.
     unfold interp_yield, interp_spawn.
-    repeat (rewrite ?FoldCTree.interp_bind, ?FoldCTree.interp_trigger,
-      ?FoldCTree.interp_ret, ?FoldCTree.interp_guard, ?FoldCTree.interp_br',
-      ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard,
-      ?subevent_subevent, ?br1_guard; cbn -[schedule denote_imp]).
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
+    rewrite ?interp_br', ?subevent_subevent, br1_guard.
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
     reflexivity.
   Qed.
 

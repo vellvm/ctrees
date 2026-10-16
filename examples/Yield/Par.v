@@ -217,7 +217,7 @@ Section parallel.
     induction H; intros n' ?t' v i x' Heql Heq Hequ; try inv Heql; subst.
     - rewrite <- ctree_eta in Hequ.
       destruct c.
-      exfalso; eapply (Br_schedule_inv n (branchn n) k n' v i); exact Hequ.
+      now exfalso; apply Br_schedule_inv in Hequ.
     - rewrite <- ctree_eta in Hequ.
       destruct n' as [| n]; [inv i |].
       apply guard_schedule_inv in Hequ.

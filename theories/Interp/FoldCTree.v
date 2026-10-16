@@ -43,9 +43,9 @@ Section FoldCTree.
 
 
     (** ** [interpE] and constructors *)
-    Definition fold_ctree : forall [T : Type],
-      @ctree@{_ _ _ _ d q} E C T ->
-      @ctree@{_ _ _ _ d' q'} F D T := fold h g.
+    Definition fold_ctree :
+      @ctree@{_ _ _ _ d q} E C ~> @ctree@{_ _ _ _ d' q'} F D := fold h g.
+    Arguments fold_ctree [T] _.
       (* fold (mstuck (M := ctree F D)) (mstep (M := ctree F D)) h (mbr (M := ctree F D)) g. *)
       (* fold (fun T => Stuck: ctree F D T) (Step (Ret tt)) h g. *)
 
@@ -378,7 +378,7 @@ Module CounterExample.
 
   Section Handler.
     Universes d q.
-    #[local] Definition h : forall T, VoidE T -> @ctree@{_ _ _ _ d q} VoidE B2 T :=
+    #[local] Definition h : VoidE ~> @ctree@{_ _ _ _ d q} VoidE B2 :=
       fun _ e => match e with voidE => Step Stuck end.
 
 

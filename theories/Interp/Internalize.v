@@ -29,7 +29,7 @@ Section Internalize.
   Lemma internalize_ret {R} (r : R) : internalize (Ret r) ≅ Ret r.
   Proof.
     unfold internalize.
-    rewrite FoldCTree.interp_ret.
+    rewrite interp_ret.
     reflexivity.
   Qed.
 
@@ -37,7 +37,7 @@ Section Internalize.
     internalize (t >>= k) ≅ internalize t >>= (fun x => internalize (k x)).
   Proof.
     unfold internalize.
-    rewrite FoldCTree.interp_bind.
+    rewrite interp_bind.
     reflexivity.
   Qed.
 

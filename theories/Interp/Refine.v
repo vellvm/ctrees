@@ -39,23 +39,20 @@ Theorem refine_ctree_ssim {E B B' X} :
 Proof.
   intros. rewrite ssim_ssim'. red. revert t. coinduction R CH. intros.
   rewrite (ctree_eta t) at 2.
-  setoid_rewrite unfold_refine.
-  cbn -[CTree.trigger].
+  setoid_rewrite unfold_refine. cbn.
   destruct (observe t) eqn:?.
   - apply step_ssbt'_ret. reflexivity.
   - apply step_ss'_stuck.
   - apply step_ss'_step; auto.
     step. now apply step_ss'_guard_l.
   - now apply step_ss'_guard.
-  - unfold mtrigger, MonadTrigger_ctree.
-    cbn -[CTree.trigger]. rewrite bind_trigger.
+  - setoid_rewrite bind_trigger.
     apply step_ss'_vis_id. intros. split; [|auto].
     step. apply step_ss'_guard_l. apply CH.
   - change (Br c k) with ((fun _ => Br c k) tt).
     setoid_rewrite <- bind_ret_l at 6.
     eapply ss'_clo_bind with (R0 := (fun _ _ => True)).
-    { eapply (@ssim_pure E E B' B X0 _ (h X0 c)).
-      apply H. intros. now constructor. }
+    { apply ssim_pure. apply H. intros. now constructor. }
     intros ? _ _. cbn.
     apply step_ss'_br_r with (x := x).
     apply step_ss'_guard_l. apply CH.
@@ -71,8 +68,7 @@ Theorem refine_state_ssim {E B B' X St} :
 Proof.
   intros. rewrite ssim_ssim'. red. revert t s. coinduction R CH. intros.
   rewrite (ctree_eta t) at 2.
-  setoid_rewrite unfold_refine_state.
-  cbn -[CTree.trigger].
+  setoid_rewrite unfold_refine_state. cbn.
   destruct (observe t) eqn:?.
   - apply step_ssbt'_ret. constructor. reflexivity.
   - apply step_ss'_stuck.
@@ -81,9 +77,7 @@ Proof.
     step. apply step_ss'_guard_l.
     apply CH.
   - apply step_ss'_guard. apply CH.
-  - unfold mtrigger, MonadTrigger_stateT, MonadTrigger_ctree.
-    cbn -[CTree.trigger].
-    rewrite ?bind_bind, bind_trigger, ?bind_ret_l. cbn.
+  - setoid_rewrite bind_trigger.
     apply step_ss'_vis_id. intros. split; [| constructor; etrans].
     step. apply step_ss'_guard_l. apply CH.
   - change (Br c k) with ((fun _ => Br c k) tt).

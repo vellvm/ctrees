@@ -193,48 +193,66 @@ Proof.
   red.
   revert_until T.
   coinduction R CIH. intros.
-  rewrite unfold_interp_mrec. unfold _interp_mrec.
-  rewrite FoldCTree.unfold_interp.
+  rewrite unfold_interp_mrec. unfold _interp_mrec, fold.
+  unfold interp, fold. 
+  setoid_rewrite unfold_iter.
   destruct (observe c).
-  - apply step_sb'_guard_r.
+  - unfold ret, Monad_ctree. 
+    apply step_sb'_guard_r.
+    rewrite bind_ret_l.    
     reflexivity.
-  - apply step_sb'_guard_r.
+  - unfold mstuck, MonadStuck_ctree. rewrite bind_stuck.
+    apply step_sb'_guard_r.
     reflexivity.
-  - apply step_sb'_guard_r.
+  - unfold mstep, MonadStep_ctree.
+    unfold fmap, Functor_ctree.  rewrite bind_map.
+    apply step_sb'_guard_r.
+    rewrite bind_step. rewrite bind_ret_l.
     apply step_sb'_step; auto.
     intros side'.
     apply step_sb'_guard_l'.
     intros. 
     apply CIH.
-  - apply step_sb'_guard.
+  - unfold ret, Monad_ctree. rewrite bind_ret_l.
+    apply step_sb'_guard.
     apply CIH.
   - destruct e.
-    + cbn.
+    + unfold mrecursive, case_, Case_sum1, case_sum1.
+      unfold fmap at 1, Functor_ctree at 1.
+      rewrite bind_map.
       apply step_sb'_guard.
-      change ((elem R) side (interp_mrec ctx (ctx _ d >>= k))
-        (x <- mrec ctx d;; Guard (interp (mrecursive ctx) (k x)))).
-      setoid_rewrite (interp_mrec_bind (ctx _ d) k).
+      rewrite interp_mrec_bind.
       apply st'_clo_bind_eq. reflexivity.
       intros.
       apply CIH.
-    + cbn -[CTree.trigger CTree.bind].
+    + unfold mrecursive, case_, Case_sum1, case_sum1.
+      unfold CTree.trigger. 
+      unfold fmap, Functor_ctree.
+      rewrite bind_map.
+      rewrite bind_vis.
+      setoid_rewrite bind_ret_l.
       apply step_sb'_guard_r.
-      eapply (@equ_sb'_goal _ _ _ _ _ _ _ _ side); [reflexivity | |].
-      { cbn -[CTree.trigger CTree.bind]; rewrite bind_trigger; reflexivity. }
       apply step_sb'_vis_id. intros. split; auto.
       intros.
       apply step_sb'_guard_l'.
       intros.
       apply CIH.
   - apply step_sb'_guard_r.
-    eapply (@equ_sb'_goal _ _ _ _ _ _ _ _ side); [reflexivity | |].
-    { unfold mbr, MonadBr_ctree; cbn -[CTree.branch CTree.bind]; apply Equ.bind_branch. }
-    apply step_sb'_br_id.
-    intros.
+    unfold mbr, MonadBr_ctree, branch.
+    unfold fmap, Functor_ctree.
+    rewrite bind_map.
+    rewrite bind_br.
+    setoid_rewrite bind_ret_l.
+    apply step_sb'_br.
+    intros x. exists x.
     apply step_sb'_guard_l'.
     intros.
     apply CIH.
-Qed.    
+    intros x. exists x.
+    apply step_sb'_guard_l'.
+    intros.
+    apply CIH.
+Qed.
     
 
 Theorem mrec_as_interp {T} (d : D T) :
@@ -264,7 +282,7 @@ Qed.
 Lemma interp_mrecursive {T} (d : D T) :
   interp (mrecursive ctx) (@trigger_inl1 D E B _ d) ~ mrec ctx d.
 Proof.
-  unfold trigger_inl1.
+  unfold mrecursive. unfold trigger_inl1.
   rewrite interp_trigger.
   cbn.
   setoid_rewrite sb_guard.

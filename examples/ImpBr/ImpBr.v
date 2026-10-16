@@ -32,8 +32,8 @@ From CTree Require Import
      Interp.FoldStateT.
 
 Import ListNotations.
-Import CTreeNotations.
-Local Open Scope ctree_scope.
+Import MonadNotation.
+Local Open Scope monad_scope.
 Local Open Scope string_scope.
 
 (*|
@@ -73,16 +73,15 @@ Variant MemE : Type -> Type :=
 Section Semantics.
 
   Universe computation_u.
-  Definition computation (T : Type@{computation_u}) : Type@{computation_u} :=
-    @ctree@{_ _ _ _ computation_u computation_u} MemE B2 T.
+  Notation computation := (@ctree@{_ _ _ _ computation_u computation_u} MemE B2).
 
   Fixpoint denote_expr (e : expr) : computation value :=
     match e with
-    | Var v => trigger (rd v)
-    | Lit n => Ret n
-    | Plus a b => (l <- denote_expr a;; r <- denote_expr b;; Ret (l + r))%ctree
-    | Minus a b => (l <- denote_expr a;; r <- denote_expr b;; Ret (l - r))%ctree
-    | Mult a b => (l <- denote_expr a;; r <- denote_expr b;; Ret (l * r))%ctree
+    | Var v     => trigger (rd v)
+    | Lit n     => ret n
+    | Plus a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l + r)
+    | Minus a b => l <- denote_expr a ;; r <- denote_expr b ;; ret (l - r)
+    | Mult a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l * r)
     end.
 
   Definition while (step : computation (unit + unit)) : computation unit :=
@@ -92,20 +91,21 @@ Section Semantics.
 
   Fixpoint denote_imp (s : stmt) : computation unit :=
     match s with
-    | Assign x e => (v <- denote_expr e;; trigger (wr x v))%ctree
-    | Seq a b => (denote_imp a;; denote_imp b)%ctree
-    | If i t e => (v <- denote_expr i;;
-        if is_true v then denote_imp t else denote_imp e)%ctree
+    | Assign x e =>  v <- denote_expr e ;; trigger (wr x v)
+    | Seq a b    =>  denote_imp a ;; denote_imp b
+    | If i t e   =>
+      v <- denote_expr i ;;
+      if is_true v then denote_imp t else denote_imp e
 
     | While t b =>
-      while (v <- denote_expr t;;
-        if is_true v
-        then denote_imp b;; Ret (inl tt)
-        else Ret (inr tt))%ctree
+      while (v <- denote_expr t ;;
+	         if is_true v
+             then denote_imp b ;; ret (inl tt)
+             else ret (inr tt))
 
     | Branch a b => br2 (denote_imp a) (denote_imp b)
 
-    | Skip => Ret tt
+    | Skip => ret tt
 
     | Block => Stuck
 
@@ -233,8 +233,9 @@ from Section 2 are indeed equivalent.
     repeat setoid_rewrite sb_guard.
     cbn.
     rewrite interp_state_ret.
-    rewrite interp_state_trigger.
+    unfold trigger. rewrite interp_state_vis.
     cbn. rewrite bind_ret_l, sb_guard.
+    cbn. rewrite interp_state_ret.
     apply sb_ret.
     rewrite alist_add_alist_add; [reflexivity |].
     apply RelDec_Correct_string.

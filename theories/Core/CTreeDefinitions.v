@@ -271,8 +271,8 @@ Functorial map ([fmap] in Haskell)
 Atomic itrees triggering a single event.
 |*)
 
-    Definition trigger (T : Type) (e : E T) : @ctree@{_ _ _ _ d q} E B T :=
-      Vis e (fun x => Ret x).
+    Definition trigger : E ~> @ctree@{_ _ _ _ d q} E B :=
+      fun T e => Vis e (fun x => Ret x).
 
 (*|
 Atomic ctrees with choice.
@@ -415,11 +415,11 @@ Instances
 
 #[global] Instance MonadTrigger_ctree@{d q +} {E : Type -> Type} {F : Type -> Type} {B}
   `{E -< F} : MonadTrigger E (@ctree@{_ _ _ _ d q} F B) :=
-  fun X e => (CTree.trigger (subevent _ e) : @ctree@{_ _ _ _ d q} F B X).
+  fun _ e => trigger e.
 
 #[global] Instance MonadBr_ctree@{d q +} {E} {C : Type -> Type} {D : Type -> Type}
   `{C -< D} : MonadBr C (@ctree@{_ _ _ _ d q} E D) :=
-  fun X c => (CTree.branch (subevent _ c) : @ctree@{_ _ _ _ d q} E D X).
+  fun _ c => branch c.
 
 #[global] Instance MonadStuck_ctree {E C} : MonadStuck (ctree E C) :=
   fun _ => Stuck.

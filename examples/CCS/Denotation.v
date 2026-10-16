@@ -53,8 +53,7 @@ Notation ccsE := ActionE.
 Notation ccsC := (B2 +' B3 +' B4).
 
 Universe ccs_u.
-Definition ccsT (T : Type@{ccs_u}) : Type@{ccs_u} :=
-  @ctree@{_ _ _ _ ccs_u ccs_u} ccsE ccsC T.
+Definition ccsT := @ctree@{_ _ _ _ ccs_u ccs_u} ccsE ccsC.
 Definition ccsT' (T : Type@{ccs_u}) := ctreeF ccsE ccsC T (ccsT T).
 
 Definition ccs' := ccsT' void.
@@ -72,7 +71,7 @@ Section Combinators.
 
   Definition plus (P Q : ccs) : ccs := br2 P Q.
 
-  Definition h_new (c : chan) : forall T, ActionE T -> ccsT T :=
+  Definition h_new (c : chan) : ActionE ~> ccsT :=
     fun _ e => let '(Act a) := e in
             match a with
             | Send c'
@@ -250,15 +249,14 @@ Lemma trans_prefix_inv : forall l a p p',
     p' ≅ p /\ l = comm a.
 Proof.
   intros * tr.
-  unfold prefix in tr.
-  apply Trans.trans_trigger_inv in tr as (? & ? & ->).
+  apply trans_trigger_inv in tr as (? & ? & ->).
   destruct x; split; auto.
 Qed.
 
 Lemma trans_prefix : forall a p,
     trans (comm a) (prefix a p) p.
 Proof.
-  intros; unfold prefix; apply Trans.trans_trigger'.
+  intros; eapply trans_trigger.
 Qed.
 
 (* TO MOVE *)
@@ -328,9 +326,12 @@ Proof.
   - edestruct IHtr as (q & tr' & eq); eauto.
     exists q; split; auto.
     unfold new; rewrite unfold_interp, <- Heqobsp.
-    cbn -[CTree.branch MonadBr_ctree].
-    unfold Utils.mbr, MonadBr_ctree; rewrite bind_branch.
-    eapply trans_br with (x := x); [apply trans_guard; exact tr' | reflexivity].
+    cbn; unfold Utils.mbr, MonadBr_ctree, branch.
+    eapply trans_bind_r with x.
+    eapply trans_br; [|reflexivity].
+    apply trans_ret.
+    apply trans_guard.
+    apply tr'.
   - edestruct IHtr as (q & tr' & eq); eauto.
     exists q; split; auto.
     unfold new; rewrite unfold_interp, <- Heqobsp.
@@ -343,14 +344,36 @@ Proof.
     rewrite <- H.
     apply observe_equ_eq in Heqop'.
     now rewrite Heqop'.
-  - destruct e as [a]; destruct a as [ch | ch].
-    all: cbn [can_comm] in comm;
-      destruct (c =? ch) eqn:COMM; inv comm.
-    all: eexists; split.
-    all: try solve [unfold new; rewrite unfold_interp, <- Heqobsp;
-      cbn [h_new]; rewrite COMM; apply Trans.trans_trigger].
-    all: rewrite sb_guard, H.
-    all: apply observe_equ_eq in Heqop'; rewrite Heqop'; reflexivity.
+  - destruct e, a.
+    all: cbn in *; destruct (c =? c0) eqn:comm'; inv comm.
+    + eexists; split.
+      unfold new; rewrite unfold_interp, <- Heqobsp.
+      cbn; unfold Utils.mbr, MonadBr_ctree, branch.
+      eapply trans_bind_l.
+      intros abs; inv abs.
+      rewrite comm'.
+      unfold trigger.
+      eapply trans_vis'.
+      reflexivity.
+      rewrite bind_ret_l, sb_guard, H.
+      unfold new.
+      rewrite unfold_interp.
+      rewrite <- Heqop', <- unfold_interp.
+      reflexivity.
+    + eexists; split.
+      unfold new; rewrite unfold_interp, <- Heqobsp.
+      cbn; unfold Utils.mbr, MonadBr_ctree, branch.
+      eapply trans_bind_l.
+      intros abs; inv abs.
+      rewrite comm'.
+      unfold trigger.
+      eapply trans_vis'.
+      reflexivity.
+      rewrite bind_ret_l, sb_guard, H.
+      unfold new.
+      rewrite unfold_interp.
+      rewrite <- Heqop', <- unfold_interp.
+      reflexivity.
   - tauto.
 Qed.
 

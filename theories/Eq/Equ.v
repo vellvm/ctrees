@@ -266,16 +266,12 @@ Proof.
     cbn.
     rewrite <- x in EQu.
     dependent destruction EQu.
-    rewrite <- x.
-    constructor; intro z.
-    exact (CH _ _ (REL1 z) _ _ (REL z) (REL0 z)).
+    rewrite <- x. constructor; eauto.
   - dependent destruction EQ.
     cbn.
     rewrite <- x in EQu.
     dependent destruction EQu.
-    rewrite <- x.
-    constructor; intro z.
-    exact (CH _ _ (REL1 z) _ _ (REL z) (REL0 z)).
+    rewrite <- x. constructor; eauto.
 Qed.
 
 #[global] Instance equb_eq_equ {E B X} {Q : rel X X} :
@@ -897,9 +893,6 @@ Lemma unfold_branch {X} (c : B X) :
   (CTree.branch c : @ctree@{_ _ _ _ d q} E B X) = Br c (fun x => Ret x).
 Proof. reflexivity. Qed.
 
-Lemma unfold_branchS {X} (c : B X) :
-  (CTree.branchS c : @ctree@{_ _ _ _ d q} E B X) = BrS c (fun x => Ret x).
-Proof. reflexivity. Qed.
 
 Lemma unfold_trigger {X} (e : E X) :
   (CTree.trigger e : @ctree@{_ _ _ _ d q} E B X) = Vis e (fun x => Ret x).
@@ -952,14 +945,6 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma bind_branchS {X Y}
-    (c : C Y) (k : Y -> @ctree@{_ _ _ _ d' q'} E C X) :
-  (CTree.branchS c : @ctree@{_ _ _ _ d q} E C Y) >>= k ≅ BrS c k.
-Proof.
-  rewrite unfold_branchS, bind_br; setoid_rewrite bind_step;
-    setoid_rewrite bind_ret_l.
-  reflexivity.
-Qed.
 
 End BranchBindEquations.
 

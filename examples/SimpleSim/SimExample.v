@@ -58,11 +58,11 @@ Proof.
   unfold br2. rewrite bind_br.
   apply step_sb_br_id. intros.
   destruct x.
-  - rewrite !bind_trigger.
+  - rewrite bind_trigger.
     apply step_sb_vis_id. intros []. split; [| auto].
     rewrite sb_guard.
     apply CH.
-  - rewrite !bind_trigger.
+  - rewrite bind_trigger.
     apply step_sb_vis_id. intros []. split; [| auto].
     rewrite sb_guard.
     apply CH.

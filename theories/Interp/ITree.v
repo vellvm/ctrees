@@ -6,7 +6,7 @@ From CTree Require Import
 
 
 From ITree Require Import
-	   ITree Eq Interp.
+	   ITree Eq Interp InterpFacts.
 
 From Stdlib Require Import
 	   Morphisms Program.
@@ -86,20 +86,21 @@ End ITreeInterp.
 #[global] Instance embed_eq {E C X}:
 	Proper (eq_itree eq ==> equ eq) (@embed E C X).
 Proof.
-  unfold Proper, respectful.
-  coinduction r CIH.
-  intros t u bisim. unfold embed, embed', internalize.
+	unfold Proper, respectful.
+	coinduction r CIH.
+	intros t u bisim. unfold embed, embed', internalize.
   rewrite 2 unfold_interp_ctree.
-  punfold bisim.
-  inv bisim; pclearbot; try discriminate; cbn [_interp h_embed].
-  - reflexivity.
-  - rewrite 2 FoldCTree.interp_guard.
+  rewrite 2 FoldCTree.unfold_interp.
+	punfold bisim.
+	inv bisim; pclearbot; try easy.
+	- cbn.
     constructor.
     now apply CIH.
-  - rewrite 2 FoldCTree.interp_bind.
+  - cbn.
     apply fequ_bind_chain_eq; intros.
-    setoid_rewrite FoldCTree.interp_guard.
-    constructor.
+    rewrite 2 FoldCTree.unfold_interp.
+    cbn; constructor.
+    step; cbn; constructor.
     apply CIH, REL.
 Qed.
 
@@ -137,18 +138,29 @@ Notation embed_ t :=
 Lemma unfold_embed {E C X} (t : itree (C +' E) X) : (embed t ≅ embed_ t)%ctree.
 Proof.
   unfold embed, embed', internalize at 1.
-  rewrite unfold_interp_ctree.
-  destruct (iobserve t) eqn:EQ; cbn [_interp h_embed].
-  - rewrite FoldCTree.interp_ret; reflexivity.
-  - rewrite FoldCTree.interp_guard; reflexivity.
-  - rewrite FoldCTree.interp_bind, FoldCTree.interp_trigger, Equ.bind_bind.
-    setoid_rewrite Equ.bind_guard.
-    setoid_rewrite Equ.bind_ret_l.
-    setoid_rewrite FoldCTree.interp_guard.
-    destruct e; unfold internalize_h', internalize_h;
-      cbn -[CTree.trigger CTree.branchS CTree.bind].
-    + rewrite Equ.bind_branchS; reflexivity.
-    + rewrite Equ.bind_trigger; reflexivity.
+  rewrite unfold_interp_ctree, FoldCTree.unfold_interp.
+  cbn.
+  destruct (iobserve t) eqn:EQ; cbn; auto.
+  - destruct e.
+    + cbn.
+      rewrite Equ.unfold_bind at 1.
+      cbn.
+      step; cbn; constructor; intros ?.
+      rewrite Equ.bind_step.
+      step; cbn; constructor.
+      rewrite Equ.bind_ret_l.
+      step; cbn; constructor.
+      step; cbn; constructor.
+      reflexivity.
+    + cbn.
+      rewrite Equ.unfold_bind at 1.
+      cbn.
+      step; cbn; constructor; intros ?.
+      rewrite Equ.bind_ret_l.
+      step; cbn; constructor.
+      rewrite FoldCTree.unfold_interp; cbn.
+      step; cbn; constructor.
+      reflexivity.
 Qed.
 
 (* TODO THIS IS REDUNDANT WITH THE DEF IN FOLDCTREE! *)

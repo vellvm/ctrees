@@ -46,14 +46,6 @@ Definition traceq {E C D X Y}
 Instances
 |*)
 
-#[global] Instance htr_equ {E C X} (R : trace -> ctree E C X -> Prop) s :
-  Proper (equ eq ==> impl) (@htr E C X R s).
-Proof.
-  intros t u EQ H; destruct s; cbn in *; auto.
-  destruct H as (t' & TR & HR).
-  exists t'; split; [now rewrite <- EQ | exact HR].
-Qed.
-
 #[global] Instance traceq_equ : forall {E C X} s,
   Proper (equ eq ==> impl) (@has_trace E C X s).
 Proof.

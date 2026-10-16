@@ -90,9 +90,8 @@ Section State.
     fun _ c s => (x <- CTree.branch c;; Ret (s, x))%ctree.
 
   Definition run_state {E C} :
-      forall T : Type,
-        @ctree@{_ _ _ _ d q} (stateE +' E) C T ->
-        stateT S (@ctree@{_ _ _ _ d' q'} E C) T :=
+      @ctree@{_ _ _ _ d q} (stateE +' E) C ~>
+        stateT S (@ctree@{_ _ _ _ d' q'} E C) :=
     fold_state (case_sum1 h_state pure_state) pure_state_choice.
 
 End State.
@@ -617,11 +616,9 @@ Proof.
     + red. reflexivity.
     + eapply weq_ssim. apply update_val_rel_update_val_rel. now apply Hh.
     + cbn. intros [] [] [? <-]. apply ssim_ret. constructor; cbn; auto.
-  - rewrite !bind_map, !bind_bind.
-    unfold mbr, MonadBr_stateT, MonadBr_ctree.
-    cbn -[CTree.branch CTree.bind].
-    rewrite !bind_branch.
-    apply ssim_br_id; intros ?; rewrite !bind_ret_l; cbn.
+  - rewrite !bind_map, !bind_bind. setoid_rewrite bind_branch.
+    cbn.
+    apply ssim_br_id; intros ?; rewrite ?bind_ret_l.
     apply ssim_ret; constructor; cbn; auto.
 Qed.
 
@@ -631,7 +628,7 @@ Context {E : Type -> Type} {F : Type -> Type} {C : Type -> Type}.
 Variable h : E ~> @ctree@{_ _ _ _ d q} F C.
 
 Definition lift_handler :
-    forall T, E T -> Monads.stateT unit (@ctree@{_ _ _ _ d q} F C) T :=
+    E ~> Monads.stateT unit (@ctree@{_ _ _ _ d q} F C) :=
   fun _ e s => CTree.map (fun x => (tt, x)) (h e).
 
 
@@ -891,15 +888,12 @@ Proof.
           eauto.
       * constructor; auto.
   - (* Br *)
-    unfold MonadBr_stateT, mbr, MonadBr_ctree.
-    cbn -[CTree.branch CTree.bind]. rewrite bind_bind, bind_branch.
-    setoid_rewrite bind_ret_l.
+    unfold MonadBr_stateT, mbr, MonadBr_ctree. cbn. rewrite bind_bind, bind_branch.
     unshelve eapply step_ss'_br_l.
     apply equ_clos_sst'_ctx.
     intros.
     eapply ssim_br_l_inv in SIM.
-    fold (interp_state h u st).
-    step. apply step_ss'_guard_l.
+    step. rewrite bind_ret_l. apply step_ss'_guard_l.
     apply CH. apply SIM.
 Qed.
 
@@ -1020,12 +1014,11 @@ Proof.
         apply step_sb'_guard. apply CH. symmetry in SIM. step in SIM. apply SIM.
       * right; auto.
   - (* Br *)
-    unfold MonadBr_stateT, mbr, MonadBr_ctree.
-    cbn -[RelProd CTree.branch CTree.bind]. rewrite bind_bind, bind_branch.
+    unfold MonadBr_stateT, mbr, MonadBr_ctree. cbn -[RelProd]. rewrite bind_bind, bind_branch.
     apply step_sb'_true_br_l.
     intros.
     eapply ss_br_l_inv in SIM.
-    step. rewrite !bind_ret_l.
+    step. rewrite bind_ret_l.
     apply step_sb'_true_guard_l.
     cbn. apply CH. apply SIM.
   Unshelve.

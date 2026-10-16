@@ -1,0 +1,3 @@
+(rocq.theory
+ (name CTreeUniverseCheck)
+ (theories CTree ITree RelationAlgebra))
