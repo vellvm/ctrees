@@ -19,7 +19,7 @@
   (rocq-stdlib (>= 9.0))
   (coq-ext-lib (>= 0.11.3))
   (rocq-coinduction (>= 1.21))
-  (rocq-relation-algebra (>= 1.8.0))
+  (rocq-relation-algebra (>= 1.9.0))
   (rocq-equations (>= 1.3.1))
   (coq-itree (>= 5.0)))
  (tags (
