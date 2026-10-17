@@ -3,15 +3,16 @@
     "coinduction-repo": {
       "flake": false,
       "locked": {
-        "lastModified": 1758090858,
-        "narHash": "sha256-S/stL5bpJsJt+bvOg4F2b/WaEt5IDOop3ruBIbde9GI=",
+        "lastModified": 1778079929,
+        "narHash": "sha256-ndGFgtFtqlfVpddyQDT9zSem218uJTqlLqI1wP38LSg=",
         "owner": "damien-pous",
         "repo": "coinduction",
-        "rev": "a88f0f4f170dcb9b24e3d470c76801a765423598",
+        "rev": "81ecd5f1ffa3e46b696d9461c88ad6ca9be5cfc7",
         "type": "github"
       },
       "original": {
         "owner": "damien-pous",
+        "ref": "v1.22",
         "repo": "coinduction",
         "type": "github"
       }
@@ -68,15 +69,16 @@
     "relation-algebra-repo": {
       "flake": false,
       "locked": {
-        "lastModified": 1758092026,
-        "narHash": "sha256-RnY+a57KnStACteaT5dKQoCCH0qp7/W+4qoaApIilj0=",
+        "lastModified": 1789980351,
+        "narHash": "sha256-SnSEdPajAcIgUzL0VKERXg6i+Lg2yJbNQYoJGNyfVYE=",
         "owner": "damien-pous",
         "repo": "relation-algebra",
-        "rev": "062d5cf9468ce367fe11220b336dff254a51702b",
+        "rev": "a6eb2b0dd62f0df2d198159176e5b28aa9643dae",
         "type": "github"
       },
       "original": {
         "owner": "damien-pous",
+        "ref": "v1.9.1",
         "repo": "relation-algebra",
         "type": "github"
       }

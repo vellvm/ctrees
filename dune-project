@@ -15,7 +15,7 @@
  (synopsis "Library for representing recursive, non-deterministic and impure programs with equational reasoning")
  (version 2.0-dev)
  (depends
-  (rocq-core (>= 9.0))
+  (rocq-core (>= 9.2))
   (rocq-stdlib (>= 9.0))
   (coq-ext-lib (>= 0.11.3))
   (rocq-coinduction (>= 1.21))

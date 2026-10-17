@@ -6,11 +6,11 @@
     flake-utils.url = "github:numtide/flake-utils";
     nix-filter.url = "github:numtide/nix-filter";
     coinduction-repo = {
-      url = "github:damien-pous/coinduction";
+      url = "github:damien-pous/coinduction/v1.22";
       flake = false;
     };
     relation-algebra-repo = {
-      url = "github:damien-pous/relation-algebra";
+      url = "github:damien-pous/relation-algebra/v1.9.1";
       flake = false;
     };
   };
@@ -20,8 +20,8 @@
       let
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
-        rocqPkgs = pkgs.rocqPackages_9_0;
-        coqPkgs = pkgs.coqPackages_9_0;
+        rocqPkgs = pkgs.rocqPackages_9_2;
+        coqPkgs = pkgs.coqPackages_9_2;
         rocq = rocqPkgs.rocq-core;
 
         coinduction = rocqPkgs.callPackage
@@ -29,7 +29,7 @@
             rocqPkgs.mkRocqDerivation {
               owner = "damien-pous";
               pname = "coinduction";
-              version = "coinduction:master";
+              version = "1.22";
               src = coinduction-repo;
 
               buildInputs =
@@ -49,7 +49,7 @@
             rocqPkgs.mkRocqDerivation {
               owner = "damien-pous";
               pname = "relation-algebra";
-              version = "relation-algebra:master";
+              version = "1.9.1";
               src = relation-algebra-repo;
 
               buildInputs =
