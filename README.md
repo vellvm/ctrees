@@ -14,7 +14,7 @@ We develop a cousin of Interaction Trees, dubbed _Choice Trees_, with native sup
   - Yannick Zakowski
   - Steve Zdancewic
 - License: MIT License
-- Compatible Rocq versions: 9.0
+- Compatible Rocq versions: 9.2
 - Additional dependencies:
   - dune
   - [Extlib](https://github.com/coq-community/coq-ext-lib)
@@ -51,9 +51,12 @@ cd ctrees
 dune build
 ```
 
-## Universe issue
+## Universe checking
 
-We currently unset locally universe checking in several places of the library. This is an annoying, but purely technical issue that affects in no way the soundness of our results.
+Universe checking remains enabled throughout the library. The former
+inconsistency came from monomorphic universe instances that identified event
+and branch indices with the higher universes needed by nested choice trees,
+state transformers, and interpreters. These declarations now keep their
+universe levels independent and polymorphic.
 
-Given the complexity of the issue, and its root tracing back to other libraries (for instance, importing simultaneously some parts of the [Interaction Tree] library and of the [RelationAlgebra] library triggers a universe inconsistency), we project to tackle the issue as part of the future support in Rocq for algebraic universes and the release of a universe polymorphic prelude.
 

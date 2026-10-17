@@ -1,6 +1,8 @@
 From CTree Require Import
      Eq Eq.Epsilon.
 
+Set Universe Polymorphism.
+
 Variant pureb {E C X} (rec : ctree E C X -> Prop) (t : ctree E C X) : Prop :=
   | pureb_ret   (v : X) (EQ : t ≅ Ret v) : pureb rec t
   | pureb_stuck (EQ : t ≅ Stuck) : pureb rec t
@@ -15,7 +17,7 @@ Qed.
 
 Section pure.
 
-  Context {E C : Type -> Type} {X : Type}.
+  Context {E : Type -> Type} {C : Type -> Type} {X : Type}.
 
   Class pure (t : ctree E C X) := pure_ : gfp (@fpure E C X) t.
 
@@ -144,7 +146,7 @@ Qed.
 
 Section pure_finite.
 
-  Context {E C : Type -> Type} {X : Type}.
+  Context {E : Type -> Type} {C : Type -> Type} {X : Type}.
 
   Inductive pure_finite_ : ctree E C X -> Prop :=
   | puref_ret (v : X) t (EQ: t ≅ Ret v) : pure_finite_ t
@@ -249,7 +251,7 @@ Class is_simple {E C X} (t : ctree E C X) :=
 
 Section is_simple_theory.
 
-  Context {E C : Type -> Type} {X : Type}.
+  Context {E : Type -> Type} {C : Type -> Type} {X : Type}.
 
   #[global] Instance is_simple_equ :
     Proper (equ eq ==> iff) (@is_simple E C X).

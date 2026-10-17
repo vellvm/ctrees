@@ -1,4 +1,3 @@
-Unset Universe Checking.
 
 From Stdlib Require Import Classes.RelationPairs.
 
@@ -23,13 +22,15 @@ From CTree Require Import
      Misc.Pure.
 
 Import SBisimNotations.
-Import MonadNotation.
-Open Scope monad_scope.
 
 Set Implicit Arguments.
+Set Universe Polymorphism.
 
 (* TODO MOVE *)
 Arguments fequ : simpl never.
+Section StateMonadOperations.
+Import MonadNotation.
+Open Scope monad_scope.
 
 #[global] Instance MonadBr_stateT {S M C} {MM : Monad M} {AM : MonadBr C M}:
   MonadBr C (stateT S M) :=
@@ -62,8 +63,11 @@ Definition refine_state {E C M} S
   ctree E C ~> stateT S M := refine g.
 
 #[global] Typeclasses Opaque fold_state interp_state refine_state.
+End StateMonadOperations.
 
 Section State.
+  Import CTreeNotations.
+  Universes d q d' q'.
   Variable (S : Type).
   Variant stateE : Type -> Type :=
     | Get : stateE S
@@ -72,24 +76,28 @@ Section State.
   Definition get {E C} `{stateE -< E} : ctree E C S := trigger Get.
   Definition put {E C} `{stateE -< E} : S -> ctree E C unit := fun s => trigger (Put s).
 
-  Definition h_state {E C} : stateE ~> stateT S (ctree E C) :=
+  Definition h_state {E C} : stateE ~> stateT S (@ctree@{_ _ _ _ d' q'} E C) :=
     fun _ e s =>
       match e with
       | Get => Ret (s, s)
       | Put s' => Ret (s', tt)
       end.
 
-  Definition pure_state {E C} : E ~> stateT S (ctree E C)
-    := fun _ e s => Vis e (fun x => Ret (s, x)).
+  Definition pure_state {E C} : E ~> stateT S (@ctree@{_ _ _ _ d' q'} E C) :=
+    fun _ e s => (x <- CTree.trigger e;; Ret (s, x))%ctree.
 
-  Definition pure_state_choice {E C} : C ~> stateT S (ctree E C)
-    := fun _ c s => br c (fun x => Ret (s, x)).
+  Definition pure_state_choice {E C} : C ~> stateT S (@ctree@{_ _ _ _ d' q'} E C) :=
+    fun _ c s => (x <- CTree.branch c;; Ret (s, x))%ctree.
 
-  Definition run_state {E C}
-    : ctree (stateE +' E) C ~> stateT S (ctree E C) :=
-    fold_state (case_ h_state pure_state) pure_state_choice.
+  Definition run_state {E C} :
+      @ctree@{_ _ _ _ d q} (stateE +' E) C ~>
+        stateT S (@ctree@{_ _ _ _ d' q'} E C) :=
+    fold_state (case_sum1 h_state pure_state) pure_state_choice.
 
 End State.
+
+Import MonadNotation.
+Open Scope monad_scope.
 
 Ltac break :=
   match goal with
@@ -101,11 +109,13 @@ Ltac break :=
    [itree E ~> stateT S (itree F)]. *)
 Section State.
 
+  Universes d q d' q'.
+
   Variable (S : Type).
-  Context {E F C D : Type -> Type}
-          {R : Type}
-          (h : E ~> stateT S (ctree F D))
-          (g : C ~> stateT S (ctree F D)).
+  Context {E : Type -> Type} {F : Type -> Type}
+          {C : Type -> Type} {D : Type -> Type} {R : Type}
+          (h : E ~> stateT S (@ctree@{_ _ _ _ d' q'} F D))
+          (g : C ~> stateT S (@ctree@{_ _ _ _ d' q'} F D)).
 
   (** Unfolding of [fold]. *)
   Notation fold_state_ h g t s :=
@@ -118,7 +128,7 @@ Section State.
      | BrF c k => bind (g _ c s) (fun xs => Guard (fold_state h g (k (snd xs)) (fst xs)))
      end)%function.
 
-  Lemma unfold_fold_state (t : ctree E C R) (s : S) :
+  Lemma unfold_fold_state (t : @ctree@{_ _ _ _ d q} E C R) (s : S) :
     fold_state h g t s ≅ fold_state_ h g t s.
   Proof.
     unfold fold_state, fold, MonadIter_stateT0, iter, MonadIter_ctree, Basics.iter.
@@ -144,7 +154,7 @@ Section State.
 
   #[global] Instance equ_fold_state:
     Proper (equ eq ==> eq ==> equ eq)
-           (fold_state h g (T := R)).
+           (fold_state h g (T := R) : @ctree@{_ _ _ _ d q} E C R -> _).
   Proof.
     unfold Proper, respectful.
     coinduction r IH; intros * EQ1 * <-.
@@ -160,7 +170,8 @@ Section State.
 
   Lemma fold_state_ret
         (s : S) (r : R) :
-    (fold_state h g (Ret r) s) ≅ (Ret (s, r)).
+    fold_state h g (Ret r : @ctree@{_ _ _ _ d q} E C R) s ≅
+      (Ret (s, r) : @ctree@{_ _ _ _ d' q'} F D (S * R)).
   Proof.
     rewrite ctree_eta. reflexivity.
   Qed.
@@ -171,51 +182,52 @@ Section State.
     now rewrite ctree_eta.
   Qed.
 
-  Lemma fold_state_guard (t : ctree E C R) (s : S) :
+  Lemma fold_state_guard (t : @ctree@{_ _ _ _ d q} E C R) (s : S) :
     fold_state h g (Guard t) s ≅ Guard (fold_state h g t s).
   Proof.
     now rewrite unfold_fold_state; cbn.
   Qed.
 
-  Lemma fold_state_step (t : ctree E C R) (s : S) :
+  Lemma fold_state_step (t : @ctree@{_ _ _ _ d q} E C R) (s : S) :
     fold_state h g (Step t) s ≅ Step (Guard (fold_state h g t s)).
   Proof.
     now rewrite unfold_fold_state; cbn.
   Qed.
 
   Lemma fold_state_vis {T : Type}
-    (e : E T) (k : T -> ctree E C R) (s : S) :
-    fold_state h g (Vis e k) s ≅ h e s >>= fun sx => Guard (fold_state h g (k (snd sx)) (fst sx)).
+    (e : E T) (k : T -> @ctree@{_ _ _ _ d q} E C R) (s : S) :
+    fold_state h g (Vis e k) s ≅
+      h e s >>= fun sx => Guard (fold_state h g (k (snd sx)) (fst sx)).
   Proof.
     rewrite unfold_fold_state; reflexivity.
   Qed.
 
   Lemma fold_state_br {T: Type} `{C -< D}
-    (c : C T) (k : T -> ctree E C R) (s : S) :
-    fold_state h g (br c k) s ≅ g c s >>= fun sx => Guard (fold_state h g (k (snd sx)) (fst sx)).
+    (c : C T) (k : T -> @ctree@{_ _ _ _ d q} E C R) (s : S) :
+    fold_state h g (br c k) s ≅
+      g c s >>= fun sx => Guard (fold_state h g (k (snd sx)) (fst sx)).
   Proof.
     rewrite !unfold_fold_state; reflexivity.
   Qed.
 
   Lemma fold_state_trigger (e : E R) (s : S) :
-    fold_state h g (CTree.trigger e) s ≅
-    h e s >>= fun x => Guard (Ret x).
+    fold_state h g (CTree.trigger e : @ctree@{_ _ _ _ d q} E C R) s ≅
+    ((h e s >>= fun x => Guard (Ret x)) : @ctree@{_ _ _ _ d' q'} F D (S * R)).
   Proof.
-    unfold CTree.trigger.
-    rewrite fold_state_vis; cbn.
+    rewrite Equ.unfold_trigger, fold_state_vis; cbn.
     upto_bind_eq; intros [].
     rewrite fold_state_ret; auto.
   Qed.
 
   Lemma fold_state_trigger_sb (e : E R) (s : S)
-    : fold_state h g (CTree.trigger e) s ~ h e s.
+    : fold_state h g (CTree.trigger e : @ctree@{_ _ _ _ d q} E C R) s ~ h e s.
   Proof.
-    unfold CTree.trigger. rewrite fold_state_vis.
+    rewrite fold_state_trigger.
     rewrite <- (bind_ret_r (h e s)) at 2.
-    cbn.
     upto_bind_eq; intros [].
-    now rewrite sb_guard, fold_state_ret.
+    now rewrite sb_guard.
   Qed.
+
 
   (** Unfolding of [interp]. *)
   Notation interp_state_ h t s :=
@@ -228,7 +240,8 @@ Section State.
 	   | BrF c k => bind (mbr (M := stateT _ _) c s) (fun xs => Guard (interp_state h (k (snd xs)) (fst xs)))
      end)%function.
 
-  Lemma unfold_interp_state `{C-<D} (t : ctree E C R) (s : S) :
+  Lemma unfold_interp_state `{C-<D}
+      (t : @ctree@{_ _ _ _ d q} E C R) (s : S) :
     interp_state h t s ≅ interp_state_ h t s.
   Proof.
     unfold interp_state, interp, MonadIter_stateT0, fold, MonadIter_ctree, Basics.iter.
@@ -254,7 +267,7 @@ Section State.
 
   Lemma equ_interp_state `{C-<D} {Q}:
     Proper (equ Q ==> eq ==> equ (eq * Q))
-           (interp_state (C := C) h (T := R)).
+           (interp_state (C := C) h (T := R) : @ctree@{_ _ _ _ d q} E C R -> _).
   Proof.
     unfold Proper, respectful.
     coinduction r IH; intros * EQ1 * <-.
@@ -272,7 +285,7 @@ Section State.
 
   #[global] Instance equ_eq_interp_state `{C-<D}:
     Proper (equ eq ==> eq ==> equ eq)
-           (interp_state (C := C) h (T := R)).
+           (interp_state (C := C) h (T := R) : @ctree@{_ _ _ _ d q} E C R -> _).
   Proof.
     cbn. intros. subst.
     eapply (equ_leq (eq * eq)%signature).
@@ -282,19 +295,21 @@ Section State.
 
   Lemma interp_state_ret `{C-<D}
         (s : S) (r : R) :
-    (interp_state (C := C) h (Ret r) s) ≅ (Ret (s, r)).
+    interp_state (C := C) h (Ret r : @ctree@{_ _ _ _ d q} E C R) s ≅
+      (Ret (s, r) : @ctree@{_ _ _ _ d' q'} F D (S * R)).
   Proof.
     rewrite ctree_eta. reflexivity.
   Qed.
 
   Lemma interp_state_stuck `{C-<D} (s : S) :
-    interp_state (C := C) (T := R) h Stuck s ≅ Stuck.
+    interp_state (C := C) h (Stuck : @ctree@{_ _ _ _ d q} E C R) s ≅
+      (Stuck : @ctree@{_ _ _ _ d' q'} F D (S * R)).
   Proof.
     now rewrite unfold_interp_state; cbn.
   Qed.
 
   Lemma interp_state_guard `{C -< D}
-    (t : ctree E C R) (s : S) :
+    (t : @ctree@{_ _ _ _ d q} E C R) (s : S) :
     interp_state h (Guard t) s ≅
     Guard (interp_state h t s).
   Proof.
@@ -302,7 +317,7 @@ Section State.
   Qed.
 
   Lemma interp_state_step `{C -< D}
-    (t : ctree E C R) (s : S) :
+    (t : @ctree@{_ _ _ _ d q} E C R) (s : S) :
     interp_state h (Step t) s ≅
     Step (Guard (interp_state h t s)).
   Proof.
@@ -310,15 +325,17 @@ Section State.
   Qed.
 
   Lemma interp_state_vis `{C-<D} {T : Type}
-    (e : E T) (k : T -> ctree E C R) (s : S) :
-    interp_state h (Vis e k) s ≅ h e s >>= fun sx => Guard (interp_state h (k (snd sx)) (fst sx)).
+    (e : E T) (k : T -> @ctree@{_ _ _ _ d q} E C R) (s : S) :
+    interp_state h (Vis e k) s ≅
+      h e s >>= fun sx => Guard (interp_state h (k (snd sx)) (fst sx)).
   Proof.
     rewrite unfold_interp_state; reflexivity.
   Qed.
 
   Lemma interp_state_br {T: Type} `{C -< D}
-    (c : C T) (k : T -> ctree E C R) (s : S) :
-    interp_state h (Br c k) s ≅ branch c >>= fun x => Guard (interp_state h (k x) s).
+    (c : C T) (k : T -> @ctree@{_ _ _ _ d q} E C R) (s : S) :
+    interp_state h (Br c k) s ≅
+      mbr c >>= fun x => Guard (interp_state h (k x) s).
   Proof.
     rewrite !unfold_interp_state; cbn.
     rewrite bind_bind.
@@ -327,10 +344,11 @@ Section State.
   Qed.
 
   Lemma interp_state_trigger `{C -< D} : forall (e : E R) st,
-  interp_state h (CTree.trigger e : ctree E C R) st ≅ x <- h e st;; Guard (Ret x).
+  interp_state h (CTree.trigger e : @ctree@{_ _ _ _ d q} E C R) st ≅
+    ((x <- h e st;; Guard (Ret x)) : @ctree@{_ _ _ _ d' q'} F D (S * R)).
   Proof.
-    intros. rewrite unfold_interp_state. cbn.
-    upto_bind. reflexivity. intros [] [] <-.
+    intros. rewrite Equ.unfold_trigger, interp_state_vis; cbn.
+    upto_bind_eq; intros [].
     now rewrite interp_state_ret.
   Qed.
 
@@ -423,7 +441,7 @@ Section State.
   Lemma refine_state_vis `{E-<F} {T : Type}
     (e : E T) (k : T -> ctree E C R) (s : S) :
     refine_state g (Vis e k) s ≅
-      trigger e >>= fun x => Guard (refine_state g (k x) s).
+      mtrigger e >>= fun x => Guard (refine_state g (k x) s).
   Proof.
     rewrite unfold_refine_state; reflexivity.
   Qed.
@@ -454,7 +472,8 @@ Qed.
 
 Section FoldBind.
   Variable (S : Type).
-  Context {E F C D : Type -> Type}.
+  Context {E : Type -> Type} {F : Type -> Type}
+          {C : Type -> Type} {D : Type -> Type}.
 
   Lemma fold_state_bind
     (h : E ~> stateT S (ctree F D))
@@ -516,7 +535,8 @@ End FoldBind.
 
 Section InterpState.
 
-Context {E F B C : Type -> Type} {X St : Type} `{HasB: B -< C}
+Context {E : Type -> Type} {F : Type -> Type}
+  {B : Type -> Type} {C : Type -> Type} {X : Type} {St : Type} `{HasB: B -< C}
   (h : E ~> stateT St (ctree F C)).
 
 Lemma epsilon_interp_state : forall (t t' : ctree E B X) s,
@@ -602,12 +622,19 @@ Proof.
     apply ssim_ret; constructor; cbn; auto.
 Qed.
 
-Definition lift_handler {E F B} (h : E ~> ctree F B) : E ~> Monads.stateT unit (ctree F B) :=
-  fun _ e s => CTree.map (fun x => (tt, x)) (h _ e).
+Section LiftHandler.
+Universes d q.
+Context {E : Type -> Type} {F : Type -> Type} {C : Type -> Type}.
+Variable h : E ~> @ctree@{_ _ _ _ d q} F C.
 
-Lemma is_simple_lift_handler {E F B} (h : E ~> ctree F B) :
-  (forall Y (e : E Y), is_simple (h _ e)) ->
-  forall Y (e : E Y) st, is_simple (lift_handler h _ e st).
+Definition lift_handler :
+    E ~> Monads.stateT unit (@ctree@{_ _ _ _ d q} F C) :=
+  fun _ e s => CTree.map (fun x => (tt, x)) (h e).
+
+
+Lemma is_simple_lift_handler :
+  (forall Y (e : E Y), is_simple (h e)) ->
+  forall Y (e : E Y) st, is_simple (lift_handler e st).
 Proof.
   intros.
   specialize (H Y e). red. destruct H; [left | right]; intros.
@@ -626,9 +653,9 @@ Qed.
 
 (* Results on interp_state can be transported to interp using interp_lift_handler. *)
 
-Lemma interp_lift_handler {E F B C X} `{HasB: B -< C}
-  (h : E ~> ctree F C) (t : ctree E B X) :
-  interp h t ≅ CTree.map (fun '(st, x) => x) (interp_state (lift_handler h) t tt).
+Lemma interp_lift_handler {B : Type -> Type} {X} `{HasB: B -< C}
+  (t : ctree E B X) :
+  interp h t ≅ CTree.map (fun '(st, x) => x) (interp_state lift_handler t tt).
 Proof.
   revert t. coinduction R CH. intros.
   pose proof @map_equ.
@@ -647,21 +674,25 @@ Proof.
     rewrite map_guard.
     constructor. apply CH.
   - rewrite interp_br, interp_state_br.
-    cbn. rewrite bind_branch, map_bind, bind_branch.
+    cbn. unfold mbr, MonadBr_ctree.
+    rewrite bind_branch, map_bind, bind_branch.
     constructor. intros.
     rewrite map_guard.
     step. constructor.
     apply CH.
 Qed.
+End LiftHandler.
+
 
 Theorem ssim_interp_h {E F1 F2 C D1 D2 X}
   `{HC1 : C -< D1} `{HC2 : C -< D2}
   (Ldest : rel (@label F1) (@label F2)) :
-  forall (h : E ~> ctree F1 D1) (h' : E ~> ctree F2 D2),
+  forall h h',
   (Ldest τ τ /\ forall (x : X), Ldest (val x) (val x)) ->
   (forall {Z} (e : E Z), h _ e (≲update_val_rel Ldest (@eq Z)) h' _ e) ->
   forall (t : ctree E C X),
-  interp h t (≲Ldest) interp h' t.
+  @interp E C (ctree F1 D1) _ _ _ _ _ _ h X t (≲Ldest)
+    @interp E C (ctree F2 D2) _ _ _ _ _ _ h' X t.
 Proof.
   intros.
   rewrite !interp_lift_handler.
@@ -882,16 +913,20 @@ Qed.
 
 (* The proof that interp preserves ssim reuses the interp_state proof. *)
 
-#[global] Instance interp_ssim_eq {E F B C X} `{HasB: B -< C} :
-  forall (h : E ~> ctree F C) (Hh : forall X e, is_simple (h X e)),
-  Proper (ssim eq ==> ssim eq) (interp (B := B) h (T := X)).
-Proof.
-  intros. cbn. intros.
-  rewrite !interp_lift_handler.
-  unfold CTree.map. apply ssim_clo_bind_eq.
-  refine (interp_state_ssim_eq _ _ _ _); auto.
-  reflexivity.
-Qed.
+#[global] Instance interp_ssim_eq@{d q d' q' +}
+  {E : Type -> Type} {F : Type -> Type} {B C : Type -> Type} {X : Type} `{HasB: B -< C}
+  (h : E ~> @ctree@{_ _ _ _ d' q'} F C)
+  (Hh : forall X (e : E X), is_simple (h _ e)) :
+  Proper (ssim eq ==> ssim eq)
+    (interp (B := B) (M := @ctree@{_ _ _ _ d' q'} F C) h (T := X) :
+      @ctree@{_ _ _ _ d q} E B X -> _).
+  Proof.
+    cbn. intros.
+    rewrite !interp_lift_handler.
+    unfold CTree.map. apply ssim_clo_bind_eq.
+    refine (interp_state_ssim_eq _ _ _ _); auto.
+    reflexivity.
+  Qed.
 
 (* Direct proof that interp_state preserves sbisim. *)
 
@@ -1026,16 +1061,20 @@ Qed.
 
 (* The proof that interp preserves sbisim reuses the interp_state proof. *)
 
-#[global] Instance interp_sbisim_eq {E F B C X} `{HasB: B -< C} :
-  forall (h : E ~> ctree F C) (Hh : forall X e, is_simple (h X e)),
-  Proper (sbisim eq ==> sbisim eq) (interp (B := B) h (T := X)).
-Proof.
-  intros. cbn. intros.
-  rewrite !interp_lift_handler.
-  unfold CTree.map. apply sbisim_clo_bind_eq.
-  refine (interp_state_sbisim_eq _ _ _ _); auto.
-  reflexivity.
-Qed.
+#[global] Instance interp_sbisim_eq@{d q d' q' +}
+  {E : Type -> Type} {F : Type -> Type} {B C : Type -> Type} {X : Type} `{HasB: B -< C}
+  (h : E ~> @ctree@{_ _ _ _ d' q'} F C)
+  (Hh : forall X (e : E X), is_simple (h _ e)) :
+  Proper (sbisim eq ==> sbisim eq)
+    (interp (B := B) (M := @ctree@{_ _ _ _ d' q'} F C) h (T := X) :
+      @ctree@{_ _ _ _ d q} E B X -> _).
+  Proof.
+    cbn. intros.
+    rewrite !interp_lift_handler.
+    unfold CTree.map. apply sbisim_clo_bind_eq.
+    refine (interp_state_sbisim_eq _ _ _ _); auto.
+    reflexivity.
+  Qed.
 
 Arguments get {S E C _}.
 Arguments put {S E C _}.

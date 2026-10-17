@@ -1,10 +1,8 @@
-Unset Universe Checking.
 
 From ExtLib Require Import
      Structures.Functor
      Structures.Monad.
 
-Unset Universe Checking.
 From CTree Require Import
      Eq
      Eq.Epsilon
@@ -13,15 +11,17 @@ From CTree Require Import
      Interp.FoldCTree
      Interp.FoldStateT
      Misc.Pure.
+Set Universe Polymorphism.
+
 
 Import ITree.Basics.Basics.Monads.
 Import MonadNotation.
 Open Scope monad_scope.
 
-Theorem ssim_pure {E F B C X} : forall (L : rel _ _) (t : ctree E B X),
+Theorem ssim_pure@{d q +} {E F B C X} : forall (L : rel _ _) (t : ctree E B X),
   pure_finite t ->
   (forall x : X, L (val x) (val tt)) ->
-  ssim L t (Ret tt : ctree F C unit).
+  ssim L t (Ret tt : @ctree@{_ _ _ _ d q} F C unit).
 Proof.
   intros. induction H; subs.
   - now apply ssim_ret.
@@ -30,7 +30,7 @@ Proof.
   - now apply ssim_guard_l.
 Qed.
 
-Unset Universe Checking.
+
 
 Theorem refine_ctree_ssim {E B B' X} :
   forall (t : ctree E B X) (h : B ~> ctree E B'),

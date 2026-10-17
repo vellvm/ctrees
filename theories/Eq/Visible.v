@@ -21,6 +21,7 @@ Open Scope ctree.
 
 Set Implicit Arguments.
 Set Primitive Projections.
+Set Universe Polymorphism.
 
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_equ H.
 

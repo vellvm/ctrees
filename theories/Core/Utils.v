@@ -7,11 +7,13 @@ From ITree Require Import Basics.Basics.
 
 Notation fin := Fin.t.
 
-Polymorphic Class MonadTrigger (E : Type -> Type) (M : Type -> Type) : Type :=
-  mtrigger : forall {X}, E X -> M X.
+Polymorphic Class MonadTrigger@{ei +}
+  (E : Type@{ei} -> Type) (M : Type -> Type) : Type :=
+  mtrigger : forall {X : Type@{ei} }, E X -> M X.
 
-Polymorphic Class MonadBr (B : Type -> Type) (M : Type -> Type) : Type :=
-  mbr : forall {X}, B X -> M X.
+Polymorphic Class MonadBr@{bi +}
+  (B : Type@{bi} -> Type) (M : Type -> Type) : Type :=
+  mbr : forall {X : Type@{bi} }, B X -> M X.
 
 Polymorphic Class MonadStep (M : Type -> Type) : Type :=
   mstep : M unit.

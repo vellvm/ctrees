@@ -2,9 +2,9 @@
   (name extracted)
   (wrapped false)
   )
-(coq.extraction
+(rocq.extraction
   (prelude Extract)
-  (theories CTree CTreeImp ImpBrEx)
+  (theories Stdlib ExtLib Paco ITree Coinduction RelationAlgebra CTree CTreeImp ImpBrEx)
   (extracted_modules
     Applicative
     Ascii

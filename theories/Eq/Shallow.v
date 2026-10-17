@@ -26,6 +26,7 @@ From Stdlib Require Import
      JMeq.
 
 Set Implicit Arguments.
+Set Universe Polymorphism.
 (* end hide *)
 
 Definition eqeq {A : Type} (P : A -> Type) {a1 a2 : A} (p : a1 = a2) : P a1 -> P a2 -> Prop :=

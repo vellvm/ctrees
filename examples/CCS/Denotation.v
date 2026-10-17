@@ -5,7 +5,6 @@ Denotation of [ccs] into [ctree]s
 
 .. coq:: none
 |*)
-Unset Universe Checking.
 
 From Stdlib Require Export
      List
@@ -53,8 +52,9 @@ Variant ActionE : Type -> Type :=
 Notation ccsE := ActionE.
 Notation ccsC := (B2 +' B3 +' B4).
 
-Definition ccsT' T := ctree' ccsE ccsC T.
-Definition ccsT := ctree ccsE ccsC.
+Universe ccs_u.
+Definition ccsT := @ctree@{_ _ _ _ ccs_u ccs_u} ccsE ccsC.
+Definition ccsT' (T : Type@{ccs_u}) := ctreeF ccsE ccsC T (ccsT T).
 
 Definition ccs' := ccsT' void.
 Definition ccs  := ccsT void.
@@ -71,7 +71,7 @@ Section Combinators.
 
   Definition plus (P Q : ccs) : ccs := br2 P Q.
 
-  Definition h_new (c : chan) : ActionE ~> ctree ccsE ccsC :=
+  Definition h_new (c : chan) : ActionE ~> ccsT :=
     fun _ e => let '(Act a) := e in
             match a with
             | Send c'
@@ -81,7 +81,7 @@ Section Combinators.
   #[global] Arguments h_new c [T] _.
 
   Definition new : chan -> ccs -> ccs :=
-    fun c P => interp (h_new c) P.
+    fun c P => interp (M := @ctree@{_ _ _ _ ccs_u ccs_u} ccsE ccsC) (h_new c) P.
 
   Definition para : ccs -> ccs -> ccs :=
     cofix F (P : ccs) (Q : ccs) :=
@@ -237,7 +237,7 @@ Proof.
     rewrite <- eq1; eauto.
 Qed.
 
-Lemma trans_brS' {E C X Y} : forall (c : C Y) (k : Y -> ctree E C X) x u,
+Polymorphic Lemma trans_brS' {E C X Y} : forall (c : C Y) (k : Y -> ctree E C X) x u,
     u ≅ k x ->
 		trans τ (BrS c k) u.
 Proof.
@@ -262,15 +262,17 @@ Qed.
 (* TO MOVE *)
 Ltac ssplit := split; [| split].
 Ltac eex := do 2 eexists.
-Lemma trans_trigger_inv' : forall {E C X} (e : E X) l u,
-		trans l (trigger e : ctree E C X) u ->
-    exists x, u ≅ Ret x /\ l = obs e x.
+Polymorphic Lemma trans_trigger_inv'@{d q +} : forall
+    {E : Type -> Type} {C : Type -> Type} {X : Type} (e : E X) l
+    (u : @ctree@{_ _ _ _ d q} E C X),
+    trans l (trigger e : @ctree@{_ _ _ _ d q} E C X) u ->
+    exists x, u ≅ (Ret x : @ctree@{_ _ _ _ d q} E C X) /\ l = obs e x.
 Proof.
   intros * TR.
-  unfold trigger in TR.
+  rewrite Equ.unfold_trigger in TR.
   now apply trans_vis_inv in TR.
 Qed.
-Lemma trans_vis' {E C R X} : forall (e : E X) x (k : X -> ctree E C R) u,
+Polymorphic Lemma trans_vis' {E C R X} : forall (e : E X) x (k : X -> ctree E C R) u,
     u ≅ k x ->
     trans (obs e x) (Vis e k) u.
 Proof.
@@ -290,12 +292,14 @@ Definition can_comm (c : chan) (a : @label ccsE) : bool :=
 
 Lemma trans_hnew_inv : forall a l c p,
     trans l (h_new c (Act a)) p ->
-    l = obs (Act a) tt /\ can_comm c l /\ p ≅ Ret tt.
+    l = obs (Act a) tt /\ can_comm c l /\ p ≅ (Ret tt : ccsT unit).
 Proof.
   intros * tr.
-  cbn in *; destruct a; cbn in *; destruct (c =? c0) eqn:comm; cbn in *.
+  destruct a; cbn [h_new] in tr;
+    destruct (c =? c0) eqn:comm; cbn [h_new] in tr.
   all : try now eapply Stuck_is_stuck in tr.
-  all: unfold can_comm; apply trans_trigger_inv' in tr as ([] & ? & ?); subst; rewrite comm; eauto.
+  all: unfold can_comm; apply trans_trigger_inv' in tr as ([] & EQ & ->);
+    rewrite comm; auto.
 Qed.
 
 Lemma new_guard : forall c t, new c (Guard t) ≅ Guard (new c t).
@@ -373,9 +377,9 @@ Proof.
   - tauto.
 Qed.
 
-Lemma trans_new_inv_aux : forall l T U,
+Lemma trans_new_inv_aux : forall l (T U : ccs'),
     trans_ l T U ->
-    forall c p q,
+    forall c (p q : ccs),
       (go T ≅ new c p \/ go T ≅ Guard (new c p)) ->
       go U ≅ q ->
       exists q', can_comm c l = true /\ trans l p q' /\
@@ -387,22 +391,17 @@ Proof.
   - destruct EQ1 as [EQ1 | EQ1].
     + unfold new in EQ1; rewrite unfold_interp in EQ1.
       unfold trans, transR.
-      cbn.
+      cbn -[CTree.branch MonadBr_ctree].
       desobs p; try now (step in EQ1; inv EQ1).
-      * destruct e,a; cbn in *.
-        ** destruct (c =? c1); cbn in *.
-           *** step in EQ1; dependent induction EQ1; inv x0.
-           *** step in EQ1; inv EQ1.
-        ** destruct (c =? c1); cbn in *.
-           *** step in EQ1; dependent induction EQ1; inv x0.
-           *** step in EQ1; inv EQ1.
-      * cbn in EQ1.
-        unfold Utils.mbr, MonadBr_ctree, branch in EQ1.
-        cbn in * |-.
-        rewrite unfold_bind in EQ1; cbn in EQ1.
+      * destruct e,a; cbn [h_new] in EQ1;
+          destruct (c =? c1); cbn [h_new] in EQ1;
+          try solve [step in EQ1; dependent induction EQ1; inv x0];
+          rewrite bind_trigger in EQ1; step in EQ1; inv EQ1.
+      * cbn -[CTree.branch MonadBr_ctree] in EQ1.
+        unfold Utils.mbr, MonadBr_ctree in EQ1; rewrite bind_branch in EQ1.
         inv_equ. rename EQ into eqx.
         specialize (eqx x).
-        cbn in * |-; rewrite bind_ret_l in eqx.
+        cbn -[CTree.trigger CTree.bind] in * |-.
         edestruct (IHtr (k0 x)) as (q' & comm & tr' & EQ).
         now right; rewrite <- ctree_eta.
         eauto.
@@ -415,7 +414,7 @@ Proof.
   - destruct EQ1 as [EQ1 | EQ1].
     + unfold new in EQ1; rewrite unfold_interp in EQ1.
       unfold trans, transR.
-      cbn.
+      cbn -[CTree.trigger CTree.bind].
       desobs p; try now (step in EQ1; inv EQ1).
       * inv_equ.
         edestruct (IHtr t0) as (q' & comm & tr' & EQ).
@@ -425,13 +424,10 @@ Proof.
         eexists; ssplit; auto.
         econstructor; apply tr'.
         rewrite <- EQ2; eauto.
-      * destruct e,a; cbn in *.
-        ** destruct (c =? c0); cbn in *.
-           *** step in EQ1; dependent induction EQ1; inv x0.
-           *** step in EQ1; inv EQ1.
-        ** destruct (c =? c0); cbn in *.
-           *** step in EQ1; dependent induction EQ1; inv x0.
-           *** step in EQ1; inv EQ1.
+      * destruct e,a; cbn [h_new] in EQ1;
+          destruct (c =? c0); cbn [h_new] in EQ1;
+          try solve [step in EQ1; dependent induction EQ1; inv x0];
+          rewrite bind_trigger in EQ1; step in EQ1; inv EQ1.
     + inv_equ.
       edestruct IHtr as (q' & comm & tr' & EQ).
       left; rewrite EQ1, <- ctree_eta; reflexivity.
@@ -442,46 +438,47 @@ Proof.
   - destruct EQ1 as [EQ1 | EQ1]; inv_equ.
     + unfold new in EQ1; rewrite unfold_interp in EQ1.
       unfold trans, transR.
-      cbn.
+      cbn -[CTree.trigger CTree.bind].
       desobs p; try now (step in EQ1; inv EQ1).
       * inv_equ.
         eexists; ssplit; auto.
         constructor; reflexivity.
         rewrite <- EQ2, <- ctree_eta, H; auto.
-      * destruct e,a; cbn in *.
-        ** destruct (c =? c0); cbn in *.
-           *** step in EQ1; dependent induction EQ1; inv x0.
-           *** step in EQ1; inv EQ1.
-        ** destruct (c =? c0); cbn in *.
-           *** step in EQ1; dependent induction EQ1; inv x0.
-           *** step in EQ1; inv EQ1.
+      * destruct e,a; cbn [h_new] in EQ1;
+          destruct (c =? c0); cbn [h_new] in EQ1;
+          try solve [step in EQ1; dependent induction EQ1; inv x0];
+          rewrite bind_trigger in EQ1; step in EQ1; inv EQ1.
 
   - destruct EQ1 as [EQ1 | EQ1]; [ | inv_equ].
-    unfold new in EQ1; rewrite unfold_interp in EQ1.
-    unfold trans,transR; cbn.
-    desobs p; inv_equ.
-    cbn in *.
-    destruct e0,a; cbn in *; destruct (c =? c0) eqn:EQ; inv_equ.
-    + rewrite bind_trigger in EQ1.
-      inv_equ.
-      rewrite EQ; eexists; ssplit; auto.
-      constructor; reflexivity.
-      rewrite <- EQ2, <- ctree_eta, <- H; auto.
-    + rewrite bind_trigger in EQ1.
-      inv_equ.
-      rewrite EQ; eexists; ssplit; auto.
-      constructor; reflexivity.
-      rewrite <- EQ2, <- ctree_eta, <- H; auto.
+    unfold new in EQ1.
+    destruct (observe p) as [r | | t0 | t0 | U0 e0 k0 | U0 c0 k0] eqn:EP;
+      rewrite (ctree_eta p), EP in EQ1.
+    + destruct r.
+    + rewrite FoldCTree.interp_stuck in EQ1; inv_equ.
+    + rewrite FoldCTree.interp_step in EQ1; inv_equ.
+    + rewrite FoldCTree.interp_guard in EQ1; inv_equ.
+    + rewrite FoldCTree.interp_vis in EQ1.
+      destruct e0 as [a]; destruct a as [ch | ch];
+        cbn [h_new] in EQ1;
+        destruct (c =? ch) eqn:COMM.
+      all: try solve [rewrite bind_stuck in EQ1; inv_equ].
+      all: pose proof (trans_vis e x k) as TR.
+      all: rewrite H, EQ1 in TR;
+        apply Trans.trans_trigger_inv in TR as ([] & ET & EL).
+      all: exists (k0 tt); ssplit.
+      all: try solve [rewrite EL; cbn [can_comm]; rewrite COMM; reflexivity].
+      all: try solve [rewrite EL, (ctree_eta p), EP; apply trans_vis].
+      all: rewrite <- EQ2, <- ctree_eta; exact ET.
+    + rewrite FoldCTree.interp_br' in EQ1; inv_equ.
 
  - destruct EQ1 as [EQ1 | EQ1]; inv_equ.
    unfold new in EQ1; rewrite unfold_interp in EQ1.
-   unfold trans,transR; cbn.
+   unfold trans,transR; cbn -[CTree.trigger CTree.bind].
    desobs p; inv_equ.
    destruct r0.
-   cbn in *.
-   destruct e,a; cbn in *.
-   * destruct (c =? c0); cbn in *; inv_equ.
-   * destruct (c =? c0); cbn in *; inv_equ.
+   destruct e,a; cbn [h_new] in EQ1;
+     destruct (c =? c0); cbn [h_new] in EQ1;
+     rewrite ?bind_trigger in EQ1; inv_equ.
 Qed.
 
 Lemma trans_new_inv : forall l c p p',

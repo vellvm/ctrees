@@ -1,5 +1,6 @@
 (include_subdirs qualified)
 
-(coq.theory
+(rocq.theory
  (name CTree)
- (package rocq-ctree))
+ (package rocq-ctree)
+ (theories Stdlib ExtLib Paco ITree Coinduction RelationAlgebra))

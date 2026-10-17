@@ -14,9 +14,6 @@ From ExtLib Require Import
      Data.List
      Data.Map.FMapAList.
 
-(* Universe issue, TO FIX *)
-Unset Universe Checking.
-Unset Auto Template Polymorphism.
 
 From ITree Require Import
      ITree
@@ -75,14 +72,19 @@ Variant MemE : Type -> Type :=
 | wr (x : var) (v : value) : MemE unit.
 
 Section Denote1.
+  Universes d q sd sq yd yq md mq.
   Definition is_true (v : value) : bool := if (v =? 0)%nat then false else true.
 
   Context (E := yieldE +' forkE +' MemE).
 
-  Definition while (step : ctree E void1 (unit + unit)) : ctree E void1 unit :=
+
+  Definition while
+      (step : @ctree@{_ _ _ _ d q} E void1 (unit + unit)) :
+      @ctree@{_ _ _ _ d q} E void1 unit :=
     CTree.iter (fun _ => step) tt.
 
-  Fixpoint denote_expr (e : expr) : ctree E void1 value :=
+  Fixpoint denote_expr (e : expr) :
+      @ctree@{_ _ _ _ d q} E void1 value :=
     match e with
     | Var v     => x <- trigger (rd v) ;; trigger Yield;; ret x
     | Lit n     => ret n
@@ -91,7 +93,8 @@ Section Denote1.
     | Mult a b  => l <- denote_expr a ;; r <- denote_expr b ;; ret (l * r)
     end.
 
-  Fixpoint denote_imp (s : stmt) : ctree E void1 unit :=
+  Fixpoint denote_imp (s : stmt) :
+      @ctree@{_ _ _ _ d q} E void1 unit :=
     match s with
     | Assign x e =>  v <- denote_expr e ;; u <- trigger (wr x v) ;; ret u
     | Seq a b    =>  denote_imp a ;; denote_imp b
@@ -118,39 +121,53 @@ Section Denote1.
   Definition interp_concurrency (t : stmt) : completed :=
     schedule 1 (fun _ => denote_imp t) (Some Fin.F1).
 
-  Definition handle_spawn : (yieldE +' spawnE +' MemE) ~> ctree (yieldE +' MemE) Bn :=
+  Definition handle_spawn : (yieldE +' spawnE +' MemE) ~>
+      @ctree@{_ _ _ _ sd sq} (yieldE +' MemE) Bn :=
     fun _ e =>
       match e with
       | inl1 y => trigger y
-      | inr1 (inl1 s) => match s with Spawn => ret tt end (* erase spawn events *)
+      | inr1 (inl1 s) => match s in spawnE T return
+          @ctree@{_ _ _ _ sd sq} (yieldE +' MemE) Bn T with Spawn => Ret tt end
       | inr1 (inr1 m) => trigger m
       end.
 
-  Definition interp_spawn : @completed MemE -> ctree (yieldE +' MemE) Bn unit :=
-    Fold.interp handle_spawn (T := unit).
-
-  Definition handle_yield : (yieldE +' MemE) ~> ctree MemE Bn :=
+  Definition interp_spawn : @completed MemE ->
+      @ctree@{_ _ _ _ sd sq} (yieldE +' MemE) Bn unit :=
+    Fold.interp handle_spawn (T:=unit).
+  Definition handle_yield : (yieldE +' MemE) ~>
+      @ctree@{_ _ _ _ yd yq} MemE Bn :=
     fun _ e =>
       match e with
-      | inl1 s => match s with Yield => ret tt end (* erase yield events *)
+      | inl1 s => match s in yieldE T return
+          @ctree@{_ _ _ _ yd yq} MemE Bn T with Yield => Ret tt end
       | inr1 m => trigger m
       end.
 
-  Definition interp_yield : ctree (yieldE +' MemE) Bn unit -> ctree MemE Bn unit :=
+  Definition interp_yield :
+      @ctree@{_ _ _ _ sd sq} (yieldE +' MemE) Bn unit ->
+      @ctree@{_ _ _ _ yd yq} MemE Bn unit :=
     Fold.interp handle_yield (T:=unit).
-
   (* list of key value pairs *)
   Definition env := alist var value.
-
-  Definition handle_state : MemE ~> Monads.stateT env (ctree void1 Bn) :=
+  Definition handle_state : MemE ~>
+      Monads.stateT env (@ctree@{_ _ _ _ md mq} void1 Bn) :=
     fun _ e s =>
       match e with
       | rd x => Ret (s, lookup_default x 0%nat s)
       | wr x v => Ret (Maps.add x v s, tt)
       end.
 
-  Definition interp_imp (t : stmt) : Monads.stateT env (ctree void1 Bn) unit :=
+
+  Definition interp_imp (t : stmt) :
+      Monads.stateT env (@ctree@{_ _ _ _ md mq} void1 Bn) unit :=
     interp_state handle_state (interp_yield (interp_spawn (interp_concurrency t))).
+
+  #[local] Arguments CTree.trigger : simpl never.
+  #[local] Arguments CTree.branch : simpl never.
+  #[local] Arguments CTree.bind : simpl never.
+  #[local] Arguments Fold.interp : simpl never.
+  #[local] Arguments interp_state : simpl never.
+  #[local] Arguments MonadBr_ctree : simpl never.
 
   Lemma schedule_forks_equ t1 t2 :
     (schedule 1 (fun _ : fin 1 => denote_imp (Fork t1 (Fork t2 Skip))) (Some Fin.F1))
@@ -163,26 +180,41 @@ Section Denote1.
                         (fun _ => denote_imp t1))
                      None)).
   Proof.
+    cbn. repeat setoid_rewrite bind_trigger.
     rewrite rewrite_schedule. simp schedule_match.
     cbn. CTree.fold_subst.
-    unfold trigger.
     step. cbn. constructor. intros [].
+    rewrite (bind_ret_l tt (fun _ => trigger Spawn;;
+      Guard (schedule 2 (cons_vec (denote_imp t2) (fun _ => denote_imp t1)) None))).
+    etransitivity.
+    { apply equ_schedule with
+        (y := cons_vec (denote_imp t1)
+          (fun _ => Vis (subevent _ Par.Fork) (fun b : bool => if b then denote_imp t2 else Ret tt))); intros i.
+      dependent destruction i.
+      - simp cons_vec. rewrite bind_ret_l; reflexivity.
+      - dependent destruction i; [| inv i].
+        simp cons_vec. unfold replace_vec. cbn.
+        rewrite bind_ret_l, bind_trigger; reflexivity. }
+    cbn.
+    rewrite bind_trigger.
 
     rewrite rewrite_schedule. simp schedule_match. simp cons_vec.
     unfold replace_vec. cbn.
     step. cbn. constructor. intros [].
 
-    rewrite rewrite_schedule. simp schedule_match. simp cons_vec. cbn.
+    rewrite rewrite_schedule. simp schedule_match. simp cons_vec.
+    cbn.
     step. cbn. constructor.
 
     apply equ_schedule. intro i.
     dependent destruction i.
     - simp remove_vec. simp cons_vec. CTree.fold_subst.
-      rewrite bind_ret_l. reflexivity.
+      rewrite ?bind_ret_l. reflexivity.
     - dependent destruction i; [| inv i].
       simp remove_vec. simp cons_vec.
-      unfold remove_front_vec. simp cons_vec. cbn. simp cons_vec.
-      rewrite bind_ret_l. reflexivity.
+      unfold remove_front_vec. simp cons_vec.
+      cbn. simp cons_vec.
+      rewrite ?bind_ret_l. reflexivity.
   Qed.
 
   Equations p : fin 2 -> fin 2 :=
@@ -279,25 +311,30 @@ Section Denote1.
     (trigger Yield;;
      br1 (interp_concurrency s)).
   Proof.
-    unfold interp_concurrency. cbn.
+    unfold interp_concurrency.
+    etransitivity.
+    { apply equ_schedule; intros i; cbn; apply bind_trigger. }
+    setoid_rewrite bind_trigger.
 
     rewrite rewrite_schedule. simp schedule_match.
-    cbn. unfold trigger.
+    cbn.
     rewrite replace_vec_unary.
     step. cbn. constructor. intros [].
 
     rewrite rewrite_schedule. simp schedule_match.
-    CTree.fold_subst. rewrite (bind_ret_l tt).
-    simp cons_vec. cbn. rewrite remove_vec_cons_2.
+    CTree.fold_subst.
+    simp cons_vec. cbn.
+    rewrite remove_vec_cons_2.
     step. cbn. constructor.
 
     rewrite rewrite_schedule. simp schedule_match.
+    rewrite bind_trigger.
     step. cbn. constructor. intros [].
 
-    CTree.fold_subst. rewrite (bind_ret_l tt).
+    CTree.fold_subst.
     step. constructor; intros i.
     dependent destruction i. 2: inv i.
-    apply equ_schedule. repeat intro. rewrite bind_ret_l. reflexivity.
+    apply equ_schedule. repeat intro. reflexivity.
   Qed.
 
   Lemma yield_equ s :
@@ -306,7 +343,10 @@ Section Denote1.
     (trigger Yield;;
      br1 (interp_concurrency s)).
   Proof.
-    unfold interp_concurrency. cbn.
+    unfold interp_concurrency.
+    etransitivity.
+    { apply equ_schedule; intros i; cbn; apply bind_trigger. }
+    setoid_rewrite bind_trigger.
 
     rewrite rewrite_schedule. simp schedule_match.
     cbn. CTree.fold_subst.
@@ -321,7 +361,7 @@ Section Denote1.
     CTree.fold_subst.
     step. cbn. constructor; intros i.
     dependent destruction i. 2: inv i.
-    apply equ_schedule. repeat intro. rewrite bind_ret_l. reflexivity.
+    apply equ_schedule. repeat intro. rewrite ?bind_ret_l. reflexivity.
   Qed.
 
   Lemma br1_guard {F X} (t : ctree F Bn X) :
@@ -353,6 +393,8 @@ Section Denote1.
     unfold trigger.
     reflexivity.
   Qed.
+
+
 
   Lemma fork_skip_yield s :
     interp_spawn (interp_concurrency (Seq YieldS s)) ~
@@ -388,14 +430,15 @@ Section Denote1.
     rewrite bind_ret_l. apply sb_guard.
   Qed.
 
+
   Lemma commut_forks_unfold s :
     interp_concurrency (Fork (While (Lit 1%nat) YieldS) (Fork s Skip)) ~
     interp_concurrency (Fork s (Fork (Seq YieldS (While (Lit 1%nat) YieldS)) Skip)).
   Proof.
     unfold interp_concurrency.
     do 2 rewrite schedule_forks_equ.
-    upto_bind_eq; intros [].
-    upto_bind_eq; intros [].
+    repeat setoid_rewrite bind_trigger.
+    do 2 (apply sb_vis; intros []).
     apply sb_guard_lr.
 
     apply schedule_order''.
@@ -405,9 +448,12 @@ Section Denote1.
 
   Lemma assign_equ :
     interp_concurrency (Assign "x" (Lit 2)) ≅
-                       (vis (wr "x" 2) (fun _ => Guard (ret tt))).
+      (vis (wr "x" 2) (fun _ => Guard (ret tt)) : @completed MemE).
   Proof.
-    unfold interp_concurrency. cbn.
+    unfold interp_concurrency.
+    etransitivity.
+    { apply equ_schedule with (y := fun _ => Vis (subevent _ (wr "x" 2)) (fun x => Ret x));
+        intros i; cbn; rewrite bind_ret_l, bind_trigger; reflexivity. }
 
     rewrite rewrite_schedule. simp schedule_match.
     cbn. CTree.fold_subst.
@@ -416,15 +462,22 @@ Section Denote1.
     rewrite rewrite_schedule. simp schedule_match.
     cbn. step. constructor.
 
-    rewrite rewrite_schedule. simp schedule_match. reflexivity.
+    rewrite rewrite_schedule. simp schedule_match.
+    step; cbn; constructor; reflexivity.
   Qed.
 
   Lemma fork_assign_assign_equ :
     interp_concurrency (Fork (Assign "x" (Lit 2))
                              (Assign "x" (Lit 1%nat))) ≅
-                       trigger Spawn;; (vis (wr "x" 1%nat) (fun _ => (Guard (trigger Yield;; br1 ((vis (wr "x" 2) (fun _ => Guard (ret tt)))))))).
+    (trigger Spawn;;
+      vis (wr "x" 1%nat) (fun _ => Guard
+        (trigger Yield;; br1 (vis (wr "x" 2) (fun _ => Guard (Ret tt)))))
+      : @completed MemE).
   Proof.
-    unfold interp_concurrency. cbn.
+    unfold interp_concurrency.
+    etransitivity.
+    { apply equ_schedule; intros i; cbn; apply bind_trigger. }
+    rewrite bind_trigger.
 
     rewrite rewrite_schedule. simp schedule_match.
     cbn. CTree.fold_subst.
@@ -441,15 +494,19 @@ Section Denote1.
     step. constructor.
 
     rewrite rewrite_schedule. simp schedule_match.
-    step. cbn. constructor. CTree.fold_subst. intros [].
+    step. cbn.
+    rewrite bind_trigger.
+    constructor. CTree.fold_subst. intros [].
     step. cbn. constructor. intros i.
 
     dependent destruction i. 2: inv i.
     rewrite remove_vec_cons_2.
-    rewrite rewrite_schedule. simp schedule_match. cbn.
+    rewrite rewrite_schedule. simp schedule_match.
+    cbn.
     step. constructor. intros [].
 
-    rewrite rewrite_schedule. simp schedule_match. cbn.
+    rewrite rewrite_schedule. simp schedule_match.
+    cbn.
     step. constructor.
 
     rewrite rewrite_schedule. simp schedule_match. reflexivity.
@@ -477,39 +534,32 @@ Section Denote1.
     interp_imp (Assign "x" (Lit 2)) s.
   Proof.
     unfold interp_imp.
-    rewrite fork_assign_assign_equ, assign_equ.
+    setoid_rewrite fork_assign_assign_equ.
+    setoid_rewrite assign_equ.
     unfold interp_yield, interp_spawn.
 
-    rewrite interp_bind. unfold trigger. rewrite interp_vis.
-    cbn. rewrite bind_ret_l. setoid_rewrite interp_ret.
-    rewrite ?interp_bind, ?interp_guard, ?bind_guard, interp_state_guard.
-    rewrite sb_guard.
-    rewrite interp_ret, bind_ret_l.
-
-    rewrite interp_vis; cbn.
-    unfold trigger; rewrite interp_vis; cbn.
-    rewrite bind_vis, interp_vis; cbn.
-    rewrite interp_state_bind, interp_state_trigger.
-    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard, ?interp_guard, ?interp_state_guard).
-    unfold trigger. rewrite interp_bind, interp_vis; cbn.
-    rewrite bind_vis, interp_vis; cbn.
-    rewrite interp_state_bind, interp_state_trigger.
-    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard, ?interp_guard, ?interp_state_guard).
-    unfold trigger. rewrite interp_bind, interp_vis; cbn.
-    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard, ?interp_ret, ?interp_guard, ?interp_state_guard).
-    symmetry; rewrite ?sb_guard; symmetry.
-    rewrite ?interp_br', interp_state_br.
-    unfold branch; cbn. rewrite bind_br.
+    repeat (rewrite ?FoldCTree.interp_bind, ?FoldCTree.interp_trigger,
+      ?FoldCTree.interp_vis, ?FoldCTree.interp_guard, ?FoldCTree.interp_ret,
+      ?FoldCTree.interp_br', ?interp_state_bind, ?interp_state_trigger,
+      ?interp_state_vis, ?interp_state_guard, ?interp_state_ret,
+      ?bind_bind, ?bind_guard, ?bind_ret_l, ?subevent_subevent; cbn).
+    repeat apply sb_guard_l.
+    repeat apply sb_guard_r.
+    rewrite interp_state_br.
+    unfold mbr at 1; unfold MonadBr_ctree at 1.
+    cbn -[Fold.interp interp_state MonadBr_ctree].
+    rewrite bind_branch.
     apply sb_br_l; [exact Fin.F1 |].
-    intros ?.
-    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard, ?interp_ret, ?interp_guard, ?interp_state_guard).
-    rewrite interp_vis; cbn.
-    unfold trigger; rewrite bind_vis, interp_vis; cbn.
-    rewrite interp_state_bind, interp_state_trigger.
-    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard, ?interp_guard, ?interp_state_guard).
-    rewrite ?interp_ret, ?interp_state_ret.
+    intros i; dependent destruction i; [| now inversion i].
+    repeat (rewrite ?FoldCTree.interp_bind, ?FoldCTree.interp_trigger,
+      ?FoldCTree.interp_vis, ?FoldCTree.interp_guard, ?FoldCTree.interp_ret,
+      ?FoldCTree.interp_br', ?interp_state_bind, ?interp_state_trigger,
+      ?interp_state_vis, ?interp_state_guard, ?interp_state_ret,
+      ?bind_bind, ?bind_guard, ?bind_ret_l, ?subevent_subevent; cbn).
+    repeat apply sb_guard_l.
     apply sb_ret.
-    rewrite alist_add_alist_add. 2: apply RelDec_Correct_string. reflexivity.
+    rewrite alist_add_alist_add; [reflexivity | apply RelDec_Correct_string].
   Qed.
+
 
 End Denote1.

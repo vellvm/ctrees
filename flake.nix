@@ -6,11 +6,11 @@
     flake-utils.url = "github:numtide/flake-utils";
     nix-filter.url = "github:numtide/nix-filter";
     coinduction-repo = {
-      url = "github:damien-pous/coinduction";
+      url = "github:damien-pous/coinduction/v1.22";
       flake = false;
     };
     relation-algebra-repo = {
-      url = "github:damien-pous/relation-algebra";
+      url = "github:damien-pous/relation-algebra/v1.9.1";
       flake = false;
     };
   };
@@ -20,23 +20,23 @@
       let
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
-        rocq = pkgs.rocq-core;
-        rocqPkgs = pkgs.rocqPackages_9_0;
-        coqPkgs = pkgs.coqPackages_9_0;
+        rocqPkgs = pkgs.rocqPackages_9_2;
+        coqPkgs = pkgs.coqPackages_9_2;
+        rocq = rocqPkgs.rocq-core;
 
         coinduction = rocqPkgs.callPackage
           ( { rocq, stdenv }:
             rocqPkgs.mkRocqDerivation {
               owner = "damien-pous";
               pname = "coinduction";
-              version = "coinduction:master";
+              version = "1.22";
               src = coinduction-repo;
 
               buildInputs =
                 with rocqPkgs;
                 with coqPkgs;
                 with rocq.ocamlPackages;
-                [ ocaml camlp5 rocq pkgs.coq dune_3 stdlib rocq-core findlib ];
+                [ ocaml camlp5 rocq coqPkgs.coq dune_3 stdlib rocq-core findlib ];
               propagatedBuildInputs =
                 with rocqPkgs;
                 with coqPkgs;
@@ -49,14 +49,14 @@
             rocqPkgs.mkRocqDerivation {
               owner = "damien-pous";
               pname = "relation-algebra";
-              version = "relation-algebra:master";
+              version = "1.9.1";
               src = relation-algebra-repo;
 
               buildInputs =
                 with rocqPkgs;
                 with coqPkgs;
                 with rocq.ocamlPackages;
-                [ ocaml camlp5 rocq pkgs.coq dune_3 stdlib rocq-core findlib ];
+                [ ocaml camlp5 rocq coqPkgs.coq dune_3 stdlib rocq-core findlib ];
               propagatedBuildInputs =
                 with rocqPkgs;
                 with coqPkgs;
@@ -74,12 +74,13 @@
               opam-name = "rocq-ctree";
               useDune = true;
               src = ./.;
+              preBuild = "dune build rocq-ctree.opam && cp _build/default/rocq-ctree.opam .";
 
               buildInputs =
                 with rocqPkgs;
                 with coqPkgs;
                 with rocq.ocamlPackages;
-                [ ocaml camlp5 rocq pkgs.coq dune_3 ITree coinduction relation-algebra stdlib equations ExtLib zarith findlib ];
+                [ ocaml camlp5 rocq coqPkgs.coq dune_3 ITree coinduction relation-algebra stdlib equations ExtLib zarith findlib ];
               propagatedBuildInputs = [ rocq ];
 
             }) { inherit rocq; };

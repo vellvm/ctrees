@@ -25,6 +25,7 @@ From CTree Require Import
      Eq.Shallow.
 
 Import CTree.
+Set Universe Polymorphism.
 
 #[local] Ltac step_ := step; simpl body.
 #[local] Ltac step := step_.
@@ -265,13 +266,12 @@ Proof.
     cbn.
     rewrite <- x in EQu.
     dependent destruction EQu.
-    rewrite <- x. eauto.
+    rewrite <- x. constructor; eauto.
   - dependent destruction EQ.
     cbn.
     rewrite <- x in EQu.
     dependent destruction EQu.
-    rewrite <- x.
-    eauto.
+    rewrite <- x. constructor; eauto.
 Qed.
 
 #[global] Instance equb_eq_equ {E B X} {Q : rel X X} :
@@ -692,7 +692,7 @@ Sufficient condition to prove compatibility only over the simulation
 Lemma equ_clos_sym {E C X} : compat converse (@equ_clos E E C C X X).
 Proof.
   intros R t u EQ; inv EQ.
-  apply Equ_clos with u' t'; intuition.
+  apply Equ_clos with u' t'; intuition; symmetry; assumption.
 Qed.
 
 Lemma equ_clos_equ {E C X L} {c: Chain (fequ L)}:
@@ -713,10 +713,10 @@ Proof.
     inv Equu; constructor; apply IH; econstructor; eauto.
     dependent induction H1; dependent induction H2. inv Equu.
     dependent induction H2; dependent induction H3.
-    econstructor; intros. apply IH; econstructor; eauto.
+    econstructor; intros. apply IH; econstructor; [apply REL | apply REL0 | apply REL1].
     dependent induction H1; dependent induction H2. inv Equu.
     dependent induction H2; dependent induction H3.
-    econstructor; intros. apply IH; econstructor; eauto.
+    econstructor; intros. apply IH; econstructor; [apply REL | apply REL0 | apply REL1].
 Qed.
 
 #[global] Instance equ_eq_equ_goal_gen {E C R L} (r : Chain (@fequ E C R R L)) :
@@ -885,12 +885,29 @@ Proof.
   now rewrite unfold_bind.
 Qed.
 
-Lemma bind_trigger {E B X Y} (e : E X) (k : X -> ctree E B Y) :
-  trigger e >>= k ≅ Vis e k.
+Section AtomicEquations.
+  Universes d q d' q'.
+  Context {E : Type -> Type} {B : Type -> Type}.
+
+Lemma unfold_branch {X} (c : B X) :
+  (CTree.branch c : @ctree@{_ _ _ _ d q} E B X) = Br c (fun x => Ret x).
+Proof. reflexivity. Qed.
+
+
+Lemma unfold_trigger {X} (e : E X) :
+  (CTree.trigger e : @ctree@{_ _ _ _ d q} E B X) = Vis e (fun x => Ret x).
+Proof. reflexivity. Qed.
+
+Lemma bind_trigger {X Y}
+    (e : E X) (k : X -> @ctree@{_ _ _ _ d' q'} E B Y) :
+  (CTree.trigger e : @ctree@{_ _ _ _ d q} E B X) >>= k ≅ Vis e k.
 Proof.
-  unfold trigger; rewrite bind_vis; setoid_rewrite bind_ret_l.
+  rewrite unfold_trigger, bind_vis; setoid_rewrite bind_ret_l.
   reflexivity.
 Qed.
+
+End AtomicEquations.
+
 
 Lemma bind_stuck {E B X Y} (g : X -> ctree E B Y):
   Stuck >>= g ≅ Stuck.
@@ -916,12 +933,21 @@ Proof.
   now rewrite unfold_bind.
 Qed.
 
-Lemma bind_branch : forall {E C X Y} (c : C Y) (k : Y -> ctree E C X),
-    branch c >>= k ≅ Br c k.
+Section BranchBindEquations.
+  Universes d q d' q'.
+  Context {E : Type -> Type} {C : Type -> Type}.
+
+Lemma bind_branch {X Y}
+    (c : C Y) (k : Y -> @ctree@{_ _ _ _ d' q'} E C X) :
+  (CTree.branch c : @ctree@{_ _ _ _ d q} E C Y) >>= k ≅ Br c k.
 Proof.
-  intros. rewrite unfold_bind. cbn. setoid_rewrite bind_ret_l.
+  rewrite unfold_branch, bind_br; setoid_rewrite bind_ret_l.
   reflexivity.
 Qed.
+
+
+End BranchBindEquations.
+
 
 Tactic Notation "sinv" ident(H) := step in H; inv H.
 
