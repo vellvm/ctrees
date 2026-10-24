@@ -3,7 +3,7 @@
 (name rocq-ctree)
 
 (license "MIT")
-(authors "Nicolas Chappe" "Paul He" "Ludovic Henrio" "Yannick Zakowski" "Steve Zdancewic")
+(authors "Nicolas Chappe" "Paul He" "Ludovic Henrio" "Eleftherios Ioannidis" "Yannick Zakowski" "Steve Zdancewic")
 (maintainers "Yannick Zakowski")
 (source (github vellvm/ctrees))
 (bug_reports "https://github.com/vellvm/ctrees/issues")
