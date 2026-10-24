@@ -1,7 +1,6 @@
 Require Extraction.
 Require ExtrOcamlBasic.
 Require ExtrOcamlIntConv.
-Unset Universe Checking.
 Require ImpBrEx.ImpBrEx.
 
 Extraction Language OCaml.

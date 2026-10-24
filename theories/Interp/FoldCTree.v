@@ -1,5 +1,4 @@
 (* begin hide *)
-Unset Universe Checking.
 
 From ExtLib Require Import
      Structures.Functor
@@ -18,6 +17,8 @@ From CTree Require Import
   Misc.Pure
   Fold.
 
+Set Universe Polymorphism.
+
 Import CTreeNotations.
 Open Scope ctree_scope.
 
@@ -34,17 +35,22 @@ Section FoldCTree.
   Section With_Params.
 
     (** Specialization to [M = ctree F (B01 +' D)] *)
-    Context {E F C D: Type -> Type} {X : Type}
-      {h : E ~> ctree F D} {g : C ~> ctree F D}.
+    Universes d q d' q'.
+    Context {E : Type -> Type} {F : Type -> Type}
+      {C : Type -> Type} {D : Type -> Type} {X : Type}
+      {h : E ~> @ctree@{_ _ _ _ d' q'} F D}
+      {g : C ~> @ctree@{_ _ _ _ d' q'} F D}.
+
 
     (** ** [interpE] and constructors *)
-    Definition fold_ctree : forall [T], ctree E C T -> ctree F D T :=
-      fold h g.
+    Definition fold_ctree :
+      @ctree@{_ _ _ _ d q} E C ~> @ctree@{_ _ _ _ d' q'} F D := fold h g.
+    Arguments fold_ctree [T] _.
       (* fold (mstuck (M := ctree F D)) (mstep (M := ctree F D)) h (mbr (M := ctree F D)) g. *)
       (* fold (fun T => Stuck: ctree F D T) (Step (Ret tt)) h g. *)
 
     (** Unfolding of [fold]. *)
-    Notation fold_ctree_ t :=
+    Abbreviation fold_ctree_ t :=
       (match observe t with
        | RetF r => Ret r
        | StuckF => Stuck
@@ -55,7 +61,7 @@ Section FoldCTree.
        end)%function.
 
     (** Unfold lemma. *)
-    Lemma unfold_fold_ctree (t: ctree E C X):
+    Lemma unfold_fold_ctree (t : ctree E C X):
       fold_ctree t ≅ fold_ctree_ t.
     Proof.
       unfold fold_ctree, fold, Basics.iter, MonadIter_ctree, mbr, MonadBr_ctree, CTree.branch.
@@ -73,7 +79,7 @@ Section FoldCTree.
     Qed.
 
     Lemma fold_ctree_ret (x: X):
-      fold_ctree (Ret x) ≅ Ret x.
+      fold_ctree (Ret x : ctree E C X) ≅ (Ret x : @ctree@{_ _ _ _ d' q'} F D X).
     Proof. now rewrite unfold_fold_ctree. Qed.
 
     Lemma fold_ctree_vis {U} (e: E U) (k: U -> ctree E C X) :
@@ -81,7 +87,7 @@ Section FoldCTree.
     Proof. now rewrite unfold_fold_ctree. Qed.
 
     Lemma fold_ctree_stuck :
-      fold_ctree (Stuck : ctree E C X) ≅ Stuck.
+      fold_ctree (Stuck : ctree E C X) ≅ (Stuck : @ctree@{_ _ _ _ d' q'} F D X).
     Proof. now rewrite unfold_fold_ctree. Qed.
 
     Lemma fold_ctree_guard (t : ctree E C X) :
@@ -92,7 +98,7 @@ Section FoldCTree.
       fold_ctree (Step t) ≅ Step (Guard (fold_ctree t)).
     Proof. now rewrite unfold_fold_ctree. Qed.
 
-    Lemma fold_ctree_br {U} (c : C U) (k: _ -> ctree E C X) :
+    Lemma fold_ctree_br {U} (c : C U) (k: U -> ctree E C X) :
       fold_ctree (Br c k) ≅ x <- g _ c;; Guard (fold_ctree (k x)).
     Proof. now rewrite unfold_fold_ctree. Qed.
 
@@ -113,9 +119,10 @@ Section FoldCTree.
         intros ?; constructor; auto.
     Qed.
 
+
     (** Unfolding of [interp]. *)
 
-    Notation interp_ h t :=
+    Abbreviation interp_ h t :=
       (match observe t with
        | RetF r => Ret r
        | StuckF => Stuck
@@ -126,7 +133,7 @@ Section FoldCTree.
        end)%function.
 
     (** Unfold lemma. *)
-    Lemma unfold_interp `{C -< D} (t: ctree E C X):
+    Lemma unfold_interp `{C -< D} (t : @ctree@{_ _ _ _ d q} E C X):
       interp h t ≅ interp_ h t.
     Proof.
       unfold interp,fold, Basics.iter, MonadIter_ctree, mbr, MonadBr_ctree, CTree.branch.
@@ -143,7 +150,8 @@ Section FoldCTree.
     Qed.
 
     Lemma interp_ret `{C -< D} (x: X):
-      interp h (Ret x : ctree E C X) ≅ Ret x.
+      interp h (Ret x : @ctree@{_ _ _ _ d q} E C X) ≅
+      (Ret x : @ctree@{_ _ _ _ d' q'} F D X).
     Proof. now rewrite unfold_interp. Qed.
 
     Lemma interp_stuck `{C -< D} :
@@ -163,13 +171,14 @@ Section FoldCTree.
     Proof. now rewrite unfold_interp. Qed.
 
     Lemma interp_br `{C -< D} {U} (c : C U) (k: _ -> ctree E C X) :
-      interp h (Br c k) ≅ x <- branch c;; Guard (interp h (k x)).
+      interp h (Br c k) ≅ x <- mbr c;; Guard (interp h (k x)).
     Proof. now rewrite unfold_interp. Qed.
 
     Lemma interp_br' `{C -< D} {U} (c : C U) (k: _ -> ctree E C X) :
-      interp h (Br c k) ≅ br c (fun x => Guard (interp h (k x))).
-    Proof. rewrite interp_br; unfold branch; rewrite bind_br; setoid_rewrite bind_ret_l.
-           reflexivity.
+      interp h (Br c k) ≅
+      br c (fun x => Guard (interp h (k x))).
+    Proof. rewrite interp_br. unfold mbr, MonadBr_ctree.
+           rewrite bind_branch; reflexivity.
     Qed.
 
     #[global] Instance interp_equ `{C -< D} {R} :
@@ -179,7 +188,7 @@ Section FoldCTree.
       coinduction r CIH.
       intros * EQ; step in EQ.
       rewrite 2 unfold_interp.
-      inv EQ.
+      inv EQ; rewrite <- H1, <- H2.
       - constructor; auto.
       - constructor; auto.
       - constructor; auto.
@@ -191,7 +200,7 @@ Section FoldCTree.
     Qed.
 
     (** Unfolding of [refine]. *)
-    Notation refine_ g t :=
+    Abbreviation refine_ g t :=
       (match observe t with
        | RetF r => Ret r
        | StuckF => Stuck
@@ -202,7 +211,7 @@ Section FoldCTree.
        end)%function.
 
     (** Unfold lemma. *)
-    Lemma unfold_refine `{E -< F} (t: ctree E C X):
+    Lemma unfold_refine `{E -< F} (t : @ctree@{_ _ _ _ d q} E C X):
       refine g t ≅ refine_ g t.
     Proof.
       unfold refine,fold, Basics.iter, MonadIter_ctree, mbr, MonadBr_ctree, CTree.branch.
@@ -219,27 +228,28 @@ Section FoldCTree.
     Qed.
 
     Lemma refine_ret `{E -< F} (x: X):
-      refine g (Ret x : ctree E C X) ≅ Ret x.
+      refine g (Ret x : @ctree@{_ _ _ _ d q} E C X) ≅ Ret x.
     Proof. now rewrite unfold_refine. Qed.
 
     Lemma refine_vis `{E -< F} {U} (e: E U) (k: U -> ctree E C X) :
-      refine g (Vis e k) ≅ x <- trigger e;; Guard (refine g (k x)).
+      refine g (Vis e k) ≅ x <- mtrigger e;; Guard (refine g (k x)).
     Proof. now rewrite unfold_refine. Qed.
 
     Lemma refine_trigger `{E -< F} (e: E X) :
-        refine g (trigger e : ctree E C X) ~ (trigger e : ctree F D X).
+        refine g (trigger e : @ctree@{_ _ _ _ d q} E C X) ~
+          (mtrigger e : @ctree@{_ _ _ _ d' q'} F D X).
     Proof.
-      rewrite unfold_refine; cbn.
+      rewrite Equ.unfold_trigger, unfold_refine; cbn.
       setoid_rewrite sb_guard.
-      setoid_rewrite refine_ret.
+      setoid_rewrite unfold_refine; cbn.
       now rewrite bind_ret_r.
     Qed.
 
-    Lemma refine_guard `{E -< F} (t: ctree E C X) :
+    Lemma refine_guard `{E -< F} (t : @ctree@{_ _ _ _ d q} E C X) :
       refine g (Guard t) ≅ Guard (refine g t).
     Proof. now rewrite unfold_refine. Qed.
 
-    Lemma refine_step `{E -< F} (t: ctree E C X) :
+    Lemma refine_step `{E -< F} (t : @ctree@{_ _ _ _ d q} E C X) :
       refine g (Step t) ≅ Step (Guard (refine g t)).
     Proof. now rewrite unfold_refine. Qed.
 
@@ -254,7 +264,7 @@ Section FoldCTree.
       coinduction r CIH.
       intros * EQ; step in EQ.
       rewrite 2 unfold_refine.
-      inv EQ; try constructor; auto.
+      inv EQ; rewrite <- H1, <- H2; try constructor; auto.
       - step; constructor; auto.
       - upto_bind_eq.
         intros ?; constructor; auto.
@@ -264,13 +274,35 @@ Section FoldCTree.
 
   End With_Params.
 
+
+  Lemma interp_trigger@{d q d' q' +}
+      {E : Type -> Type} {F : Type -> Type} {C : Type -> Type} {D : Type -> Type}
+      {h : E ~> @ctree@{_ _ _ _ d' q'} F D} `{C -< D} {U : Type} (e : E U) :
+      interp h (CTree.trigger e : @ctree@{_ _ _ _ d q} E C U) ≅
+      (x <- h _ e;; Guard (Ret x) : @ctree@{_ _ _ _ d' q'} F D U).
+    Proof.
+      rewrite Equ.unfold_trigger, interp_vis;
+        setoid_rewrite interp_ret; reflexivity.
+    Qed.
+
+
+
+
+
+
   Arguments fold_ctree {E F C D} h g [T].
 
   Section FoldBind.
 
-    Context {E F C D: Type -> Type} {X : Type}.
+    Universes d0 q0 d q d' q'.
+    Context {E : Type -> Type} {F : Type -> Type}
+      {C : Type -> Type} {D : Type -> Type} {X : Type}.
 
-    Lemma fold_ctree_bind (h : E ~> ctree F D) (g : C ~> ctree F D) {S} (t : ctree E C X) (k : X -> ctree _ _ S) :
+    Lemma fold_ctree_bind
+      (h : E ~> @ctree@{_ _ _ _ d' q'} F D)
+      (g : C ~> @ctree@{_ _ _ _ d' q'} F D) {S : Type}
+      (t : @ctree@{_ _ _ _ d0 q0} E C X)
+      (k : X -> @ctree@{_ _ _ _ d q} E C S) :
       fold_ctree h g (t >>= k) ≅ fold_ctree h g t >>= (fun x => fold_ctree h g (k x)).
     Proof.
       revert t.
@@ -295,14 +327,22 @@ Section FoldCTree.
         now constructor.
     Qed.
 
-    Lemma interp_bind (h : E ~> ctree F D) `{C -< D} {S} (t : ctree E C X) (k : X -> ctree _ _ S) :
+    Lemma interp_bind
+      (h : E ~> @ctree@{_ _ _ _ d' q'} F D)
+      `{C -< D} {S : Type}
+      (t : @ctree@{_ _ _ _ d0 q0} E C X)
+      (k : X -> @ctree@{_ _ _ _ d q} E C S) :
       interp h (t >>= k) ≅ interp h t >>= (fun x => interp h (k x)).
     Proof.
       unfold interp.
       now setoid_rewrite fold_ctree_bind.
     Qed.
 
-    Lemma refine_bind (g : C ~> ctree F D) `{E -< F} {S} (t : ctree E C X) (k : X -> ctree _ _ S) :
+    Lemma refine_bind
+      (g : C ~> @ctree@{_ _ _ _ d' q'} F D)
+      `{E -< F} {S : Type}
+      (t : @ctree@{_ _ _ _ d0 q0} E C X)
+      (k : X -> @ctree@{_ _ _ _ d q} E C S) :
       refine g (t >>= k) ≅ refine g t >>= (fun x => refine g (k x)).
     Proof.
       unfold refine.
@@ -313,6 +353,7 @@ Section FoldCTree.
 
 End FoldCTree.
 
+
 (*|
 Counter-example showing that interp does not preserve sbisim in the general case.
 |*)
@@ -322,7 +363,6 @@ Module CounterExample.
   Inductive VoidE : Type -> Type :=
   | voidE : VoidE void.
 
-  (* Notation B012 := (B01 +' B2). *)
   #[local] Definition t1 := Ret 1 : ctree VoidE B2 nat.
   #[local] Definition t2 := br2 (Ret 1) (x <- trigger voidE;; match x : void with end) : ctree VoidE B2 nat.
 
@@ -331,22 +371,33 @@ Module CounterExample.
     unfold t1, t2.
     rewrite br2_commut.
     rewrite br2_is_stuck. reflexivity.
-    red. intros. intro. inv_trans.  destruct x.
+    red. intros. intro.
+    rewrite bind_trigger in H.
+    apply trans_vis_inv in H as (x & _ & _). destruct x.
   Qed.
 
-  #[local] Definition h : VoidE ~> ctree VoidE B2.
-  Proof.
-    intros. destruct X. exact (Step Stuck).
-  Defined.
+  Section Handler.
+    Universes d q.
+    #[local] Definition h : VoidE ~> @ctree@{_ _ _ _ d q} VoidE B2 :=
+      fun _ e => match e with voidE => Step Stuck end.
 
-  Example interpE_sbsisim_counterexample : ~ (interp h t1 ~ interp h t2).
+
+    #[local] Definition interp_h :=
+      @interp VoidE B2 (@ctree@{_ _ _ _ d q} VoidE B2)
+        _ _ _ _ _ (@MonadBr_ctree VoidE B2 B2 _) h.
+  End Handler.
+  Arguments interp_h [T] _.
+
+  Example interpE_sbsisim_counterexample : ~ (interp_h t1 ~ interp_h t2).
   Proof.
     red. intros. unfold t2 in H.
     playR in H.
+    unfold interp_h.
     rewrite unfold_interp. cbn. setoid_rewrite bind_br.
     eapply trans_br with (x := false).
     2: { rewrite bind_ret_l. reflexivity. }
     apply trans_guard. setoid_rewrite unfold_interp. cbn. rewrite bind_step. etrans.
+    unfold interp_h in TR.
     rewrite unfold_interp in TR. unfold t1, h in TR. cbn in TR. inv_trans.
   Qed.
 
@@ -354,8 +405,8 @@ End CounterExample.
 
 Section epsilon_interp_theory.
 
-  Lemma interp_productive {E C F X} (h : E ~> ctree F C) : forall (t : ctree E C X),
-      productive (interp h t) -> productive t.
+  Lemma interp_productive {E C F X} h : forall (t : ctree E C X),
+      productive (interp (M := ctree F C) h t) -> productive t.
   Proof.
     intros. inversion H;
       subst;
@@ -367,9 +418,9 @@ Section epsilon_interp_theory.
       try now econstructor.
   Qed.
 
-  Lemma epsilon_interp : forall {E C F X}
-                           (h : E ~> ctree F C) (t t' : ctree E C X),
-      epsilon t t' -> epsilon (interp h t) (interp h t').
+  Lemma epsilon_interp : forall {E C F X} h (t t' : ctree E C X),
+      epsilon t t' ->
+      epsilon (interp (M := ctree F C) h t) (interp h t').
   Proof.
     intros. red in H. setoid_rewrite (ctree_eta t). setoid_rewrite (ctree_eta t').
     genobs t ot. genobs t' ot'. clear t Heqot t' Heqot'.
@@ -384,9 +435,9 @@ Section epsilon_interp_theory.
 
 End epsilon_interp_theory.
 
-Lemma interp_ret_inv {E F B X} (h : E ~> ctree F B) :
+Lemma interp_ret_inv {E F B X} h :
   forall (t : ctree E B X) r,
-  interp h t ≅ Ret r -> t ≅ Ret r.
+  interp (M := ctree F B) h t ≅ Ret r -> t ≅ Ret r.
 Proof.
   intros. setoid_rewrite (ctree_eta t) in H. setoid_rewrite (ctree_eta t).
   destruct (observe t) eqn:?; try now inv_equ.
@@ -400,11 +451,10 @@ Proof.
   intros. rewrite bind_bind. upto_bind_eq; intros ?. rewrite bind_guard. setoid_rewrite bind_ret_l. reflexivity.
 Qed.
 
-Lemma trans_val_interp {E F B X}
-  (h : E ~> ctree F B) :
+Lemma trans_val_interp {E F B X} h :
   forall (t u : ctree E B X) (v : X),
   trans (val v) t u ->
-  trans (val v) (interp h t) Stuck.
+  trans (val v) (interp (M := ctree F B) h t) Stuck.
 Proof.
   intros.
   apply trans_val_epsilon in H as []. subs.
@@ -413,11 +463,10 @@ Proof.
   rewrite interp_ret. etrans.
 Qed.
 
-Lemma trans_tau_interp {E F B X}
-  (h : E ~> ctree F B) :
+Lemma trans_tau_interp {E F B X} h :
   forall (t u : ctree E B X),
   trans τ t u ->
-  trans τ (interp h t) (Guard (interp h u)).
+  trans τ (interp (M := ctree F B) h t) (Guard (interp h u)).
 Proof.
   intros.
   apply trans_τ_epsilon in H as (? & ? & ?). subs.
@@ -427,14 +476,13 @@ Proof.
   etrans.
 Qed.
 
-Lemma trans_obs_interp_step {E F B X Y}
-  (h : E ~> ctree F B) :
+Lemma trans_obs_interp_step {E F B X Y} h :
   forall (t u : ctree E B X) u' (e : E Y) x l,
   trans (obs e x) t u ->
   trans l (h _ e) u' ->
   ~ is_val l ->
   epsilon_det u' (Ret x) ->
-  trans l (interp h t) (u';; Guard (interp h u)).
+  trans l (interp (M := ctree F B) h t) (u';; Guard (interp h u)).
 Proof.
   intros.
   apply trans_obs_epsilon in H as (? & ? & ?).
@@ -447,12 +495,11 @@ Proof.
   apply trans_bind_l; auto.
 Qed.
 
-Lemma trans_obs_interp_pure {E F B X Y}
-  (h : E ~> ctree F B) :
+Lemma trans_obs_interp_pure {E F B X Y} h :
   forall (t u : ctree E B X) (e : E Y) x,
   trans (obs e x) t u ->
   trans (val x) (h _ e) Stuck ->
-  epsilon (interp h t) (Guard (interp h u)).
+  epsilon (interp (M := ctree F B) h t) (Guard (interp h u)).
 Proof.
   intros t u e x TR TRh.
   apply trans_obs_epsilon in TR as (k & EPS & ?). subs.

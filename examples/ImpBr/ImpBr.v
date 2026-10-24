@@ -1,4 +1,3 @@
-Unset Universe Checking.
 
 From Stdlib Require Import
      Arith.PeanoNat
@@ -73,7 +72,8 @@ Variant MemE : Type -> Type :=
 
 Section Semantics.
 
-  Notation computation := (ctree MemE B2).
+  Universe computation_u.
+  Notation computation := (@ctree@{_ _ _ _ computation_u computation_u} MemE B2).
 
   Fixpoint denote_expr (e : expr) : computation value :=
     match e with

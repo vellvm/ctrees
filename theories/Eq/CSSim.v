@@ -100,8 +100,8 @@ Section cssim_homogenous_theory.
   Context {E B : Type -> Type} {X : Type}
           {L: relation (@label E)}.
 
-  Notation css := (@css E E B B X X).
-  Notation cssim  := (@cssim E E B B X X).
+  Abbreviation css := (@css E E B B X X).
+  Abbreviation cssim  := (@cssim E E B B X X).
 
   Lemma cssim_subrelation : forall (t t' : ctree E B X) L',
       subrelation L L' -> cssim L t t' -> cssim L' t t'.
@@ -157,8 +157,8 @@ Section cssim_heterogenous_theory.
   Context {E F C D: Type -> Type} {X Y: Type}
           {L: rel (@label E) (@label F)}.
 
-  Notation css := (@css E F C D X Y).
-  Notation cssim  := (@cssim E F C D X Y).
+  Abbreviation css := (@css E F C D X Y).
+  Abbreviation cssim  := (@cssim E F C D X Y).
 
 (*|
    Strong simulation up-to [equ] is valid

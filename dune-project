@@ -1,9 +1,9 @@
-(lang dune 3.8)
-(using coq 0.7)
+(lang dune 3.23)
+(using rocq 0.11)
 (name rocq-ctree)
 
 (license "MIT")
-(authors "Nicolas Chappe" "Paul He" "Ludovic Henrio" "Yannick Zakowski" "Steve Zdancewic")
+(authors "Nicolas Chappe" "Paul He" "Ludovic Henrio" "Eleftherios Ioannidis" "Yannick Zakowski" "Steve Zdancewic")
 (maintainers "Yannick Zakowski")
 (source (github vellvm/ctrees))
 (bug_reports "https://github.com/vellvm/ctrees/issues")
@@ -15,11 +15,11 @@
  (synopsis "Library for representing recursive, non-deterministic and impure programs with equational reasoning")
  (version 2.0-dev)
  (depends
-  (rocq-core (>= 9.0))
+  (rocq-core (>= 9.2))
   (rocq-stdlib (>= 9.0))
   (coq-ext-lib (>= 0.11.3))
   (rocq-coinduction (>= 1.21))
-  (rocq-relation-algebra (>= 1.8.0))
+  (rocq-relation-algebra (>= 1.9.0))
   (rocq-equations (>= 1.3.1))
   (coq-itree (>= 5.0)))
  (tags (

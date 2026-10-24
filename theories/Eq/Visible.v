@@ -21,6 +21,7 @@ Open Scope ctree.
 
 Set Implicit Arguments.
 Set Primitive Projections.
+Set Universe Polymorphism.
 
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_equ H.
 
@@ -28,8 +29,8 @@ Section Visible.
 
   Context {E C : Type -> Type} {R : Type}.
 
-  Notation S' := (ctree' E C R).
-  Notation S  := (ctree  E C R).
+  Abbreviation S' := (ctree' E C R).
+  Abbreviation S  := (ctree  E C R).
 
   Definition SS : EqType :=
 	{| type_of := S ; Eq := equ eq |}.

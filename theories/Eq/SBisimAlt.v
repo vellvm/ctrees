@@ -24,6 +24,7 @@ From RelationAlgebra Require Export
 Import CoindNotations.
 Import CTree.
 Set Implicit Arguments.
+Set Universe Polymorphism.
 
 (* TODO: Decide where to set this *)
 Arguments trans : simpl never.
@@ -247,8 +248,8 @@ Section sbisim'_homogenous_theory.
   Context {E B: Type -> Type} {X: Type}
           {L: relation (@label E)}.
 
-  Notation sb' := (@sb' E E B B X X).
-  Notation sbisim' := (@sbisim' E E B B X X).
+  Abbreviation sb' := (@sb' E E B B X X).
+  Abbreviation sbisim' := (@sbisim' E E B B X X).
 
   #[global] Instance refl_sb' {LR: Reflexive L} {C: Chain (sb' L)}
     : forall side, Reflexive (`C side).
@@ -340,8 +341,8 @@ Section sbisim'_heterogenous_theory.
   Context {E F B D: Type -> Type} {X Y: Type}
           {L: rel (@label E) (@label F)}.
 
-  Notation sb' := (@sb' E F B D X Y).
-  Notation sbisim'  := (@sbisim' E F B D X Y).
+  Abbreviation sb' := (@sb' E F B D X Y).
+  Abbreviation sbisim'  := (@sbisim' E F B D X Y).
 
   #[global] Instance equ_sb'_goal {RR} :
     forall b, Proper (equ eq ==> equ eq ==> flip impl) (sb' L RR b).

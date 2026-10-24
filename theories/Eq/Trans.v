@@ -61,6 +61,7 @@ Open Scope ctree.
 
 Set Implicit Arguments.
 Set Primitive Projections.
+Set Universe Polymorphism.
 
 #[local] Tactic Notation "step" := __step_equ.
 #[local] Tactic Notation "step" "in" ident(H) := __step_in_equ H.
@@ -71,10 +72,13 @@ Set Primitive Projections.
 
 Section Trans.
 
-  Context {E B : Type -> Type} {R : Type}.
+  Universes e b v.
+  Context {E : Type@{e} -> Type}.
+  Context {B : Type@{b} -> Type}.
+  Context {R : Type}.
 
-  Notation S' := (ctree' E B R).
-  Notation S  := (ctree  E B R).
+  Abbreviation S' := (ctree' E B R).
+  Abbreviation S  := (ctree  E B R).
 
   Definition SS : EqType :=
     {| type_of := S ; Eq := equ eq |}.
@@ -88,11 +92,11 @@ least annoying solution.
 |*)
   Variant label : Type :=
     | τ
-    | obs {X : Type} (e : E X) (v : X)
-    | val {X : Type} (v : X).
+    | obs {X : Type@{e} } (e : E X) (v : X)
+    | val {X : Type@{v} } (v : X).
 
   Variant is_val : label -> Prop :=
-    | Is_val : forall X (x : X), is_val (val x).
+    | Is_val : forall (X : Type@{v}) (x : X), is_val (val x).
 
   Lemma is_val_τ : ~ is_val τ.
   Proof.
@@ -115,7 +119,7 @@ node, labelling the transition by the returned value.
 |*)
   Inductive trans_ : label -> hrel S' S' :=
 
-  | Transbr {X} (c : B X) x k l t :
+  | Transbr {X : Type@{b} } (c : B X) x k l t :
     trans_ l (observe (k x)) t ->
     trans_ l (BrF c k) t
 
@@ -127,7 +131,7 @@ node, labelling the transition by the returned value.
     u ≅ t ->
     trans_ τ (StepF t) (observe u)
 
-  | Transobs {X} (e : E X) k x t :
+  | Transobs {X : Type@{e} } (e : E X) k x t :
     k x ≅ t ->
     trans_ (obs e x) (VisF e k) (observe t)
 
@@ -847,8 +851,9 @@ Lemma etrans_ret_inv {E B X} : forall x l (t : ctree E B X),
     (l = τ /\ t ≅ Ret x) \/ (l = val x /\ t ≅ Stuck).
 Proof.
   intros ? [] ? step; cbn in step.
-  - intuition; try (eapply trans_ret in step; now apply step).
-    inv H.
+  - destruct step as [step | step].
+    + apply trans_ret_inv in step as [_ abs]. inv abs.
+    + left; split; [reflexivity | now symmetry].
   - eapply trans_ret_inv in step; intuition.
   - eapply trans_ret_inv in step; intuition.
 Qed.
@@ -1018,7 +1023,7 @@ Section wtrans.
     rewrite EQ in step3; apply trans_τ_str_ret_inv in step3; auto.
     rewrite EQ in step3.
     apply transs_is_stuck_inv in step3; [| apply Stuck_is_stuck].
-    intuition.
+    right; split; [reflexivity | now symmetry].
   Qed.
 
   Lemma wtrans_val_inv' : forall (x : X) (t v : ctree E B X),
@@ -1494,40 +1499,33 @@ Proof.
     eapply wtrans_bind_r'; eauto.
 Qed.
 
-Lemma trans_trigger : forall {E B X Y} (e : E X) x (k : X -> ctree E B Y),
-    trans (obs e x) (trigger e >>= k) (k x).
+Section TriggerTransitions.
+  Universes d q d' q'.
+  Context {E : Type -> Type} {B : Type -> Type}.
+
+Lemma trans_trigger {X Y} (e : E X) x (k : X -> @ctree@{_ _ _ _ d' q'} E B Y) :
+  trans (obs e x) ((CTree.trigger e : @ctree@{_ _ _ _ d q} E B X) >>= k) (k x).
 Proof.
-  intros.
-  unfold CTree.trigger.
-  rewrite unfold_bind; cbn.
-  setoid_rewrite bind_ret_l.
-  constructor; auto.
+  rewrite bind_trigger; apply trans_vis.
 Qed.
 
-Lemma trans_trigger' : forall {E B X Y} (e : E X) x (t : ctree E B Y),
-    trans (obs e x) (trigger e;; t) t.
+Lemma trans_trigger' {X Y} (e : E X) x (t : @ctree@{_ _ _ _ d' q'} E B Y) :
+  trans (obs e x) ((CTree.trigger e : @ctree@{_ _ _ _ d q} E B X);; t) t.
 Proof.
-  intros.
-  unfold CTree.trigger.
-  rewrite unfold_bind; cbn.
-  setoid_rewrite bind_ret_l.
-  constructor; auto.
+  rewrite bind_trigger; apply trans_vis.
 Qed.
 
-Lemma trans_trigger_inv : forall {E B X Y} (e : E X) (k : X -> ctree E B Y) l u,
-    trans l (trigger e >>= k) u ->
-    exists x, u ≅ k x /\ l = obs e x.
+Lemma trans_trigger_inv {X Y} (e : E X) (k : X -> @ctree@{_ _ _ _ d' q'} E B Y)
+    l (u : @ctree@{_ _ _ _ d' q'} E B Y) :
+  trans l ((CTree.trigger e : @ctree@{_ _ _ _ d q} E B X) >>= k) u ->
+  exists x, u ≅ k x /\ l = obs e x.
 Proof.
-  intros * TR.
-  unfold trigger in TR.
-  apply trans_bind_inv in TR.
-  destruct TR as [(? & ? & TR & ?) |(? & TR & ?)].
-  - apply trans_vis_inv in TR.
-    destruct TR as (? & ? & ->); eexists; split; eauto.
-    rewrite H0, H1, bind_ret_l; reflexivity.
-  - apply trans_vis_inv in TR.
-    destruct TR as (? & ? & abs); inv abs.
+  intros TR.
+  rewrite bind_trigger in TR; apply trans_vis_inv in TR.
+  exact TR.
 Qed.
+
+End TriggerTransitions.
 
 Lemma trans_branch :
   forall {E B : Type -> Type} {X : Type} {Y : Type}
@@ -1579,9 +1577,9 @@ Qed.
 Section Coproduct.
   Arguments label: clear implicits.
   Context {L R C: Type -> Type} {X: Type}.
-  Notation S := (ctree (L +' R) C X).
-  Notation S' := (ctree' (L +' R) C X).
-  Notation SP := (SS -> label (L +' R) -> Prop).
+  Abbreviation S := (ctree (L +' R) C X).
+  Abbreviation S' := (ctree' (L +' R) C X).
+  Abbreviation SP := (SS -> label (L +' R) -> Prop).
 
   (* Skip an [R] event *)
   Inductive srtrans_: rel S' S' :=
@@ -1621,7 +1619,7 @@ End Coproduct.
 invert hypotheses involving [trans].
 |*)
 
-#[local] Notation trans' l t u := (hrel_of (trans l) t u).
+#[local] Abbreviation trans' l t u := (hrel_of (trans l) t u).
 
 Ltac inv_trans_one :=
   match goal with

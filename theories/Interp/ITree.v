@@ -1,13 +1,9 @@
-Unset Universe Checking.
 
 From Paco Require Import paco.
 
 From CTree Require Import
 	   CTree Eq Interp.Internalize Interp.FoldCTree.
 
-(* Universe issue, TO FIX *)
-Unset Universe Checking.
-Unset Auto Template Polymorphism.
 
 From ITree Require Import
 	   ITree Eq Interp InterpFacts.
@@ -18,12 +14,19 @@ Open Scope ctree.
 
 Set Implicit Arguments.
 Set Contextual Implicit.
+Set Universe Polymorphism.
 
-Definition h_embed {E C} : E ~> ctree E C :=
+Definition h_embed@{d q +} {E C} : E ~> @ctree@{_ _ _ _ d q} E C :=
   fun _ e => CTree.trigger e.
-Definition embed' {E} : itree E ~> ctree E (B01) := interp h_embed.
-Definition embed {E C} : itree (C +' E) ~> ctree E (B01 +' C) :=
+
+Definition embed'@{d q +} {E} : itree E ~> @ctree@{_ _ _ _ d q} E B01 :=
+  interp h_embed.
+
+Definition embed@{d q +} {E C} : itree (C +' E) ~> @ctree@{_ _ _ _ d q} E (B01 +' C) :=
   fun _ t => internalize (embed' t).
+
+Arguments embed' {E} [T] _.
+Arguments embed {E C} [T] _.
 
 Notation "t '-' l '→' u" := (trans l t u)
                               (at level 50, only printing,
@@ -45,16 +48,21 @@ Notation "t '-' l '→' u" := (transR l t u)
 #[local] Notation cVis e k  := (CTreeDefinitions.Vis e k).
 
 (** Unfolding of [interp]. *)
-Definition _interp {E F C R} (f : E ~> ctree F C) (ot : itreeF E R _)
-  : ctree F C R :=
+Section ITreeInterp.
+  Universes d q.
+Definition _interp {E F C R}
+    (f : E ~> @ctree@{_ _ _ _ d q} F C)
+    (ot : itreeF E R _) : @ctree@{_ _ _ _ d q} F C R :=
   match ot with
   | RetF r => CTreeDefinitions.Ret r
   | TauF t => cGuard (interp f t)
   | VisF e k => CTree.bind (f _ e) (fun x => cGuard (interp f (k x)))
   end.
 
-Lemma unfold_interp_ctree {E F C X} (h: E ~> ctree F C) (t : itree E X):
-  (interp h t ≅ _interp h (iobserve t))%ctree.
+Lemma unfold_interp_ctree {E F C X}
+    (f : E ~> @ctree@{_ _ _ _ d q} F C)
+    (t : itree E X) :
+  (interp f t ≅ _interp f (iobserve t))%ctree.
 Proof.
   revert t.
   coinduction R CIH.
@@ -64,8 +72,7 @@ Proof.
   destruct (iobserve t) eqn:ot; try now cbn; auto.
   match goal with
     |- equb _ _ (_cobserve ?t) (_cobserve ?u) =>
-      fold (cobserve t);
-      fold (cobserve u)
+      fold (cobserve t); fold (cobserve u)
   end.
   Transparent CTree.bind.
   cbn.
@@ -74,6 +81,7 @@ Proof.
   intros ?.
   now constructor.
 Qed.
+End ITreeInterp.
 
 #[global] Instance embed_eq {E C X}:
 	Proper (eq_itree eq ==> equ eq) (@embed E C X).

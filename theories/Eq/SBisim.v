@@ -66,6 +66,7 @@ From RelationAlgebra Require Export
 
 Import CoindNotations.
 Set Implicit Arguments.
+Set Universe Polymorphism.
 Import CTree.
 Import CTreeNotations.
 Import EquNotations.
@@ -83,8 +84,8 @@ Relation relaxing [equ] to become insensitive to:
 
 Section StrongBisim.
   Context {E F C D : Type -> Type} {X Y : Type}.
-  Notation S := (ctree E C X).
-  Notation S' := (ctree F D Y).
+  Abbreviation S := (ctree E C X).
+  Abbreviation S' := (ctree F D Y).
 
 (*|
 In the heterogeneous case, the relation is not symmetric.
@@ -205,8 +206,8 @@ Section sbisim_heterogenous_theory.
   Context {E F C D : Type -> Type} {X Y : Type}
     {L: rel (@label E) (@label F)}.
 
-  Notation sb := (@sb E F C D X Y).
-  Notation sbisim := (@sbisim E F C D X Y).
+  Abbreviation sb := (@sb E F C D X Y).
+  Abbreviation sbisim := (@sbisim E F C D X Y).
 
 (*|
 Strong bisimulation up-to [equ] is valid
@@ -342,8 +343,8 @@ End sbisim_heterogenous_theory.
 Section sbisim_homogenous_theory.
   Context {E B: Type -> Type} {X: Type} (L: relation (@label E)).
 
-  Notation sb  := (@sb E E B B X X).
-  Notation sbisim := (@sbisim E E B B X X).
+  Abbreviation sb  := (@sb E E B B X X).
+  Abbreviation sbisim := (@sbisim E E B B X X).
 
   #[global] Instance refl_sb {LR: Reflexive L} {C: Chain (sb L)}: Reflexive `C.
   Proof.
@@ -625,12 +626,17 @@ Lemma vis_chain_gen {E F C D: Type -> Type} {X X' Y Y': Type} L
 Proof.
   intros.
   apply (b_chain R).
-  split; intros ?? TR; inv_trans; subst.
-  do 2 eexists; intuition; eauto.
-  rewrite EQ; auto.
-  do 2 eexists; intuition; eauto.
-  rewrite EQ; apply H2.
-  apply H0.
+  split; intros ? ? TR; inv_trans; subst.
+  - exists (obs e' (right x)), (k' (right x)); repeat split.
+    + apply trans_vis.
+    + eapply equ_clos_sb_ctx;
+        [symmetry; exact EQ | reflexivity | exact (H1 x)].
+    + exact (H x).
+  - exists (obs e (left x)), (k (left x)); repeat split.
+    + apply trans_vis.
+    + eapply equ_clos_sb_ctx;
+        [reflexivity | symmetry; exact EQ | exact (H2 x)].
+    + exact (H0 x).
 Qed.
 
 Lemma vis_chain {E C X Y}
@@ -1309,8 +1315,11 @@ produce any challenge for the other.
       @spin_gen E C Z X c ~ @spin_gen E C Z Y c'.
   Proof.
     intros R.
-    coinduction S _; split; cbn;
-      intros * TR; exfalso; eapply spinD_gen_is_stuck, TR.
+    coinduction S _; split; cbn.
+    - intros * TR; exfalso.
+      now apply spinD_gen_is_stuck in TR.
+    - intros * TR; exfalso.
+      now apply spinD_gen_is_stuck in TR.
   Qed.
 
 (*|
@@ -1371,13 +1380,14 @@ produce any challenge for the other.
   Lemma br2_spin_l {X} : forall (t : ctree E C X),
 	    br2 spin t ~ t.
   Proof.
-    intros; apply br2_is_stuck, spin_is_stuck.
+    intros; apply br2_is_stuck.
+    red; intros l u TR; now apply spin_is_stuck in TR.
   Qed.
 
   Lemma br2_spin_r {X} : forall (t : ctree E C X),
 	    br2 t spin ~ t.
   Proof.
-    intros; rewrite br2_commut; apply br2_is_stuck, spin_is_stuck.
+    intros; rewrite br2_commut; apply br2_spin_l.
   Qed.
 
 (*|
@@ -1539,6 +1549,7 @@ Not fond of this, need to give some thoughts about them
       do 2 eexists; intuition; eauto.
       apply trans_val_inv in TR0.
       rewrite TR0; eauto.
+    all: apply trans_ret.
   Qed.
 
 End WithParams.
@@ -1550,8 +1561,8 @@ Section StrongSimulations.
     Context {E F C D: Type -> Type} {X Y: Type}
       {L: rel (@label E) (@label F)}.
 
-    Notation ss := (@ss E F C D X Y).
-    Notation ssim  := (@ssim E F C D X Y).
+    Abbreviation ss := (@ss E F C D X Y).
+    Abbreviation ssim  := (@ssim E F C D X Y).
 
     Lemma sbisim_clos_ss {c: Chain (ss L)}:
       forall x y, sbisim_clos (LE := eq) (LF := eq) `c x y -> `c x y.
@@ -1618,8 +1629,8 @@ Section StrongSimulations.
 
     Context {E C: Type -> Type} {X: Type}
       {L: rel (@label E) (@label E)}.
-    Notation ss := (@ss E E C C X X).
-    Notation ssim  := (@ssim E E C C X X).
+    Abbreviation ss := (@ss E E C C X X).
+    Abbreviation ssim  := (@ssim E E C C X X).
 
     #[global] Instance sbisim_clos_ssim_goal `{Symmetric _ L} `{Transitive _ L} :
       Proper (sbisim L ==> sbisim L ==> flip impl) (ssim L).
@@ -1689,9 +1700,10 @@ Section StrongSimulations.
         rewrite EQ; auto.
       - step; intros ?? TR.
         inv_trans; subst.
-        exists τ, (Ret tt); intuition; now rewrite EQ.
-        exists τ, (Ret tt). intuition.
-        rewrite EQ; apply Stuck_ssim.
+        exists τ, (Ret tt); split; [apply trans_step |].
+        split; [now rewrite EQ | reflexivity].
+        exists τ, (Ret tt); split; [apply trans_step |].
+        split; [rewrite EQ; apply Stuck_ssim | reflexivity].
       - step in H. cbn in H. destruct H as [_ ?].
         specialize (H τ Stuck). lapply H; [| etrans].
         intros. destruct H0 as (? & ? & ? & ? & ?).
@@ -1711,8 +1723,8 @@ Section CompleteStrongSimulations.
   Context {E F C D: Type -> Type} {X Y: Type}
     {L: rel (@label E) (@label F)}.
 
-  Notation css := (@css E F C D X Y).
-  Notation cssim  := (@cssim E F C D X Y).
+  Abbreviation css := (@css E F C D X Y).
+  Abbreviation cssim  := (@cssim E F C D X Y).
 
 (*|
 A bisimulation trivially gives a simulation.

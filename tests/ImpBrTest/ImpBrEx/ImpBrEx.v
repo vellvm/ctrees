@@ -1,4 +1,3 @@
-Unset Universe Checking.
 
 From Stdlib Require Import
      Strings.String.

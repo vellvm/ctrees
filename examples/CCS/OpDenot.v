@@ -1,4 +1,3 @@
-Unset Universe Checking.
 
 From CTree Require Import
      CTree

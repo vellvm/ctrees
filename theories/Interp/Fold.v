@@ -13,6 +13,7 @@ From CTree Require Import
      CTree Eq.
 
 Set Implicit Arguments.
+Set Universe Polymorphism.
 
 Import CTreeNotations.
 Open Scope ctree_scope.
@@ -26,7 +27,7 @@ Open Scope ctree_scope.
     - a local scheduler [B ~> M] describing valid branches
     and defines for it a monad morphism [ctree E B ~> M]
     for any monad [M] with a loop operator. *)
-Definition fold {E B M : Type -> Type}
+Definition fold {E : Type -> Type} {B : Type -> Type} {M : Type -> Type}
            {FM : Functor M} {MM : Monad M} {IM : MonadIter M}
            {Mstuck : MonadStuck M} {Mstep : MonadStep M}
            (h : E ~> M)
@@ -54,7 +55,7 @@ Arguments fold {E B M FM MM IM Mstuck Mstep} h g [T].
     and re-emit external events (internalized in [M] via [MonadTrigger]
  *)
 
-Definition interp {E B M : Type -> Type}
+Definition interp {E : Type -> Type} {B : Type -> Type} {M : Type -> Type}
   {FM : Functor M} {MM : Monad M}
   {IM : MonadIter M}
   {Mstuck : MonadStuck M}
@@ -65,12 +66,11 @@ Definition interp {E B M : Type -> Type}
 
 Arguments interp {E B M FM MM IM _ _ _} h [T].
 
-Definition refine {E B M : Type -> Type}
+Definition refine {E : Type -> Type} {B : Type -> Type} {M : Type -> Type}
   {FM : Functor M} {MM : Monad M} {IM : MonadIter M} {TM : MonadTrigger E M}
   {Mstuck : MonadStuck M}
   {Mstep : MonadStep M}
-  (g : B ~> M)
-  :=
+  (g : B ~> M) : ctree E B ~> M :=
   fold (fun _ e => mtrigger e) g.
 
 Arguments refine {E B M FM MM IM TM _ _} g [T].
@@ -122,7 +122,7 @@ Proof.
     apply CH. apply REL.
 Qed.
 
-#[global] Instance refine_equ {E C D X} (h : C ~> ctree E D):
+#[global] Instance refine_equ {E C D X} h:
   Proper (equ eq ==> @equ E D X X eq) (@refine E C _ _ _ _ _ _ _ h X).
 Proof.
   cbn.
@@ -153,7 +153,7 @@ Qed.
 (** [translate] lemmas *)
 
 (** Unfolding of [translate]. *)
-Notation translate_ h t :=
+Abbreviation translate_ h t :=
   (match observe t with
    | RetF x => Ret x
    | StuckF => Stuck

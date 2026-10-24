@@ -35,6 +35,7 @@ From ExtLib Require Import
 Set Implicit Arguments.
 Set Contextual Implicit.
 Set Primitive Projections.
+Set Universe Polymorphism.
 
 (*|
 .. coq::
@@ -42,7 +43,8 @@ Set Primitive Projections.
 
 Section ctree.
 
-  Context {E : Type -> Type} {B : Type -> Type} {R : Type}.
+  Universe e b.
+  Context {E : Type@{e} -> Type} {B : Type@{b} -> Type} {R : Type}.
 
 (*|
 The type [ctree] is defined as the final coalgebra ("greatest fixed point") of the functor [ctreeF].
@@ -60,8 +62,8 @@ value returned by the environment
     | StuckF
     | StepF  (t : ctree)
     | GuardF (t : ctree)
-    | VisF {X : Type} (e : E X) (k : X -> ctree)           (* an external event *)
-    | BrF {X : Type} (c : B X) (k : X -> ctree)            (* an internal non-deterministic branching *)
+    | VisF {X : Type@{e}} (e : E X) (k : X -> ctree)      (* an external event *)
+    | BrF {X : Type@{b}} (c : B X) (k : X -> ctree)       (* an internal non-deterministic branching *)
   .
 
   CoInductive ctree : Type :=
@@ -91,7 +93,7 @@ of [go], and outputs of [observe].
 .. coq::
 |*)
 
-Notation ctree' E B R := (ctreeF E B R (ctree E B R)).
+Abbreviation ctree' E B R := (ctreeF E B R (ctree E B R)).
 
 (*|
 We wrap the primitive projection [_observe] in a function [observe].
@@ -99,18 +101,18 @@ We wrap the primitive projection [_observe] in a function [observe].
 
 Definition observe {E B R} (t : ctree E B R) : ctree' E B R := @_observe E B R t.
 
-Notation Ret x        := (go (RetF x)).
-Notation Stuck        := (go StuckF).
-Notation Guard t      := (go (GuardF t)).
-Notation Step t       := (go (StepF t)).
-Notation Vis e k      := (go (VisF e k)).
-Notation Br n k       := (go (BrF n k)).
-Notation BrS n k      := (go (BrF n (fun x => Step (k x)))).
+Abbreviation Ret x        := (go (RetF x)).
+Abbreviation Stuck        := (go StuckF).
+Abbreviation Guard t      := (go (GuardF t)).
+Abbreviation Step t       := (go (StepF t)).
+Abbreviation Vis e k      := (go (VisF e k)).
+Abbreviation Br n k       := (go (BrF n k)).
+Abbreviation BrS n k      := (go (BrF n (fun x => Step (k x)))).
 
-Notation vis e k      := (Vis (subevent _ e) k).
-Notation br c k       := (Br (subevent _ c) k).
-Notation brF c        := (BrF (subevent _ c)).
-Notation brS c k      := (BrS (subevent _ c) k).
+Abbreviation vis e k      := (Vis (subevent _ e) k).
+Abbreviation br c k       := (Br (subevent _ c) k).
+Abbreviation brF c        := (BrF (subevent _ c)).
+Abbreviation brS c k      := (BrS (subevent _ c) k).
 
 Section Branching.
 
@@ -258,22 +260,29 @@ Functorial map ([fmap] in Haskell)
     Definition map {R S} (f : R -> S)  (t : ctree E B R) : ctree E B S :=
       bind t (fun x => Ret (f x)).
 
+
+
+  End CTree.
+
+  Section AtomicTrees.
+    Universes d q.
+    Context {E : Type -> Type} {B : Type -> Type}.
 (*|
 Atomic itrees triggering a single event.
 |*)
 
-    Definition trigger : E ~> ctree E B :=
-      fun R e => Vis e (fun x => Ret x).
+    Definition trigger : E ~> @ctree@{_ _ _ _ d q} E B :=
+      fun T e => Vis e (fun x => Ret x).
 
 (*|
 Atomic ctrees with choice.
 |*)
 
-    Definition branch {X : Type} : forall (c : B X), ctree E B X :=
-      fun c => Br c (fun x => Ret x).
+    Definition branch {X : Type} (c : B X) : @ctree@{_ _ _ _ d q} E B X :=
+      Br c (fun x => Ret x).
 
-    Definition branchS {X : Type} : forall (c : B X), ctree E B X :=
-      fun c => BrS c (fun x => Ret x).
+    Definition branchS {X : Type} (c : B X) : @ctree@{_ _ _ _ d q} E B X :=
+      BrS c (fun x => Ret x).
 
 (*|
 Ignore the result of a tree.
@@ -282,7 +291,8 @@ Ignore the result of a tree.
     Definition ignore {R} : ctree E B R -> ctree E B unit :=
       map (fun _ => tt).
 
-  End CTree.
+  End AtomicTrees.
+  Arguments trigger {E B} [T] _.
 
   Ltac fold_bind :=
     repeat match goal with
@@ -298,7 +308,7 @@ Ignore the result of a tree.
    - [on_left (inr y) l t = Ret y]
 |*)
 
-  Notation on_left lr l t :=
+  Abbreviation on_left lr l t :=
     (match lr with
      | inl l => t
      | inr r => Ret r
@@ -359,9 +369,9 @@ Infinite taus.
 
 End CTree.
 
-Notation trigger e := (CTree.trigger (subevent _ e)).
-Notation branch  e := (CTree.branch  (subevent _ e)).
-Notation branchS e := (CTree.branchS (subevent _ e)).
+Abbreviation trigger e := (CTree.trigger (subevent _ e)).
+Abbreviation branch  e := (CTree.branch  (subevent _ e)).
+Abbreviation branchS e := (CTree.branchS (subevent _ e)).
 
 (*|
 =========
@@ -403,17 +413,21 @@ Instances
 #[global] Instance MonadIter_ctree {E B} : MonadIter (ctree E B) :=
   fun R I => @CTree.iter E B R I.
 
-#[global] Instance MonadTrigger_ctree {E F B} `{E -< F} : MonadTrigger E (ctree F B) :=
+#[global] Instance MonadTrigger_ctree@{d q +} {E : Type -> Type} {F : Type -> Type} {B}
+  `{E -< F} : MonadTrigger E (@ctree@{_ _ _ _ d q} F B) :=
   fun _ e => trigger e.
 
-#[global] Instance MonadBr_ctree {E C D} `{C -< D} : MonadBr C (ctree E D) :=
+#[global] Instance MonadBr_ctree@{d q +} {E} {C : Type -> Type} {D : Type -> Type}
+  `{C -< D} : MonadBr C (@ctree@{_ _ _ _ d q} E D) :=
   fun _ c => branch c.
 
 #[global] Instance MonadStuck_ctree {E C} : MonadStuck (ctree E C) :=
   fun _ => Stuck.
 
-#[global] Instance MonadStep_ctree {E C} : MonadStep (ctree E C) :=
+#[global] Instance MonadStep_ctree@{d q +} {E C} :
+  MonadStep (@ctree@{_ _ _ _ d q} E C) :=
   Step (Ret tt).
+
 
 (*|
 ====================================

@@ -23,6 +23,7 @@ Open Scope ctree_scope.
 
 Set Implicit Arguments.
 Set Contextual Implicit.
+Set Universe Polymorphism.
 
 (*|
 The [haction] computation is itself a tree. The values it computes is
@@ -32,10 +33,17 @@ The [haction] data structure captures trivially this data.
 .. coq::
 |*)
 
-Variant haction {E B X} :=
+Section haction.
+
+  Universe e.
+  Context {E : Type@{e} -> Type} {B : Type -> Type} {X : Type}.
+
+Variant haction :=
 	| ARet    (r : X)
 	| AStep   (t : ctree E B X)
-	| AVis    (Y : Type) (e : E Y) (k : Y -> ctree E B X).
+	| AVis    (Y : Type@{e}) (e : E Y) (k : Y -> ctree E B X).
+
+End haction.
 
 
 (*|
@@ -74,11 +82,11 @@ Proof.
   now step.
 Qed.
 
-Unset Universe Checking.
 
 Section trans_head.
 
-Context {E F B C : Type -> Type} {X : Type}.
+Context {E : Type -> Type} {F : Type -> Type}
+  {B : Type -> Type} {C : Type -> Type} {X : Type}.
 Context `{B -< C}.
 
 (*|

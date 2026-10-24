@@ -9,6 +9,8 @@ From CTree Require Import
   Eq.Trans
   Eq.SSim
   Eq.SBisim.
+Set Universe Polymorphism.
+
 
 (*|
 Base coinductive definitions for execution traces and trace equivalence.

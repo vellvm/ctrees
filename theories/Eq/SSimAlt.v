@@ -22,6 +22,7 @@ From RelationAlgebra Require Export
 Import CoindNotations.
 Import CTree.
 Set Implicit Arguments.
+Set Universe Polymorphism.
 
 (* TODO: Decide where to set this *)
 Arguments trans : simpl never.
@@ -211,8 +212,8 @@ Section ssim'_homogenous_theory.
   Context {E B: Type -> Type} {X: Type}
           {L: relation (@label E)}.
 
-  Notation ss' := (@ss' E E B B X X).
-  Notation ssim' := (@ssim' E E B B X X).
+  Abbreviation ss' := (@ss' E E B B X X).
+  Abbreviation ssim' := (@ssim' E E B B X X).
 
   #[global] Instance Reflexive_ss' R Reps
     `{Reflexive _ R} `{Reflexive _ Reps} `{Reflexive _ L}:
@@ -244,8 +245,8 @@ Section ssim'_heterogenous_theory.
   Context {E F C D: Type -> Type} {X Y: Type}
           {L: rel (@label E) (@label F)}.
 
-  Notation ss' := (@ss' E F C D X Y).
-  Notation ssim'  := (@ssim' E F C D X Y).
+  Abbreviation ss' := (@ss' E F C D X Y).
+  Abbreviation ssim'  := (@ssim' E F C D X Y).
 
 (*|
   stuck ctrees can be simulated by anything.
@@ -335,9 +336,10 @@ Section Proof_Rules.
     intros. split; [| split]; intros; inv_equ.
     cbn; inv_trans; subst;
       destruct (H x) as (x' & RR & LL);
-      cbn; do 3 eexists; intuition.
-    - rewrite EQ; eauto.
-    - assumption.
+      cbn; exists (obs f x'), (k' x'); repeat split.
+    - apply trans_vis.
+    - eapply HR; [symmetry; exact EQ | reflexivity | exact RR].
+    - exact LL.
   Qed.
 
   Lemma step_ss'_vis_id {Z} (e : E Z) (f: F Z)
@@ -498,6 +500,7 @@ Section Proof_Rules.
     split; [| split]; intros; inv_equ.
     inv_trans; subst.
     cbn; do 3 eexists; intuition; subs; eauto.
+    all: apply trans_step.
   Qed.
 
   Lemma step_ss'_step_l :
