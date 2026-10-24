@@ -93,7 +93,7 @@ of [go], and outputs of [observe].
 .. coq::
 |*)
 
-Notation ctree' E B R := (ctreeF E B R (ctree E B R)).
+Abbreviation ctree' E B R := (ctreeF E B R (ctree E B R)).
 
 (*|
 We wrap the primitive projection [_observe] in a function [observe].
@@ -101,18 +101,18 @@ We wrap the primitive projection [_observe] in a function [observe].
 
 Definition observe {E B R} (t : ctree E B R) : ctree' E B R := @_observe E B R t.
 
-Notation Ret x        := (go (RetF x)).
-Notation Stuck        := (go StuckF).
-Notation Guard t      := (go (GuardF t)).
-Notation Step t       := (go (StepF t)).
-Notation Vis e k      := (go (VisF e k)).
-Notation Br n k       := (go (BrF n k)).
-Notation BrS n k      := (go (BrF n (fun x => Step (k x)))).
+Abbreviation Ret x        := (go (RetF x)).
+Abbreviation Stuck        := (go StuckF).
+Abbreviation Guard t      := (go (GuardF t)).
+Abbreviation Step t       := (go (StepF t)).
+Abbreviation Vis e k      := (go (VisF e k)).
+Abbreviation Br n k       := (go (BrF n k)).
+Abbreviation BrS n k      := (go (BrF n (fun x => Step (k x)))).
 
-Notation vis e k      := (Vis (subevent _ e) k).
-Notation br c k       := (Br (subevent _ c) k).
-Notation brF c        := (BrF (subevent _ c)).
-Notation brS c k      := (BrS (subevent _ c) k).
+Abbreviation vis e k      := (Vis (subevent _ e) k).
+Abbreviation br c k       := (Br (subevent _ c) k).
+Abbreviation brF c        := (BrF (subevent _ c)).
+Abbreviation brS c k      := (BrS (subevent _ c) k).
 
 Section Branching.
 
@@ -308,7 +308,7 @@ Ignore the result of a tree.
    - [on_left (inr y) l t = Ret y]
 |*)
 
-  Notation on_left lr l t :=
+  Abbreviation on_left lr l t :=
     (match lr with
      | inl l => t
      | inr r => Ret r
@@ -369,9 +369,9 @@ Infinite taus.
 
 End CTree.
 
-Notation trigger e := (CTree.trigger (subevent _ e)).
-Notation branch  e := (CTree.branch  (subevent _ e)).
-Notation branchS e := (CTree.branchS (subevent _ e)).
+Abbreviation trigger e := (CTree.trigger (subevent _ e)).
+Abbreviation branch  e := (CTree.branch  (subevent _ e)).
+Abbreviation branchS e := (CTree.branchS (subevent _ e)).
 
 (*|
 =========

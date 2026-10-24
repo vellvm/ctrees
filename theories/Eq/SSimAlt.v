@@ -212,8 +212,8 @@ Section ssim'_homogenous_theory.
   Context {E B: Type -> Type} {X: Type}
           {L: relation (@label E)}.
 
-  Notation ss' := (@ss' E E B B X X).
-  Notation ssim' := (@ssim' E E B B X X).
+  Abbreviation ss' := (@ss' E E B B X X).
+  Abbreviation ssim' := (@ssim' E E B B X X).
 
   #[global] Instance Reflexive_ss' R Reps
     `{Reflexive _ R} `{Reflexive _ Reps} `{Reflexive _ L}:
@@ -245,8 +245,8 @@ Section ssim'_heterogenous_theory.
   Context {E F C D: Type -> Type} {X Y: Type}
           {L: rel (@label E) (@label F)}.
 
-  Notation ss' := (@ss' E F C D X Y).
-  Notation ssim'  := (@ssim' E F C D X Y).
+  Abbreviation ss' := (@ss' E F C D X Y).
+  Abbreviation ssim'  := (@ssim' E F C D X Y).
 
 (*|
   stuck ctrees can be simulated by anything.

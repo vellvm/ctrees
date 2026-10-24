@@ -5,7 +5,7 @@ From Stdlib Require Export Program.Equality.
 From Coinduction Require Import all.
 From ITree Require Import Basics.Basics.
 
-Notation fin := Fin.t.
+Abbreviation fin := Fin.t.
 
 Polymorphic Class MonadTrigger@{ei +}
   (E : Type@{ei} -> Type) (M : Type -> Type) : Type :=
@@ -21,7 +21,7 @@ Polymorphic Class MonadStep (M : Type -> Type) : Type :=
 Polymorphic Class MonadStuck (M : Type -> Type) : Type :=
   mstuck : forall X, M X.
 
-Notation rel X Y := (X -> Y -> Prop).
+Abbreviation rel X Y := (X -> Y -> Prop).
 
 Ltac invert :=
   match goal with
@@ -102,7 +102,7 @@ Ltac do_det :=
       clear RWTdet H'
   end.
 
-#[global] Notation inhabited X := { x: X | True}.
+#[global] Abbreviation inhabited X := { x: X | True}.
 
 Definition sum_rel {A1 A2 B1 B2} Ra Rb : rel (A1 + B1) (A2 + B2) :=
   fun ab ab' =>

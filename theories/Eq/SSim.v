@@ -111,7 +111,7 @@ Section ssim_homogenous_theory.
   Context {E B: Type -> Type} {X: Type}
           {L: relation (@label E)}.
 
-  Notation ss := (@ss E E B B X X).
+  Abbreviation ss := (@ss E E B B X X).
 
   #[global] Instance refl_sst {LR: Reflexive L} {C: Chain (ss L)}: Reflexive `C.
   Proof.
@@ -143,8 +143,8 @@ Section ssim_heterogenous_theory.
   Context {E F C D: Type -> Type} {X Y: Type}
           {L: rel (@label E) (@label F)}.
 
-  Notation ss := (@ss E F C D X Y).
-  Notation ssim  := (@ssim E F C D X Y).
+  Abbreviation ss := (@ss E F C D X Y).
+  Abbreviation ssim  := (@ssim E F C D X Y).
 
 (*|
    Strong simulation up-to [equ] is valid

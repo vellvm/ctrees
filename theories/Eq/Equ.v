@@ -153,7 +153,7 @@ Import EquNotations.
 Section equ_theory.
 
   Context {E B : Type -> Type} {R : Type} (RR : R -> R -> Prop).
-  Notation fequ := (fequ (E := E) (B := B)).
+  Abbreviation fequ := (fequ (E := E) (B := B)).
 
 (*|
 This is just a hack suggested by Damien Pous to avoid a
@@ -810,7 +810,7 @@ Proof.
   exact (ctree_eta spin).
 Qed.
 
-Notation bind_ t k :=
+Abbreviation bind_ t k :=
   match observe t with
   | RetF r => k%function r
   | StuckF => Stuck
@@ -826,7 +826,7 @@ Proof.
 	now step.
 Qed.
 
-Notation iter_ step i :=
+Abbreviation iter_ step i :=
   (lr <- step%function i;;
    match lr with
    | inl l => Guard (iter step l)

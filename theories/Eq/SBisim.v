@@ -84,8 +84,8 @@ Relation relaxing [equ] to become insensitive to:
 
 Section StrongBisim.
   Context {E F C D : Type -> Type} {X Y : Type}.
-  Notation S := (ctree E C X).
-  Notation S' := (ctree F D Y).
+  Abbreviation S := (ctree E C X).
+  Abbreviation S' := (ctree F D Y).
 
 (*|
 In the heterogeneous case, the relation is not symmetric.
@@ -206,8 +206,8 @@ Section sbisim_heterogenous_theory.
   Context {E F C D : Type -> Type} {X Y : Type}
     {L: rel (@label E) (@label F)}.
 
-  Notation sb := (@sb E F C D X Y).
-  Notation sbisim := (@sbisim E F C D X Y).
+  Abbreviation sb := (@sb E F C D X Y).
+  Abbreviation sbisim := (@sbisim E F C D X Y).
 
 (*|
 Strong bisimulation up-to [equ] is valid
@@ -343,8 +343,8 @@ End sbisim_heterogenous_theory.
 Section sbisim_homogenous_theory.
   Context {E B: Type -> Type} {X: Type} (L: relation (@label E)).
 
-  Notation sb  := (@sb E E B B X X).
-  Notation sbisim := (@sbisim E E B B X X).
+  Abbreviation sb  := (@sb E E B B X X).
+  Abbreviation sbisim := (@sbisim E E B B X X).
 
   #[global] Instance refl_sb {LR: Reflexive L} {C: Chain (sb L)}: Reflexive `C.
   Proof.
@@ -1561,8 +1561,8 @@ Section StrongSimulations.
     Context {E F C D: Type -> Type} {X Y: Type}
       {L: rel (@label E) (@label F)}.
 
-    Notation ss := (@ss E F C D X Y).
-    Notation ssim  := (@ssim E F C D X Y).
+    Abbreviation ss := (@ss E F C D X Y).
+    Abbreviation ssim  := (@ssim E F C D X Y).
 
     Lemma sbisim_clos_ss {c: Chain (ss L)}:
       forall x y, sbisim_clos (LE := eq) (LF := eq) `c x y -> `c x y.
@@ -1629,8 +1629,8 @@ Section StrongSimulations.
 
     Context {E C: Type -> Type} {X: Type}
       {L: rel (@label E) (@label E)}.
-    Notation ss := (@ss E E C C X X).
-    Notation ssim  := (@ssim E E C C X X).
+    Abbreviation ss := (@ss E E C C X X).
+    Abbreviation ssim  := (@ssim E E C C X X).
 
     #[global] Instance sbisim_clos_ssim_goal `{Symmetric _ L} `{Transitive _ L} :
       Proper (sbisim L ==> sbisim L ==> flip impl) (ssim L).
@@ -1723,8 +1723,8 @@ Section CompleteStrongSimulations.
   Context {E F C D: Type -> Type} {X Y: Type}
     {L: rel (@label E) (@label F)}.
 
-  Notation css := (@css E F C D X Y).
-  Notation cssim  := (@cssim E F C D X Y).
+  Abbreviation css := (@css E F C D X Y).
+  Abbreviation cssim  := (@cssim E F C D X Y).
 
 (*|
 A bisimulation trivially gives a simulation.

@@ -118,7 +118,7 @@ Section State.
           (g : C ~> stateT S (@ctree@{_ _ _ _ d' q'} F D)).
 
   (** Unfolding of [fold]. *)
-  Notation fold_state_ h g t s :=
+  Abbreviation fold_state_ h g t s :=
     (match observe t with
      | RetF r => Ret (s, r)
      | StuckF => Stuck
@@ -230,7 +230,7 @@ Section State.
 
 
   (** Unfolding of [interp]. *)
-  Notation interp_state_ h t s :=
+  Abbreviation interp_state_ h t s :=
     (match observe t with
      | RetF r => Ret (s, r)
      | StuckF => Stuck
@@ -359,7 +359,7 @@ Section State.
   Qed.
 
   (** Unfolding of [refine]. *)
-  Notation refine_state_ g t s :=
+  Abbreviation refine_state_ g t s :=
     (match observe t with
      | RetF r => Ret (s, r)
      | StuckF => Stuck

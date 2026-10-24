@@ -50,7 +50,7 @@ Section FoldCTree.
       (* fold (fun T => Stuck: ctree F D T) (Step (Ret tt)) h g. *)
 
     (** Unfolding of [fold]. *)
-    Notation fold_ctree_ t :=
+    Abbreviation fold_ctree_ t :=
       (match observe t with
        | RetF r => Ret r
        | StuckF => Stuck
@@ -122,7 +122,7 @@ Section FoldCTree.
 
     (** Unfolding of [interp]. *)
 
-    Notation interp_ h t :=
+    Abbreviation interp_ h t :=
       (match observe t with
        | RetF r => Ret r
        | StuckF => Stuck
@@ -200,7 +200,7 @@ Section FoldCTree.
     Qed.
 
     (** Unfolding of [refine]. *)
-    Notation refine_ g t :=
+    Abbreviation refine_ g t :=
       (match observe t with
        | RetF r => Ret r
        | StuckF => Stuck

@@ -153,7 +153,7 @@ Qed.
 (** [translate] lemmas *)
 
 (** Unfolding of [translate]. *)
-Notation translate_ h t :=
+Abbreviation translate_ h t :=
   (match observe t with
    | RetF x => Ret x
    | StuckF => Stuck

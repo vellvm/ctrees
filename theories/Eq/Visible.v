@@ -29,8 +29,8 @@ Section Visible.
 
   Context {E C : Type -> Type} {R : Type}.
 
-  Notation S' := (ctree' E C R).
-  Notation S  := (ctree  E C R).
+  Abbreviation S' := (ctree' E C R).
+  Abbreviation S  := (ctree  E C R).
 
   Definition SS : EqType :=
 	{| type_of := S ; Eq := equ eq |}.

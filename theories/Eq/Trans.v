@@ -77,8 +77,8 @@ Section Trans.
   Context {B : Type@{b} -> Type}.
   Context {R : Type}.
 
-  Notation S' := (ctree' E B R).
-  Notation S  := (ctree  E B R).
+  Abbreviation S' := (ctree' E B R).
+  Abbreviation S  := (ctree  E B R).
 
   Definition SS : EqType :=
     {| type_of := S ; Eq := equ eq |}.
@@ -1577,9 +1577,9 @@ Qed.
 Section Coproduct.
   Arguments label: clear implicits.
   Context {L R C: Type -> Type} {X: Type}.
-  Notation S := (ctree (L +' R) C X).
-  Notation S' := (ctree' (L +' R) C X).
-  Notation SP := (SS -> label (L +' R) -> Prop).
+  Abbreviation S := (ctree (L +' R) C X).
+  Abbreviation S' := (ctree' (L +' R) C X).
+  Abbreviation SP := (SS -> label (L +' R) -> Prop).
 
   (* Skip an [R] event *)
   Inductive srtrans_: rel S' S' :=
@@ -1619,7 +1619,7 @@ End Coproduct.
 invert hypotheses involving [trans].
 |*)
 
-#[local] Notation trans' l t u := (hrel_of (trans l) t u).
+#[local] Abbreviation trans' l t u := (hrel_of (trans l) t u).
 
 Ltac inv_trans_one :=
   match goal with
