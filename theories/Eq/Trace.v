@@ -93,9 +93,18 @@ Qed.
 
 (*|
 One alternative version of traces, [htr_must]: after a question, a trace skips
-the answer label and continues from every possible answer at once. 
+the answer label and continues from every possible answer at once. This is a bit 
+more ATL style, as the system MUST have a way to proceed no matter what the environment does. 
 
-This is a bit more in line with 'must'-style reasoning, but is probably weaker. 
+This is a bit more in line with 'must'-style reasoning, but is less expresive in the typical 
+case since unanswerable questions discharge everything and there is no answer-dependent behavior. 
+
+It would be more expressive as a tree: 
+
+CoInductive strat {E X} :=
+| SCons  (l : label E X) (s : strat)                 (* own step *)
+| SAsk {Y} (e : E Y) (k : Y -> strat)               (* question: branch on answer *)
+| SNil.
 |*)
 
 Program Definition htr_must {E C X} :
