@@ -182,12 +182,6 @@ Section Theory.
   For instance here transporting [branch_block_r].
 |*)
 
-  #[global] Instance handle_imp_is_simple :
-    forall (X : Type) (e : MemE X) (s : env), is_simple (E := void1) (handle_imp _ e s).
-  Proof.
-    unfold handle_imp, h_state. intros. destruct e; typeclasses eauto.
-  Qed.
-
   Lemma branch_block_r_interp : forall (a : stmt) s,
     ℑ (Branch a Block) s ≃
     ℑ a s.
