@@ -134,3 +134,11 @@ Lemma lift_L_flipL {E F X Y} (L : Trans.lrel E F X Y) :
 Proof.
   now destruct L.
 Qed.
+
+(* Reversing a lifted value relation is the same as lifting the reversed relation. *)
+Lemma flipL_lift_L_Lvrel {E X Y} (RS : rel X Y) :
+  TransAlt.lequiv (TransAlt.flipL (lift_L (@Trans.Lvrel E X Y RS))) (lift_L (Trans.Lvrel (flip RS))).
+Proof.
+  split3; cbn; intros;
+    [reflexivity | split; intros H; destruct H; constructor | split; intros H; destruct H; constructor].
+Qed.

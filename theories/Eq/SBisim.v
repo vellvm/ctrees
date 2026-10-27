@@ -214,6 +214,27 @@ Ltac __answer_sbisim := ex2; split3; etrans.
 #[local] Tactic Notation "eplay"                := first [eplayL; [] | eplayR; []].
 #[local] Tactic Notation "answer"               := __answer_sbisim.
 
+(* "Symmetry" of sbisim (label relation must be reversed). *)
+Lemma sbisim_flipL {E F C D X Y} (L : lrel E F X Y) :
+  forall (a : S E C X) (b : S F D Y), sbisim L a b -> sbisim (flipL L) b a.
+Proof.
+  coinduction R CH. intros a b H. step in H. destruct H as [Fw Bw]. split.
+  - intros l b' TR. destruct (Bw _ _ TR) as (l' & a' & TR' & HS & HL).
+    exists l', a'. split3; [exact TR' | apply CH; exact HS | exact HL].
+  - intros l a' TR. destruct (Fw _ _ TR) as (l' & b' & TR' & HS & HL).
+    exists l', b'. split3; [exact TR' | apply CH; exact HS |].
+    apply flipL_flip. apply flipL_flip. exact HL.
+Qed.
+
+Lemma sbisim_Lvrel_flip {E C X Y} (R : rel X Y) :
+  forall (a : S E C X) (b : S E C Y), sbisim (Lvrel R) a b -> sbisim (Lvrel (flip R)) b a.
+Proof.
+  intros a b H. apply sbisim_flipL in H.
+  assert (HLE : @sb E E C C Y X (flipL (Lvrel R)) <= @sb E E C C Y X (Lvrel (flip R)))
+    by (rewrite (flipL_Lvrel R); reflexivity).
+  exact (gfp_leq HLE b a H).
+Qed.
+
 (*|
 Homogeneous theory
 ------------------

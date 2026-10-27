@@ -234,9 +234,9 @@ from Section 2 are indeed equivalent.
     cbn.
     rewrite interp_state_ret.
     unfold trigger. rewrite interp_state_vis.
-    cbn. rewrite bind_ret_l, sb_guard.
-    cbn. rewrite interp_state_ret.
-    apply sb_ret.
+    cbn. rewrite bind_ret_l, sbisim_guard.  
+    cbn. rewrite interp_state_ret. 
+    apply sbisim_gguard, sbisim_ret. 
     rewrite alist_add_alist_add; [reflexivity |].
     apply RelDec_Correct_string.
   Qed.

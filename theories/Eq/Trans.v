@@ -2373,6 +2373,16 @@ Proof.
   all: dependent induction H; constructor.
 Qed.
 
+(* Reversing [Lvrel R] gives [Lvrel] of the converse of [R]. *)
+Lemma flipL_Lvrel {E X Y} (R : rel X Y) :
+  lequiv (flipL (@Lvrel E X Y R)) (Lvrel (flip R)).
+Proof.
+  split3; cbn; intros.
+  - reflexivity.
+  - split; intros H; destruct H; constructor.
+  - split; intros H; destruct H; constructor.
+Qed.
+
 (* This one is a bit ugly: we will have proper instance to
    lift [lequiv] arguments of (bi)simulations to [weq] result.
    This instance does the last bit to allow the rewriting by [lequiv]

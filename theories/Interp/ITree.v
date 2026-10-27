@@ -176,75 +176,42 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma embed_trans_productive_aux E C X : forall l t (T u : ctree E (B01 +' C) X),
+Lemma embed_trans_productive_aux E C X : forall l t (T : ctree E (B01 +' C) X) u,
     trans l T u ->
     (equ eq T (embed t) \/ equ eq T (cGuard (embed t))) ->
     productive t.
 Proof.
-  intros * TR EQ.
-  unfold trans in TR.
-  cbn in TR; red in TR.
-  CTreeDefinitions.genobs T oT.
-  CTreeDefinitions.genobs u ou.
-  revert T HeqoT u Heqou t EQ.
-  induction TR; intros.
-  - subst.
-    destruct EQ as [EQ | EQ].
-    + rewrite ctree_eta, <- HeqoT in EQ.
-      rewrite itree_eta.
-      rewrite unfold_embed in EQ.
-      destruct (iobserve t0); try now step in EQ; inv EQ.
-      eapply prod_vis; reflexivity.
-    + specialize (IHTR _ eq_refl _ eq_refl).
-      rewrite ctree_eta, <- HeqoT in EQ.
-      step in EQ; dependent induction EQ.
-  - subst.
-    destruct EQ as [EQ | EQ].
-    + rewrite ctree_eta, <- HeqoT in EQ.
-      rewrite itree_eta.
-      rewrite unfold_embed in EQ.
-      destruct (iobserve t0); try now step in EQ; inv EQ.
-      2:eapply prod_vis; reflexivity.
-      inv_equ.
-      eapply prod_tau; eauto.
-    + specialize (IHTR _ eq_refl _ eq_refl).
-      apply IHTR.
-      left.
-      rewrite ctree_eta, <- HeqoT in EQ.
-      now inv_equ.
-
-  - destruct EQ as [EQ | EQ].
-    + rewrite itree_eta.
-      rewrite ctree_eta, <- HeqoT in EQ.
-      rewrite unfold_embed in EQ.
-      destruct (iobserve t0); try now step in EQ; inv EQ.
-      destruct e; eapply prod_vis; eauto.
-    + rewrite itree_eta.
-      rewrite ctree_eta, <- HeqoT in EQ.
-      step in EQ; inv EQ.
-  - destruct EQ as [EQ | EQ].
-    + rewrite itree_eta.
-      rewrite ctree_eta, <- HeqoT in EQ.
-      rewrite unfold_embed in EQ.
-      destruct (iobserve t0); try now step in EQ; inv EQ.
-      destruct e0; eapply prod_vis; eauto.
-    + rewrite itree_eta.
-      rewrite ctree_eta, <- HeqoT in EQ.
-      step in EQ; inv EQ.
-  - destruct EQ as [EQ | EQ].
-    + rewrite itree_eta.
-      rewrite ctree_eta, <- HeqoT in EQ.
-      rewrite unfold_embed in EQ.
-      destruct (iobserve t); try now step in EQ; inv EQ.
-      eapply prod_ret; eauto.
-      eapply prod_vis; eauto.
-    + rewrite itree_eta.
-      rewrite ctree_eta, <- HeqoT in EQ.
-      step in EQ; inv EQ.
+  intros * TR EQ. cbn in TR.
+  remember (Active T) as s eqn:Hs. revert T Hs t EQ.
+  induction TR; intros T0 Hs t0 EQ; inversion Hs; subst.
+  - destruct EQ as [EQ | EQ]; rewrite H in EQ.
+    + rewrite unfold_embed in EQ. rewrite itree_eta.
+      destruct (iobserve t0) as [r|t1|Y e k0];
+        [inv_equ | inv_equ | destruct e; cbn in EQ; [eapply prod_vis; reflexivity | inv_equ]].
+    + inv_equ.
+  - destruct EQ as [EQ | EQ]; rewrite H in EQ.
+    + rewrite unfold_embed in EQ. rewrite itree_eta.
+      destruct (iobserve t0) as [r|t1|Y e k0] eqn:Ht0; [inv_equ | | destruct e; cbn in EQ; inv_equ].
+      inv_equ. eapply prod_tau; [reflexivity |]. eapply IHTR; [reflexivity |]. left. exact EQ.
+    + inv_equ. eapply IHTR; [reflexivity |]. left. exact EQ.
+  - destruct EQ as [EQ | EQ]; rewrite H in EQ.
+    + rewrite unfold_embed in EQ.
+      destruct (iobserve t0) as [r|t1|Y e k0]; [inv_equ | inv_equ | destruct e; cbn in EQ; inv_equ].
+    + inv_equ.
+  - destruct EQ as [EQ | EQ]; rewrite H in EQ.
+    + rewrite unfold_embed in EQ. rewrite itree_eta.
+      destruct (iobserve t0) as [r|t1|Y e' k0];
+        [inv_equ | inv_equ | destruct e'; cbn in EQ; [inv_equ | eapply prod_vis; reflexivity]].
+    + inv_equ.
+  - destruct EQ as [EQ | EQ]; rewrite H in EQ.
+    + rewrite unfold_embed in EQ. rewrite itree_eta.
+      destruct (iobserve t0) as [r'|t1|Y e k0];
+        [eapply prod_ret; reflexivity | inv_equ | destruct e; cbn in EQ; inv_equ].
+    + inv_equ.
 Qed.
 
 
-Lemma embed_trans_productive E C X : forall l t (u : ctree E (B01 +' C) X),
+Lemma embed_trans_productive E C X : forall l (t : itree (C +' E) X) u,
     trans l (embed t) u ->
     productive t.
 Proof.
@@ -253,99 +220,82 @@ Proof.
 Qed.
 
 Lemma embed_eutt {E C X}:
-  Proper (eutt eq ==> sbisim eq) (@embed E C X).
+  Proper (eutt eq ==> sbisimT Leq) (@embed E C X).
 Proof.
-  unfold Proper,respectful.
+  unfold Proper, respectful.
   coinduction r CIH.
   symmetric using idtac.
   - intros * HR * EQ.
     apply HR; symmetry; assumption.
   - intros t u EUTT.
-    cbn; intros * TR.
-    pose proof embed_trans_productive TR as PROD.
+    cbn; intros l st TR.
+    pose proof (embed_trans_productive TR) as PROD.
     revert u TR EUTT.
     induction PROD.
-    + intros.
-      rewrite EQ in EUTT,TR.
+    + intros u TR EUTT.
+      rewrite EQ in EUTT, TR.
       rewrite unfold_embed in TR; cbn in TR.
-      pose proof trans_ret_inv TR as (EQ' & ->).
+      apply trans_ret_inv' in TR as (EQ' & ->).
+      exists (val r0), (Trans.Active Stuck).
+      split3; [| rewrite EQ'; reflexivity | constructor; reflexivity].
       punfold EUTT; cbn in EUTT; red in EUTT.
-      remember (iobserve (iRet r0)) as ot;
-        remember (iobserve u) as ou.
+      remember (iobserve (iRet r0)) as ot; remember (iobserve u) as ou.
       revert u Heqou.
       induction EUTT; subst; pclearbot; try now inv Heqot.
-      * intros.
-        inv Heqot.
-        do 2 eexists; split; [|split].
-        rewrite unfold_embed, <- Heqou.
+      * inv Heqot. intros u Hu.
+        rewrite unfold_embed, <- Hu.
         etrans.
-        all: reflexivity.
-      * intros.
-        edestruct IHEUTT; try reflexivity.
-        destruct H as (? & ? & ? & ->).
-        do 2 eexists; split; [|split].
-        rewrite unfold_embed, <- Heqou.
-        apply trans_guard; eauto.
-        assumption.
-        reflexivity.
-    + intros.
-      rewrite EQ in EUTT,TR.
+      * intros u Hu.
+        rewrite unfold_embed, <- Hu. cbn.
+        apply trans_guard.
+        apply IHEUTT; reflexivity.
+    + intros u TR EUTT.
+      rewrite EQ in EUTT, TR.
       rewrite unfold_embed in TR; cbn in TR.
-      destruct e.
-      * apply trans_brS_inv in TR; destruct TR as (? & EQ' & ->).
+      destruct e as [c | e].
+      * apply trans_brS_inv' in TR as (x & EQ' & ->).
         punfold EUTT; cbn in EUTT; red in EUTT.
-        remember (iobserve (iVis (inl1 c) k)) as ot;
-          remember (iobserve u) as ou.
+        remember (iobserve (iVis (inl1 c) k)) as ot; remember (iobserve u) as ou.
         revert u Heqou.
         induction EUTT; subst; try now inv Heqot.
-        ** intros.
-           dependent induction Heqot.
-           do 2 eexists; split; [|split].
-           rewrite unfold_embed, <- Heqou.
-           etrans.
-           rewrite EQ'.
-           rewrite !sb_guard.
-           apply CIH.
-           pclearbot; apply REL.
-           reflexivity.
-        ** intros.
-           edestruct IHEUTT; try reflexivity.
-           destruct H as (? & ? & ? & ->).
-           do 2 eexists; split; [|split].
-           rewrite unfold_embed, <- Heqou.
-           apply trans_guard; eauto.
-           assumption.
-           reflexivity.
-      * apply trans_vis_inv in TR; destruct TR as (? & EQ' & ->).
+        ** intros u0 Hu. dependent induction Heqot.
+           exists τ, (Trans.Active (cGuard (cGuard (embed (k2 x))))). split3.
+           { rewrite unfold_embed, <- Hu. cbn. etrans. }
+           { rewrite EQ'. rewrite !sbisim_guard. apply CIH. pclearbot. apply REL. }
+           { constructor. }
+        ** intros u0 Hu. edestruct IHEUTT as (l' & u' & TR' & HR & HL); try reflexivity.
+           exists l', u'. split3; auto.
+           rewrite unfold_embed, <- Hu. cbn. apply trans_guard. exact TR'.
+      * apply trans_vis_inv' in TR as (EQ' & ->).
         punfold EUTT; cbn in EUTT; red in EUTT.
-        remember (iobserve (iVis (inr1 e) k)) as ot;
-          remember (iobserve u) as ou.
+        remember (iobserve (iVis (inr1 e) k)) as ot; remember (iobserve u) as ou.
         revert u Heqou.
         induction EUTT; subst; try now inv Heqot.
-        ** intros.
-           dependent induction Heqot.
-           do 2 eexists; split; [|split].
-           rewrite unfold_embed, <- Heqou.
-           etrans.
-           rewrite EQ'.
-           rewrite !sb_guard.
-           apply CIH.
-           pclearbot; apply REL.
-           reflexivity.
-        ** intros.
-           edestruct IHEUTT; try reflexivity.
-           destruct H as (? & ? & ? & ->).
-           do 2 eexists; split; [|split].
-           rewrite unfold_embed, <- Heqou.
-           apply trans_guard; eauto.
-           assumption.
-           reflexivity.
-    + intros.
-      rewrite EQ in EUTT,TR.
+        ** intros u0 Hu. dependent induction Heqot.
+           exists (ask (subevent _ e)),
+             (Trans.Passive (subevent _ e) (fun x => cGuard (cGuard (embed (k2 x))))).
+           split3.
+           { rewrite unfold_embed, <- Hu. cbn. etrans. }
+           2: { constructor. constructor. }
+           rewrite EQ'. apply (b_chain r). split.
+           { intros l' st' TR'. apply trans_passive_inv' in TR' as (x & SEQ & ->).
+             exists (rcv (subevent _ e) x), (Trans.Active (cGuard (cGuard (embed (k2 x))))). split3.
+             { econstructor; reflexivity. }
+             { rewrite SEQ. rewrite !sbisim_guard. apply CIH. pclearbot. apply REL. }
+             { constructor. constructor. } }
+           { intros l' st' TR'. apply trans_passive_inv' in TR' as (x & SEQ & ->).
+             exists (rcv (subevent _ e) x), (Trans.Active (cGuard (cGuard (embed (k x))))). split3.
+             { econstructor; reflexivity. }
+             { rewrite SEQ. cbn. rewrite !sbisim_guard. apply CIH. pclearbot. apply REL. }
+             { apply flipL_flip. constructor. constructor. } }
+        ** intros u0 Hu. edestruct IHEUTT as (l' & u' & TR' & HR & HL); try reflexivity.
+           exists l', u'. split3; auto.
+           rewrite unfold_embed, <- Hu. cbn. apply trans_guard. exact TR'.
+    + intros u0 TR EUTT.
+      rewrite EQ in EUTT, TR.
       rewrite unfold_embed in TR; cbn in TR.
       apply trans_guard_inv in TR.
-      apply IHPROD.
-      auto.
+      apply IHPROD; auto.
       rewrite tau_eutt in EUTT; auto.
 Qed.
 

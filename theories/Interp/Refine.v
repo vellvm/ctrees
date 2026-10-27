@@ -39,7 +39,7 @@ Theorem refine_ctree_ssim {E B B' X} :
   (forall X c, pure_finite (h X c)) ->
   refine h t ≲ t.
 Proof.
-  intros. unfold ssimT. rewrite ssim_ssim'. red. revert t. coinduction R CH. intros.
+  intros. unfold ssimT. rewrite ssim_ssim'. revert t. coinduction R CH. intros.
   rewrite (ctree_eta t) at 2.
   setoid_rewrite unfold_refine. cbn.
   destruct (observe t) eqn:?.
@@ -70,7 +70,7 @@ Theorem refine_state_ssim {E B B' X St} :
   (forall X c s, pure_finite (h X c s)) ->
   forall s, refine h t s (≲@Lrr St E X) t.
 Proof.
-  intros. unfold ssimT. rewrite ssim_ssim'. red. revert t s. coinduction R CH. intros.
+  intros. unfold ssimT. rewrite ssim_ssim'. revert t s. coinduction R CH. intros.
   rewrite (ctree_eta t) at 2.
   setoid_rewrite unfold_refine_state. cbn.
   destruct (observe t) eqn:?.

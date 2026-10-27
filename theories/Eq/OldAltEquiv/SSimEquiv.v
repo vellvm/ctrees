@@ -132,3 +132,20 @@ Proof.
   - apply ssim'_to_o_ssim. apply H.
 Qed.
 
+(* Making epsilon play nice with the alt simulation on the right. *)
+Lemma ss'_epsilon_r_old {E F C D X Y} R Reps (L : TransAlt.lrel E F X Y)
+  (t : TransAlt.S E C X) (u u' : ctree F D Y) :
+  epsilon u u' ->
+  ss'_gen R Reps L t (TransAlt.Active u') ->
+  ss'_gen R Reps L t (TransAlt.Active u).
+Proof.
+  intros EPS H. eapply step_ss'_epsilon_r; [exact H |]. clear H.
+  red in EPS. rewrite (ctree_eta u), (ctree_eta u').
+  genobs u ou. genobs u' ou'. clear u Heqou u' Heqou'.
+  induction EPS.
+  - apply EpsilonAlt.estar_seq. constructor. rewrite <- !ctree_eta. exact H.
+  - eapply EpsilonAlt.estar_cons_epsilon; [| exact IHEPS].
+    eapply TransAlt.Transbr; [reflexivity | rewrite <- ctree_eta; reflexivity].
+  - eapply EpsilonAlt.estar_cons_epsilon; [| exact IHEPS].
+    eapply TransAlt.Transguard; [reflexivity | rewrite <- ctree_eta; reflexivity].
+Qed.
