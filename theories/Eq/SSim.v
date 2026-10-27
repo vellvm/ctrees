@@ -1123,6 +1123,17 @@ Question: are the principles useful over [ss] as well?
 
 End Proof_Rules.
 
+Lemma ssim_passive_inv_eq {E C X Y} (e : E Y) (f f' : Y -> ctree E C X) :
+  ssim Leq (β e f) (β e f') -> forall x, ssim Leq (f x) (f' x).
+Proof.
+  intros SIM x. step in SIM.
+  edestruct (SIM (rcv e x) (Active (f x))) as (l' & st' & TR & SIM' & HL); [econstructor; reflexivity |].
+  apply Leq_eq in HL; subst l'.
+  apply trans_passive_inv' in TR as (y & SEQ & EQl).
+  apply rcv_inv in EQl as [_ <-].
+  now rewrite SEQ in SIM'.
+Qed.
+
 Section ssim_epsilon.
 
     Lemma ss_epsilon_l {E F C D X Y L R}
