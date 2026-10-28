@@ -55,20 +55,27 @@ Proof.
   - rewrite H in Ht. exists x0. auto.
 Qed.
 
+#[global] Instance has_trace_Seq {E C X} s :
+  Proper (Seq ==> impl) (@has_trace E C X s).
+Proof.
+  cbn. intros a b EQ H. step. destruct s; auto.
+  step in H. destruct H as (st & TR & HT). rewrite EQ in TR. cbn. eauto.
+Qed.
+
 (*|
 Tactics
 |*)
 
 Tactic Notation "__trace_play" "using" tactic(tac) :=
-  eexists; rewrite ctree_eta;
-  cbn; split; [now tac | auto].
+  eexists; try (rewrite ctree_eta; cbn); split; [now tac | auto].
 
-Tactic Notation "__trace_play" := __trace_play using etrans.
+Tactic Notation "__trace_play" :=
+  __trace_play using (first [etrans | econstructor; reflexivity]).
 
 Tactic Notation "__trace_play" "in" hyp(H) :=
   step in H; cbn in H;
   destruct H as (? & TR & H);
-  rewrite ctree_eta in TR; cbn in TR;
+  try (rewrite ctree_eta in TR; cbn in TR);
   inv_trans; subst.
 
 Lemma ssim_tracincl : forall {E C X} (t t' : S E C X),

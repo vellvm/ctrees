@@ -446,6 +446,12 @@ Proof.
   constructor. red in H. step. econstructor; eauto.
 Qed.
 
+#[global] Instance equ_br2 {E B R} `{B2 -< B} :
+  Proper (equ eq ==> equ eq ==> equ eq) (@br2 E B R _).
+Proof.
+  intros t t' Ht u u' Hu. unfold br2. step. constructor. intros []; auto.
+Qed.
+
 #[global] Instance observing_sub_equ E B R :
   subrelation (@observing E B R R eq) (equ eq).
 Proof.
