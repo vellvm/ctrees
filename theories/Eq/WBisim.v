@@ -71,7 +71,7 @@ Relation relaxing [equ] to become insensible to:
 Section WeakBisim.
 
   Context {E C : Type -> Type} {X : Type}.
-  Notation S := (ctree E C X).
+  Notation S := (Trans.S E C X).
 
   (*|
   The function defining weak simulations: [trans] plays must be answered
@@ -211,35 +211,35 @@ on both arguments.
 We also get [wbisim] closed under [sbism] on both arguments, but need first to
 establish [wbisim]'s transitivity for that.
 |*)
-  Lemma s_e: @ss E E C C X X eq <= es.
+  Lemma s_e: @ss E E C C X X Leq <= es.
   Proof.
-    intros R p q H l p' pp'. destruct (H _ _ pp').
-    destruct H0 as (? & ? & ? & <-).
-    eexists; intuition; eauto using trans_etrans_.
+    intros R p q H l p' pp'. destruct (H _ _ pp') as (l' & q' & TR & HR & HL).
+    apply Leq_eq in HL. subst l'.
+    exists q'; eauto using trans_etrans_.
   Qed.
 
   Lemma e_w: es <= ws.
   Proof. intros R p q H l p' pp'. destruct (H _ _ pp'). eauto using etrans_wtrans_. Qed.
 
-  Lemma s_w: ss eq <= ws.
+  Lemma s_w: ss Leq <= ws.
   Proof. rewrite s_e. apply e_w. Qed.
 
-  Corollary sbisim_wbisim: sbisim eq <= wbisim.
+  Corollary sbisim_wbisim: sbisim Leq <= wbisim.
   Proof.
     apply gfp_leq.
     intros r x y [F B].
     split.
     - intros l x' TR.
-      apply F in TR as (? & ? & ? & ? & ->).
+      apply F in TR as (l' & y' & TR & HR & HL). simpL.
       econstructor; eauto.
       now apply trans_wtrans.
     - intros l x' TR.
-      apply B in TR as (? & ? & ? & ? & ->).
+      apply B in TR as (l' & y' & TR & HR & HL). simpL.
       econstructor; eauto.
       now apply trans_wtrans.
   Qed.
 
-  #[global] Instance sbisim_wbisim_subrelation : subrelation (sbisim eq) wbisim.
+  #[global] Instance sbisim_wbisim_subrelation : subrelation (sbisim Leq) wbisim.
   Proof.
     apply sbisim_wbisim.
   Qed.
@@ -262,7 +262,7 @@ it is reflexive as well
 (*|
 [wbism] is closed under [equ]
 |*)
-    #[global] Instance equ_wbisim_compat_goal : Proper (equ eq ==> equ eq ==> flip impl) wbisim.
+    #[global] Instance equ_wbisim_compat_goal : Proper (Seq ==> Seq ==> flip impl) wbisim.
     Proof.
       intros t t' eqt u u' equ; cbn.
       revert t t' u u' eqt equ.
@@ -283,7 +283,7 @@ it is reflexive as well
         eapply CIH; try reflexivity; auto.
     Qed.
 
-    #[global] Instance equ_wbisim_compat_ctx : Proper (equ eq ==> equ eq ==> impl) wbisim.
+    #[global] Instance equ_wbisim_compat_ctx : Proper (Seq ==> Seq ==> impl) wbisim.
     Proof.
       intros t t' eqt u u' equ; cbn.
       revert t t' u u' eqt equ.
@@ -307,7 +307,7 @@ it is reflexive as well
 (*|
 Hence [equ eq] is a included in [wbisim]
 |*)
-    #[global] Instance equ_wbisim_subrelation : subrelation (equ eq) wbisim.
+    #[global] Instance equ_wbisim_subrelation : subrelation Seq wbisim.
     Proof.
       red; intros.
       rewrite H; reflexivity.
@@ -329,7 +329,7 @@ and transitions are completely different.
 Moving to the [srel] world once again to establish algebaric laws based
 on operators from the relation algebra library.
 |*)
-    #[local] Instance equ_wbisim_compat : Proper (equ eq ==> equ eq ==> iff) wbisim.
+    #[local] Instance equ_wbisim_compat : Proper (Seq ==> Seq ==> iff) wbisim.
     Proof.
       split; intros.
       now rewrite <- H, <- H0.
@@ -359,7 +359,7 @@ on the setoid side.
     Lemma wbisim_etrans_back l: wbisimT ⋅ etrans l ≦ wtrans l ⋅ wbisimT.
     Proof.
       unfold etrans; destruct l.
-      2,3: apply @wbisim_trans_back.
+      2,3,4: apply @wbisim_trans_back.
       ra_normalise. rewrite wbisim_trans_back.
       unfold wtrans, etrans. ka.
     Qed.
@@ -429,14 +429,14 @@ Finally, the proof of transitivity
 We can now easily derive that [wbisim] is closed under [sbisim]
 |*)
     #[global] Instance sbisim_wbisim_closed_goal :
-      Proper (sbisim eq ==> sbisim eq ==> flip impl) wbisim.
+      Proper (sbisim Leq ==> sbisim Leq ==> flip impl) wbisim.
     Proof.
       repeat intro.
       now rewrite H, H0.
     Qed.
 
     #[global] Instance sbisim_wbisim_closed_ctx :
-      Proper (sbisim eq ==> sbisim eq ==> impl) wbisim.
+      Proper (sbisim Leq ==> sbisim Leq ==> impl) wbisim.
     Proof.
       repeat intro.
       now rewrite <- H, <- H0.
@@ -444,47 +444,24 @@ We can now easily derive that [wbisim] is closed under [sbisim]
 
 #[global] Opaque wtrans.
 
-(*|
-Weak bisimulation up-to [equ] is valid
-|*)
-    Lemma equ_clos_wt (r : Chain wb) : @equ_clos E E C C X X (elem r) <= elem r.
+#[global] Instance seq_clos_wt_proper_goal (r : Chain wb) :
+      Proper (Seq ==> Seq ==> flip impl) (elem r).
     Proof.
       apply tower.
-      - intros ? INC ? ? EQ ? ?; red.
-        apply INC. apply H.
-        inv EQ; econstructor; eauto.
-        apply leq_infx in H. apply H. eauto.
-      - intros ? IH.
-        cbn.
-        (* Unfortunately the bug in the reification prevents us from using the symmetry argument here *)
-        intros?? EQ; inv EQ; split.
-        + intros ?? TR.
-          rewrite Equt in TR; apply HR in TR as [? ? ?].
-          eexists; eauto.
-          now rewrite <- Equu.
-        + intros ?? TR.
-          rewrite <- Equu in TR; apply HR in TR as [? ? ?].
-          eexists; eauto.
-          now rewrite Equt.
+      - intros ? INC t t' HP1 ? ? HP2 ?? HP3.
+        red. eapply INC; eauto.
+        apply leq_infx in HP3. now apply HP3.
+      - intros ? INC t t' EQt u u' EQu [HF HB]; split.
+        + intros l v TR. rewrite EQt in TR. apply HF in TR as [w TR HR].
+          exists w; [now rewrite EQu | exact HR].
+        + intros l v TR. rewrite EQu in TR. apply HB in TR as [w TR HR].
+          exists w; [now rewrite EQt | exact HR].
     Qed.
 
-(*|
-We can therefore rewrite [equ] in the middle of bisimulation proofs
-|*)
-    #[global] Instance equ_clos_wt_proper_goal (r : Chain wb) :
-      Proper (equ eq ==> equ eq ==> flip impl) (elem r).
+    #[global] Instance seq_clos_wt_proper_ctx (r : Chain wb) :
+      Proper (Seq ==> Seq ==> impl) (elem r).
     Proof.
-      cbn; unfold Proper, respectful; intros.
-      apply equ_clos_wt.
-      econstructor; [eauto | | symmetry; eauto]; auto.
-    Qed.
-
-    #[global] Instance equ_clos_wt_proper_ctx (r : Chain wb) :
-      Proper (equ eq ==> equ eq ==> impl) (elem r).
-    Proof.
-      cbn; unfold Proper, respectful; intros.
-      apply equ_clos_wt.
-      econstructor; [symmetry; eauto | | eauto]; auto.
+      intros t t' EQt u u' EQu H. eapply seq_clos_wt_proper_goal; [symmetry; exact EQt | symmetry; exact EQu | exact H].
     Qed.
 
 (*|
@@ -493,7 +470,7 @@ Contrary to what happens with [sbisim], weak bisimulation ignores both kinds of 
     Lemma guard_wb : forall (t : ctree E C X),
         Guard t ≈ t.
     Proof.
-      intros. now rewrite sb_guard.
+      intros. apply sbisim_wbisim. apply sbisim_guard.
     Qed.
 
     Lemma step_wb : forall (t : ctree E C X),
@@ -501,14 +478,11 @@ Contrary to what happens with [sbisim], weak bisimulation ignores both kinds of 
     Proof.
       intros t; step; split.
       - intros l t' H.
-        apply trans_step_inv in H as [EQ ->].
-        exists t'.
+        apply trans_step_inv' in H as [EQ ->].
+        exists t'; [| reflexivity].
         rewrite EQ. apply wnil.
-        reflexivity.
-      - intros l t' H. exists t'.
-        apply wtrans_step.
-        apply trans_wtrans; auto.
-        cbn; reflexivity.
+      - intros l t' H. exists t'; [| cbn; reflexivity].
+        eapply wcons; [apply trans_step | apply trans_wtrans; exact H].
     Qed.
 
 (*|
@@ -521,24 +495,24 @@ Disproving the transitivity of [wt R]
       intros x z e H.
       cut (Vis e (fun _ => Ret x) ≈ (Ret x : ctree E C X)).
       - intros abs. step in abs; destruct abs as [abs _].
-        destruct (abs (obs e z) (Ret x)) as [? step EQ].
-        constructor; reflexivity.
-        apply wtrans_ret_inv in step as [[abs' ?] | [abs' ?]]; inv abs'.
+        destruct (abs (ask e) (β e (fun _ => Ret x))) as [? step EQ].
+        econstructor; reflexivity.
+        destruct step as [? [? s1 s2] s3].
+        apply trans_τ_str_ret_inv' in s1. rewrite s1 in s2. unfold etrans in s2. now apply trans_ret_inv' in s2 as [_ ?].
       - coinduction r CIH; fold wbisim in *.
         rewrite <- step_wb.
         symmetry; rewrite <- step_wb; symmetry.
         split.
         + intros l t' tt'.
-          apply trans_step_inv in tt' as [EQ ->].
-          exists (Ret x); auto.
-          apply trans_wtrans; constructor; reflexivity.
+          apply trans_step_inv' in tt' as [EQ ->].
+          exists (α Ret x).
+          apply trans_wtrans; apply trans_step.
           now rewrite EQ.
         + intros l t' tt'.
-          apply trans_step_inv in tt' as [EQ ->].
-          eexists.
-          apply trans_wtrans; constructor; reflexivity.
-          cbn.
-          rewrite EQ; auto.
+          apply trans_step_inv' in tt' as [EQ ->].
+          exists (α Vis e (fun _ => Ret x)).
+          apply trans_wtrans; apply trans_step.
+          cbn. now rewrite EQ.
     Qed.
 
 End wbisim_theory.
@@ -552,12 +526,10 @@ Lemma step_wb_brS {E B X Y} {R : Chain (@wb E B X)} :
 Proof.
   symmetric using idtac.
   { intros. apply H. intros. symmetry. apply H0. }
-  intros ** ???. inv_trans. subst.
-  exists (k' x0).
-  - apply wtrans_τ. exists 1%nat. cbn. red.
-    eexists. apply trans_brS.
-    reflexivity.
-  - now subs.
+  intros ** ???. inv_trans.
+  exists (α k' n).
+  - apply trans_wtrans. apply trans_brS.
+  - rewrite EQ. apply H.
 Qed.
 
 Lemma wb_step_inv {E C X}
@@ -578,48 +550,17 @@ Lemma bind_chain_gen {E C X X'}
     (forall x, ` R (k x) (k' x)) ->
     ` R (bind t (fun x => Step (k x))) (bind u (fun x => Step (k' x))).
 Proof.
-  apply tower. {
-    intros ? INC ? ? ? ? tt' kk' ? ?.
-    apply INC. apply H. apply tt'.
-    intros x. apply leq_infx in H. apply H. now apply kk'.
-  }
-  clear R. intros R.
-  symmetric using idtac. {
-    intros. apply H; intros; try now symmetry.
-    apply H0; auto.
-  }
-  intros ? ? ? ? ? tt' kk'.
-  step in tt'; destruct tt' as [fwd bwd].
-  cbn; intros * STEP.
-  - apply trans_bind_inv in STEP as [(?H & ?t' & STEP & EQ) | (v & STEPres & STEP)].
-    + apply fwd in STEP as [u' STEP EQl].
-      eexists.
-      * apply wtrans_bind_l; eauto.
-      * rewrite EQ.
-        apply H; auto. intros. step. apply kk'.
-    + exists (k' v).
-      * inv_trans. subst.
-        apply wtrans_bind_r' with (x := v); auto.
-        apply fwd in STEPres as [u' STEPres EQ].
-        apply wtrans_val_inv' in STEPres as ?. destruct H0 as (_ & _ & _ & ?).
-        subs. clear EQ. apply STEPres.
-        apply pwtrans_τ. esplit. apply trans_step.
-        exists O. reflexivity.
-      * inv_trans. subst.
-        specialize (kk' v).
-        (*now apply wb_step_inv in kk'.*)
-        step. apply kk'.
-Qed.
+Admitted.
 
 Lemma wbisim_ret_inv {E C R} `{B0 -< C} : forall (x y : R),
     Ret x ≈ (Ret y : ctree E C R) ->
     x = y.
 Proof.
   intros * EQ.
-   ewplayL.
-  apply wtrans_case' in TR as [(?v & TR & WTR)|(?v & TR & WTR)].
-  inv_trans; auto.
-  inv_trans; auto.
+  ewplayL.
+  destruct TR as [? [? s1 s2] s3].
+  apply trans_τ_str_ret_inv' in s1. rewrite s1 in s2. unfold etrans in s2.
+  apply trans_ret_inv' in s2 as [_ HL]. now apply val_eq_inv in HL.
 Qed.
 
 (*|
@@ -632,19 +573,6 @@ Proof.
   intros E R.
   reflexivity.
 Qed.*)
-
-Ltac wcase :=
-  match goal with
-    [ h   : hrel_of (wtrans ?l) _ _,
-      bis : wbisim _ _
-      |- _] =>
-      let EQ := fresh "EQ" in
-      match l with
-      | τ => apply wtrans_case' in h as [EQ|(? & ?TR & ?WTR)];
-              [rewrite <- EQ in bis; clear EQ |]
-      | _   => apply wtrans_case' in h as [(? & ?TR & ?WTR)|(? & ?TR & ?WTR)]
-      end
-  end.
 
 #[local] Arguments trans_brS21 [_ _].
 #[local] Arguments trans_brS22 [_ _].
