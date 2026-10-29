@@ -38,20 +38,39 @@ Qed.
 
 Lemma trans_nil_inv : forall l p, ~ trans l nil p.
 Proof.
-  intros * abs; eapply Stuck_is_stuck; apply abs.
+  intros * abs; eapply trans_stuck_inv; apply abs.
 Qed.
 
-Definition ι : option action -> @label ccsE :=
+(*| As before one CCS action as one tree move using a helper [mstep]. 
+
+[None] is a [τ] step, and [Some a] asks [Act a] and continues after the answer
+[tt]. |*)
+Variant mstep : option action -> ccs -> ccs -> Prop :=
+| mtau (p q : ccs) : trans τ p q -> mstep None p q
+| mact a (p : ccs) k : trans (comm a) p (β (Act a) k) -> mstep (Some a) p (k tt).
+
+Lemma mstep_sbisim : forall a (p q p' : ccs),
+    p ≃ q -> mstep a p p' -> exists q', mstep a q q' /\ p' ≃ q'.
+Proof.
+  intros * EQ ST. destruct ST as [p p' TR | a p k TR].
+  - destruct (sbisimT_step _ _ _ _ EQ TR) as (s & TR' & HS).
+    destruct (trans_τ_inv TR') as (q' & EQq). rewrite EQq in TR', HS.
+    exists q'; split; [now constructor | exact HS].
+  - destruct (sbisimT_step _ _ _ _ EQ TR) as (s & TR' & HS).
+    destruct (trans_ask_inv TR') as (k' & EQk). rewrite EQk in TR', HS.
+    exists (k' tt); split; [now constructor | exact (sbisim_sbm_passive _ _ _ HS tt)].
+Qed.
+
+Definition ι : option action -> label ccsE void :=
   fun a => match a with
         | None => τ
         | Some a => comm a
         end.
 
-Definition γ : @label ccsE -> option action :=
+Definition γ : label ccsE void -> option action :=
   fun l => match l with
-        | val x => None
-        | τ   => None
-        | obs (Act a) _ => Some a
+        | ask e => match e with Act a => Some a end
+        | _ => None
         end.
 
 Lemma are_opposite_op : forall a, are_opposite a (op a).
@@ -80,15 +99,15 @@ Qed.
 
 Definition forward (R : term -> ccs -> Prop) : Prop :=
   forall P P' q a,
-		R P q ->
-		P ⊢ a →op P' ->
-	  exists q', trans (ι a) q q' /\ R P' q'.
+    R P q ->
+    P ⊢ a →op P' ->
+    exists q', mstep a q q' /\ R P' q'.
 
 Definition backward (R : term -> ccs -> Prop) : Prop :=
-  forall P q q' l,
-		R P q ->
-    trans l q q' ->
-	  exists P', P ⊢ γ l →op P' /\ R P' q'.
+  forall P q q' a,
+    R P q ->
+    mstep a q q' ->
+    exists P', P ⊢ a →op P' /\ R P' q'.
 
 Definition bisim R := forward R /\ backward R.
 Definition bisimilar P q := exists R, bisim R /\ R P q.
@@ -105,153 +124,149 @@ Qed.
 
 Definition bisim_model := fun P (q: ccs) => ⟦P⟧ ≃ q.
 
+Lemma model_mstep : forall P a P', P ⊢ a →op P' -> exists p', mstep a ⟦P⟧ p' /\ p' ≃ ⟦P'⟧.
+Proof.
+  intros * ST. induction ST; cbn.
+  - exists ⟦P⟧; split; [| reflexivity].
+    exact (@mact a (prefix a ⟦P⟧) (fun _ => ⟦P⟧) (trans_prefix a ⟦P⟧)).
+  - exists ⟦P⟧; split; [| reflexivity]. constructor. apply trans_step.
+  - destruct IHST as (p' & MS & EQ). exists p'; split; auto.
+    destruct MS; constructor; now apply trans_plusL.
+  - destruct IHST as (p' & MS & EQ). exists p'; split; auto.
+    destruct MS; constructor; now apply trans_plusR.
+  - destruct IHST as (p' & MS & EQ). exists (para p' ⟦Q⟧); split; [| now rewrite EQ].
+    destruct MS as [p p' TR | a p k TR].
+    + constructor. apply (trans_paraL _ _ ⟦Q⟧) in TR. exact TR.
+    + apply (trans_paraL _ _ ⟦Q⟧) in TR. exact (@mact a _ (fun i => para (k i) ⟦Q⟧) TR).
+  - destruct IHST as (q' & MS & EQ). exists (para ⟦P⟧ q'); split; [| now rewrite EQ].
+    destruct MS as [q q' TR | a q k TR].
+    + constructor. apply (trans_paraR _ ⟦P⟧) in TR. exact TR.
+    + apply (trans_paraR _ ⟦P⟧) in TR. exact (@mact a _ (fun i => para ⟦P⟧ (k i)) TR).
+  - destruct IHST1 as (p1 & MS1 & EQ1), IHST2 as (p2 & MS2 & EQ2).
+    inv MS1. inv MS2.
+    exists (para (k tt) (k0 tt)); split; [| now rewrite EQ1, EQ2].
+    constructor. eapply trans_paraSynch; [exact H0 | exact H1 | apply are_opposite_op].
+  - destruct IHST as (p' & MS & EQ).
+    destruct MS as [p p' TR | a p k TR].
+    + destruct (trans_new _ c _ _ TR eq_refl) as (s & TRs & HS).
+      destruct (trans_τ_inv TRs) as (q' & EQq). rewrite EQq in TRs, HS.
+      exists q'; split; [now constructor |]. cbn in HS. unfold sbisimT. rewrite HS. now rewrite EQ.
+    + assert (COMM : can_comm c (comm a) = true) by (destruct a; cbn in *; now rewrite FC).
+      destruct (trans_new _ c _ _ TR COMM) as (s & TRs & HS).
+      destruct (trans_ask_inv TRs) as (k' & EQk). rewrite EQk in TRs, HS.
+      exists (k' tt); split; [now constructor |]. cbn in HS.
+      rewrite (sbisim_sbm_passive _ _ _ HS tt). now rewrite EQ.
+  - destruct IHST as (p' & MS & EQ). cbn in MS.
+    assert (E : para ⟦P⟧ (bang ⟦P⟧) ≃ bang ⟦P⟧) by (rewrite paraC; symmetry; apply unfold_bang').
+    destruct (mstep_sbisim E MS) as (q' & MS' & EQ').
+    exists q'; split; [exact MS' | now rewrite <- EQ', EQ].
+Qed.
+
+Lemma model_mstep_inv : forall P a p', mstep a ⟦P⟧ p' -> exists P', P ⊢ a →op P' /\ ⟦P'⟧ ≃ p'.
+Proof.
+  induction P; intros oa p' MS; cbn in *; inversion MS as [p p'' TR | b p k TR]; subst.
+  all: try now apply trans_stuck_inv in TR.
+  - apply trans_step_inv' in TR as (EQ & _). inv EQ.
+    exists P; split; [constructor | unfold sbisimT; now rewrite EQ0].
+  - apply trans_step_inv' in TR as (_ & abs). discriminate.
+  - apply trans_prefix_inv in TR as (_ & abs). discriminate.
+  - apply trans_prefix_inv in TR as (EQ & EQl). inv EQl. dependent destruction EQ.
+    exists P; split; [constructor | unfold sbisimT; now rewrite (EQ tt)].
+  - unfold comm in *. trans_para_invT TR.
+    + destruct (trans_τ_inv TRp) as (t & EQt). rewrite EQt in TRp, EQ.
+      destruct (IHP1 _ _ (mtau TRp)) as (P' & ST & EQ').
+      exists (P' ∥ P2); split; [now constructor |]. cbn. inv EQ. unfold sbisimT. rewrite EQ0. now rewrite EQ'.
+    + destruct (trans_τ_inv TRq) as (t & EQt). rewrite EQt in TRq, EQ.
+      destruct (IHP2 _ _ (mtau TRq)) as (P' & ST & EQ').
+      exists (P1 ∥ P'); split; [now constructor |]. cbn. inv EQ. unfold sbisimT. rewrite EQ0. now rewrite EQ'.
+    + destruct (IHP1 _ _ (mact TRp)) as (P1' & ST1 & EQ1).
+      destruct (IHP2 _ _ (mact TRq)) as (P2' & ST2 & EQ2).
+      exists (P1' ∥ P2'); split.
+      * apply SPar with a; [exact ST1 |]. apply are_opposite_sym in Op. rewrite <- (are_opposite_are_op _ Op). exact ST2.
+      * cbn. inv EQ. unfold sbisimT. rewrite EQ0. now rewrite EQ1, EQ2.
+  - unfold comm in *. trans_para_invT TR; try discriminate.
+    + destruct (trans_ask_inv TRp) as (g & EQg). rewrite EQg in TRp, EQ.
+      destruct (IHP1 _ _ (mact TRp)) as (P' & ST & EQ').
+      exists (P' ∥ P2); split; [now constructor |]. cbn. dependent destruction EQ. unfold sbisimT. rewrite (EQ tt). now rewrite EQ'.
+    + destruct (trans_ask_inv TRq) as (g & EQg). rewrite EQg in TRq, EQ.
+      destruct (IHP2 _ _ (mact TRq)) as (P' & ST & EQ').
+      exists (P1 ∥ P'); split; [now constructor |]. cbn. dependent destruction EQ. unfold sbisimT. rewrite (EQ tt). now rewrite EQ'.
+  - apply trans_plus_inv in TR as [(q & TRq & EQ) | (q & TRq & EQ)].
+    + destruct (trans_τ_inv TRq) as (t & EQt). rewrite EQt in TRq, EQ.
+      destruct (IHP1 _ _ (mtau TRq)) as (P' & ST & EQ').
+      exists P'; split; [now constructor |]. inv EQ. unfold sbisimT. rewrite EQ0. exact EQ'.
+    + destruct (trans_τ_inv TRq) as (t & EQt). rewrite EQt in TRq, EQ.
+      destruct (IHP2 _ _ (mtau TRq)) as (P' & ST & EQ').
+      exists P'; split; [now constructor |]. inv EQ. unfold sbisimT. rewrite EQ0. exact EQ'.
+  - apply trans_plus_inv in TR as [(q & TRq & EQ) | (q & TRq & EQ)].
+    + destruct (trans_ask_inv TRq) as (g & EQg). rewrite EQg in TRq, EQ.
+      destruct (IHP1 _ _ (mact TRq)) as (P' & ST & EQ').
+      exists P'; split; [now constructor |]. dependent destruction EQ. unfold sbisimT. rewrite (EQ tt). exact EQ'.
+    + destruct (trans_ask_inv TRq) as (g & EQg). rewrite EQg in TRq, EQ.
+      destruct (IHP2 _ _ (mact TRq)) as (P' & ST & EQ').
+      exists P'; split; [now constructor |]. dependent destruction EQ. unfold sbisimT. rewrite (EQ tt). exact EQ'.
+  - apply trans_new_inv in TR as (q & COMM & TRq & EQ).
+    destruct (trans_τ_inv TRq) as (t & EQt).
+    destruct q as [t0 | Y e g0]; [| inv EQt].
+    destruct (IHP _ _ (mtau TRq)) as (P' & ST & EQ').
+    exists (P' ∖ c); split; [now constructor |]. cbn in EQ |- *. inv EQ.
+    unfold sbisimT. rewrite EQ0, sbisim_guard. now rewrite EQ'.
+  - apply trans_new_inv in TR as (q & COMM & TRq & EQ).
+    destruct (trans_ask_inv TRq) as (g & EQg).
+    destruct q as [t0 | Y e g0]; [inv EQg |]. dependent destruction EQg.
+    destruct (IHP _ _ (mact TRq)) as (P' & ST & EQ').
+    exists (P' ∖ c); split.
+    + constructor; [exact ST |]. destruct b; cbn in *; destruct (c =? c0)%string; easy.
+    + cbn in EQ |- *. dependent destruction EQ. unfold sbisimT. rewrite (EQ tt), sbisim_guard. now rewrite EQ'.
+  - unfold bang, comm in *. trans_parabang_invT TR.
+    + destruct p'0 as [t | ]; [| destruct (trans_τ_inv TRp') as (? & abs); inv abs].
+      destruct (IHP _ _ (mtau TRp')) as (P1 & ST & EQ'). cbn in EQ. inv EQ.
+      exists (P1 ∥ !P); split; [now apply SRep, SParL |].
+      cbn. unfold sbisimT. rewrite EQ0, parabang_eq. now rewrite EQ'.
+    + destruct q' as [t | ]; [| destruct (trans_τ_inv TRq') as (? & abs); inv abs].
+      destruct (IHP _ _ (mtau TRq')) as (P1 & ST & EQ'). cbn in EQ. inv EQ.
+      exists (P1 ∥ !P); split; [now apply SRep, SParL |].
+      cbn. unfold sbisimT. rewrite EQ0, (paraC ⟦P⟧), parabang_aux, parabang_eq. now rewrite EQ'.
+    + destruct (IHP _ _ (mact TRp')) as (P1 & ST1 & EQ1).
+      destruct (IHP _ _ (mact TRq')) as (P2 & ST2 & EQ2).
+      exists (P1 ∥ (P2 ∥ !P)); split.
+      * apply SRep. apply SPar with a; [exact ST1 |].
+        apply are_opposite_sym in Op. rewrite <- (are_opposite_are_op _ Op). now apply SRep'.
+      * cbn. inv EQ. unfold sbisimT. rewrite EQ0, parabang_eq, paraA. now rewrite EQ1, EQ2.
+    + destruct (IHP _ _ (mact TRq')) as (P1 & ST1 & EQ1).
+      destruct (IHP _ _ (mact TRq'')) as (P2 & ST2 & EQ2).
+      exists (P1 ∥ (P2 ∥ !P)); split.
+      * apply SRep. apply SPar with a; [exact ST1 |].
+        apply are_opposite_sym in Op. rewrite <- (are_opposite_are_op _ Op). now apply SRep'.
+      * cbn. inv EQ. unfold sbisimT. rewrite EQ0, (paraC ⟦P⟧), parabang_aux, parabang_eq, paraA. now rewrite EQ1, EQ2.
+  - unfold bang, comm in *. trans_parabang_invT TR; try discriminate.
+    + destruct (trans_ask_inv TRp') as (g & EQg).
+      destruct p' as [t0 | Y e g0]; [inv EQg |]. dependent destruction EQg.
+      destruct (IHP _ _ (mact TRp')) as (P1 & ST & EQ').
+      exists (P1 ∥ !P); split; [now apply SRep, SParL |].
+      cbn in EQ |- *. dependent destruction EQ. unfold sbisimT. rewrite (EQ tt), parabang_eq. now rewrite EQ'.
+    + destruct (trans_ask_inv TRq') as (g & EQg).
+      destruct q' as [t0 | Y e g0]; [inv EQg |]. dependent destruction EQg.
+      destruct (IHP _ _ (mact TRq')) as (P1 & ST & EQ').
+      exists (P1 ∥ !P); split; [now apply SRep, SParL |].
+      cbn in EQ |- *. dependent destruction EQ. unfold sbisimT.
+      rewrite (EQ tt), (paraC ⟦P⟧), parabang_aux, parabang_eq. now rewrite EQ'.
+Qed.
+
 Lemma complete : forward bisim_model.
 Proof.
-  unfold bisim_model; red.
-  intros * HR TR.
-  revert q HR.
-  induction TR; intros * HR; cbn in *.
-  - step in HR. edestruct HR as [[? (? & TR & ? & ->)] [? ?]]; eauto.
-    apply trans_prefix.
-  - step in HR; edestruct HR as [[? (? & TR & ? & ->)] [? ?]]; eauto. 
-    apply trans_step.
-  - edestruct IHTR as (q1 & TR1 & EQ1); eauto.
-    step in HR; edestruct HR as [[? (? & ? & ? & ?)] [? (? & ? & ? & ?)]]; eauto. 
-    apply trans_plusL; apply TR1. (* Need to fix automation w.r.t. trans/transR *)
-    cbn in *; subst.
-    eexists; split; [apply H |].
-    cbn; rewrite <- H0, <- EQ1; auto.
-  - edestruct IHTR as (q2 & TR2 & EQ2); eauto.
-    step in HR; edestruct HR as [[? (? & ? & ? & ->)] [? ?]]. 
-    apply trans_plusR. apply TR2. (* Need to fix automation w.r.t. trans/transR *)
-    eauto.
-    eexists; split; [apply H |].
-    cbn; rewrite <- H0, <- EQ2; auto.
-  - edestruct IHTR as (q1 & TR1 & EQ1); eauto.
-    step in HR; edestruct HR as [[? (? & ? & ? & ->)] [? ?]].
-    pL; apply TR1. (* Need to fix automation w.r.t. trans/transR *)
-    eauto.
-    eexists; split; [apply H |].
-    cbn; rewrite <- H0, <- EQ1; auto.
-  - edestruct IHTR as (q2 & TR2 & EQ2); eauto.
-    step in HR; edestruct HR as [[? (? & ? & ? & ->)] [? ?]].
-    pR; apply TR2. (* Need to fix automation w.r.t. trans/transR *)
-    eauto.
-    eexists; split; [apply H |].
-    cbn; rewrite <- H0, <- EQ2; auto.
-  - edestruct IHTR1 as (q1 & TR1' & EQ1); eauto.
-    edestruct IHTR2 as (q2 & TR2' & EQ2); eauto.
-    step in HR; edestruct HR as [[? (? & ? & ? & ->)] [? ?]].
-    pS; [apply TR1' | apply TR2' | apply are_opposite_op]. (* Need to fix automation w.r.t. trans/transR *)
-    eauto.
-    eexists; split; [apply H |].
-    cbn; rewrite <- H0, <- EQ1, <- EQ2; auto.
-  - edestruct IHTR as (q' & TR' & EQ'); eauto.
-    eapply trans_new in TR' as (q'' & TR' & EQ''); [| apply use_channel_can_comm; eauto].
-    step in HR;  edestruct HR as [[? (? & ? & ? & ->)] [? ?]].
-    apply TR'.
-    eauto.
-    eexists; split.
-    apply H.
-    rewrite <- H0, EQ'', <- EQ'; auto.
-  - rewrite unfold_bang', paraC in HR.
-    exact (IHTR _ HR).
+  unfold bisim_model; red. intros * HR ST.
+  destruct (model_mstep ST) as (p' & MS & EQ).
+  destruct (mstep_sbisim HR MS) as (q' & MS' & EQ').
+  exists q'; split; [exact MS' | now rewrite <- EQ].
 Qed.
 
 Lemma correct : backward bisim_model.
 Proof.
-  unfold bisim_model; red.
-  induction P; intros * HR TR; copy TR; step in HR; destruct HR as [_ B]; apply B in TR as [? (? & TR' & ? & ->)]; clear B; cbn in *.
-  - exfalso; eapply trans_nil_inv,TR'.
-  - apply trans_step_inv in TR' as [EQ ->].
-    eexists; split; [constructor |].
-    rewrite <- H, EQ; auto.
-  - apply trans_prefix_inv in TR' as [EQ ->].
-    eexists; split; [constructor |].
-    rewrite <- H, EQ.
-    auto.
-  - trans_para_invT TR'.
-    + edestruct IHP1 as (P' & STEP & EQ''); [reflexivity | apply TRp |].
-      eexists; split.
-      apply SParL; eauto.
-      rewrite <- H,EQ,<-EQ''.
-      auto.
-    + edestruct IHP2 as (P' & STEP & EQ''); [reflexivity | apply TRq |].
-      eexists; split.
-      apply SParR; eauto.
-      rewrite <- H,EQ,<-EQ''.
-      auto.
-    + edestruct IHP1 as (P' & STEP & EQ''); [reflexivity | apply TRp |].
-      edestruct IHP2 as (P'' & STEP' & EQ'''); [reflexivity | apply TRq |].
-      eexists; split.
-      apply SPar with a.
-      apply STEP.
-      apply are_opposite_sym in Op.
-      rewrite <- (are_opposite_are_op _ Op).
-      apply STEP'.
-      rewrite <- H,EQ,<-EQ'',<-EQ'''.
-      auto.
-  - apply trans_plus_inv in TR' as [(? & TRp & EQ) | (? & TRq & EQ)].
-    + edestruct IHP1 as (P' & STEP & EQ''); [reflexivity | apply TRp |].
-      eexists; split.
-      apply SSumL; eauto.
-      rewrite <- H,EQ,<-EQ''.
-      auto.
-    + edestruct IHP2 as (P' & STEP & EQ''); [reflexivity | apply TRq |].
-      eexists; split.
-      apply SSumR; eauto.
-      rewrite <- H,EQ,<-EQ''.
-      auto.
-  - apply trans_new_inv in TR' as (p' & COM & TR & EQ).
-    edestruct IHP as (P' & STEP & EQ''); [reflexivity | apply TR |].
-    exists (P' ∖ c); split.
-    apply SRes; auto.
-    rewrite use_channel_can_comm.
-    destruct l; auto; destruct e; auto.
-    rewrite <- H,EQ,sb_guard, <-EQ''; auto.
-  - trans_parabang_invT TR'.
-    + edestruct IHP as (P' & STEP & EQ''); [reflexivity | apply TRp' |].
-      exists (P' ∥ !P); split.
-      apply SRep, SParL; auto.
-      rewrite <- H,EQ,<-EQ''.
-      rewrite parabang_eq.
-      reflexivity.
-    + edestruct IHP as (P' & STEP & EQ''); [reflexivity | apply TRq' |].
-      rewrite EQ in H; clear x0 EQ.
-      exists (P' ∥ !P); split.
-      apply SRep, SParL; auto.
-      rewrite <- H, <-EQ''.
-      cbn.
-      rewrite (paraC ⟦P⟧), parabang_aux, parabang_eq.
-      auto.
-    + edestruct IHP as (P' & STEP & EQ''); [reflexivity | apply TRp' |].
-      edestruct IHP as (P'' & STEP' & EQ'''); [reflexivity | apply TRq' |].
-      exists (P' ∥ (P'' ∥ !P)).
-      split.
-      apply SRep.
-      apply SPar with a.
-      apply STEP.
-      apply are_opposite_sym in Op.
-      rewrite <- (are_opposite_are_op _ Op).
-      apply SRep', STEP'.
-      rewrite <- H,EQ,<-EQ'',<-EQ'''.
-      rewrite parabang_eq.
-      cbn.
-      rewrite paraA; auto.
-    + edestruct IHP as (P' & STEP & EQ''); [reflexivity | apply TRq' |].
-      edestruct IHP as (P'' & STEP' & EQ'''); [reflexivity | apply TRq'' |].
-      rewrite EQ in H; clear x0 EQ.
-      rewrite <- EQ'', <- EQ''' in H.
-      rewrite paraC, parabang_aux, parabang_eq in H.
-      exists (P' ∥ (P'' ∥ !P)).
-      split.
-      apply SRep.
-      apply SPar with a.
-      apply STEP.
-      apply are_opposite_sym in Op.
-      rewrite <- (are_opposite_are_op _ Op).
-      apply SRep', STEP'.
-      rewrite <- H; cbn; rewrite paraA; auto.
+  unfold bisim_model; red. intros * HR MS.
+  symmetry in HR. destruct (mstep_sbisim HR MS) as (p' & MS' & EQ).
+  destruct (model_mstep_inv MS') as (P' & ST & EQ').
+  exists P'; split; [exact ST | now rewrite EQ'].
 Qed.
 
 Theorem term_model_bisimilar : forall P, bisimilar P ⟦P⟧.
@@ -259,55 +274,12 @@ Proof.
   exists bisim_model; split; red; auto using correct,complete.
 Qed.
 
-Definition forward_inv (R : ccs -> term -> Prop) : Prop :=
-  forall p p' Q l,
-    R p Q ->
-    trans l p p' ->
-    exists Q', Q ⊢ γ l →op Q' /\ R p' Q'.
-
-Definition backward_inv (R : ccs -> term -> Prop) : Prop :=
-  forall p Q Q' a,
-    R p Q ->
-    Q ⊢ a →op Q' ->
-    exists p', trans (ι a) p p' /\ R p' Q'.
-
-Definition bisim_inv R := forward_inv R /\ backward_inv R.
-Definition bisimilar_inv t u := exists R, bisim_inv R /\ R t u.
-
-Lemma bisimilar_inv_bisim_inv : bisim_inv bisimilar_inv.
-Proof.
- split; red; intros * (R & BIS & HR) TR;
-    pose proof BIS as [F B].
-  - edestruct F as (? & ? & ?); eauto; eexists; split; eauto.
-    exists R; split; auto.
-  - edestruct B as (? & ? & ?); eauto; eexists; split; eauto.
-    exists R; split; auto.
-Qed.
-
-Definition rev {A B} (R : A -> B -> Prop) : B -> A -> Prop := fun b a => R a b.
-
-Lemma bisim_bisim_inv : forall R, bisim R -> bisim_inv (rev R).
-Proof.
-  intros ? [F B]; split; red; unfold rev; cbn; intros * HR TR.
-  edestruct B; eauto.
-  edestruct F; eauto.
-Qed.
-
-Lemma term_model_bisimilar_inv : forall P, bisimilar_inv ⟦P⟧ P.
-Proof.
-  intros P; edestruct (@term_model_bisimilar P) as (R & BIS & HR); eauto.
-  eexists; split.
-  apply bisim_bisim_inv; eauto.
-  auto.
-Qed.
-
-Lemma ιγ : forall l (t u : ccs),
+Lemma ιγ : forall l (t : ccs) u,
     trans l t u ->
     ι (γ l) = l.
 Proof.
-  intros [] ? ? TR; cbn; auto.
-  destruct e,v; auto.
-  eapply trans_val_invT in TR; subst; destruct v.
+  intros [| ? [] | ? e y | []] ? ? TR; cbn; auto.
+  now apply trans_rcv_active_inv in TR.
 Qed.
 
 Lemma γι : forall l,
@@ -323,22 +295,33 @@ Lemma cross_model_compose : forall T t u U,
     bisimilar u U ->
     T ≃ U.
 Proof.
+  intros * EQtT EQtu EQuU. apply sbm_sbisim. revert T t u U EQtT EQtu EQuU. unfold sbmbisim.
   coinduction r cih.
   intros * EQtT EQtu EQuU.
   pose proof bisimilar_bisim as [F B].
   step in EQtu; destruct EQtu as [F' B'].
-  split; intros ? ? TRTt.
-  - edestruct B as (T' & TRT' & ?); [apply EQtT | |]; eauto.
-    edestruct F' as [U' TRU' ?]; eauto.
-    edestruct F as (u' & TRu' & ?); [apply EQuU | |]; eauto.
-    erewrite ιγ in TRu'.
-    do 2 eexists; split; eauto.
-    eapply TRTt.
-  - edestruct B as (T' & TRT' & ?); [apply EQuU | |]; eauto.
-    edestruct B' as [U' TRU' ?]; eauto.
-    edestruct F as (u' & TRu' & ?); [apply EQtT | |]; eauto.
-    erewrite ιγ in TRu'; eauto.
-    do 2 eexists; split; [|split]; cbn in *; eauto.
+  split; apply ss_ssm; intros l s TR;
+    (destruct l as [| ? e | ? e y | []]; [| | now apply trans_rcv_active_inv in TR]).
+  - destruct (trans_τ_inv TR) as (T' & EQ). rewrite EQ in TR.
+    edestruct B as (t' & ST & ?); [apply EQtT | exact (mtau TR) |].
+    edestruct F' as [u' STu ?]; [exact ST |].
+    edestruct F as (U' & MS & ?); [apply EQuU | exact STu |]. inv MS.
+    exists (α T'), (α U'); split; [exact EQ | split; [assumption | constructor; eapply cih; eauto]].
+  - destruct e as [a]. destruct (trans_ask_inv TR) as (k & EQ). rewrite EQ in TR.
+    edestruct B as (t' & ST & ?); [apply EQtT | exact (mact TR) |].
+    edestruct F' as [u' STu ?]; [exact ST |].
+    edestruct F as (U' & MS & ?); [apply EQuU | exact STu |]. inv MS.
+    exists (β (Act a) k), (β (Act a) k0); split; [exact EQ | split; [assumption | constructor; intros []; eapply cih; eauto]].
+  - destruct (trans_τ_inv TR) as (U' & EQ). rewrite EQ in TR.
+    edestruct B as (u' & ST & ?); [apply EQuU | exact (mtau TR) |].
+    edestruct B' as [t' STt ?]; [exact ST |].
+    edestruct F as (T' & MS & ?); [apply EQtT | exact STt |]. inv MS.
+    exists (α U'), (α T'); split; [exact EQ | split; [assumption | constructor; unfold flip; eapply cih; [exact H1 | exact H0 | exact H]]].
+  - destruct e as [a]. destruct (trans_ask_inv TR) as (k & EQ). rewrite EQ in TR.
+    edestruct B as (u' & ST & ?); [apply EQuU | exact (mact TR) |].
+    edestruct B' as [t' STt ?]; [exact ST |].
+    edestruct F as (T' & MS & ?); [apply EQtT | exact STt |]. inv MS.
+    exists (β (Act a) k), (β (Act a) k0); split; [exact EQ | split; [assumption | constructor; intros []; unfold flip; eapply cih; [exact H1 | exact H0 | exact H]]].
 Qed.
 
 Lemma cross_model_compose' : forall T t u U,
@@ -349,90 +332,32 @@ Lemma cross_model_compose' : forall T t u U,
 Proof.
   unfold Operational.bisim.
   coinduction r cih.
-  intros * EQtT EQtu EQuU.
+  intros * EQtT EQTU EQuU.
   pose proof bisimilar_bisim as [F B].
-  step in EQtu; destruct EQtu as [F' B'].
-  split; intros ? ? TRTt.
-  - edestruct F as (T' & TRT' & ?); [apply EQtT | |]; eauto.
-    edestruct F' as [U' (? & TRU' & ? & <-)]; eauto.
-    edestruct B as (u' & TRu' & ?); [apply EQuU | |]; eauto.
-    erewrite γι in TRu'; eauto.
-  - edestruct F as (T' & TRT' & ?); [apply EQuU | |]; eauto.
-    edestruct B' as [U' (? & TRU' & ? & ?)]; cbn in *; subst; eauto.
-    edestruct B as (u' & TRu' & ?); [apply EQtT | |]; eauto.
-    erewrite γι in TRu'; eauto.
-Qed.
-
-Lemma bisimilar_bisimilar_inv : forall t T,
-    bisimilar_inv t T -> bisimilar T t.
-Proof.
-  intros * (R & [F B] & HR).
-  exists (rev R); split; [| apply HR].
   split.
-  red; intros; edestruct B; eauto.
-  red; intros; edestruct F; eauto.
+  - intros a t' ST.
+    edestruct F as (T' & MS & ?); [apply EQtT | exact ST |].
+    destruct (mstep_sbisim EQTU MS) as (U' & MSU & EQU).
+    edestruct B as (u' & STu & ?); [apply EQuU | exact MSU |].
+    exists u'; [exact STu | eapply cih; eauto].
+  - cbn. intros a u' ST.
+    edestruct F as (U' & MS & ?); [apply EQuU | exact ST |].
+    symmetry in EQTU. destruct (mstep_sbisim EQTU MS) as (T' & MST & EQT).
+    edestruct B as (t' & STt & ?); [apply EQtT | exact MST |].
+    exists t'; [exact STt | eapply cih; [eassumption | symmetry; exact EQT | eassumption]].
 Qed.
 
 Lemma embed_sound : forall t u, Operational.bisim t u -> ⟦t⟧ ≃ ⟦u⟧.
 Proof.
-  intros * BIS.
-  apply (gfp_fp b t u) in BIS; destruct BIS as [F B]; cbn in *.
-  step; split.
-  - intros ? T' TR.
-    pose proof (@term_model_bisimilar t) as BISt.
-    pose proof (@term_model_bisimilar u) as BISu.
-    pose proof bisimilar_bisim as [F' B'].
-    edestruct B' as (t' & TRt & EQTt); [apply BISt | ..]; eauto.
-    edestruct F as [u' TR'' EQtu]; eauto.
-    edestruct F' as (U' & TRu & EQuU); [apply BISu |..]; eauto.
-    erewrite ιγ in TRu; eauto.
-    do 2 eexists; split; [|split]; eauto.
-    eapply cross_model_compose; eauto.
-  - intros ? U' TR.
-    pose proof (@term_model_bisimilar_inv u) as BISu.
-    pose proof (@term_model_bisimilar_inv t) as BISt.
-    pose proof bisimilar_inv_bisim_inv as [F' B'].
-    cbn.
-    edestruct F' as (u' & TRu & EQuU); [apply BISu |..]; eauto.
-    edestruct B as [t' TR'' EQtu]; eauto.
-    edestruct B' as (T' & TRT & EQuT); [apply BISt |..]; eauto.
-    erewrite ιγ in TRT; eauto.
-    do 2 eexists; split; [|split]; eauto. 
-    apply bisimilar_bisimilar_inv in EQuU, EQuT.
-    eapply cross_model_compose; eauto.
+  intros * BIS. eapply cross_model_compose; eauto using term_model_bisimilar.
 Qed.
 
 Lemma embed_complete : forall t u, ⟦t⟧ ≃ ⟦u⟧ -> Operational.bisim t u.
 Proof.
-  intros * BIS.
-  step in BIS; destruct BIS as [F B]; cbn in *.
-  step; split.
-  - intros ? T' TR.
-    pose proof (@term_model_bisimilar t) as BISt.
-    pose proof (@term_model_bisimilar u) as BISu.
-    pose proof bisimilar_bisim as [F' B'].
-    edestruct F' as (t' & TRt & EQTt); [apply BISt | ..]; eauto.
-    edestruct F as [u' (? & TR'' & ? & <-)]; eauto.
-    edestruct B' as (U' & TRu & EQuU); [apply BISu |..]; eauto.
-    erewrite γι in TRu; eauto.
-    eexists. apply TRu.
-    eapply cross_model_compose'; eauto.
-  - intros ? U' TR.
-    pose proof (@term_model_bisimilar_inv u) as BISu.
-    pose proof (@term_model_bisimilar_inv t) as BISt.
-    pose proof bisimilar_inv_bisim_inv as [F' B'].
-    cbn.
-    edestruct B' as (u' & TRu & EQuU); [apply BISu |..]; eauto.
-    edestruct B as [t' (? & TR'' & ? & ->)]; eauto.
-    edestruct F' as (T' & TRT & EQuT); [apply BISt |..]; eauto.
-    erewrite γι in TRT; eauto.
-    eexists. apply TRT.
-    apply bisimilar_bisimilar_inv in EQuU, EQuT.
-    eapply cross_model_compose'; eauto.
+  intros * BIS. eapply cross_model_compose'; eauto using term_model_bisimilar.
 Qed.
 
 Theorem equiv_bisims : forall t u, ⟦t⟧ ≃ ⟦u⟧ <-> Operational.bisim t u.
 Proof.
   intros; split; eauto using embed_complete, embed_sound.
 Qed.
-
