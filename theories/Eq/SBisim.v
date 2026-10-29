@@ -1769,6 +1769,13 @@ Lemma sb_vis_eq {E C X Z} (e : E Z) (k k' : Z -> ctree E C X)
   sb Leq ` R (Vis e k) (Vis e k').
 Proof. intros; apply sb_vis_id; [constructor | intros z; split; [auto | constructor]]. Qed.
 
+Lemma sbisim_vis_eq {E C X Z} (e : E Z) (k k' : Z -> ctree E C X) :
+  (forall z, k z ≃ k' z) ->
+  Vis e k ≃ Vis e k'.
+Proof.
+  intros H. apply sbisim_vis; [constructor | |]; intros z; exists z; split; auto; constructor.
+Qed.
+
 Lemma sbisim_clo_bind_eq {E C X Y} (t : ctree E C X) (k1 k2 : X -> ctree E C Y) :
   (forall x, k1 x ≃ k2 x) -> t >>= k1 ≃ t >>= k2.
 Proof. intros; apply sbisim_bind_eq; [reflexivity | auto]. Qed.
