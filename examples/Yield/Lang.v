@@ -30,7 +30,6 @@ From Coinduction Require Import all.
 From CTree Require Import
      CTree
      Eq
-     Eq.WBisim
      Interp.FoldCTree
      Interp.FoldStateT
 .
@@ -43,7 +42,6 @@ From Equations Require Import Equations.
 
 Import ListNotations.
 Import CTreeNotations.
-Import WBisimNotations.
 Local Open Scope monad_scope.
 Local Open Scope string_scope.
 
@@ -208,7 +206,7 @@ Section Denote1.
                           (cons_vec t2' (fun _ => t1'))
                           (Some i')).
   Proof.
-    apply sb_brS; intros i; exists (p i); [| symmetry];
+    apply sbisim_brS; intros i; exists (p i); [| symmetry];
       apply schedule_permutation with (q:=p);
       try solve [intros i0; dependent destruction i0; simp cons_vec];
       try solve [apply p_inverse];
@@ -230,7 +228,7 @@ Section Denote1.
                           (cons_vec t2' (fun _ => t1'))
                           (Some i')).
   Proof.
-    apply sb_br; intros i; exists (p i); [| symmetry];
+    apply sbisim_br; intros i; exists (p i); [| symmetry];
       apply schedule_permutation with (q:=p);
       try solve [intros i0; dependent destruction i0; simp cons_vec];
       try solve [apply p_inverse];
@@ -247,7 +245,7 @@ Section Denote1.
     schedule 2 (cons_vec t2' (fun _ => t1')) None.
   Proof.
     do 2 rewrite rewrite_schedule. simp schedule_match.
-    apply sb_vis. intros. apply schedule_order'; auto.
+    apply sbisim_vis_eq. intros. apply schedule_order'; auto.
   Qed.
 
   Lemma commut_forks s1 s2 :
@@ -259,13 +257,13 @@ Section Denote1.
     unfold trigger.
     (* not sure why we can't just rewrite twice, but we can below *)
     rewrite bind_vis. symmetry. rewrite bind_vis.
-    apply sb_vis. intros []. do 2 rewrite bind_ret_l.
+    apply sbisim_vis_eq. intros []. do 2 rewrite bind_ret_l.
     do 2 rewrite bind_vis.
-    apply sb_vis. intros []. do 2 rewrite bind_ret_l.
-    apply sb_guard_lr.
+    apply sbisim_vis_eq. intros []. do 2 rewrite bind_ret_l.
+    rewrite !sbisim_guard.
 
     do 2 rewrite rewrite_schedule. simp schedule_match.
-    apply sb_vis. intros [].
+    apply sbisim_vis_eq. intros [].
     apply schedule_order'; try solve [apply denote_imp_bounded]; reflexivity.
   Qed.
 
@@ -342,14 +340,14 @@ Section Denote1.
     rewrite yield_equ, fork_skip_equ.
     unfold interp_yield, interp_spawn.
 
-    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sbisim_guard; cbn).
     rewrite ?interp_br', ?subevent_subevent, ?br1_guard.
-    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sbisim_guard; cbn).
     rewrite yield_equ.
-    rewrite ?interp_guard, sb_guard.
-    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
+    rewrite ?interp_guard, sbisim_guard.
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sbisim_guard; cbn).
     rewrite ?interp_br', ?subevent_subevent, ?br1_guard.
-    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sbisim_guard; cbn).
     unfold trigger.
     reflexivity.
   Qed.
@@ -360,7 +358,7 @@ Section Denote1.
   Proof.
     rewrite yield_equ, fork_skip_equ.
     unfold interp_spawn.
-    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sbisim_guard; cbn).
     upto_bind_eq; intros [].
     reflexivity.
   Qed.
@@ -371,9 +369,9 @@ Section Denote1.
   Proof.
     rewrite fork_skip_equ.
     unfold interp_yield, interp_spawn.
-    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sbisim_guard; cbn).
     rewrite ?interp_br', ?subevent_subevent, br1_guard.
-    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sb_guard; cbn).
+    repeat (unfold trigger; rewrite ?interp_bind, ?interp_vis, ?interp_ret, ?bind_ret_l, ?interp_guard, ?sbisim_guard; cbn).
     reflexivity.
   Qed.
 
@@ -385,7 +383,7 @@ Section Denote1.
     assert ((1 =? 0)%nat = false) by reflexivity.
     rewrite H. unfold E. rewrite bind_bind.
     upto_bind_eq; intros [].
-    rewrite bind_ret_l. apply sb_guard.
+    rewrite bind_ret_l. apply sbisim_guard.
   Qed.
 
   Lemma commut_forks_unfold s :
@@ -396,7 +394,7 @@ Section Denote1.
     do 2 rewrite schedule_forks_equ.
     upto_bind_eq; intros [].
     upto_bind_eq; intros [].
-    apply sb_guard_lr.
+    rewrite !sbisim_guard.
 
     apply schedule_order''.
     reflexivity.
@@ -483,32 +481,32 @@ Section Denote1.
     rewrite interp_bind. unfold trigger. rewrite interp_vis.
     cbn. rewrite bind_ret_l. setoid_rewrite interp_ret.
     rewrite ?interp_bind, ?interp_guard, ?bind_guard, interp_state_guard.
-    rewrite sb_guard.
+    rewrite sbisim_guard.
     rewrite interp_ret, bind_ret_l.
 
     rewrite interp_vis; cbn.
     unfold trigger; rewrite interp_vis; cbn.
     rewrite bind_vis, interp_vis; cbn.
     rewrite interp_state_bind, interp_state_trigger.
-    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard, ?interp_guard, ?interp_state_guard).
+    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sbisim_guard, ?interp_guard, ?interp_state_guard).
     unfold trigger. rewrite interp_bind, interp_vis; cbn.
     rewrite bind_vis, interp_vis; cbn.
     rewrite interp_state_bind, interp_state_trigger.
-    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard, ?interp_guard, ?interp_state_guard).
+    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sbisim_guard, ?interp_guard, ?interp_state_guard).
     unfold trigger. rewrite interp_bind, interp_vis; cbn.
-    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard, ?interp_ret, ?interp_guard, ?interp_state_guard).
-    symmetry; rewrite ?sb_guard; symmetry.
+    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sbisim_guard, ?interp_ret, ?interp_guard, ?interp_state_guard).
+    symmetry; rewrite ?sbisim_guard; symmetry.
     rewrite ?interp_br', interp_state_br.
     unfold branch; cbn. rewrite bind_br.
-    apply sb_br_l; [exact Fin.F1 |].
+    apply (sbisim_br_l _ Fin.F1).
     intros ?.
-    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard, ?interp_ret, ?interp_guard, ?interp_state_guard).
+    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sbisim_guard, ?interp_ret, ?interp_guard, ?interp_state_guard).
     rewrite interp_vis; cbn.
     unfold trigger; rewrite bind_vis, interp_vis; cbn.
     rewrite interp_state_bind, interp_state_trigger.
-    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sb_guard, ?interp_guard, ?interp_state_guard).
+    repeat (cbn; rewrite ?bind_bind, ?bind_ret_l, ?bind_guard, ?sbisim_guard, ?interp_guard, ?interp_state_guard).
     rewrite ?interp_ret, ?interp_state_ret.
-    apply sb_ret.
+    apply sbisim_ret. cbn.
     rewrite alist_add_alist_add. 2: apply RelDec_Correct_string. reflexivity.
   Qed.
 

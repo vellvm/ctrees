@@ -36,73 +36,60 @@ From CTree Require Import
 Import ListNotations.
 Import CTreeNotations.
 
+#[local] Notation S := Datatypes.S (only parsing).
+
 
 (** [brD_bound] gives a bound on the arity of BrD nodes.
     To be replaced eventually with generalized br types. *)
 
 (* (* TODO move this *) *)
+Lemma trans_ask_visible {E C R X} (t : ctree E C R) (e : E X) (k : X -> ctree E C R) :
+  trans (ask e) t (β e k) -> visible t (Vis e k).
+Proof.
+  intros TR. cbn in TR.
+  remember (Trans.Active t) as s eqn:Hs. remember (Trans.Passive e k) as p eqn:Hp.
+  revert t Hs. induction TR; intros t0 Hs; inversion Hs; subst; try discriminate.
+  - rewrite H. econstructor. specialize (IHTR eq_refl _ eq_refl).
+    rewrite <- H0. exact IHTR.
+  - rewrite H. econstructor. exact (IHTR eq_refl _ eq_refl).
+  - dependent destruction Hp. rewrite H. constructor. reflexivity.
+Qed.
+
 Lemma sbisim_vis_visible {E R X}
-  (t2 : ctree E void1 R) (e : E X) (k1 : X -> ctree E void1 R)
-      (Hin: inhabited X) :
+  (t2 : ctree E void1 R) (e : E X) (k1 : X -> ctree E void1 R):
   Vis e k1 ≃ t2 ->
   exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ≃ k2 x).
 Proof.
-  unfold trans in *; intros.
-  step in H. destruct H as [Hf Hb].
-  cbn in *. unfold transR in Hf.
-  assert
-    (forall (l : label) (t' : ctree E void1 R),
-        trans_ l (VisF e k1) (observe t') ->
-        {u' : ctree E void1 R | trans_ l (observe t2) (observe u') /\ t' ~ u'}).
-  {
-    unfold trans in *.
-    intros. apply constructive_indefinite_description.
-    edestruct Hf as (? & ? & ? & ? &?); subst; eauto.
-  } clear Hf. rename X0 into Hf.
-  destruct Hin as [x].
-  edestruct (Hf (obs e x)). constructor. reflexivity.
-  destruct a. clear H0 Hb.
-  dependent induction H.
-  - destruct c.
-  - edestruct IHtrans_; try reflexivity; eauto.
-    intros. rewrite <- x in Hf. edestruct Hf. eauto.
-    destruct a.
-    exists x2. split. inv H1. auto. auto.
-    exists x2. split; auto. red. cbn. rewrite <- x. econstructor. apply H0. apply H0.
-  - rewrite <- x2 in Hf.
-    eexists. Unshelve.
-    2: {
-      intros x'. edestruct Hf. constructor. reflexivity.
-      Unshelve. apply x3. apply x'.
-    }
-    split.
-    + red. cbn. rewrite <- x2. constructor. intros. destruct Hf. destruct a.
-      inv H0. apply inj_pair2 in H4, H5, H6, H7. subst.
-      rewrite (ctree_eta x4), <- H8, <- ctree_eta; auto.
-    + intros. destruct Hf. destruct a. cbn. auto.
+  intros SB.
+  apply sbisim_vis_l_inv in SB as (Z' & f & k2 & TR & HA & HK & _).
+  cbn in HA. dependent destruction HA.
+  exists k2. split.
+  - now apply trans_ask_visible.
+  - intros x. destruct (HK x) as (y & SB & HR). cbn in HR. dependent destruction HR. exact SB.
 Qed.
 
 Lemma sbisim_visible
   {E R X} (t1 t2 : ctree E void1 R) (e : E X)
-  (k1 : X -> ctree E void1 R) (Hin: inhabited X) :
+  (k1 : X -> ctree E void1 R) :
   t1 ≃ t2 ->
   visible t1 (Vis e k1) ->
   exists k2, visible t2 (Vis e k2) /\ (forall x, k1 x ≃ k2 x).
 Proof.
-  unfold trans; intros. cbn in *. red in H0. remember (observe t1). remember (observe (Vis e k1)).
-  revert X t1 e k1 t2 H Heqc Heqc0 Hin.
-  induction H0; intros; auto.
+  intros SB VIS. cbn in VIS. red in VIS.
+  remember (observe t1) as ot1. remember (observe (Vis e k1)) as ov.
+  revert t1 SB Heqot1 Heqov.
+  induction VIS; intros; subst.
   - destruct c.
-  - subst. eapply IHvisible_. 2: reflexivity. all: eauto.
-    rewrite <- H,(ctree_eta t1), <- Heqc.
-    now rewrite sb_guard.
-  - inv Heqc0.
-  - inv Heqc0. apply inj_pair2 in H3, H4. subst.
+  - eapply IHVIS; [| reflexivity | eauto].
+    rewrite <- SB, (ctree_eta t1), <- Heqot1. now rewrite sbisim_guard.
+  - inv Heqov.
+  - inv Heqov. dependent destruction H3.
+    apply inj_pair2 in H2. subst e0.
     apply sbisim_vis_visible; auto.
-    pose proof (ctree_eta t1).  rewrite <- Heqc in H1.
-    (* TODO: clean this up *) eapply equ_VisF in H. rewrite H in H1.
-    rewrite H1 in H0. auto.
-  - inv Heqc0.
+    rewrite (ctree_eta t1), <- Heqot1 in SB.
+    assert (EQ : Vis e k1 ≅ Vis e k0) by (step; constructor; intros; symmetry; apply H).
+    rewrite EQ. exact SB.
+  - inv Heqov.
 Qed.
 
 Section Vectors.
