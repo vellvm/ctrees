@@ -2494,7 +2494,7 @@ Ltac refine_trans_in h :=
       let u  := fresh "u" in
       let EQ := fresh "EQ" in
       pose proof trans_τ_inv h as [u EQ];
-      rewrite EQ in *;
+      rewrite EQ in *; try setoid_rewrite EQ;
       match type of EQ with
       | Seq ?a _ => try clear a EQ
       end
@@ -2502,7 +2502,7 @@ Ltac refine_trans_in h :=
       let u  := fresh "u" in
       let EQ := fresh "EQ" in
       pose proof trans_ask_inv h as [u EQ];
-      rewrite EQ in *;
+      rewrite EQ in *; try setoid_rewrite EQ;
       match type of EQ with
       | Seq ?a _ => try clear a EQ
       end
