@@ -142,6 +142,7 @@ Ltac __step_in_cssim H :=
 
 Import CTreeNotations.
 Import EquNotations.
+Import SBisimNotations.
 
 Ltac __play_cssim := (try step); cbn; split; [intros ? ? ?TR | etrans].
 
@@ -408,6 +409,25 @@ a valid enhancement to prove [equ].
 We now prove the same result, but for strong simulation.
 |*)
 
+(*|
+[may_ret x t]: [t] can return [x] after some sequence of steps.
+|*)
+Inductive may_ret {E B X} (x : X) : @S E B X -> Prop :=
+| may_ret_now t u : trans (val x) t u -> may_ret x t
+| may_ret_later l t u : trans l t u -> may_ret x u -> may_ret x t.
+
+(*|
+Every value the left side may return is related to some value of the right side.
+|*)
+Lemma cssim_may_ret {E F C D X Y X' Y'} (L : lrel E F X' Y') (SS : rel X Y) :
+  forall x (t : @S E C X) (t' : @S F D Y),
+    may_ret x t -> cssim (upd_rel L SS) t t' -> exists y, SS x y.
+Proof.
+  intros * RET; revert t'; induction RET; intros t' SIM.
+  - step in SIM; destruct (proj1 SIM _ _ H) as (? & ? & ? & ? & ?); invL; eauto.
+  - step in SIM; destruct (proj1 SIM _ _ H) as (? & ? & ? & ? & ?); eauto.
+Qed.
+
 Section bind.
   Arguments label: clear implicits.
   Obligation Tactic := idtac.
@@ -415,6 +435,7 @@ Section bind.
 (*|
 Specialization of [bind_ctx] to a function acting with [cssim] on the bound value,
 and with the argument (pointwise) on the continuation.
+The continuation needs to be live only on values the prefix may return.
 |*)
   Lemma bind_chain_gen
     {E F C D: Type -> Type} {X X' Y Y': Type}
@@ -424,17 +445,18 @@ and with the argument (pointwise) on the continuation.
     forall (t : ctree E C X) (t' : ctree F D Y)
       (k : X -> ctree E C X') (k' : Y -> ctree F D Y'),
       cssim (upd_rel L SS) t t' ->
-      (forall x y, SS x y -> ` R (k x) (k' y) /\ not_stuck (k x)) ->
+      (forall x y, SS x y -> ` R (k x) (k' y)) ->
+      (forall x, may_ret x t -> not_stuck (k x)) ->
       ` R (bind t k) (bind t' k').
   Proof.
     apply tower.
-    
-    - intros ? INC ? ? ? ? tt' kk' ? ?.
-      apply INC. apply H. apply tt'.
-      intros x x' xx'. split. apply leq_infx in H. apply H. now apply kk'.
-      edestruct kk'; eauto.
 
-    - intros ? ? ? ? ? ? tt' kk'.
+    - intros ? INC ? ? ? ? tt' kk' ns ? ?.
+      apply INC. apply H. apply tt'.
+      intros x x' xx'. apply leq_infx in H. apply H. now apply kk'.
+      exact ns.
+
+    - intros ? ? ? ? ? ? tt' kk' ns.
       step in tt'.
       destruct tt' as [tt tt'].
       split.
@@ -443,20 +465,18 @@ and with the argument (pointwise) on the continuation.
         apply trans_bind_inv in STEP as [(?H & ?t' & STEP & EQ) | [(Z & e & EQl & g & STEP & SEQ) | (v & STEPres & STEP)]].
         
         * subst l.
-          apply tt in STEP as (? & ? & STEP' & HSIM & HRL).
+          pose proof (tt _ _ STEP) as (? & ? & STEP' & HSIM & HRL).
           invL.
           refine_trans.
           ex2; split3.
           ++ apply trans_bind_l_τ; eauto.
           ++ rewrite EQ; apply H; auto.
-             intros.
-             edestruct4 kk'; eauto.
-             split; eauto.
-             step; auto.
+             intros; step; auto.
+             intros; apply ns; eapply may_ret_later; eauto.
           ++ etrans.
              
         * subst l.
-          apply tt in STEP as (? & ? & STEP' & HSIM & HRL).
+          pose proof (tt _ _ STEP) as (? & ? & STEP' & HSIM & HRL).
           invL.
           refine_trans.
           exists (ask f); ex; split3; etrans.
@@ -474,10 +494,8 @@ and with the argument (pointwise) on the continuation.
             rewrite EQ.
             apply H.
             rewrite EQ' in HSIM'; auto.
-            intros.
-            edestruct4 kk'; eauto.
-            split; eauto.
-            now step.
+            intros; step; auto.
+            intros; apply ns; eapply may_ret_later; eauto; eapply may_ret_later; eauto.
           }
           {
             step in HSIM.
@@ -507,12 +525,8 @@ and with the argument (pointwise) on the continuation.
         refine_trans; ex2; eapply trans_bind_l_ask; etrans.
         exfalso; eapply trans_rcv_active_inv; eauto.
 
+        destruct (ns v) as (l'' & ? & TR'); [eapply may_ret_now; eauto |].
         apply trans_val_inv' in STEP' as ?. rewrite H0 in STEP'.
-        pose proof STEP' as tmp.
-        apply tt in tmp as (? & ? & TR & ? & ?).
-        invL.
-        specialize (kk' v y).
-        destruct kk' as [HSIM' (l'' & ? & TR')]; auto.
         ex2.
         eapply trans_bind_r; etrans.
 
@@ -527,7 +541,8 @@ Specialization: equality on external calls, equality everywhere
     forall (t1 : ctree E C X) (t2: ctree E D Y)
       (k1 : X -> ctree E C X') (k2 : Y -> ctree E D Y'),
       t1 (⪅[SS]) t2 ->
-      (forall x y, SS x y -> `R (k1 x) (k2 y) /\ not_stuck (k1 x)) ->
+      (forall x y, SS x y -> `R (k1 x) (k2 y)) ->
+      (forall x, may_ret x t1 -> not_stuck (k1 x)) ->
       `R (t1 >>= k1) (t2 >>= k2).
   Proof.
     intros.
@@ -539,7 +554,8 @@ Specialization: equality on external calls, equality everywhere
     forall (t1 t2 : ctree E C X)
       (k1 k2 : X -> ctree E C X'),
       t1 ⪅ t2 ->
-      (forall x, `R (k1 x) (k2 x) /\ not_stuck (k1 x)) ->
+      (forall x, `R (k1 x) (k2 x)) ->
+      (forall x, may_ret x t1 -> not_stuck (k1 x)) ->
       `R (t1 >>= k1) (t2 >>= k2).
   Proof.
     intros.
@@ -555,7 +571,8 @@ Specializations to the gfp
     (t1 : ctree E C X) (t2: ctree F D Y)
     (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y'):
     t1 (⪅ upd_rel L SS) t2 ->
-    (forall x y, SS x y -> k1 x (⪅ L) k2 y /\ not_stuck (k1 x)) ->
+    (forall x y, SS x y -> k1 x (⪅ L) k2 y) ->
+    (forall x, may_ret x t1 -> not_stuck (k1 x)) ->
     t1 >>= k1 (⪅ L) t2 >>= k2.
   Proof.
     intros.
@@ -567,7 +584,8 @@ Specializations to the gfp
     (t1 : ctree E C X) (t2: ctree E D Y)
     (k1 : X -> ctree E C X') (k2 : Y -> ctree E D Y'):
     t1 (⪅ [SS]) t2 ->
-    (forall x y, SS x y -> k1 x (⪅ [RR]) k2 y /\ not_stuck (k1 x)) ->
+    (forall x y, SS x y -> k1 x (⪅ [RR]) k2 y) ->
+    (forall x, may_ret x t1 -> not_stuck (k1 x)) ->
     t1 >>= k1 (⪅ [RR]) t2 >>= k2.
   Proof.
     intros.
@@ -578,11 +596,136 @@ Specializations to the gfp
     (t1 : ctree E C X) (t2: ctree E D X)
     (k1 : X -> ctree E C X') (k2 : X -> ctree E D X'):
     t1 ⪅ t2 ->
-    (forall x, k1 x ⪅ k2 x /\ not_stuck (k1 x)) ->
+    (forall x, k1 x ⪅ k2 x) ->
+    (forall x, may_ret x t1 -> not_stuck (k1 x)) ->
     t1 >>= k1 ⪅ t2 >>= k2.
   Proof.
     intros.
     eapply cssim_bind; eauto.
+    intros ?? ->; auto.
+  Qed.
+
+(*|
+Bisimilar prefix: the continuations need no liveness, only its transfer from right to left.
+|*)
+  Lemma bind_chain_sbisim_gen
+    {E F C D: Type -> Type} {X X' Y Y': Type}
+    (L : lrel E F X' Y')
+    (SS: rel X Y)
+    {R : Chain (@css E F C D X' Y' L)} :
+    forall (t : ctree E C X) (t' : ctree F D Y)
+      (k : X -> ctree E C X') (k' : Y -> ctree F D Y'),
+      sbisim (upd_rel L SS) t t' ->
+      (forall x y, SS x y -> ` R (k x) (k' y) /\ (not_stuck (k' y) -> not_stuck (k x))) ->
+      ` R (bind t k) (bind t' k').
+  Proof.
+    apply tower.
+    - intros ? INC ? ? ? ? tt' kk' ? ?.
+      apply INC. apply H. apply tt'.
+      intros x x' xx'. split. apply leq_infx in H. apply H. now apply kk'.
+      edestruct kk'; eauto.
+    - intros ? ? ? ? ? ? tt' kk'.
+      step in tt'; destruct tt' as [fwd bwd].
+      split.
+      + cbn; intros * STEP.
+        apply trans_bind_inv in STEP as [(?H & ?t' & STEP & EQ) | [(Z & e & EQl & g & STEP & SEQ) | (v & STEPres & STEP)]].
+        * subst l.
+          apply fwd in STEP as (? & ? & STEP' & HSIM & HRL).
+          invL.
+          refine_trans.
+          ex2; split3.
+          ++ apply trans_bind_l_τ; eauto.
+          ++ rewrite EQ; apply H; auto.
+             intros ?? HS; destruct (kk' _ _ HS); split; auto; now step.
+          ++ etrans.
+        * subst l.
+          apply fwd in STEP as (? & ? & STEP' & HSIM & HRL).
+          invL.
+          refine_trans.
+          exists (ask f); ex; split3; etrans.
+          rewrite SEQ.
+          step.
+          split.
+          { intros ?? TR.
+            pose proof trans_passive_inv' TR as (a & EQ & ->).
+            rewrite EQ in TR.
+            assert (TR': trans (rcv e a) (β e g) (g a)) by etrans.
+            step in HSIM; apply HSIM in TR' as (l' & u' & TR' & HSIM' & HRL').
+            pose proof trans_passive_inv' TR' as (b & EQ' & ->).
+            exists (rcv f b); ex; split; eauto; split; cycle 1.
+            { invL; etrans. }
+            rewrite EQ.
+            apply H.
+            rewrite EQ' in HSIM'; auto.
+            intros ?? HS; destruct (kk' _ _ HS); split; auto; now step.
+          }
+          {
+            intros (? & ? & TR).
+            pose proof trans_passive_inv' TR as (y & _ & ->).
+            assert (TR': trans (rcv f y) (β f u) (u y)) by etrans.
+            step in HSIM; apply HSIM in TR' as (l' & u' & TR' & _ & _).
+            pose proof trans_passive_inv' TR' as (z & _ & ->).
+            exists (rcv e z).
+            etrans.
+          }
+        * apply fwd in STEPres as (? & ? & STEP' & HSIM & HRL).
+          invL.
+          destruct (kk' v y) as [[HSIM' _] _]; [etrans |].
+          apply HSIM' in STEP as (l' & u' & STEP'' & HSIM'' & HRL').
+          exists l'; eexists; split; eauto.
+          eapply trans_bind_r; eauto.
+          erewrite <- trans_val_inv'; eauto.
+      + intros (? & ? & STEP).
+        apply trans_bind_inv in STEP as [(?H & ?t' & STEP & EQ) | [(Z & e & EQl & g & STEP & SEQ) | (v & STEPres & STEP)]].
+        * apply bwd in STEP as (? & ? & STEP' & _ & HRL).
+          invL.
+          refine_trans; ex2; apply trans_bind_l_τ; etrans.
+        * apply bwd in STEP as (? & ? & STEP' & _ & HRL).
+          invL.
+          refine_trans; ex2; eapply trans_bind_l_ask; etrans.
+        * apply bwd in STEPres as (? & ? & STEP' & _ & HRL).
+          invL.
+          destruct (kk' y v) as [_ (l'' & ? & TR')]; [etrans | red; eauto |].
+          apply trans_val_inv' in STEP' as EQ; rewrite EQ in STEP'.
+          ex2.
+          eapply trans_bind_r; etrans.
+  Qed.
+
+  Lemma cssim_bind_sbisim_gen E F C D X Y X' Y'
+    L (SS : rel X Y)
+    (t1 : ctree E C X) (t2: ctree F D Y)
+    (k1 : X -> ctree E C X') (k2 : Y -> ctree F D Y'):
+    t1 (≃ upd_rel L SS) t2 ->
+    (forall x y, SS x y -> k1 x (⪅ L) k2 y) ->
+    t1 >>= k1 (⪅ L) t2 >>= k2.
+  Proof.
+    intros EQ SIM.
+    eapply bind_chain_sbisim_gen; eauto.
+    intros ?? HS; split; [now apply SIM |].
+    apply SIM in HS; step in HS; apply HS.
+  Qed.
+
+  Lemma cssim_bind_sbisim E C D X Y X' Y'
+    (RR : rel X' Y') (SS : rel X Y)
+    (t1 : ctree E C X) (t2: ctree E D Y)
+    (k1 : X -> ctree E C X') (k2 : Y -> ctree E D Y'):
+    t1 (≃ [SS]) t2 ->
+    (forall x y, SS x y -> k1 x (⪅ [RR]) k2 y) ->
+    t1 >>= k1 (⪅ [RR]) t2 >>= k2.
+  Proof.
+    intros.
+    eapply cssim_bind_sbisim_gen; eauto.
+  Qed.
+
+  Lemma cssim_bind_sbisim_eq {E C D: Type -> Type} {X X': Type}
+    (t1 : ctree E C X) (t2: ctree E D X)
+    (k1 : X -> ctree E C X') (k2 : X -> ctree E D X'):
+    t1 ≃ t2 ->
+    (forall x, k1 x ⪅ k2 x) ->
+    t1 >>= k1 ⪅ t2 >>= k2.
+  Proof.
+    intros.
+    eapply cssim_bind_sbisim; eauto.
     intros ?? ->; auto.
   Qed.
 
@@ -599,7 +742,8 @@ NOTE: we shouldn't have to impose [eq] to the right.
           (pointwise_relation _ (fun t u => ` R (α t) (α u) /\ not_stuck t)) ==> `R) (@bind E C X Y).
 Proof.
   repeat intro; eapply bind_chain_gen; eauto.
-  intros ?? <-; auto.
+  - intros ?? <-; apply H0.
+  - intros; apply H0.
 Qed.
 
 (*|
@@ -1193,8 +1337,6 @@ TODO: these principles are mirrored on ssim directly. We should be able to deriv
   Qed.
 
 End Proof_Rules.
-
-Import SBisimNotations.
 
 Section sbisim_cssim.
   Context {E F C D : Type -> Type} {X Y : Type} {L : lrel E F X Y}.
