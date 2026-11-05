@@ -543,6 +543,144 @@ Proof.
   apply wtrans_τ in STEP. destruct STEP as (n & STEP).
 Abort.
 
+(*|
+[bindS s k]: [bind] lifted to states. A waiting ([Passive]) state binds each of
+its continuations.
+|*)
+Definition bindS {E B X Y} (s : @S E B X) (k : X -> ctree E B Y) : @S E B Y :=
+  match s with
+  | Active t => Active (t >>= k)
+  | Passive e g => Passive e (fun z => g z >>= k)
+  end.
+
+#[global] Instance bindS_Seq {E B X Y} :
+  Proper (Seq ==> pointwise_relation _ (equ eq) ==> Seq) (@bindS E B X Y).
+Proof.
+  intros ?? EQ ?? EQk; destruct EQ; cbn; constructor; intros; now rewrite ?EQ, EQk.
+Qed.
+
+(*|
+[same_label l l']: [l] and [l'] are the same non-value label, at two return types.
+|*)
+Variant same_label {E X Y} : label E X -> label E Y -> Prop :=
+  | same_τ : same_label τ τ
+  | same_ask {Z} (e : E Z) : same_label (ask e) (ask e)
+  | same_rcv {Z} (e : E Z) z : same_label (rcv e z) (rcv e z).
+
+Lemma trans_bindS_inv {E B X Y} (s : @S E B X) (k : X -> ctree E B Y) l s1 :
+  trans l (bindS s k) s1 ->
+  (exists l0 s2, same_label l0 l /\ trans l0 s s2 /\ Seq s1 (bindS s2 k)) \/
+  (exists x, trans (val x) s (α Stuck) /\ trans l (α k x) s1).
+Proof.
+  intros TR; destruct s as [t | Z e g]; cbn in TR.
+  - apply trans_bind_inv in TR as [(-> & t' & TR & EQ) | [(Z & e & -> & g & TR & EQ) | (x & TRx & TR)]].
+    + left; exists τ, (α t'); split3; auto; constructor.
+    + left; exists (ask e), (β e g); split3; auto; constructor.
+    + right; eauto.
+  - apply trans_passive_inv' in TR as (z & EQ & ->).
+    left; exists (rcv e z), (α g z); split3; [constructor | apply trans_rcv | exact EQ].
+Qed.
+
+Lemma trans_bindS_l {E B X Y} (s s' : @S E B X) (k : X -> ctree E B Y) l0 l :
+  same_label l0 l ->
+  trans l0 s s' ->
+  trans l (bindS s k) (bindS s' k).
+Proof.
+  intros SL TR; destruct SL.
+  - destruct (trans_τ_inv TR) as (t' & EQ); rewrite EQ in TR |- *.
+    destruct s as [t | Z e g].
+    + now apply trans_bind_l_τ.
+    + exfalso; apply trans_passive_inv' in TR as (? & _ & abs); inv abs.
+  - destruct (trans_ask_inv TR) as (g & EQ); rewrite EQ in TR |- *.
+    destruct s as [t | Z' e' g'].
+    + now apply trans_bind_l_ask.
+    + exfalso; apply trans_passive_inv' in TR as (? & _ & abs); inv abs.
+  - destruct s as [t | Z' e' g'].
+    + exfalso; eapply trans_rcv_active_inv; eauto.
+    + apply trans_passive_inv' in TR as (z' & EQ & EQl).
+      pose proof (rcv_invT EQl) as <-.
+      apply rcv_inv in EQl as [<- <-].
+      rewrite EQ; cbn.
+      apply (trans_rcv e (fun z0 => x <- g' z0;; k x) z).
+Qed.
+
+Lemma transs_bindS_l {E B X Y} (s s' : @S E B X) (k : X -> ctree E B Y) :
+  (trans τ)^* s s' ->
+  (trans τ)^* (bindS s k) (bindS s' k).
+Proof.
+  intros [n TR]; revert s s' TR.
+  induction n as [| n IH]; intros s s' TR.
+  - exists 0%nat; cbn in *; now rewrite TR.
+  - destruct TR as [v TR1 TR2].
+    apply IH in TR2.
+    eapply wtrans_τ, wcons; [| apply wtrans_τ; eauto].
+    eapply trans_bindS_l; [constructor | eauto].
+Qed.
+
+Lemma wtrans_bindS_l {E B X Y} (s s' : @S E B X) (k : X -> ctree E B Y) l0 l :
+  same_label l0 l ->
+  wtrans l0 s s' ->
+  wtrans l (bindS s k) (bindS s' k).
+Proof.
+  intros SL [s2 [s1 TR1 TR2] TR3].
+  eexists; [eexists |]; [apply transs_bindS_l; eauto | | apply transs_bindS_l; eauto].
+  destruct SL; cbn in TR2 |- *.
+  - destruct TR2 as [TR2 | TR2]; [left; eapply trans_bindS_l; [constructor | eauto] | right; cbn in *; now rewrite TR2].
+  - eapply trans_bindS_l; [constructor | eauto].
+  - eapply trans_bindS_l; [constructor | eauto].
+Qed.
+
+Lemma wtrans_bindS_r {E B X Y} (s s' : @S E B X) (k : X -> ctree E B Y) x l s1 :
+  wtrans (val x) s s' ->
+  trans l (α k x) s1 ->
+  wtrans l (bindS s k) s1.
+Proof.
+  intros TRx TR.
+  apply wtrans_val_inv' in TRx as (t' & W & TRv & _).
+  destruct t' as [t' | Z e g].
+  2: exfalso; apply trans_passive_inv' in TRv as (? & _ & abs); inv abs.
+  rewrite (trans_val_inv' TRv) in TRv.
+  eapply wconss; [eapply wtrans_bindS_l; [constructor | eauto] |].
+  apply trans_wtrans; cbn.
+  eapply trans_bind_r; eauto.
+Qed.
+
+(*|
+Up-to bind for weak bisimulation, over states. The [Step] in front of the
+continuation absorbs the return of the prefix.
+|*)
+Lemma bindS_chain_gen {E C X X'}
+  {R : Chain (@wb E C X')} :
+  forall (s s' : @S E C X) (k k' : X -> ctree E C X'),
+    wbisim s s' ->
+    (forall x, ` R (k x) (k' x)) ->
+    ` R (bindS s (fun x => Step (k x))) (bindS s' (fun x => Step (k' x))).
+Proof.
+  apply tower. {
+    intros ? INC ? ? ? ? tt' kk' ? ?.
+    apply INC. apply H. apply tt'.
+    intros x. apply leq_infx in H. apply H. now apply kk'.
+  }
+  clear R. intros R.
+  symmetric using idtac. {
+    intros. apply H; intros; try now symmetry.
+    apply H0; auto.
+  }
+  intros ? ? ? ? ? tt' kk'.
+  step in tt'; destruct tt' as [fwd bwd].
+  cbn; intros * STEP.
+  apply trans_bindS_inv in STEP as [(l0 & s2 & SL & STEP & EQ) | (v & STEPres & STEP)].
+  - apply fwd in STEP as [s2' STEP' EQ'].
+    eexists.
+    + eapply wtrans_bindS_l; eauto.
+    + rewrite EQ. apply H; auto. intros; step; apply kk'.
+  - apply trans_step_inv' in STEP as [EQ ->].
+    apply fwd in STEPres as [s2' STEPres' _].
+    exists (α k' v).
+    + eapply wtrans_bindS_r; [eauto | apply trans_step].
+    + rewrite EQ. step. apply kk'.
+Qed.
+
 Lemma bind_chain_gen {E C X X'}
   {R : Chain (@wb E C X')} :
   forall (t u : ctree E C X) (k k' : X -> ctree E C X'),
@@ -550,7 +688,8 @@ Lemma bind_chain_gen {E C X X'}
     (forall x, ` R (k x) (k' x)) ->
     ` R (bind t (fun x => Step (k x))) (bind u (fun x => Step (k' x))).
 Proof.
-Admitted.
+  intros; apply (bindS_chain_gen (α t) (α u)); auto.
+Qed.
 
 Lemma wbisim_ret_inv {E C R} `{B0 -< C} : forall (x y : R),
     Ret x ≈ (Ret y : ctree E C R) ->
