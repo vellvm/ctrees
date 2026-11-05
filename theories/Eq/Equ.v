@@ -1138,6 +1138,20 @@ Proof.
   rewrite bind_step; reflexivity.
 Qed.
 
+Lemma map_stuck {E B X Y} (f : X -> Y) :
+    @CTree.map E B _ _ f Stuck ≅ Stuck.
+Proof.
+  intros. unfold CTree.map.
+  apply bind_stuck.
+Qed.
+
+Lemma map_br {E B X Y Z} (e : B Z) k (f : X -> Y) :
+    @CTree.map E B _ _ f (Br e k) ≅ Br e (fun x => CTree.map f (k x)).
+Proof.
+  intros. unfold CTree.map.
+  apply bind_br.
+Qed.
+
 Notation "▷ e" := (subevent _ e) (at level 0, only printing).
 
 (*|

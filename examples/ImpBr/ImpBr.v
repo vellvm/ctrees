@@ -27,7 +27,6 @@ From Coinduction Require Import all.
 From CTree Require Import
      CTree
      Eq
-     Misc.Pure
      Interp.Fold
      Interp.FoldCTree
      Interp.FoldStateT.

@@ -22,8 +22,7 @@ From CTree Require Import
      Eq.SBisimAlt
      Eq.OldAltEquiv.TransEquiv
      Eq.OldAltEquiv.SSimEquiv
-     Eq.OldAltEquiv.SBisimEquiv
-     Misc.Pure.
+     Eq.OldAltEquiv.SBisimEquiv.
 
 Import SBisimNotations.
 Import MonadNotation.

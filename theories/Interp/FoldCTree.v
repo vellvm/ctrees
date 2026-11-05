@@ -15,7 +15,6 @@ From CTree Require Import
   Eq.Epsilon
   Eq.IterFacts
   Eq.SSimAlt
-  Misc.Pure
   Fold.
 
 Import CTreeNotations.

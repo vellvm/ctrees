@@ -13,30 +13,17 @@ From CTree Require Import
      Eq.OldAltEquiv.SSimEquiv
      Interp.Fold
      Interp.FoldCTree
-     Interp.FoldStateT
-     Misc.Pure.
+     Interp.FoldStateT.
 
 Import ITree.Basics.Basics.Monads.
 Import MonadNotation.
 Open Scope monad_scope.
 
-Theorem ssim_pure {E F B C X} : forall (L : lrel E F X unit) (t : ctree E B X),
-  pure_finite t ->
-  (forall x : X, L (val x) (val tt)) ->
-  ssim L t (Ret tt : ctree F C unit).
-Proof.
-  intros. induction H; subs.
-  - apply ssim_ret. now apply build_rel_val.
-  - now apply ssim_stuck.
-  - now apply ssim_br_l.
-  - now apply ssim_guard_l.
-Qed.
-
 Unset Universe Checking.
 
 Theorem refine_ctree_ssim {E B B' X} :
   forall (t : ctree E B X) (h : B ~> ctree E B'),
-  (forall X c, pure_finite (h X c)) ->
+  (forall Z c, h Z c ≲ (branch c : ctree E B Z)) ->
   refine h t ≲ t.
 Proof.
   intros. unfold ssimT. rewrite ssim_ssim'. revert t. coinduction R CH. intros.
@@ -55,11 +42,11 @@ Proof.
       * now apply (b_chain R), step_ss'_guard_l.
       * apply TransAlt.reflL. discriminate.
     + apply TransAlt.reflL. discriminate.
-  - pose proof (H X0 c) as PF. red in PF. induction PF.
-    + rewrite EQ, bind_ret_l. apply step_ss'_br_r with (x := v). apply step_ss'_guard_l. apply CH.
-    + rewrite EQ, bind_stuck. apply ss'_stuck.
-    + rewrite EQ, bind_br. apply step_ss'_br_l. intros. apply (b_chain R), H0.
-    + rewrite EQ, bind_guard. apply step_ss'_guard_l. apply (b_chain R), IHPF.
+  - rewrite <- bind_branch.
+    refine (sbind_chain_gen (R := chain_b R) (lift_L Leq) (TransAlt.Active (h X0 c)) (TransAlt.Active (branch c))
+              (fun x => Guard (refine h (k x))) k eq _ _).
+    + apply (gfp_chain (chain_b R)). exact (proj1 (ssim_ssim' _ _ _) (H X0 c)).
+    + intros ?? <-. apply step_ss'_guard_l. apply CH.
 Qed.
 
 Definition Rrr {St X} (p : St * X) (x : X) := snd p = x.
@@ -67,7 +54,7 @@ Definition Lrr {St E X} := @Lvrel E _ X (@Rrr St X).
 
 Theorem refine_state_ssim {E B B' X St} :
   forall (t : ctree E B X) (h : B ~> stateT St (ctree E B')),
-  (forall X c s, pure_finite (h X c s)) ->
+  (forall Z c s, h Z c s (≲@Lrr St E Z) (branch c : ctree E B Z)) ->
   forall s, refine h t s (≲@Lrr St E X) t.
 Proof.
   intros. unfold ssimT. rewrite ssim_ssim'. revert t s. coinduction R CH. intros.
@@ -86,9 +73,9 @@ Proof.
       * apply (b_chain R), step_ss'_guard_l, CH.
       * constructor. constructor.
     + constructor. constructor.
-  - pose proof (H X0 c s) as PF. red in PF. induction PF.
-    + rewrite EQ, bind_ret_l. apply step_ss'_br_r with (x := snd v). apply step_ss'_guard_l. apply CH.
-    + rewrite EQ, bind_stuck. apply ss'_stuck.
-    + rewrite EQ, bind_br. apply step_ss'_br_l. intros. apply (b_chain R), H0.
-    + rewrite EQ, bind_guard. apply step_ss'_guard_l. apply (b_chain R), IHPF.
+  - rewrite <- bind_branch.
+    refine (sbind_chain_gen (R := chain_b R) (lift_L Lrr) (TransAlt.Active (h X0 c s)) (TransAlt.Active (branch c))
+              (fun xs => Guard (refine h (k (snd xs)) (fst xs))) k Rrr _ _).
+    + apply (gfp_chain (chain_b R)). exact (proj1 (ssim_ssim' _ _ _) (H X0 c s)).
+    + intros ?? EQ; red in EQ; subst. apply step_ss'_guard_l. apply CH.
 Qed.
