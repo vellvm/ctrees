@@ -47,9 +47,9 @@ From ITree Require Import Core.Subevent.
 From CTree Require Import
      CTree
      Eq.Equ
-     Eq.Trans
-     Eq.SSim
-     Eq.SBisim.
+     Eq.Main.Trans
+     Eq.Main.SSim
+     Eq.Main.SBisim.
 
 From RelationAlgebra Require Export
      rel srel monoid kat kat_tac rewriting normalisation.
@@ -70,7 +70,7 @@ Relation relaxing [equ] to become insensible to:
 Section WeakBisim.
 
   Context {E C : Type -> Type} {X : Type}.
-  Notation S := (Trans.S E C X).
+  Notation S := (Main.Trans.S E C X).
 
   (*|
   The function defining weak simulations: [trans] plays must be answered

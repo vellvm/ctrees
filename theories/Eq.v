@@ -16,10 +16,10 @@ From Coinduction Require Export all.
 From CTree.Eq Require Export
      Shallow
      Equ
-     Trans
-     Epsilon
-     SBisim
-     SSim
+     Main.Trans
+     Main.Epsilon
+     Main.SBisim
+     Main.SSim
      CSSim
      Visible.
 
@@ -39,8 +39,8 @@ The [step], [step in] and [coinduction] tactics from [coinduction]
 |*)
 
 From CTree.Eq Require Import
-     SSimAlt
-     SBisimAlt.
+     Alt.SSim
+     Alt.SBisim.
 
 Ltac __concl_is t :=
   assert_succeeds (repeat match goal with |- forall _, _ => intro end; t).
@@ -142,4 +142,4 @@ Ltac eq2sb H :=
   | ?u = ?t => let eq := fresh "EQ" in assert (eq : u ≃ t) by (rewrite H; reflexivity); clear H
   end.
 
-#[global] Opaque Trans.wtrans.
+#[global] Opaque Main.Trans.wtrans.

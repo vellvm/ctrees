@@ -15,8 +15,8 @@ From CTree Require Import
      Utils
      Eq.Equ
      Eq.Shallow
-     Eq.Trans
-     Eq.Epsilon.
+     Eq.Main.Trans
+     Eq.Main.Epsilon.
 
 From RelationAlgebra Require Export
      rel srel.
@@ -52,7 +52,7 @@ File organisation:
   - [_l], [_r], [_id] = unilateral / same-type variants;
   - [_inv] = inversion principle from the shape of one side.
 
-The bisimulation counterpart [sb] lives in [Eq.SBisim] and is defined
+The bisimulation counterpart [sb] lives in [Eq.Main.SBisim] and is defined
 symmetrically à la Pous'16 for better symmetry arguments; see [square_st]
 there for an illustration.
 |*)

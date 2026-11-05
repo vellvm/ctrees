@@ -14,9 +14,9 @@ From CTree Require Import
      CTree
      Utils
      Eq.Equ
-     Eq.Trans
-     Eq.SSim
-     Eq.SBisim.
+     Eq.Main.Trans
+     Eq.Main.SSim
+     Eq.Main.SBisim.
 
 From RelationAlgebra Require Export
      rel srel.
@@ -29,7 +29,7 @@ Set Implicit Arguments.
 Complete strong simulation
 ==========================
 
-[css L] refines [ss L] (from [Eq.SSim]) with a liveness-preservation
+[css L] refines [ss L] (from [Eq.Main.SSim]) with a liveness-preservation
 clause: the simulating side must itself be live whenever the simulated
 side is:
 
@@ -47,12 +47,12 @@ sides). Lemmas that would be false under completeness — e.g. "stuck is
 simulated by anything" — are therefore absent; their sound analogues
 require both sides stuck ([css_is_stuck']).
 
-File organisation mirrors [Eq.SSim]: definition + tactics; homogeneous
+File organisation mirrors [Eq.Main.SSim]: definition + tactics; homogeneous
 theory (Reflexive/Transitive + subrelation into [ss]/[ssim]);
 heterogeneous theory with [cssim_mono], [equ_clos] up-to, and
 [Seq]/[equ eq] [Proper] instances on both chain elements and [css L r];
 up-to bind; structural proof rules and inversion principles, using the
-same [_gen] / [`R] / gfp naming convention as in [SSim.v].
+same [_gen] / [`R] / gfp naming convention as in [Main/SSim.v].
 |*)
 
 Section CompleteStrongSim.
@@ -749,7 +749,7 @@ Qed.
 (*|
 Structural proof rules
 ======================
-Same three-layer shape as in [SSim.v] ([css_*_gen] / [css_*] / [cssim_*]).
+Same three-layer shape as in [Main/SSim.v] ([css_*_gen] / [css_*] / [cssim_*]).
 Compared to [ss]/[ssim] the rules typically carry an extra non-stuckness
 side-condition: [Inhabited] on a [Br]'s index (to witness progress),
 [not_stuck] on a branch, or a disjunction between the two sides.

@@ -16,13 +16,13 @@ From CTree Require Import
      Fold
      FoldCTree
      Eq
-     Eq.Epsilon
+     Eq.Main.Epsilon
      Eq.IterFacts
-     Eq.SSimAlt
-     Eq.SBisimAlt
-     Eq.OldAltEquiv.TransEquiv
-     Eq.OldAltEquiv.SSimEquiv
-     Eq.OldAltEquiv.SBisimEquiv.
+     Eq.Alt.SSim
+     Eq.Alt.SBisim
+     Eq.MainAltEquiv.TransEquiv
+     Eq.MainAltEquiv.SSimEquiv
+     Eq.MainAltEquiv.SBisimEquiv.
 
 Import SBisimNotations.
 Import MonadNotation.
@@ -705,7 +705,7 @@ Lemma interp_state_ssim_aux {E F B C X Y St} `{HasB: B -< C}
   forall (t : ctree E B X) (u : ctree E B Y) s,
   ssim (Lvrel R) t u ->
   ssim' (lift_L (Lvrel RS))
-    (TransAlt.Active (interp_state h t s)) (TransAlt.Active (interp_state h u s)).
+    (Alt.Trans.Active (interp_state h t s)) (Alt.Trans.Active (interp_state h u s)).
 Proof.
   coinduction RR CH. intros t u s SIM.
   rewrite unfold_interp_state at 1.
@@ -721,7 +721,7 @@ Proof.
   - apply ss'_stuck.
   - apply ssim_step_l_inv in SIM as (u2 & TR & SIM).
     destruct u2 as [u2 | Z e' k'];
-      [| exfalso; remember (Trans.Passive e' k') as p; remember τ as l;
+      [| exfalso; remember (Main.Trans.Passive e' k') as p; remember τ as l;
          induction TR; subst; try discriminate; eauto].
     apply trans_τ_epsilon in TR as (u3 & EPS & EQ).
     eapply epsilon_interp_state with (h := h) (s := s) in EPS.
@@ -737,8 +737,8 @@ Proof.
     eapply epsilon_interp_state with (h := h) (s := s) in EPS.
     eapply ss'_epsilon_r_old; [exact EPS |].
     rewrite interp_state_vis.
-    refine (SSimAlt.bind_chain_gen _ (R := chain_b RR) _ _ _ _ eq _ _).
-    + change (TransAlt.upd_rel (lift_L (Lvrel RS)) eq) with (lift_L (@Leq F (St * X0))). 
+    refine (Alt.SSim.bind_chain_gen _ (R := chain_b RR) _ _ _ _ eq _ _).
+    + change (Alt.Trans.upd_rel (lift_L (Lvrel RS)) eq) with (lift_L (@Leq F (St * X0))). 
       apply (@Reflexive_ss'_chain F F C C (St * X0) (St * X0) (lift_L Leq) lift_L_Leq_reflexiveL (chain_b RR)).
     + intros [st z] ? <-. cbn. apply step_ss'_guard.
       destruct (HK z) as (y & SIM' & HR). cbn in HR. dependent destruction HR.
@@ -795,14 +795,14 @@ Lemma interp_state_sbisim_aux {E F B C St} `{HasB: B -< C}
   forall (t : ctree E B X) (u : ctree E B Y) s,
   ss (Lvrel R) (sbisim (Lvrel R)) t u ->
   gfp (@sb' F F C C) true _ _ (lift_L (Lvrel RS))
-    (TransAlt.Active (interp_state h t s)) (TransAlt.Active (interp_state h u s)).
+    (Alt.Trans.Active (interp_state h t s)) (Alt.Trans.Active (interp_state h u s)).
 Proof.
   coinduction RR CH.
   assert (BOTH : forall X Y (R : rel X Y) (RS : rel (St * X) (St * Y)),
     (forall s x y, R x y -> RS (s, x) (s, y)) ->
     forall (t : ctree E B X) (u : ctree E B Y) s, sbisim (Lvrel R) t u ->
     forall side, elem RR side _ _ (lift_L (Lvrel RS))
-      (TransAlt.Active (interp_state h t s)) (TransAlt.Active (interp_state h u s))).
+      (Alt.Trans.Active (interp_state h t s)) (Alt.Trans.Active (interp_state h u s))).
   { intros X Y R RS HRS t u s H [|].
     - apply (CH _ _ R RS HRS). step in H. apply H.
     - apply (proj1 (sb'_chain_flip false _ _ _)). cbn [negb].
@@ -822,7 +822,7 @@ Proof.
   - apply sb'_true_stuck.
   - edestruct SIM as (l' & u2 & TR & SIM' & HL); [etrans |]. cbn in HL. dependent destruction HL.
     destruct u2 as [u2 | Z e' k'];
-      [| exfalso; clear - TR; remember (Trans.Passive e' k') as p; remember τ as l;
+      [| exfalso; clear - TR; remember (Main.Trans.Passive e' k') as p; remember τ as l;
          induction TR; subst; try discriminate; eauto].
     apply trans_τ_epsilon in TR as (u3 & EPS & EQ).
     eapply epsilon_interp_state with (h := h) (s := s) in EPS.
@@ -838,7 +838,7 @@ Proof.
     rewrite SEQ in SIM'.
     assert (PK : forall z, sbisim (Lvrel R) (α k z) (α k'' z)).
     { intros z. step in SIM'. destruct SIM' as [SF _].
-      edestruct (SF (rcv e z) (Trans.Active (k z))) as (l2 & st2 & TR2 & SIM2 & HL2);
+      edestruct (SF (rcv e z) (Main.Trans.Active (k z))) as (l2 & st2 & TR2 & SIM2 & HL2);
         [econstructor; reflexivity |].
       cbn in HL2. dependent destruction HL2. dependent destruction HR. inv_trans. subst.
       apply rcv_inv in EQl as [_ ->]. exact SIM2. }
@@ -846,8 +846,8 @@ Proof.
     apply sb'_true_ss'. eapply ss'_epsilon_r_old; [exact EPS |].
     apply (proj1 (sb'_true_ss' (elem RR) _ _)).
     rewrite interp_state_vis.
-    refine (SBisimAlt.bind_chain_gen _ (R := chain_b RR) _ _ _ _ eq true _ _).
-    + change (TransAlt.upd_rel (lift_L (Lvrel RS)) eq) with (lift_L (@Leq F (St * X0))).
+    refine (Alt.SBisim.bind_chain_gen _ (R := chain_b RR) _ _ _ _ eq true _ _).
+    + change (Alt.Trans.upd_rel (lift_L (Lvrel RS)) eq) with (lift_L (@Leq F (St * X0))).
       apply (@refl_sb' F C (St * X0) (lift_L Leq) lift_L_Leq_reflexiveL (chain_b RR) true).
     + intros side [st z] ? <-. cbn. apply step_sb'_guard. apply (BOTH _ _ R RS HRS). apply PK.
   - unfold MonadBr_stateT, mbr, MonadBr_ctree. cbn.
@@ -864,7 +864,7 @@ Lemma interp_state_sbisim_gen {E F B C St} `{HasB: B -< C}
   forall (t : ctree E B X) (u : ctree E B Y) s,
   sbisim (Lvrel R) t u ->
   sbisim' (lift_L (Lvrel RS))
-    (TransAlt.Active (interp_state h t s)) (TransAlt.Active (interp_state h u s)).
+    (Alt.Trans.Active (interp_state h t s)) (Alt.Trans.Active (interp_state h u s)).
 Proof.
   intros X Y R RS HRS t u s H [|].
   - apply interp_state_sbisim_aux with (R := R); [exact HRS |]. step in H. apply H.

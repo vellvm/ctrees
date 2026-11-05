@@ -6,9 +6,9 @@ From ITree Require Import Core.Subevent.
 From CTree Require Import
   CTree
   Eq.Equ
-  Eq.Trans
-  Eq.SSim
-  Eq.SBisim. 
+  Eq.Main.Trans
+  Eq.Main.SSim
+  Eq.Main.SBisim. 
 
 (*|
 Base coinductive definitions for execution traces and trace equivalence.

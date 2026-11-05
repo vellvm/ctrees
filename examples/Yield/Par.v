@@ -508,7 +508,7 @@ Section parallel.
     intros TR. cbn in TR.
     assert (GEN : forall a b, transR (val ()) a b -> forall v i, a ⩸ (α v i) ->
       trans (ask (inl1 Yield)) (α schedule (S (S n)) v (Some i))
-        (Trans.Passive (inl1 Yield) (fun _ : unit => Br (branchn (S n)) (fun i' => schedule (S n) (remove_vec v i) (Some i'))))).
+        (Main.Trans.Passive (inl1 Yield) (fun _ : unit => Br (branchn (S n)) (fun i' => schedule (S n) (remove_vec v i) (Some i'))))).
     2: { eapply GEN; [exact TR | reflexivity]. }
     clear. intros a b TR. remember (val ()) as l eqn:Hl.
     induction TR; intros v i Ha; dependent destruction Ha; try discriminate.
@@ -522,7 +522,7 @@ Section parallel.
     - rewrite EQ in H. step in H. inv H.
       rewrite rewrite_schedule. simp schedule_match. rewrite <- H2. cbn.
       apply trans_guard. rewrite rewrite_schedule. simp schedule_match.
-      eapply Trans.Transask. reflexivity.
+      eapply Main.Trans.Transask. reflexivity.
   Qed.
 
   (** thread transitions with a tau *)
@@ -576,11 +576,11 @@ Section parallel.
       rewrite rewrite_schedule at 1. simp schedule_match.
       rewrite <- Heqc. cbn. apply trans_guard.
       rewrite rewrite_schedule at 1. simp schedule_match.
-      assert (SQ : (Trans.Passive (inl1 Yield) (fun _ : unit => Br (branchn (S n)) (fun i' => schedule (S n) (replace_vec v i (k ())) (Some i'))))
-                   ⩸ (Trans.Passive (inl1 Yield) (fun _ : unit => Br (branchn (S n)) (fun i' => schedule (S n) (replace_vec v i (k1 ())) (Some i'))))).
+      assert (SQ : (Main.Trans.Passive (inl1 Yield) (fun _ : unit => Br (branchn (S n)) (fun i' => schedule (S n) (replace_vec v i (k ())) (Some i'))))
+                   ⩸ (Main.Trans.Passive (inl1 Yield) (fun _ : unit => Br (branchn (S n)) (fun i' => schedule (S n) (replace_vec v i (k1 ())) (Some i'))))).
       { constructor. intros x. step. constructor. intros i'. apply equ_schedule.
         apply replace_vec_relation; [repeat intro; reflexivity | reflexivity | symmetry; apply H]. }
-      rewrite SQ. eapply Trans.Transask. reflexivity.
+      rewrite SQ. eapply Main.Trans.Transask. reflexivity.
   Qed.
 
   (** when the thread is a fork *)
@@ -605,12 +605,12 @@ Section parallel.
     - invert.
       rewrite rewrite_schedule at 1. simp schedule_match.
       rewrite <- Heqc. cbn.
-      assert (SQ : (Trans.Passive (inr1 (inl1 Spawn)) (fun _ : unit => schedule (S (S n)) (cons_vec (k true) (replace_vec v i (k false))) (Some (FS i))))
-                   ⩸ (Trans.Passive (inr1 (inl1 Spawn)) (fun _ : unit => schedule (S (S n)) (cons_vec (k1 true) (replace_vec v i (k1 false))) (Some (FS i))))).
+      assert (SQ : (Main.Trans.Passive (inr1 (inl1 Spawn)) (fun _ : unit => schedule (S (S n)) (cons_vec (k true) (replace_vec v i (k false))) (Some (FS i))))
+                   ⩸ (Main.Trans.Passive (inr1 (inl1 Spawn)) (fun _ : unit => schedule (S (S n)) (cons_vec (k1 true) (replace_vec v i (k1 false))) (Some (FS i))))).
       { constructor. intros x. apply equ_schedule.
         apply cons_vec_relation; [symmetry; apply H |].
         apply replace_vec_relation; [repeat intro; reflexivity | reflexivity | symmetry; apply H]. }
-      rewrite SQ. eapply Trans.Transask. reflexivity.
+      rewrite SQ. eapply Main.Trans.Transask. reflexivity.
   Qed.
 
   (** when the thread is a [E] event *)
@@ -634,11 +634,11 @@ Section parallel.
     - invert.
       rewrite rewrite_schedule at 1. simp schedule_match.
       rewrite <- Heqc. cbn.
-      assert (SQ : (Trans.Passive (inr1 (inr1 s)) (fun x : X => schedule (S n) (replace_vec v i (k x)) (Some i)))
-                   ⩸ (Trans.Passive (inr1 (inr1 s)) (fun x : X => schedule (S n) (replace_vec v i (k1 x)) (Some i)))).
+      assert (SQ : (Main.Trans.Passive (inr1 (inr1 s)) (fun x : X => schedule (S n) (replace_vec v i (k x)) (Some i)))
+                   ⩸ (Main.Trans.Passive (inr1 (inr1 s)) (fun x : X => schedule (S n) (replace_vec v i (k1 x)) (Some i)))).
       { constructor. intros x. apply equ_schedule.
         apply replace_vec_relation; [repeat intro; reflexivity | reflexivity | symmetry; apply H]. }
-      rewrite SQ. eapply Trans.Transask. reflexivity.
+      rewrite SQ. eapply Main.Trans.Transask. reflexivity.
   Qed.
 
   (*** Putting everything together *)
@@ -668,12 +668,12 @@ Section parallel.
   Lemma trans_rcv_active {Y} (e : (yieldE +' spawnE +' E) Y) y (t : completed) st :
     trans (rcv e y) (α t) st -> False.
   Proof.
-    intros TR. cbn in TR. remember (Trans.Active t) as a eqn:Ha. remember (rcv e y) as l eqn:Hl.
+    intros TR. cbn in TR. remember (Main.Trans.Active t) as a eqn:Ha. remember (rcv e y) as l eqn:Hl.
     revert t Ha. induction TR; intros t0 Ha; try discriminate; eauto.
   Qed.
 
-  Lemma transR_tau_active {F C X} (s st : Trans.S F C X) :
-    transR τ s st -> exists u, st = Trans.Active u.
+  Lemma transR_tau_active {F C X} (s st : Main.Trans.S F C X) :
+    transR τ s st -> exists u, st = Main.Trans.Active u.
   Proof.
     intros TR. remember τ as l eqn:Hl. induction TR; try discriminate; eauto.
   Qed.
@@ -696,7 +696,7 @@ Section parallel.
                   CTree.bind (Br (branchn m) (fun x => Ret x)) (fun x => schedule m w2 (Some x))).
     { rewrite bind_br. step. constructor. intros. now rewrite bind_ret_l. }
     rewrite EQ1, EQ2.
-    apply (@SBisim.bind_chain_gen _ _ _ _ _ _ _ _ Leq (fun x y => y = pp x) r).
+    apply (@Main.SBisim.bind_chain_gen _ _ _ _ _ _ _ _ Leq (fun x y => y = pp x) r).
     - apply sbisim_br.
       + intros x. exists (pp x). apply sbisim_ret. reflexivity.
       + intros y. exists (qq y). apply sbisim_ret. cbn. now rewrite H1.

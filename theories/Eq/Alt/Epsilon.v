@@ -3,7 +3,7 @@ From Stdlib Require Import Program.Equality.
 From CTree Require Import
      CTree
      Eq.Equ
-     Eq.TransAlt.
+     Eq.Alt.Trans.
 
 From RelationAlgebra Require Import
      monoid kat kat_tac rel srel.

@@ -10,11 +10,11 @@ From CTree Require Import
      CTree
      Utils
      Eq
-     Eq.SSimAlt
-     Eq.OldAltEquiv.TransEquiv
-     Eq.OldAltEquiv.SSimEquiv
-     Eq.OldAltEquiv.SBisimEquiv
-     Eq.SBisimAlt.
+     Eq.Alt.SSim
+     Eq.MainAltEquiv.TransEquiv
+     Eq.MainAltEquiv.SSimEquiv
+     Eq.MainAltEquiv.SBisimEquiv
+     Eq.Alt.SBisim.
 
 Import CTree.
 Import CTreeNotations.
@@ -57,7 +57,7 @@ Proof.
   cbn. intros step step' ? i i' EQ.
   rewrite !iter_iter_gen. apply iter_gen_equ; auto.
 Qed.
-(* Thanks to SSimAlt, this proof does not need an helper inductive. *)
+(* Thanks to [Alt.SSim], this proof does not need an helper inductive. *)
 Theorem ssim_iter {E F C D A A' B B'}
   (L : lrel E F _ _) (Ra : rel A A') (Rb : rel B B')
   (HRb : forall b b', Rb b b' <-> L (val b) (val b')) :
@@ -70,7 +70,7 @@ Proof.
   revert step a a' H H0.
   red. coinduction R CH. intros.
   rewrite !unfold_iter.  
-  eapply SSimAlt.bind_chain_gen with (SS:=(sum_rel Ra Rb)).
+  eapply Alt.SSim.bind_chain_gen with (SS:=(sum_rel Ra Rb)).
   - cbn -[ss']. 
     (* coinduction library: want [base] tactic that does this and always works *)
     apply (gfp_chain (chain_b R)).
@@ -78,8 +78,8 @@ Proof.
   - intros. destruct x, x'; try destruct H1.
     + apply step_ss'_guard. apply CH; auto.
     + apply step_ssbt'_ret. 
-    change (TransAlt.val b) with (@o2n_label E _ (val b)). 
-    change (TransAlt.val b0) with (@o2n_label F _ (val b0)). 
+    change (Alt.Trans.val b) with (@o2n_label E _ (val b)). 
+    change (Alt.Trans.val b0) with (@o2n_label F _ (val b0)). 
     eapply TransEquiv.lift_L_o2n.
     now apply HRb.
 Qed.
@@ -113,16 +113,16 @@ Proof.
   revert step a a' H H0.
   red. coinduction R CH. intros.
   cbn [o2n_S]. rewrite !unfold_iter.
-  eapply (@SBisimAlt.bind_chain_gen _ _ _ _ _ _ _ _ _ (chain_b R)) with (SS := sum_rel Ra Rb).
+  eapply (@Alt.SBisim.bind_chain_gen _ _ _ _ _ _ _ _ _ (chain_b R)) with (SS := sum_rel Ra Rb).
   - apply (gfp_chain (chain_b R)).
-    change (gfp sb' side _ _ (lift_L (Trans.upd_rel L (sum_rel Ra Rb)))
+    change (gfp sb' side _ _ (lift_L (Main.Trans.upd_rel L (sum_rel Ra Rb)))
               (o2n_S (α step a)) (o2n_S (α step' a'))).
     apply sbisim_gfp_sb'. now apply H.
   - intros side0 x x' Hx. destruct x, x'; try destruct Hx.
     + apply step_sb'_guard. apply CH; auto.
     + apply step_sbt'_ret.
-      change (TransAlt.val b) with (@o2n_label E _ (val b)).
-      change (TransAlt.val b0) with (@o2n_label F _ (val b0)).
+      change (Alt.Trans.val b) with (@o2n_label E _ (val b)).
+      change (Alt.Trans.val b0) with (@o2n_label F _ (val b0)).
       eapply TransEquiv.lift_L_o2n.
       now apply HRb.
 Qed.

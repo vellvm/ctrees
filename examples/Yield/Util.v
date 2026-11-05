@@ -47,7 +47,7 @@ Lemma trans_ask_visible {E C R X} (t : ctree E C R) (e : E X) (k : X -> ctree E 
   trans (ask e) t (β e k) -> visible t (Vis e k).
 Proof.
   intros TR. cbn in TR.
-  remember (Trans.Active t) as s eqn:Hs. remember (Trans.Passive e k) as p eqn:Hp.
+  remember (Main.Trans.Active t) as s eqn:Hs. remember (Main.Trans.Passive e k) as p eqn:Hp.
   revert t Hs. induction TR; intros t0 Hs; inversion Hs; subst; try discriminate.
   - rewrite H. econstructor. specialize (IHTR eq_refl _ eq_refl).
     rewrite <- H0. exact IHTR.

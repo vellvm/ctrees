@@ -1,4 +1,4 @@
-From CTree Require Import CTree Eq Eq.SBisimAlt Eq.OldAltEquiv.TransEquiv Eq.OldAltEquiv.SBisimEquiv Eq.IterFacts.
+From CTree Require Import CTree Eq Eq.Alt.SBisim Eq.MainAltEquiv.TransEquiv Eq.MainAltEquiv.SBisimEquiv Eq.IterFacts.
 
 Import CoindNotations.
 Import CTreeNotations.

@@ -7,10 +7,10 @@ From ExtLib Require Import
 Unset Universe Checking.
 From CTree Require Import
      Eq
-     Eq.Epsilon
-     Eq.SSimAlt
-     Eq.OldAltEquiv.TransEquiv
-     Eq.OldAltEquiv.SSimEquiv
+     Eq.Main.Epsilon
+     Eq.Alt.SSim
+     Eq.MainAltEquiv.TransEquiv
+     Eq.MainAltEquiv.SSimEquiv
      Interp.Fold
      Interp.FoldCTree
      Interp.FoldStateT.
@@ -30,20 +30,20 @@ Proof.
   rewrite (ctree_eta t) at 2.
   setoid_rewrite unfold_refine. cbn.
   destruct (observe t) eqn:?.
-  - apply step_ssbt'_ret. apply TransAlt.reflL. discriminate.
+  - apply step_ssbt'_ret. apply Alt.Trans.reflL. discriminate.
   - apply step_ss'_stuck.
   - apply step_ss'_step.
-    + apply TransAlt.reflL. discriminate.
+    + apply Alt.Trans.reflL. discriminate.
     + apply (b_chain R). now apply step_ss'_guard_l.
   - now apply step_ss'_guard.
   - setoid_rewrite bind_trigger.
     apply step_ss'_vis_id.
     + apply (b_chain R). apply step_ss'_passive_id; intros.
       * now apply (b_chain R), step_ss'_guard_l.
-      * apply TransAlt.reflL. discriminate.
-    + apply TransAlt.reflL. discriminate.
+      * apply Alt.Trans.reflL. discriminate.
+    + apply Alt.Trans.reflL. discriminate.
   - rewrite <- bind_branch.
-    refine (sbind_chain_gen (R := chain_b R) (lift_L Leq) (TransAlt.Active (h X0 c)) (TransAlt.Active (branch c))
+    refine (sbind_chain_gen (R := chain_b R) (lift_L Leq) (Alt.Trans.Active (h X0 c)) (Alt.Trans.Active (branch c))
               (fun x => Guard (refine h (k x))) k eq _ _).
     + apply (gfp_chain (chain_b R)). exact (proj1 (ssim_ssim' _ _ _) (H X0 c)).
     + intros ?? <-. apply step_ss'_guard_l. apply CH.
@@ -74,7 +74,7 @@ Proof.
       * constructor. constructor.
     + constructor. constructor.
   - rewrite <- bind_branch.
-    refine (sbind_chain_gen (R := chain_b R) (lift_L Lrr) (TransAlt.Active (h X0 c s)) (TransAlt.Active (branch c))
+    refine (sbind_chain_gen (R := chain_b R) (lift_L Lrr) (Alt.Trans.Active (h X0 c s)) (Alt.Trans.Active (branch c))
               (fun xs => Guard (refine h (k (snd xs)) (fst xs))) k Rrr _ _).
     + apply (gfp_chain (chain_b R)). exact (proj1 (ssim_ssim' _ _ _) (H X0 c s)).
     + intros ?? EQ; red in EQ; subst. apply step_ss'_guard_l. apply CH.

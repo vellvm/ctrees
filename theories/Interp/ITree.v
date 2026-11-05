@@ -236,7 +236,7 @@ Proof.
       rewrite EQ in EUTT, TR.
       rewrite unfold_embed in TR; cbn in TR.
       apply trans_ret_inv' in TR as (EQ' & ->).
-      exists (val r0), (Trans.Active Stuck).
+      exists (val r0), (Main.Trans.Active Stuck).
       split3; [| rewrite EQ'; reflexivity | constructor; reflexivity].
       punfold EUTT; cbn in EUTT; red in EUTT.
       remember (iobserve (iRet r0)) as ot; remember (iobserve u) as ou.
@@ -259,7 +259,7 @@ Proof.
         revert u Heqou.
         induction EUTT; subst; try now inv Heqot.
         ** intros u0 Hu. dependent induction Heqot.
-           exists τ, (Trans.Active (cGuard (cGuard (embed (k2 x))))). split3.
+           exists τ, (Main.Trans.Active (cGuard (cGuard (embed (k2 x))))). split3.
            { rewrite unfold_embed, <- Hu. cbn. etrans. }
            { rewrite EQ'. rewrite !sbisim_guard. apply CIH. pclearbot. apply REL. }
            { constructor. }
@@ -273,18 +273,18 @@ Proof.
         induction EUTT; subst; try now inv Heqot.
         ** intros u0 Hu. dependent induction Heqot.
            exists (ask (subevent _ e)),
-             (Trans.Passive (subevent _ e) (fun x => cGuard (cGuard (embed (k2 x))))).
+             (Main.Trans.Passive (subevent _ e) (fun x => cGuard (cGuard (embed (k2 x))))).
            split3.
            { rewrite unfold_embed, <- Hu. cbn. etrans. }
            2: { constructor. constructor. }
            rewrite EQ'. apply (b_chain r). split.
            { intros l' st' TR'. apply trans_passive_inv' in TR' as (x & SEQ & ->).
-             exists (rcv (subevent _ e) x), (Trans.Active (cGuard (cGuard (embed (k2 x))))). split3.
+             exists (rcv (subevent _ e) x), (Main.Trans.Active (cGuard (cGuard (embed (k2 x))))). split3.
              { econstructor; reflexivity. }
              { rewrite SEQ. rewrite !sbisim_guard. apply CIH. pclearbot. apply REL. }
              { constructor. constructor. } }
            { intros l' st' TR'. apply trans_passive_inv' in TR' as (x & SEQ & ->).
-             exists (rcv (subevent _ e) x), (Trans.Active (cGuard (cGuard (embed (k x))))). split3.
+             exists (rcv (subevent _ e) x), (Main.Trans.Active (cGuard (cGuard (embed (k x))))). split3.
              { econstructor; reflexivity. }
              { rewrite SEQ. cbn. rewrite !sbisim_guard. apply CIH. pclearbot. apply REL. }
              { apply flipL_flip. constructor. constructor. } }

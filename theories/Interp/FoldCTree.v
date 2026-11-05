@@ -12,9 +12,9 @@ From ITree Require Import
 From CTree Require Import
   CTree
   Eq
-  Eq.Epsilon
+  Eq.Main.Epsilon
   Eq.IterFacts
-  Eq.SSimAlt
+  Eq.Alt.SSim
   Fold.
 
 Import CTreeNotations.

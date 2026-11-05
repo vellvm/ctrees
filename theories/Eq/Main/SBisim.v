@@ -2,7 +2,7 @@
 Strong bisimilarity
 ===================
 
-Companion to [Eq.SSim] / [Eq.CSSim]. [sb L] is the symmetric variant of
+Companion to [Eq.Main.SSim]. [sb L] is the symmetric variant of
 strong simulation:
 
     sb L R t u  ≜  ss L R t u  ∧  ss (flipL L) (flip R) u t
@@ -10,20 +10,20 @@ strong simulation:
 Its greatest fixed point is [sbisim L], notated [t (σ L) u] (or [t ~ u]
 with the default [eq] relation on labels).
 
-File organisation mirrors [Eq.SSim]:
+File organisation mirrors [Eq.Main.SSim]:
 - definition of [sb]/[sbisim], notations, folding/step/coinduction/play
   tactics;
 - homogeneous theory (Reflexive / Symmetric / Transitive / PreOrder /
   Equivalence, both on [sb L R] and on chain elements);
 - heterogeneous theory: [sbisim_mono], [equ_clos]/[sbisim_clos] up-to
   principles, [Proper] instances for rewriting [Seq] and [equ eq] on
-  either side, subrelations to [ssim] and [cssim];
+  either side, subrelation to [ssim];
 - up-to bind;
 - structural proof rules and inversion principles, using the same
   [sb_*_gen] / [`R] / [sbisim_*] naming convention as [SSim.v];
 - sanity checks ([spinS], [br2], [brS2] laws) and incompatibility
   lemmas;
-- interaction with [ss]/[ssim] and [css]/[cssim].
+- interaction with [ss]/[ssim].
 |*)
 
 From Stdlib Require Import
@@ -43,9 +43,9 @@ From CTree Require Import
      Utils
      Eq.Equ
      Eq.Shallow
-     Eq.Trans
-     Eq.Epsilon
-     Eq.SSim.
+     Eq.Main.Trans
+     Eq.Main.Epsilon
+     Eq.Main.SSim.
 
 From RelationAlgebra Require Export
      rel srel.
@@ -1623,7 +1623,7 @@ Section SBisim_vs_SSim.
     |*)
     Lemma ss_sb (R : rel _ _) (t : ctree E C X) (u : ctree F D Y) :
       ss L R t u ->
-      SSim.ss (flipL L) (flip R) u t ->
+      Main.SSim.ss (flipL L) (flip R) u t ->
       sb L R t u.
     Proof.
       split; cbn; intros.

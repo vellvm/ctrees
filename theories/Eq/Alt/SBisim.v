@@ -1,4 +1,4 @@
-(* TODO: organize this file wrt SBisim.v *)
+(* TODO: organize this file wrt Main/SBisim.v *)
 From Stdlib Require Import
      Lia
      Basics
@@ -15,9 +15,9 @@ From CTree Require Import
      CTree
      Utils
      Eq.Equ
-     Eq.TransAlt
-     Eq.EpsilonAlt
-     Eq.SSimAlt.
+     Eq.Alt.Trans
+     Eq.Alt.Epsilon
+     Eq.Alt.SSim.
 
 
 From RelationAlgebra Require Export
@@ -468,7 +468,7 @@ Proof.
 Qed.
 
 (*|
-  The [step_ss'_*] rules from SSimAlt require [Seq]-Properness of the
+  The [step_ss'_*] rules from [Alt.SSim] require [Seq]-Properness of the
   relations sitting in the answer positions of [ss'_gen]. For [sb'] these
   positions are instantiated with [fun t u => forall side, R side t u],
   [R true] and [flip (R false)]; the following instances discharge
@@ -1249,7 +1249,7 @@ Section bind.
           (R0 : forall X Y : Type, lrel E F X' Y' -> rel X Y).
 
 (*|
-Up-to-bind for [sb']. As in SSimAlt, the continuations must be related at
+Up-to-bind for [sb']. As in [Alt.SSim], the continuations must be related at
 the [gfp] level (they need to be stepped for the ε-conjunct), while the
 prefixes are related by the [gfp] of [sb' uvr] at the same side.
 |*)

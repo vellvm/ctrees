@@ -3,7 +3,7 @@ Comparison between the pre-refactor [obs] semantics, where a [Vis] node asks its
 question and receives the answer in a single step, and the current [ask]/[rcv]
 semantics, which separates the two. 
 
-The [obs] transition relation below is copied from [theories/Eq/Trans.v]. The
+The [obs] transition relation below is copied from [theories/Eq/Main/Trans.v]. The
 only change is that value labels are typed by the return type. 
 
 Main results: [ask]/[rcv] bisimilarity implies [obs] bisimilarity
@@ -21,8 +21,8 @@ From CTree Require Import
      CTree
      Eq.Shallow
      Eq.Equ
-     Eq.Trans
-     Eq.SBisim.
+     Eq.Main.Trans
+     Eq.Main.SBisim.
 
 Import CTree CTreeNotations EquNotations SBisimNotations.
 Open Scope ctree.

@@ -15,7 +15,7 @@ From CTree Require Import
   CTree
   Eq.Shallow
   Eq.Equ
-  Eq.Trans.
+  Eq.Main.Trans.
 
 Import CTreeNotations.
 Import EquNotations.

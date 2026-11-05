@@ -13,8 +13,8 @@ From CTree Require Import
      CTree
      Utils
      Eq.Equ
-     Eq.TransAlt
-     Eq.EpsilonAlt.
+     Eq.Alt.Trans
+     Eq.Alt.Epsilon.
 
 From RelationAlgebra Require Import
      monoid kat kat_tac rel srel.

@@ -30,7 +30,7 @@ From CTree Require Import Head.
 From CTree Require Import
      CTree
      Eq
-     Eq.SBisim
+     Eq.Main.SBisim
      Interp.Fold
      Interp.FoldCTree.
 
