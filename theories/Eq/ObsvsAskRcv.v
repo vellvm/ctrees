@@ -255,15 +255,6 @@ Section ObsBisim.
 
 End ObsBisim.
 
-Lemma sbisim_passive_inv {E C X Y} (e : E Y) (k k' : Y -> ctree E C X) :
-  sbisimeq (β e k) (β e k') -> forall y, k y ≃ k' y.
-Proof.
-  intros HR y. step in HR. destruct HR as [F _].
-  destruct (F _ _ (trans_rcv e k y)) as (l' & s' & TR & HR' & HL).
-  apply Leq_eq in HL; subst l'. apply trans_passive_inv' in TR as (y' & EQ & EQl). dependent destruction EQl.
-  unfold sbisimT. now rewrite EQ in HR'.
-Qed.
-
 Theorem sbisim_osbisim {E B R} : forall (t u : ctree E B R), t ≃ u -> osbisim t u.
 Proof.
   unfold osbisim. coinduction Rl CIH. intros t u H. step in H. destruct H as [F B'].
@@ -276,7 +267,7 @@ Proof.
       apply F in TRk as (l' & s & TR' & HR & HL). apply Leq_eq in HL; subst l'.
       destruct (trans_ask_inv TR') as (k' & EQ'). rewrite EQ' in TR', HR.
       exists (k' v); split; [exact (trans_otrans TR' _ (reflexivity _) v) |].
-      apply CIH. rewrite EQ. exact (sbisim_passive_inv HR v).
+      apply CIH. rewrite EQ. exact (sbisim_passive_inv_eq HR v).
     + apply otrans_val in TR. apply F in TR as TR'. destruct TR' as (l' & s & TR' & HR & HL).
       apply Leq_eq in HL; subst l'.
       exists t'; split; [| apply CIH; reflexivity].
@@ -290,7 +281,7 @@ Proof.
       apply B' in TRk as (l' & s & TR' & HR & HL). rewrite flipL_Leq in HL. apply Leq_eq in HL; subst l'.
       destruct (trans_ask_inv TR') as (k' & EQ'). rewrite EQ' in TR', HR.
       exists (k' v); split; [exact (trans_otrans TR' _ (reflexivity _) v) |].
-      apply CIH. rewrite EQ. exact (sbisim_passive_inv HR v).
+      apply CIH. rewrite EQ. exact (sbisim_passive_inv_eq HR v).
     + apply otrans_val in TR. apply B' in TR as TR'. destruct TR' as (l' & s & TR' & HR & HL).
       rewrite flipL_Leq in HL. apply Leq_eq in HL; subst l'.
       exists u'; split; [| apply CIH; reflexivity].
@@ -350,8 +341,8 @@ Module Example.
     apply F in TR as (l' & s & TR' & HR & HL). apply Leq_eq in HL; subst l'.
     unfold Q, br2 in TR'. apply trans_br_inv in TR' as ([] & TR'); cbn in TR';
       apply trans_vis_inv' in TR' as (EQ & _); rewrite EQ in HR.
-    - pose proof (sbisim_passive_inv HR true) as H; cbn in H. apply sbisim_ret_inv in H. discriminate.
-    - pose proof (sbisim_passive_inv HR false) as H; cbn in H. apply sbisim_ret_inv in H. discriminate.
+    - pose proof (sbisim_passive_inv_eq HR true) as H; cbn in H. apply sbisim_ret_inv in H. discriminate.
+    - pose proof (sbisim_passive_inv_eq HR false) as H; cbn in H. apply sbisim_ret_inv in H. discriminate.
   Qed.
 
 End Example.

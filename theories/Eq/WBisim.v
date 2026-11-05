@@ -47,7 +47,6 @@ From ITree Require Import Core.Subevent.
 From CTree Require Import
      CTree
      Eq.Equ
-     Eq.Shallow
      Eq.Trans
      Eq.SSim
      Eq.SBisim.

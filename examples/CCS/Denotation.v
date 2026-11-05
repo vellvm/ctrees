@@ -901,15 +901,6 @@ Proof.
       apply trans_val_inv' in TR; unfold flip; rewrite TR. apply Chain_Stuck.
 Qed.
 
-Lemma sbisim_sbm_passive {E C X Y} (e : E Y) (k k' : Y -> ctree E C X) :
-  sbisimeq (β e k) (β e k') -> forall y, k y ≃ k' y.
-Proof.
-  intros HR y. step in HR. destruct HR as [F _].
-  destruct (F _ _ (trans_rcv e k y)) as (l' & s' & TR & HR' & HL).
-  apply Leq_eq in HL; subst l'. apply trans_passive_inv' in TR as (y' & EQ & EQl). dependent destruction EQl.
-  unfold sbisimT. now rewrite EQ in HR'.
-Qed.
-
 Lemma ssm_sbisim {E C X} (R : rel (ctree E C X) (ctree E C X)) (t u : ctree E C X) :
   (forall t' u', t' ≃ u' -> R t' u') -> ss Leq sbisimeq (α t) (α u) -> ssm R t u.
 Proof.
@@ -924,7 +915,7 @@ Proof.
     apply F in TR as (l' & s' & TR' & HR & HL). apply Leq_eq in HL; subst l'.
     destruct (trans_ask_inv TR') as (k' & EQ'). rewrite EQ' in TR', HR.
     exists k, k'; repeat split; auto. intros y; apply CIH.
-    exact (sbisim_sbm_passive e k k' HR y).
+    exact (sbisim_passive_inv_eq HR y).
 Qed.
 
 Lemma sbisim_sbm {E C X} : forall (t u : ctree E C X), t ≃ u -> sbmbisim t u.
@@ -1248,8 +1239,8 @@ Proof.
     + rewrite EQ0 in EQg1. dependent destruction EQg1.
       exists (β e g), (β e g'); repeat split; [exact EQg | rewrite <- EQg'; exact TR3 | constructor; intros z].
       eapply CLO; [| | exact (HR z)].
-      * rewrite EQg, EQ0 in HS1. exact (sbisim_sbm_passive _ _ _ HS1 z).
-      * rewrite EQg' in HS3. symmetry. exact (sbisim_sbm_passive _ _ _ HS3 z).
+      * rewrite EQg, EQ0 in HS1. exact (sbisim_passive_inv_eq HS1 z).
+      * rewrite EQg' in HS3. symmetry. exact (sbisim_passive_inv_eq HS3 z).
 Qed.
 
 Lemma sbm_chain_sbisim : forall (R : Chain (@sbm ccsE ccsC void)) (t t' u u' : ccs),

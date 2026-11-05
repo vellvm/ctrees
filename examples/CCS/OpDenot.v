@@ -36,11 +36,6 @@ Proof.
   intros * TR; apply SRep,SParL; auto.
 Qed.
 
-Lemma trans_nil_inv : forall l p, ~ trans l nil p.
-Proof.
-  intros * abs; eapply trans_stuck_inv; apply abs.
-Qed.
-
 (*| As before one CCS action as one tree move using a helper [mstep]. 
 
 [None] is a [τ] step, and [Some a] asks [Act a] and continues after the answer
@@ -58,20 +53,8 @@ Proof.
     exists q'; split; [now constructor | exact HS].
   - destruct (sbisimT_step _ _ _ _ EQ TR) as (s & TR' & HS).
     destruct (trans_ask_inv TR') as (k' & EQk). rewrite EQk in TR', HS.
-    exists (k' tt); split; [now constructor | exact (sbisim_sbm_passive _ _ _ HS tt)].
+    exists (k' tt); split; [now constructor | exact (sbisim_passive_inv_eq HS tt)].
 Qed.
-
-Definition ι : option action -> label ccsE void :=
-  fun a => match a with
-        | None => τ
-        | Some a => comm a
-        end.
-
-Definition γ : label ccsE void -> option action :=
-  fun l => match l with
-        | ask e => match e with Act a => Some a end
-        | _ => None
-        end.
 
 Lemma are_opposite_op : forall a, are_opposite a (op a).
 Proof.
@@ -86,15 +69,6 @@ Proof.
   unfold are_opposite,op; intros [] []; cbn; intuition.
   all:destruct (c =? c0)%string eqn:EQ; try easy.
   all:apply eqb_eq in EQ; subst; auto.
-Qed.
-
-Lemma use_channel_can_comm : forall c a,
-  use_channel c a = false <->
-  can_comm c (ι a) = true.
-Proof.
-  unfold can_comm, use_channel.
-  intros ? [[]|]; cbn; split; auto.
-  all:match goal with |- context[if ?b then _ else _] => destruct b; easy end.
 Qed.
 
 Definition forward (R : term -> ccs -> Prop) : Prop :=
@@ -155,7 +129,7 @@ Proof.
       destruct (trans_new _ c _ _ TR COMM) as (s & TRs & HS).
       destruct (trans_ask_inv TRs) as (k' & EQk). rewrite EQk in TRs, HS.
       exists (k' tt); split; [now constructor |]. cbn in HS.
-      rewrite (sbisim_sbm_passive _ _ _ HS tt). now rewrite EQ.
+      rewrite (sbisim_passive_inv_eq HS tt). now rewrite EQ.
   - destruct IHST as (p' & MS & EQ). cbn in MS.
     assert (E : para ⟦P⟧ (bang ⟦P⟧) ≃ bang ⟦P⟧) by (rewrite paraC; symmetry; apply unfold_bang').
     destruct (mstep_sbisim E MS) as (q' & MS' & EQ').
@@ -272,20 +246,6 @@ Qed.
 Theorem term_model_bisimilar : forall P, bisimilar P ⟦P⟧.
 Proof.
   exists bisim_model; split; red; auto using correct,complete.
-Qed.
-
-Lemma ιγ : forall l (t : ccs) u,
-    trans l t u ->
-    ι (γ l) = l.
-Proof.
-  intros [| ? [] | ? e y | []] ? ? TR; cbn; auto.
-  now apply trans_rcv_active_inv in TR.
-Qed.
-
-Lemma γι : forall l,
-    γ (ι l) = l.
-Proof.
-  intros []; auto.
 Qed.
 
 (* Naming *)

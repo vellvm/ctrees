@@ -24,8 +24,6 @@ File organisation mirrors [Eq.SSim]:
 - sanity checks ([spinS], [br2], [brS2] laws) and incompatibility
   lemmas;
 - interaction with [ss]/[ssim] and [css]/[cssim].
-
-All proofs are [Admitted.] in this draft.
 |*)
 
 From Stdlib Require Import
@@ -1774,6 +1772,17 @@ Lemma sbisim_vis_eq {E C X Z} (e : E Z) (k k' : Z -> ctree E C X) :
   Vis e k ≃ Vis e k'.
 Proof.
   intros H. apply sbisim_vis; [constructor | |]; intros z; exists z; split; auto; constructor.
+Qed.
+
+Lemma sbisim_passive_inv_eq {E C X Y} (e : E Y) (k k' : Y -> ctree E C X) :
+  sbisimeq (β e k) (β e k') -> forall y, k y ≃ k' y.
+Proof.
+  intros HR y. step in HR. destruct HR as [F _].
+  destruct (F _ _ (trans_rcv e k y)) as (l' & s' & TR & HR' & HL).
+  apply Leq_eq in HL; subst l'.
+  apply trans_passive_inv' in TR as (y' & EQ & EQl).
+  apply rcv_inv in EQl as [_ <-].
+  unfold sbisimT. now rewrite EQ in HR'.
 Qed.
 
 Lemma sbisim_clo_bind_eq {E C X Y} (t : ctree E C X) (k1 k2 : X -> ctree E C Y) :

@@ -129,12 +129,6 @@ Qed.
 Definition sbisim' {E F C D X Y} (L : lrel E F X Y) (t : S E C X) (u : S F D Y) :=
   forall side, gfp (@sb' E F C D) side X Y L t u.
 
-Program Definition lift_rel3 {A B} : mon (rel A B) -> mon (bool -> rel A B) :=
-    fun f => {| body R side := f (R side) |}.
-Next Obligation.
-  destruct f. cbn. cbn in H0. eapply Hbody in H0. 2: { cbn. apply H. } apply H0.
-Qed.
-
 (* Lemma unary_sym3 {A} (f : A -> A) : compat converse_neg (lift_rel3 (unary_ctx f)). *)
 (* Proof. *)
 (*   intros R b. apply leq_unary_ctx. *)
