@@ -1,11 +1,14 @@
 (*|
-AI: Comparison between the pre-refactor [obs] semantics, where a [Vis] node
-asks its question and receives the answer in a single step, and the current
-[ask]/[rcv] semantics. The [obs] transition relation below is copied from
-[dev] ([theories/Eq/Trans.v]); the only change is that value labels are typed
-by the return type. Results: [ask]/[rcv] bisimilarity implies [obs]
-bisimilarity ([sbisim_osbisim]), and the converse fails ([P_osbisim_Q],
-[P_not_sbisim_Q]); both are packaged in [osbisim_strictly_coarser].
+Comparison between the pre-refactor [obs] semantics, where a [Vis] node asks its
+question and receives the answer in a single step, and the current [ask]/[rcv]
+semantics, which separates the two. 
+
+The [obs] transition relation below is copied from [theories/Eq/Trans.v]. The
+only change is that value labels are typed by the return type. 
+
+Main results: [ask]/[rcv] bisimilarity implies [obs] bisimilarity
+([sbisim_osbisim]), and the converse is not true ([P_osbisim_Q],
+[P_not_sbisim_Q]). Both are packaged in [osbisim_strictly_coarser].
 |*)
 
 From Stdlib Require Import Basics Program.Equality.
@@ -229,7 +232,7 @@ Section Bridge.
 
 End Bridge.
 
-(*| AI: Strong bisimilarity for [obs] steps, with equal labels on both sides. |*)
+(*| Strong bisimilarity for [obs] steps, with equal labels on both sides. |*)
 Section ObsBisim.
 
   Context {E B : Type -> Type} {R : Type}.
