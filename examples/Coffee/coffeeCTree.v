@@ -124,7 +124,7 @@ Ltac trace_sync H s :=
 Theorem coffee_traceq : traceq vending reapoff.
 Proof.
   split; red; intros.
-  - red. revert s H. coinduction R CH. intros.
+  - red. revert s H. coinduction R CH. intros s H.
     rewrite vending_unfold in H. do 2 red.
     destruct s as [? s|]; [| exact I]. play in H.
     setoid_rewrite reapoff_unfold.

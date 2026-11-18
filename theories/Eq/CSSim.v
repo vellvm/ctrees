@@ -803,7 +803,7 @@ Ret nodes
   Proof.
     intros HS HP HR; split; [intros l u TR |].
     - inv_trans. subst.
-      ex2; intuition.
+      ex2; intuition auto with *.
       now rewrite EQ.
     - intros; auto using ret_not_stuck.
   Qed.
@@ -842,7 +842,7 @@ Ret nodes
   Proof.
     split.
     - intros ?? TR; inv_trans.
-      ex2; intuition.
+      ex2; intuition auto with *.
       rewrite EQ.
       step.
       split.
@@ -1086,7 +1086,7 @@ Internal transitions
     css L R (Step t) (Step t').
   Proof.
     intros HP HR; split; [intros ???; inv_trans; subst |].
-    - ex2; intuition.
+    - ex2; intuition auto with *.
       now rewrite EQ.
     - intros; auto using step_not_stuck.
   Qed.

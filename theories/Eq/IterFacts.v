@@ -68,7 +68,7 @@ Theorem ssim_iter {E F C D A A' B B'}
 Proof.
   intros. apply (ssim_ssim').
   revert step a a' H H0.
-  red. coinduction R CH. intros.
+  red. coinduction R CH. intros step a a' H H0.
   rewrite !unfold_iter.  
   eapply Alt.SSim.bind_chain_gen with (SS:=(sum_rel Ra Rb)).
   - cbn -[ss']. 
@@ -111,7 +111,7 @@ Theorem sbisim_iter {E F C D A A' B B'}
 Proof.
   intros. apply sbisim_sbisim'.
   revert step a a' H H0.
-  red. coinduction R CH. intros.
+  red. coinduction R CH. intros step a a' H H0 side.
   cbn [o2n_S]. rewrite !unfold_iter.
   eapply (@Alt.SBisim.bind_chain_gen _ _ _ _ _ _ _ _ _ (chain_b R)) with (SS := sum_rel Ra Rb).
   - apply (gfp_chain (chain_b R)).

@@ -963,7 +963,7 @@ Lemma etrans_ret_inv' {E B X} : forall x l t,
     (l = τ /\ @Seq E B X t (α Ret x)) \/ (l = val x /\ Seq t (α Stuck)).
 Proof.
   intros ? [] ? step; cbn in step.
-  - intuition; try (eapply trans_ret in step; now apply step).
+  - intuition auto with *; try (eapply trans_ret in step; now apply step).
     apply trans_ret_inv' in H; intuition.
   - eapply trans_ret_inv' in step; intuition.
   - eapply trans_ret_inv' in step; intuition.
@@ -977,7 +977,7 @@ Proof.
   intros ? [] ? step; cbn in step.
   - intuition; try (eapply trans_ret in step; now apply step).
     apply trans_ret_inv in H; intuition.
-    inv H; intuition.
+    inv H; intuition auto with *.
   - eapply trans_ret_inv in step; intuition.
   - eapply trans_ret_inv in step; intuition.
   - eapply trans_ret_inv in step; intuition.
@@ -1326,7 +1326,7 @@ Section wtrans.
     rewrite EQ in step3; apply trans_τ_str_ret_inv in step3; auto.
     rewrite EQ in step3.
     apply transs_is_stuck_inv in step3; [| apply stuck_is_stuck].
-    intuition.
+    intuition auto with *.
   Qed.
 
   Lemma wtrans_val_inv' : forall (x : X) t u,

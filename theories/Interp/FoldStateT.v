@@ -707,7 +707,7 @@ Lemma interp_state_ssim_aux {E F B C X Y St} `{HasB: B -< C}
   ssim' (lift_L (Lvrel RS))
     (Alt.Trans.Active (interp_state h t s)) (Alt.Trans.Active (interp_state h u s)).
 Proof.
-  coinduction RR CH. intros t u s SIM.
+  unfold ssim'. coinduction RR CH. intros t u s SIM.
   rewrite unfold_interp_state at 1.
   setoid_rewrite ctree_eta at 1 in SIM.
   destruct (observe t) eqn:Heqt.

@@ -275,7 +275,7 @@ Qed.
 Proof.
   unfold Proper, respectful.
   coinduction S CIH.
-  intros.
+  intros x y H.
   rewrite 2 unfold_head.
   step in H.
   inv H; repeat constructor; auto.

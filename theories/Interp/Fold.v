@@ -100,7 +100,7 @@ Arguments translate {E F C} h [T].
 Proof.
   cbn.
   coinduction R CH.
-  intros. setoid_rewrite unfold_iter.
+  intros x y H. setoid_rewrite unfold_iter.
   step in H. inv H; setoid_rewrite <- H1; setoid_rewrite <- H2.
   - now setoid_rewrite bind_ret_l.
   - now setoid_rewrite bind_stuck.
@@ -127,7 +127,7 @@ Qed.
 Proof.
   cbn.
   coinduction R CH.
-  intros. setoid_rewrite unfold_iter.
+  intros x y H. setoid_rewrite unfold_iter.
   step in H. inv H; setoid_rewrite <- H1; setoid_rewrite <- H2.
   - now setoid_rewrite bind_ret_l.
   - now setoid_rewrite bind_stuck.

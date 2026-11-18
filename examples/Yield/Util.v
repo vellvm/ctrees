@@ -660,7 +660,7 @@ Section Vector_brD_bound.
 
   Definition remove_at_permutation {n} (p : fin (S (S n)) -> fin (S (S n)))
              (r : fin (S (S n)))
-             (Hp : FinFun.Injective p)
+             (Hp : Finite.Injective p)
     :
     { p' : (fin (S n) -> fin (S n)) &
              (forall i, match (order_cases i r) with
@@ -748,7 +748,7 @@ Section Vector_brD_bound.
 
   Lemma bijective_injective {n} (p q : fin n -> fin n)
         (Hqp: forall i, q (p i) = i) :
-    FinFun.Injective p.
+    Finite.Injective p.
   Proof.
     intros i1 i2 ?. apply (f_equal q) in H. do 2 rewrite Hqp in H. auto.
   Qed.

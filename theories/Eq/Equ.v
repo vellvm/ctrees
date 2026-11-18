@@ -477,7 +477,7 @@ Qed.
 Proof.
   unfold Proper, respectful, flip, impl. cbn. unfold impl.
   intros R R'.
-  coinduction RR CH. intros.
+  coinduction RR CH. intros H a a0 H0.
   do 3 red. cbn. step in H0.
   destruct (observe a), (observe a0); try now inv H0; eauto.
   - dependent destruction H0. constructor.
@@ -520,7 +520,7 @@ Lemma equ_trans {E B X Y Z R R'} :
   forall (t : ctree E B X) (u : ctree E B Y) (v : ctree E B Z),
   equ R t u -> equ R' u v -> equ (hsquare R R') t v.
 Proof.
-  coinduction RR CH. intros.
+  coinduction RR CH. intros t u v H H0.
   step in H. step in H0.
   do 3 red. cbn.
   destruct (observe t), (observe u); (try now inv H); destruct (observe v); try now inv H0; eauto.

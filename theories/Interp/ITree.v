@@ -1,7 +1,5 @@
 Unset Universe Checking.
 
-From Paco Require Import paco.
-
 From CTree Require Import
 	   CTree Eq Interp.Internalize Interp.FoldCTree.
 
@@ -83,8 +81,8 @@ Proof.
 	intros t u bisim. unfold embed, embed', internalize.
   rewrite 2 unfold_interp_ctree.
   rewrite 2 FoldCTree.unfold_interp.
-	punfold bisim.
-	inv bisim; pclearbot; try easy.
+	step in bisim.
+	inv bisim; try easy.
 	- cbn.
     constructor.
     now apply CIH.
@@ -238,10 +236,10 @@ Proof.
       apply trans_ret_inv' in TR as (EQ' & ->).
       exists (val r0), (Main.Trans.Active Stuck).
       split3; [| rewrite EQ'; reflexivity | constructor; reflexivity].
-      punfold EUTT; cbn in EUTT; red in EUTT.
+      step in EUTT.
       remember (iobserve (iRet r0)) as ot; remember (iobserve u) as ou.
       revert u Heqou.
-      induction EUTT; subst; pclearbot; try now inv Heqot.
+      induction EUTT; subst; try now inv Heqot.
       * inv Heqot. intros u Hu.
         rewrite unfold_embed, <- Hu.
         etrans.
@@ -254,20 +252,20 @@ Proof.
       rewrite unfold_embed in TR; cbn in TR.
       destruct e as [c | e].
       * apply trans_brS_inv' in TR as (x & EQ' & ->).
-        punfold EUTT; cbn in EUTT; red in EUTT.
+        step in EUTT.
         remember (iobserve (iVis (inl1 c) k)) as ot; remember (iobserve u) as ou.
         revert u Heqou.
         induction EUTT; subst; try now inv Heqot.
         ** intros u0 Hu. dependent induction Heqot.
            exists τ, (Main.Trans.Active (cGuard (cGuard (embed (k2 x))))). split3.
            { rewrite unfold_embed, <- Hu. cbn. etrans. }
-           { rewrite EQ'. rewrite !sbisim_guard. apply CIH. pclearbot. apply REL. }
+           { rewrite EQ'. rewrite !sbisim_guard. apply CIH. apply REL. }
            { constructor. }
         ** intros u0 Hu. edestruct IHEUTT as (l' & u' & TR' & HR & HL); try reflexivity.
            exists l', u'. split3; auto.
            rewrite unfold_embed, <- Hu. cbn. apply trans_guard. exact TR'.
       * apply trans_vis_inv' in TR as (EQ' & ->).
-        punfold EUTT; cbn in EUTT; red in EUTT.
+        step in EUTT.
         remember (iobserve (iVis (inr1 e) k)) as ot; remember (iobserve u) as ou.
         revert u Heqou.
         induction EUTT; subst; try now inv Heqot.
@@ -281,12 +279,12 @@ Proof.
            { intros l' st' TR'. apply trans_passive_inv' in TR' as (x & SEQ & ->).
              exists (rcv (subevent _ e) x), (Main.Trans.Active (cGuard (cGuard (embed (k2 x))))). split3.
              { econstructor; reflexivity. }
-             { rewrite SEQ. rewrite !sbisim_guard. apply CIH. pclearbot. apply REL. }
+             { rewrite SEQ. rewrite !sbisim_guard. apply CIH. apply REL. }
              { constructor. constructor. } }
            { intros l' st' TR'. apply trans_passive_inv' in TR' as (x & SEQ & ->).
              exists (rcv (subevent _ e) x), (Main.Trans.Active (cGuard (cGuard (embed (k x))))). split3.
              { econstructor; reflexivity. }
-             { rewrite SEQ. cbn. rewrite !sbisim_guard. apply CIH. pclearbot. apply REL. }
+             { rewrite SEQ. cbn. rewrite !sbisim_guard. apply CIH. apply REL. }
              { apply flipL_flip. constructor. constructor. } }
         ** intros u0 Hu. edestruct IHEUTT as (l' & u' & TR' & HR & HL); try reflexivity.
            exists l', u'. split3; auto.

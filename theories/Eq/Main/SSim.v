@@ -585,7 +585,7 @@ Note: the general formulation (over any well-behaved realtion rather than elemen
   Proof.
     intros HS HP HR l u TR.
     inv_trans. subst.
-    ex2; intuition.
+    ex2; intuition auto with *.
     now rewrite EQ.
   Qed.
   
@@ -857,7 +857,7 @@ Internal transitions
     ss L R (Step t) (Step t').
   Proof.
     intros HP HR ???; inv_trans; subst.
-    ex2; intuition.
+    ex2; intuition auto with *.
     now rewrite EQ.
   Qed.
 

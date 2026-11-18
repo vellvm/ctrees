@@ -82,7 +82,7 @@ Lemma ssim_tracincl : forall {E C X} (t t' : S E C X),
 ssim Leq t t' -> tracincl t t'.
 Proof.
   intros E C X t t' H s H0. revert t t' H s H0.
-  unfold has_trace at 2. coinduction R CH. intros.
+  unfold has_trace at 2. coinduction R CH. intros t t' H s H0.
   destruct s; [| exact I].
   step in H0. destruct H0 as (x & TR & HT).
   - step in H. cbn in H. apply H in TR as TR'. destruct TR' as (l' & st' & TR' & SIM & EQL).
@@ -182,7 +182,7 @@ Lemma ssim_tracincl_all : forall {E C X} (t t' : S E C X),
 ssim Leq t t' -> tracincl_all t t'.
 Proof.
   intros E C X t t' H s H0. revert t t' H s H0.
-  unfold has_trace_all at 2. coinduction R CH. intros.
+  unfold has_trace_all at 2. coinduction R CH. intros t t' H s H0.
   destruct s; [| exact I].
   step in H0. destruct H0 as [(x & TR & HT) | (Y & e & f & TR & HT)].
   - step in H. cbn in H. apply H in TR as TR'. destruct TR' as (l' & st' & TR' & SIM & EQL).

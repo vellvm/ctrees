@@ -713,7 +713,7 @@ Section parallel.
     revert n v1 v2 i p q Hpq Hqp Hsb1 Hsb2.
     coinduction r CIH.
     symmetric using idtac.
-    { intros. rewrite <- (Hqp i) at 2. eapply H; auto. }
+    { intros R H n v1 v2 i p q Hpq Hqp Hsb1 Hsb2. rewrite <- (Hqp i) at 2. eapply H; auto. }
     intros n v1 v2 i p q Hpq Hqp Hsb1 Hsb2 l st Ht. cbn in *.
     destruct l as [| Y e | Y e y | x].
     - apply trans_schedule_thread_tau_some in Ht as (t' & Ht & Hequ).
@@ -731,8 +731,8 @@ Section parallel.
     - destruct e as [y | [s | e0]]; [destruct y | destruct s |].
       + apply trans_schedule_ask_yield_Some in Ht as [(n' & Hv1 & (Hn & Hequ)) | (k & Hvis & Hequ)].
         * subst n. cbn in Hequ.
-          assert (Hinjp : FinFun.Injective p) by (eapply bijective_injective; eauto).
-          assert (Hinjq : FinFun.Injective q) by (eapply bijective_injective; eauto).
+          assert (Hinjp : Finite.Injective p) by (eapply bijective_injective; eauto).
+          assert (Hinjq : Finite.Injective q) by (eapply bijective_injective; eauto).
           epose proof (@remove_at_permutation_correct (yieldE +' forkE +' E) _ unit _ _ _ i Hpq Hqp Hinjp Hinjq) as (Hpq' & Hqp').
           edestruct (@remove_at_permutation_vectors (yieldE +' forkE +' E) void1 unit n') as (Hpq'' & Hqp''); eauto.
           pose proof (Hsb1 i) as H. step in H. destruct H as [Hf _].
